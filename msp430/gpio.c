@@ -4,6 +4,8 @@ mp_gpio_port_t __ports[100];
 unsigned int __ports_idx = 1;
 
 void mp_gpio_init() {
+	memset(&__ports, 0, sizeof(__ports));
+
 #ifdef __MSP430_HAS_PASEL__
 	mp_gpio_port_t *p;
 	int a;
@@ -16,6 +18,7 @@ void mp_gpio_init() {
 		p->port = 1;
 		p->pin = a;
 		p->used = NO;
+		p->isr = PORT1_VECTOR;
 		__ports_idx++;
 	}
 
@@ -25,6 +28,7 @@ void mp_gpio_init() {
 		p->port = 2;
 		p->pin = a;
 		p->used = NO;
+		p->isr = PORT2_VECTOR;
 		__ports_idx++;
 	}
 #endif
@@ -180,6 +184,46 @@ mp_ret_t mp_gpio_direction(mp_gpio_port_t *port, mp_gpio_direction_t direction) 
 			return(FALSE);
 	}
 	port->direction = direction;
+	return(TRUE);
+}
+
+
+mp_interrupt_t *mp_gpio_interrupt_set(mp_gpio_port_t *port, mp_interrupt_cb_t in, void *user, char *who) {
+	mp_interrupt_t *inter;
+
+	/* not interruptible */
+	if(port->isr == 0)
+		return(NULL);
+
+	/* set port input */
+	mp_gpio_direction(port, MP_GPIO_INPUT);
+
+	/* place interrupt */
+	inter = mp_interrupt_set(port->isr, in, user, who);
+
+	/* interrupt enabled */
+	_GPIO_REG8(port, _GPIO_IE) |= 1<<port->pin;
+
+	/* Hi/lo edge */
+	_GPIO_REG8(port, _GPIO_IES) |= 1<<port->pin;
+
+	/* IFG cleared */
+	_GPIO_REG8(port, _GPIO_IFG) &= ~(1<<port->pin);
+
+	return(inter);
+}
+
+mp_ret_t mp_gpio_interrupt_unset(mp_gpio_port_t *port) {
+
+	/* clear interrupt enabled */
+	_GPIO_REG8(port, _GPIO_IE) &= ~(1<<port->pin);
+
+	/* IFG cleared */
+	_GPIO_REG8(port, _GPIO_IFG) &= ~(1<<port->pin);
+
+	/* remove interrupt slot */
+	mp_interrupt_unset(port->isr);
+
 	return(TRUE);
 }
 

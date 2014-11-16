@@ -35,6 +35,9 @@
 
 		/* msp430 dependant */
 		unsigned int base;
+
+		/* msp430 dependant interrupt vector  */
+		unsigned char isr;
 	};
 
 
@@ -44,9 +47,13 @@
 	mp_ret_t mp_gpio_release(mp_gpio_port_t *port);
 	mp_ret_t mp_gpio_direction(mp_gpio_port_t *port, mp_gpio_direction_t direction);
 	mp_bool_t mp_gpio_read(mp_gpio_port_t *port);
+
 	void mp_gpio_set(mp_gpio_port_t *port);
 	void mp_gpio_unset(mp_gpio_port_t *port);
 	void mp_gpio_turn(mp_gpio_port_t *port);
+
+	mp_interrupt_t *mp_gpio_interrupt_set(mp_gpio_port_t *port, mp_interrupt_cb_t in, void *user, char *who);
+	mp_ret_t mp_gpio_interrupt_unset(mp_gpio_port_t *port);
 
 	/* machine specs */
 	#define _GPIO_IN    0x00
@@ -55,6 +62,10 @@
 	#define _GPIO_REN   0x06
 	#define _GPIO_DRIVE 0x08
 	#define _GPIO_SEL   0x0a
+
+	#define _GPIO_IES   0x18
+	#define _GPIO_IE    0x1a
+	#define _GPIO_IFG   0x1c
 
 	#define _GPIO_REG8(_port, _type) \
 		*((volatile char *)(_port->base+_type+((_port->port%2)^1)))
