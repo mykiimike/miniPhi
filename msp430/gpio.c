@@ -170,7 +170,11 @@ mp_ret_t mp_gpio_release(mp_gpio_port_t *port) {
 	port->who = NULL;
 
 	_GPIO_REG8(port, _GPIO_DIR) &= ~(1<<port->pin);
-	_GPIO_REG8(port, _GPIO_OUT) &= ~(1<<port->pin);
+
+	if(port->reverse == YES)
+		_GPIO_REG8(port, _GPIO_OUT) |= 1<<port->pin;
+	else
+		_GPIO_REG8(port, _GPIO_OUT) &= ~(1<<port->pin);
 
 	/* remove callback */
 	port->callback = NULL;
