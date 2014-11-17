@@ -50,6 +50,11 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	/* intialize UART */
 	mp_uart_init();
 
+	/* erase mem if necessary */
+#ifdef _SUPPORT_MEM
+	mp_mem_erase(kernel);
+#endif
+
 	__enable_interrupt();
 
 	return(TRUE);

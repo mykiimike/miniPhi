@@ -78,7 +78,9 @@ void mp_kernel_loop(mp_kernel_t *kernel) {
 
 static void _mp_kernel_state_boot_set(void *user) { }
 
-static void _mp_kernel_state_boot_unset(void *user) { }
+static void _mp_kernel_state_boot_unset(void *user) {
+	mp_kernel_t *kernel = user;
+}
 
 static void _mp_kernel_state_boot_tick(void *user) {
 	mp_kernel_t *kernel = user;

@@ -5,6 +5,7 @@
 	#define _SUPPORT_MEM
 	#define _SUPPORT_SERIAL
 	#define _SUPPORT_BUTTON
+	#define _SUPPORT_PINOUT /* enable pinout feature, need mem support */
 
 	/* mem configuration */
 	#ifndef MP_MEM_SIZE

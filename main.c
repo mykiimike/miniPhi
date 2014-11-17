@@ -59,7 +59,8 @@ int main(void) {
 }
 
 static void __olimex_onBoot(void *user) {
-	olimex_msp430_t *olimex = user;
+	olimex_msp430_t *olimex;
+	olimex = user;
 
 	/* switch to olimex operationnal state */
 	mp_kernel_state(&olimex->kernel, OLIMEX_OP);
@@ -78,8 +79,6 @@ MP_TASK(blinkTask) {
 
 static void __olimex_state_op_set(void *user) {
 	olimex_msp430_t *olimex = user;
-
-	memset(olimex, 0, sizeof(*olimex));
 
 	/* initialize green led */
 	mp_led_init(&olimex->green_led, 10, 7, "Green LED");
@@ -123,13 +122,15 @@ static void __olimex_state_op_set(void *user) {
 			1000, 2, __olimex_on_button_power, olimex
 	);
 
+	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 2010, 0, "Blinking green - Power ON");
+
 	//mp_task_create(&olimex->kernel.tasks, "Blinking RED", blinkTask, &olimex->red_led, 500);
 	//mp_task_create(&olimex->kernel.tasks, "Blinking GREEN", blinkTask, &olimex->green_led, 1000);
 
 }
 
 static void __olimex_state_op_unset(void *user) {
-	olimex_msp430_t *olimex = user;
+	volatile olimex_msp430_t *olimex = user;
 
 	mp_button_fini(&olimex->bLeft);
 	mp_button_fini(&olimex->bRight);

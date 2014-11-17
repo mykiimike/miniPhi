@@ -48,6 +48,7 @@
 	#include "common/led.h"
 	#include "common/serial.h"
 	#include "common/button.h"
+	#include "common/pinout.h"
 
 	struct mp_kernel_s {
 		/** Microchip name  */
