@@ -4,9 +4,9 @@
 	#define FLOAT_DIV(a, b) (float)((float)a/(float)b)
 
 	#include <msp430.h>
+	#include "interrupt.h"
 	#include "gpio.h"
 	#include "clock.h"
-	#include "interrupt.h"
 	#include "i2c.h"
 	#include "uart.h"
 

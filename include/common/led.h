@@ -9,7 +9,7 @@
 		mp_bool_t state;
 	};
 
-	mp_ret_t mp_led_init(mp_led_t *led, unsigned char port, unsigned char pin, const char *who);
+	mp_ret_t mp_led_init(mp_led_t *led, unsigned char port, unsigned char pin, char *who);
 	mp_ret_t mp_led_fini(mp_led_t *led);
 	void mp_led_turnOff(mp_led_t *led);
 	void mp_led_turnOn(mp_led_t *led);

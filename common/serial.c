@@ -30,11 +30,6 @@ mp_ret_t mp_serial_fini(mp_serial_t *serial) {
 	return(TRUE);
 }
 
-static void __UART3_Transmit (unsigned char data) {
-	while (!(UCA3IFG & 0x02));
-	UCA3TXBUF = data;
-}
-
 void mp_serial_println(mp_serial_t *serial, char *text) {
 	int len = strlen(text);
 	mp_serial_write(serial, text, len);

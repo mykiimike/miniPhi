@@ -42,10 +42,12 @@
 	#define MP_KERNEL_RES10  11
 
 	#include "common/list.h"
+	#include "common/mem.h"
 	#include "common/task.h"
 	#include "common/state.h"
 	#include "common/led.h"
 	#include "common/serial.h"
+	#include "common/button.h"
 
 	struct mp_kernel_s {
 		/** Microchip name  */

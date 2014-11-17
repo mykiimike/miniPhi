@@ -1,6 +1,19 @@
 
 #ifndef _HAVE_CONFIG_H
-#define _HAVE_CONFIG_H
+	#define _HAVE_CONFIG_H
+
+	#define _SUPPORT_MEM
+	#define _SUPPORT_SERIAL
+	#define _SUPPORT_BUTTON
+
+	/* mem configuration */
+	#ifndef MP_MEM_SIZE
+		#define MP_MEM_SIZE  10240 /* total memory allowed for heap */
+	#endif
+
+	#ifndef MP_MEM_CHUNK
+		#define MP_MEM_CHUNK 50    /* fixed size of a chunck */
+	#endif
 
 	/* task configuration */
 	#ifndef MP_TASK_MAX
@@ -13,7 +26,6 @@
 	#endif
 
 	/* serial configuration */
-	#define _SUPPORT_SERIAL
 	#ifndef MP_SERIAL_RX_BUFFER_SIZE
 		#define MP_SERIAL_RX_BUFFER_SIZE 512
 	#endif
@@ -22,6 +34,7 @@
 		#define MP_SERIAL_TX_BUFFER_SIZE 240
 	#endif
 
+	/* button configuration */
 
 
 #endif

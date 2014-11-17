@@ -1,5 +1,7 @@
 #include <mp.h>
 
+static void _receive_port_interrupt(void *user);
+
 mp_gpio_port_t __ports[100];
 unsigned int __ports_idx = 1;
 
@@ -8,10 +10,12 @@ void mp_gpio_init() {
 
 #ifdef __MSP430_HAS_PASEL__
 	mp_gpio_port_t *p;
+	mp_gpio_port_t *i;
 	int a;
 #endif
 
 #ifdef __MSP430_HAS_PASEL__
+	i = &__ports[__ports_idx];
 	for(a=0; a<8; a++) {
 		p = &__ports[__ports_idx];
 		p->base = PA_BASE;
@@ -21,7 +25,9 @@ void mp_gpio_init() {
 		p->isr = PORT1_VECTOR;
 		__ports_idx++;
 	}
+	mp_interrupt_set(PORT1_VECTOR, _receive_port_interrupt, i, "PORT 1");
 
+	i = &__ports[__ports_idx];
 	for(a=0; a<8; a++) {
 		p = &__ports[__ports_idx];
 		p->base = PA_BASE;
@@ -31,6 +37,7 @@ void mp_gpio_init() {
 		p->isr = PORT2_VECTOR;
 		__ports_idx++;
 	}
+	mp_interrupt_set(PORT2_VECTOR, _receive_port_interrupt, i, "PORT 2");
 #endif
 
 #ifdef __MSP430_HAS_PBSEL__
@@ -140,7 +147,7 @@ void mp_gpio_fini() {
 
 }
 
-mp_gpio_port_t *mp_gpio_handle(unsigned char port, unsigned char slot, char *who) {
+mp_gpio_port_t *mp_gpio_handle(unsigned int port, unsigned int slot, char *who) {
 	unsigned int position;
 	mp_gpio_port_t *porthdl;
 
@@ -162,9 +169,11 @@ mp_ret_t mp_gpio_release(mp_gpio_port_t *port) {
 	port->used = NO;
 	port->who = NULL;
 
-
 	_GPIO_REG8(port, _GPIO_DIR) &= ~(1<<port->pin);
 	_GPIO_REG8(port, _GPIO_OUT) &= ~(1<<port->pin);
+
+	/* remove callback */
+	port->callback = NULL;
 
 	return(TRUE);
 }
@@ -188,29 +197,27 @@ mp_ret_t mp_gpio_direction(mp_gpio_port_t *port, mp_gpio_direction_t direction) 
 }
 
 
-mp_interrupt_t *mp_gpio_interrupt_set(mp_gpio_port_t *port, mp_interrupt_cb_t in, void *user, char *who) {
-	mp_interrupt_t *inter;
 
+mp_ret_t mp_gpio_interrupt_set(mp_gpio_port_t *port, mp_interrupt_cb_t in, void *user, char *who) {
 	/* not interruptible */
 	if(port->isr == 0)
-		return(NULL);
+		return(FALSE);
+
+	port->callback = in;
+	port->user = user;
+
+	_GPIO_REG8(port, _GPIO_SEL) &= ~(1<<port->pin);
 
 	/* set port input */
 	mp_gpio_direction(port, MP_GPIO_INPUT);
 
-	/* place interrupt */
-	inter = mp_interrupt_set(port->isr, in, user, who);
-
 	/* interrupt enabled */
 	_GPIO_REG8(port, _GPIO_IE) |= 1<<port->pin;
-
-	/* Hi/lo edge */
-	_GPIO_REG8(port, _GPIO_IES) |= 1<<port->pin;
 
 	/* IFG cleared */
 	_GPIO_REG8(port, _GPIO_IFG) &= ~(1<<port->pin);
 
-	return(inter);
+	return(TRUE);
 }
 
 mp_ret_t mp_gpio_interrupt_unset(mp_gpio_port_t *port) {
@@ -220,9 +227,6 @@ mp_ret_t mp_gpio_interrupt_unset(mp_gpio_port_t *port) {
 
 	/* IFG cleared */
 	_GPIO_REG8(port, _GPIO_IFG) &= ~(1<<port->pin);
-
-	/* remove interrupt slot */
-	mp_interrupt_unset(port->isr);
 
 	return(TRUE);
 }
@@ -249,4 +253,21 @@ void mp_gpio_turn(mp_gpio_port_t *port) {
 	if(port->used != YES && port->direction == MP_GPIO_OUTPUT)
 		return;
 	_GPIO_REG8(port, _GPIO_OUT) ^= 1<<port->pin;
+}
+
+static void _receive_port_interrupt(void *user) {
+	mp_gpio_port_t *portBase = user;
+	mp_gpio_port_t *port;
+	char ifg = _GPIO_REG8(portBase, _GPIO_IFG);
+	int a;
+
+	for(a=0; a<8; a++) {
+		if(ifg & 1<<a) {
+			port = portBase+a;
+			if(port->callback)
+				port->callback(port->user);
+			_GPIO_REG8(port, _GPIO_IFG) &= ~(1<<port->pin);
+		}
+	}
+
 }

@@ -1,7 +1,7 @@
 #include <mp.h>
 
 
-mp_ret_t mp_led_init(mp_led_t *led, unsigned char port, unsigned char pin, const char *who) {
+mp_ret_t mp_led_init(mp_led_t *led, unsigned char port, unsigned char pin, char *who) {
     /* allocate GPIO */
     led->gpio = mp_gpio_handle(port, pin, who);
     if(!led->gpio)

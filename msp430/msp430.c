@@ -33,11 +33,13 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 			kernel->mcuName = "MSP430F5418";
 #endif
 
-	/* initialize GPIO */
-	mp_gpio_init();
+	__disable_interrupt();
 
 	/* initialize interrupts */
 	mp_interrupt_init();
+
+	/* initialize GPIO */
+	mp_gpio_init();
 
 	/* intialize clock */
 	mp_clock_init(kernel);
@@ -48,6 +50,7 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	/* intialize UART */
 	mp_uart_init();
 
+	__enable_interrupt();
 
 	return(TRUE);
 }
@@ -60,11 +63,11 @@ mp_ret_t mp_machine_fini(mp_kernel_t *kernel) {
 	/* terminate clock */
 	mp_clock_fini(kernel);
 
-	/* initialize interrupts */
-	mp_interrupt_fini();
-
 	/* terminate GPIO */
 	mp_gpio_fini();
+
+	/* initialize interrupts */
+	mp_interrupt_fini();
 
 	return(TRUE);
 }

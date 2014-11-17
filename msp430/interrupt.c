@@ -3,21 +3,24 @@
 static void __dummy_int();
 
 /* optimization in order to reduce ram usage */
-#if defined(__msp430x54x)
-	#define _MAX_INTERRUPTS 25
-	#define _FACTOR 40
-#else
+//#if defined(__msp430x54x)
+//	#define _MAX_INTERRUPTS 25
+//	#define _FACTOR 40
+//#else
 	#define _MAX_INTERRUPTS 100
 	#define _FACTOR 0
-#endif
+//#endif
 
 /* 100 shall be enougth for all msp430 series */
-static mp_interrupt_t __interrupts[_MAX_INTERRUPTS];
+mp_interrupt_t __interrupts[_MAX_INTERRUPTS];
 
 mp_ret_t mp_interrupt_init() {
+	mp_interrupt_t *inter;
 	int a;
-	for(a=0; a<_MAX_INTERRUPTS; a++)
-		__interrupts[a].callback = __dummy_int;
+	for(a=0; a<_MAX_INTERRUPTS; a++) {
+		inter = &__interrupts[a];
+		inter->callback = __dummy_int;
+	}
 	return(TRUE);
 }
 
@@ -26,27 +29,37 @@ mp_ret_t mp_interrupt_fini() {
 	return(TRUE);
 }
 
-mp_interrupt_t *mp_interrupt_set(int vector, mp_interrupt_cb_t in, void *user, char *who) {
+mp_interrupt_t *mp_interrupt_set(int inVector, mp_interrupt_cb_t in, void *user, char *who) {
+	mp_interrupt_t *inter;
+	volatile int vector;
 
 	/* apply factor */
-	vector = vector-_FACTOR;
+	vector = inVector-_FACTOR;
 
 	__disable_interrupt();
 
-	if(__interrupts[vector].callback != __dummy_int)
+	inter = &__interrupts[vector];
+
+	if(inter->callback != __dummy_int) {
+		__enable_interrupt();
 		return(NULL); /* already used */
-	__interrupts[vector].callback = in;
-	__interrupts[vector].who = who;
+	}
+
+	inter->callback = in;
+	inter->user = user;
+	inter->who = who;
 
 	__enable_interrupt();
 
 	/* nothing */
-	return(&__interrupts[vector]);
+	return(inter);
 }
 
 mp_ret_t mp_interrupt_unset(int vector) {
 	__disable_interrupt();
 	__interrupts[vector].callback = __dummy_int;
+	__interrupts[vector].user = NULL;
+	__interrupts[vector].who = NULL;
 	__enable_interrupt();
 	return(TRUE);
 }
