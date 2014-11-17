@@ -72,6 +72,8 @@ mp_task_t *mp_task_create(mp_task_handler_t *hdl, void *name, mp_task_wakeup_t w
 
 	hdl->usedNumber++;
 
+	task->signal = MP_TASK_SIG_OK;
+
 	/* add to usedList */
 	mp_list_add_last(&hdl->usedList, &task->item, task);
 
