@@ -7,6 +7,9 @@
 		mp_gpio_port_t *gpio;
 
 		mp_bool_t state;
+
+		/** in some bad case the set/unset must be reverted */
+		mp_bool_t reverted;
 	};
 
 	mp_ret_t mp_led_init(mp_led_t *led, unsigned char port, unsigned char pin, char *who);

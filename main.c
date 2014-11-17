@@ -79,6 +79,8 @@ MP_TASK(blinkTask) {
 static void __olimex_state_op_set(void *user) {
 	olimex_msp430_t *olimex = user;
 
+	memset(olimex, 0, sizeof(*olimex));
+
 	/* initialize green led */
 	mp_led_init(&olimex->green_led, 10, 7, "Green LED");
 	mp_led_init(&olimex->red_led, 10, 6, "Red LED");
