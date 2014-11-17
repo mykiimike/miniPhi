@@ -1,3 +1,5 @@
+#ifdef __OLIMEX_PROTOBOARD__
+
 #include <mp.h>
 
 /* use reserver number 1 to define OLIMEX state machine  */
@@ -171,3 +173,6 @@ void __olimex_on_button_power(void *user) {
 	olimex_msp430_t *olimex = user;
 	mp_led_turn(&olimex->green_led);
 }
+
+#endif
+
