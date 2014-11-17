@@ -17,4 +17,7 @@
 	mp_ret_t mp_interrupt_fini();
 	mp_interrupt_t *mp_interrupt_set(int vector, mp_interrupt_cb_t in, void *user, char *who);
 	mp_ret_t mp_interrupt_unset(int vector);
+
+	#define mp_interrupt_enable() __enable_interrupt()
+	#define mp_interrupt_disable() __enable_disable()
 #endif
