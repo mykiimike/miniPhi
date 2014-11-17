@@ -240,13 +240,19 @@ mp_bool_t mp_gpio_read(mp_gpio_port_t *port) {
 void mp_gpio_set(mp_gpio_port_t *port) {
 	if(port->used != YES && port->direction == MP_GPIO_OUTPUT)
 		return;
-	_GPIO_REG8(port, _GPIO_OUT) |= 1<<port->pin;
+	if(port->reverse == YES)
+		_GPIO_REG8(port, _GPIO_OUT) &= ~(1<<port->pin);
+	else
+		_GPIO_REG8(port, _GPIO_OUT) |= 1<<port->pin;
 }
 
 void mp_gpio_unset(mp_gpio_port_t *port) {
 	if(port->used != YES && port->direction == MP_GPIO_OUTPUT)
 		return;
-	_GPIO_REG8(port, _GPIO_OUT) &= ~(1<<port->pin);
+	if(port->reverse == YES)
+		_GPIO_REG8(port, _GPIO_OUT) |= 1<<port->pin;
+	else
+		_GPIO_REG8(port, _GPIO_OUT) &= ~(1<<port->pin);
 }
 
 void mp_gpio_turn(mp_gpio_port_t *port) {

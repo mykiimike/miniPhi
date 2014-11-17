@@ -39,6 +39,9 @@
 		/** callback user pointer */
 		void *user;
 
+		/* if YES then unset/set is reversed */
+		char reverse;
+
 		/* msp430 dependant */
 		unsigned int base;
 

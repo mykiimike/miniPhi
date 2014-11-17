@@ -81,8 +81,8 @@ static void __olimex_state_op_set(void *user) {
 	olimex_msp430_t *olimex = user;
 
 	/* initialize green led */
-	mp_led_init(&olimex->green_led, 10, 7, "Green LED");
-	mp_led_init(&olimex->red_led, 10, 6, "Red LED");
+	mp_led_init(&olimex->green_led, 10, 7, NO, "Green LED");
+	mp_led_init(&olimex->red_led, 10, 6, NO, "Red LED");
 
 	/* initialize UART USB RS232 */
 	memset(&olimex->uart_usb_rs232, 0, sizeof(olimex->uart_usb_rs232));

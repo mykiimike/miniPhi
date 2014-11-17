@@ -1,17 +1,19 @@
 #include <mp.h>
 
 
-mp_ret_t mp_led_init(mp_led_t *led, unsigned char port, unsigned char pin, char *who) {
+mp_ret_t mp_led_init(mp_led_t *led, unsigned char port, unsigned char pin, char reversed, char *who) {
     /* allocate GPIO */
     led->gpio = mp_gpio_handle(port, pin, who);
     if(!led->gpio)
     	return(FALSE);
 
+    led->gpio->reverse = reversed;
+
     /* set direction */
     mp_gpio_direction(led->gpio, MP_GPIO_OUTPUT);
 
     /* set to off */
-    led->reverted == YES ? mp_gpio_set(led->gpio) : mp_gpio_unset(led->gpio);
+    mp_gpio_unset(led->gpio);
     led->state = OFF;
     return(TRUE);
 }
@@ -27,12 +29,12 @@ mp_ret_t mp_led_fini(mp_led_t *led) {
 }
 
 void mp_led_turnOff(mp_led_t *led) {
-    led->reverted == YES ? mp_gpio_set(led->gpio) : mp_gpio_unset(led->gpio);
+    mp_gpio_unset(led->gpio);
     led->state = OFF;
 }
 
 void mp_led_turnOn(mp_led_t *led) {
-    led->reverted == YES ? mp_gpio_unset(led->gpio) : mp_gpio_set(led->gpio);
+    mp_gpio_set(led->gpio);
     led->state = ON;
 
 }
