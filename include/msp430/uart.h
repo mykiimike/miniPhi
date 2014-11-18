@@ -1,3 +1,23 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2014  Michael VERGOZ                                      *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #ifndef _HAVE_MSP430_UART_H
 	#define _HAVE_MSP430_UART_H
 
@@ -9,34 +29,6 @@
 	#define MP_UART_SYNC      1<<5 /* default async */
 
 	typedef struct mp_uart_regs_s mp_uart_regs_t;
-	typedef struct mp_uart_gate_s mp_uart_gate_t;
-
-
-	struct mp_uart_gate_s {
-		/** port identification */
-		unsigned char portId;
-
-		/** Gate name */
-		char *portDevice;
-
-		/** gate user flags */
-		unsigned char gateFlags;
-
-		/** is uart gate busy ? */
-		mp_bool_t isBusy;
-
-		/** busy at which baud rate */
-		unsigned long baudRate;
-
-		/** busy by who ? */
-		char *byWho;
-
-		/** internal: register control */
-		unsigned int _baseAddress;
-
-		/** internal: ISR vector */
-		unsigned int _ISRVector;
-	};
 
 	typedef struct mp_uart_s mp_uart_t;
 
@@ -44,7 +36,7 @@
 
 	struct mp_uart_s {
 		/** UART gate */
-		unsigned char gateId;
+		char *gateId;
 
 		/** GPIO pair for tx */
 		mp_gpio_pair_t rxd;
@@ -69,7 +61,7 @@
 		void *user;
 
 		/** internal: gate */
-		mp_uart_gate_t *_gate;
+		mp_gate_t *_gate;
 
 		/** internal: rxd_port */
 		mp_gpio_port_t *_rxd_port;

@@ -1,66 +1,36 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2014  Michael VERGOZ                                      *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #include <mp.h>
-
-
-
 
 static void _mp_uart_interrupt(void *user);
 
-static mp_uart_gate_t _uart_gate[5];
-static unsigned char _uart_gate_count = 0;
 
 /**
  * @brief Global uart initialization
  * @return TRUE or FALSE
  */
 mp_ret_t mp_uart_init() {
-	mp_uart_gate_t *gate;
-
-	memset(&_uart_gate, 0, sizeof(_uart_gate));
-
-#ifdef __MSP430_HAS_USCI_A0__
-	gate = &_uart_gate[_uart_gate_count];
-	gate->portId = _uart_gate_count;
-	gate->portDevice = "USCI_A0";
-	gate->_baseAddress = USCI_A0_BASE;
-	gate->_ISRVector = USCI_A0_VECTOR;
-	gate->isBusy = NO;
-	_uart_gate_count++;
-#endif
-
-#ifdef __MSP430_HAS_USCI_A1__
-	gate = &_uart_gate[_uart_gate_count];
-	gate->portId = _uart_gate_count;
-	gate->portDevice = "USCI_A1";
-	gate->_baseAddress = USCI_A1_BASE;
-	gate->_ISRVector = USCI_A1_VECTOR;
-	gate->isBusy = NO;
-	_uart_gate_count++;
-#endif
-
-#ifdef __MSP430_HAS_USCI_A2__
-	gate = &_uart_gate[_uart_gate_count];
-	gate->portId = _uart_gate_count;
-	gate->portDevice = "USCI_A2";
-	gate->_baseAddress = USCI_A2_BASE;
-	gate->_ISRVector = USCI_A2_VECTOR;
-	gate->isBusy = NO;
-	_uart_gate_count++;
-#endif
-
-#ifdef __MSP430_HAS_USCI_A3__
-	gate = &_uart_gate[_uart_gate_count];
-	gate->portId = _uart_gate_count;
-	gate->portDevice = "USCI_A3";
-	gate->_baseAddress = USCI_A3_BASE;
-	gate->_ISRVector = USCI_A3_VECTOR;
-	gate->isBusy = NO;
-	_uart_gate_count++;
-#endif
 
 	return(TRUE);
 }
-
-
 
 mp_ret_t mp_uart_fini() {
 
@@ -72,28 +42,24 @@ mp_ret_t mp_uart_open(mp_uart_t *uart, char *who) {
 	unsigned int brf;
 	unsigned long freq;
 
-
-
 	/* get gate Id*/
-	if(uart->gateId >= _uart_gate_count)
+	uart->_gate = mp_gate_handle(uart->gateId, "UART");
+	if(uart->_gate == NULL)
 		return(FALSE);
 
-	uart->_gate = &_uart_gate[uart->gateId];
-
 	uart->_gate->gateFlags = uart->gateFlags;
-	uart->_gate->isBusy = YES;
-	uart->_gate->baudRate = uart->baudRate;
-	uart->_gate->byWho = who;
 
 	/* allocate GPIO port for RX data */
 	uart->_rxd_port = mp_gpio_handle(uart->rxd.port, uart->rxd.pin, "UART RX");
 	if(uart->_rxd_port == NULL) {
+		mp_gate_release(uart->_gate);
 		mp_uart_close(uart);
 		return(FALSE);
 	}
 	/* allocate GPIO port for TX data */
 	uart->_txd_port = mp_gpio_handle(uart->txd.port, uart->txd.pin, "UART TX");
 	if(uart->_txd_port == NULL) {
+		mp_gate_release(uart->_gate);
 		mp_uart_close(uart);
 		return(FALSE);
 	}
@@ -190,11 +156,8 @@ mp_ret_t mp_uart_open(mp_uart_t *uart, char *who) {
 	_UART_REG8(uart->_gate, _UART_CTL1) &= ~(UCDORM);
 	_UART_REG8(uart->_gate, _UART_CTL1) &= ~UCSWRST; // lock write
 
-
-
-
 	__enable_interrupt();
-	//UCA3IE |= UCRXIE;
+
 	_UART_REG8(uart->_gate, _UART_IE) |= UCRXIE;
 
 	return(TRUE);
@@ -215,9 +178,7 @@ mp_ret_t mp_uart_close(mp_uart_t *uart) {
 	_GPIO_REG8(uart->_rxd_port, _GPIO_SEL) &= ~(1<<uart->rxd.pin);
 	_GPIO_REG8(uart->_txd_port, _GPIO_SEL) &= ~(1<<uart->txd.pin);
 
-	uart->_gate->isBusy = NO;
-	uart->_gate->baudRate = 0;
-	uart->_gate->byWho = NULL;
+	mp_gate_release(uart->_gate);
 
 	return(TRUE);
 }

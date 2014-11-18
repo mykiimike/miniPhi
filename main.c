@@ -1,3 +1,23 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2014  Michael VERGOZ                                      *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #ifdef __OLIMEX_PROTOBOARD__
 
 #include <mp.h>
@@ -86,7 +106,7 @@ static void __olimex_state_op_set(void *user) {
 
 	/* initialize UART USB RS232 */
 	memset(&olimex->uart_usb_rs232, 0, sizeof(olimex->uart_usb_rs232));
-	olimex->uart_usb_rs232.uart.gateId = 3; /* UCA3 */
+	olimex->uart_usb_rs232.uart.gateId = "USCI_A3";
 	olimex->uart_usb_rs232.uart.baudRate = 9600;
 
 	olimex->uart_usb_rs232.uart.rxd.port = 10;
@@ -130,7 +150,7 @@ static void __olimex_state_op_set(void *user) {
 }
 
 static void __olimex_state_op_unset(void *user) {
-	volatile olimex_msp430_t *olimex = user;
+	olimex_msp430_t *olimex = user;
 
 	mp_button_fini(&olimex->bLeft);
 	mp_button_fini(&olimex->bRight);
