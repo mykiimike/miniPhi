@@ -23,6 +23,8 @@
 mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	WDTCTL = WDTPW | WDTHOLD;	// Stop watchdog timer
 
+	kernel->mcuVendor = "Texas Instrument";
+
 #if defined(__msp430x54xA)
 	if ((*((char *)0x1A04) == 0x05) && (*((char *)0x1A05) == 0x80))
 		kernel->mcuName = "MSP430F5438A";

@@ -27,6 +27,7 @@ static unsigned int __spi_count;
 static unsigned char __mp_spi_rx(mp_spi_t *spi);
 static void __mp_spi_tx(mp_spi_t *spi, unsigned char data);
 static void __mp_spi_interrupt(void *user);
+static void __mp_spi_asr(mp_task_t *task);
 
 void mp_spi_init() {
 	mp_list_init(&__spi);
@@ -38,6 +39,7 @@ void mp_spi_fini() {
 }
 
 mp_ret_t mp_spi_open(
+		mp_kernel_t *kernel,
 		mp_spi_t *spi, char *who,
 		mp_spi_phase_t phase,
 		mp_spi_polarity_t polarity,
@@ -51,6 +53,7 @@ mp_ret_t mp_spi_open(
 	unsigned int prescaler;
 
 	spi->frequency = frequency;
+	spi->tx_reference = 0;
 
 	/* get gate Id*/
 	spi->_gate = mp_gate_handle(spi->gateId, "SPI");
@@ -88,6 +91,18 @@ mp_ret_t mp_spi_open(
 			mp_gate_release(spi->_gate);
 			return(FALSE);
 		}
+	}
+
+	/* create the task */
+	spi->task = mp_task_create(&kernel->tasks, who, __mp_spi_asr, spi, 0);
+	if(spi->task == NULL) {
+		if(spi->_ste != NULL)
+			mp_gpio_release(spi->_ste);
+		mp_gpio_release(spi->_clock);
+		mp_gpio_release(spi->_somi);
+		mp_gpio_release(spi->_simo);
+		mp_gate_release(spi->_gate);
+		return(FALSE);
 	}
 
 	/* set port alternate function and port direction */
@@ -196,6 +211,9 @@ mp_ret_t mp_spi_open(
 
 mp_ret_t mp_spi_close(mp_spi_t *spi) {
 
+	/* kill the task */
+	mp_task_destroy(spi->task);
+
 	/* disble interrupts */
 	mp_spi_disable_rx(spi);
 	mp_spi_disable_tx(spi);
@@ -267,19 +285,15 @@ static void __mp_spi_interrupt(void *user) {
 		case UCRXIFG:
 			spi->rx_buffer[spi->rx_size] = __mp_spi_rx(spi);
 			spi->rx_size++;
-
-			/* manage callbacks */
-			if(spi->rx_size%2 == 0)
-				spi->onWriteEnd(spi); /* use task wakeup */
-
+			spi->task->signal = MP_TASK_SIG_OK; /* ASR */
 			break;
 
 		case UCTXIFG:
 			/* no more data to send */
 			if(spi->tx_size == 0 || spi->tx_pos == spi->tx_size) {
 				mp_spi_disable_tx(spi);
-				if(spi->onWriteEnd != NULL && spi->tx_size > 0 || spi->tx_pos == spi->tx_size)
-					spi->onWriteEnd(spi); /* use task wakeup */
+				spi->task->signal = MP_TASK_SIG_OK; /* ASR */
+				spi->tx_reference++;
 				spi->tx_pos = 0;
 				spi->tx_size = 0;
 				return;
@@ -290,7 +304,36 @@ static void __mp_spi_interrupt(void *user) {
 			spi->tx_pos++;
 
 			break;
-
 	}
 
+}
+
+
+static void __mp_spi_asr(mp_task_t *task) {
+	mp_spi_t *spi = task->user;
+
+	/* disable interrupt */
+	mp_spi_disable_rx(spi);
+	mp_spi_disable_tx(spi);
+
+	/* - - - - - RX - - - - - */
+
+	/* manage callbacks */
+	if(spi->rx_size%2 == 0)
+		spi->onRead(spi);
+	spi->rx_size = 0;
+
+	/* - - - - - TX - - - - - */
+
+	/* write ended */
+	if(spi->onWriteEnd && spi->tx_reference > 0) {
+		spi->onWriteEnd(spi);
+		spi->tx_reference--;
+	}
+
+	spi->task->signal = MP_TASK_SIG_SLEEP;
+
+	/* enable interrupt */
+	mp_spi_enable_rx(spi);
+	mp_spi_enable_tx(spi);
 }

@@ -80,15 +80,13 @@
 		/** SPI frequency */
 		unsigned long frequency;
 
-		/** who is handling SPI */
-		char *who;
-
-#define MP_SPI_TX_BUFFER 400
+#define MP_SPI_TX_BUFFER 80
 #define MP_SPI_RX_BUFFER 80
 
 		unsigned char tx_buffer[MP_SPI_TX_BUFFER];
 		unsigned int tx_size;
 		unsigned int tx_pos;
+		unsigned int tx_reference;
 
 		unsigned char rx_buffer[MP_SPI_RX_BUFFER];
 		unsigned int rx_size;
@@ -104,6 +102,7 @@
 		mp_gpio_port_t *_ste;
 		mp_list_item_t item;
 
+		mp_task_t *task;
 	};
 
 	#define _SPI_CTLW0   0x00

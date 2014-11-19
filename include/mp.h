@@ -19,6 +19,7 @@
 	typedef signed char mp_bool_t;
 
 	#include "common/list.h"
+	#include "common/task.h"
 
 	typedef struct mp_kernel_s mp_kernel_t;
 	typedef void (*mp_kernel_onBoot_t)(void *user);
@@ -44,7 +45,6 @@
 	#define MP_KERNEL_RES10  11
 
 	#include "common/mem.h"
-	#include "common/task.h"
 	#include "common/state.h"
 	#include "common/led.h"
 	#include "common/serial.h"
@@ -59,6 +59,9 @@
 
 		/** Microchip name  */
 		char *mcuName;
+
+		/** Kernel version  */
+		char *version;
 
 		/** Kernel states */
 		mp_state_handler_t states;
