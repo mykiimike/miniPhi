@@ -107,7 +107,7 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 		next = seek->item.prev != NULL ? seek->item.prev->user : NULL;
 
 		/* check the task status : a stop has been sent */
-		if(hdl->signal == MP_TASK_SIG_STOP || seek->signal == MP_TASK_SIG_STOP) {
+		if(hdl->signal == MP_TASK_SIG_STOP) {
 			seek->signal = MP_TASK_SIG_STOP;
 			pass = YES;
 		}
@@ -117,8 +117,10 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 			pass = NO;
 
 		if(pass == YES) {
-			/* execute wakeup */
-			seek->wakeup(seek);
+			if(seek->signal == MP_TASK_SIG_OK || seek->signal == MP_TASK_SIG_STOP) {
+				/* execute wakeup */
+				seek->wakeup(seek);
+			}
 
 			/* acknowledge stop dead message */
 			if(seek->signal == MP_TASK_SIG_DEAD) {

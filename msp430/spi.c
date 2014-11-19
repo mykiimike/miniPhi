@@ -256,8 +256,8 @@ static unsigned char __mp_spi_rx(mp_spi_t *spi) {
 }
 
 static void __mp_spi_tx(mp_spi_t *spi, unsigned char data) {
-  while (!(_SPI_REG8(spi->_gate, _SPI_IFG) & UCRXIFG));
-  _SPI_REG8(spi->_gate, _SPI_TXBUF) = data;
+	while (!(_SPI_REG8(spi->_gate, _SPI_IFG) & UCRXIFG));
+	_SPI_REG8(spi->_gate, _SPI_TXBUF) = data;
 }
 
 static void __mp_spi_interrupt(void *user) {

@@ -6,6 +6,7 @@
 
 	typedef enum {
 		MP_TASK_SIG_OK,
+		MP_TASK_SIG_SLEEP,
 		MP_TASK_SIG_STOP,
 		MP_TASK_SIG_DEAD,
 	} mp_task_signal_t;
