@@ -24,4 +24,8 @@
 	mp_ret_t mp_clock_high_energy();
 	unsigned long mp_clock_ticks();
 	unsigned long mp_clock_get_speed();
+	static inline void mp_clock_delay(int delay) {
+		while(delay--)
+			__no_operation();
+	}
 #endif

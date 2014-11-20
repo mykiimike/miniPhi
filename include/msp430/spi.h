@@ -62,26 +62,12 @@
 	} mp_spi_sync_t;
 
 	struct mp_spi_s {
-		/** some architectures require a gate */
-		char *gateId;
-
-		/** SPI SIMO configuration GPIO port */
-		mp_gpio_pair_t simo;
-
-		/** SPI SOMI configuration GPIO port */
-		mp_gpio_pair_t somi;
-
-		/** SPI Clock configuration GPIO port */
-		mp_gpio_pair_t clock;
-
-		/** SPI Select configuration GPIO port */
-		mp_gpio_pair_t ste;
 
 		/** SPI frequency */
 		unsigned long frequency;
 
-#define MP_SPI_TX_BUFFER 80
-#define MP_SPI_RX_BUFFER 80
+#define MP_SPI_TX_BUFFER 20
+#define MP_SPI_RX_BUFFER 20
 
 		unsigned char tx_buffer[MP_SPI_TX_BUFFER];
 		unsigned int tx_size;
@@ -93,17 +79,40 @@
 
 		mp_spi_callback_t onRead;
 		mp_spi_callback_t onWriteEnd;
+		mp_spi_callback_t onReadInterrupt;
+		mp_spi_callback_t onWriteInterrupt;
+		void *user;
 
 		/** internal: gate */
-		mp_gate_t *_gate;
-		mp_gpio_port_t *_simo;
-		mp_gpio_port_t *_somi;
-		mp_gpio_port_t *_clock;
-		mp_gpio_port_t *_ste;
+		mp_gate_t *gate;
+		mp_gpio_port_t *simo;
+		mp_gpio_port_t *somi;
+		mp_gpio_port_t *clk;
+		mp_gpio_port_t *ste;
 		mp_list_item_t item;
 
 		mp_task_t *task;
 	};
+
+	void mp_spi_init();
+	void mp_spi_fini();
+	mp_ret_t mp_spi_open(
+		mp_kernel_t *kernel,
+		mp_spi_t *spi,
+		mp_options_t *options,
+		mp_spi_phase_t phase,
+		mp_spi_polarity_t polarity,
+		mp_spi_first_t first,
+		mp_spi_role_t role,
+		mp_spi_mode_t mode,
+		mp_spi_bit_t bit,
+		mp_spi_sync_t sync,
+		unsigned long frequency,
+		char *who
+	);
+	mp_ret_t mp_spi_close(mp_spi_t *spi);
+	void mp_spi_write(mp_spi_t *spi, unsigned char *input, int size);
+
 
 	#define _SPI_CTLW0   0x00
 	#define _SPI_CTL0    0x01
@@ -126,20 +135,36 @@
 
 	static inline void mp_spi_enable_rx(mp_spi_t *spi) {
 		/* check CTS */
-		_SPI_REG8(spi->_gate, _SPI_CTL0) |= UCRXIE;
+		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCRXIE;
 	}
 
 	static inline void mp_spi_disable_rx(mp_spi_t *spi) {
-		_SPI_REG8(spi->_gate, _SPI_CTL0) &= ~UCRXIE;
+		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~UCRXIE;
 	}
 
 	static inline void mp_spi_enable_tx(mp_spi_t *spi) {
 		/* check CTS */
-		_SPI_REG8(spi->_gate, _SPI_CTL0) |= UCTXIE;
+		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCTXIE;
 	}
 
 	static inline void mp_spi_disable_tx(mp_spi_t *spi) {
-		_SPI_REG8(spi->_gate, _SPI_CTL0) &= ~UCTXIE;
+		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~UCTXIE;
 	}
+
+	static inline unsigned char mp_spi_rx(mp_spi_t *spi) {
+		if (_SPI_REG8(spi->gate, _SPI_IFG) & UCRXIFG)
+			return(_SPI_REG8(spi->gate, _SPI_RXBUF));
+		return 0;
+	}
+
+	static inline void mp_spi_tx(mp_spi_t *spi, unsigned char data) {
+		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCRXIFG));
+		if(spi->ste)
+			mp_gpio_unset(spi->ste);
+		_SPI_REG8(spi->gate, _SPI_TXBUF) = data;
+		if(spi->ste)
+			mp_gpio_set(spi->ste);
+	}
+
 
 #endif

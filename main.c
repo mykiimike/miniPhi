@@ -189,6 +189,7 @@ static void __olimex_state_op_set(void *user) {
 			1000, 2, __olimex_on_button_power, olimex
 	);
 
+	/* pinout */
 	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 2010, 0, "Blinking green - Power ON");
 
 	//mp_drv_led_turn(&olimex->red_led);

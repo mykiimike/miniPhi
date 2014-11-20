@@ -78,6 +78,8 @@
 	#include "drivers/button.h"
 	#include "drivers/led.h"
 
+	#include "drivers/lcd/nokia3310.h"
+
 	#define MP_KERNEL_VERSION "1.0.0"
 
 	struct mp_kernel_s {

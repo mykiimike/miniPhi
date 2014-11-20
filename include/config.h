@@ -24,6 +24,8 @@
 	#define SUPPORT_DRV_LED
 	#define SUPPORT_DRV_BUTTON
 
+	#define SUPPORT_DRV_LCD_NOKIA3310
+
 	#define _SUPPORT_MEM
 	#define _SUPPORT_SERIAL
 	#define _SUPPORT_PINOUT /* enable pinout feature, need mem support */
