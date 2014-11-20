@@ -2,6 +2,8 @@
 #ifndef _HAVE_CONFIG_H
 	#define _HAVE_CONFIG_H
 
+	#define SUPPORT_DRV_LED
+
 	#define _SUPPORT_MEM
 	#define _SUPPORT_SERIAL
 	#define _SUPPORT_BUTTON

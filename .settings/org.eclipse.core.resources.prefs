@@ -1,6 +1,12 @@
 eclipse.preferences.version=1
 encoding//Debug/common/subdir_rules.mk=UTF-8
 encoding//Debug/common/subdir_vars.mk=UTF-8
+encoding//Debug/drivers/lcd/subdir_rules.mk=UTF-8
+encoding//Debug/drivers/lcd/subdir_vars.mk=UTF-8
+encoding//Debug/drivers/sensors/subdir_rules.mk=UTF-8
+encoding//Debug/drivers/sensors/subdir_vars.mk=UTF-8
+encoding//Debug/drivers/subdir_rules.mk=UTF-8
+encoding//Debug/drivers/subdir_vars.mk=UTF-8
 encoding//Debug/makefile=UTF-8
 encoding//Debug/msp430/subdir_rules.mk=UTF-8
 encoding//Debug/msp430/subdir_vars.mk=UTF-8

@@ -24,10 +24,18 @@
 	typedef struct mp_kernel_s mp_kernel_t;
 	typedef void (*mp_kernel_onBoot_t)(void *user);
 
+	typedef struct mp_options_s mp_options_t;
+
+	struct mp_options_s {
+		char *key;
+		char *value;
+	};
+
 	#ifdef __MSP430__
 		#include <msp430.h>
 		#include <string.h>
 		#include <stdio.h>
+		#include <stdlib.h>
 		#include <msp430/internal.h>
 	#endif
 
@@ -50,6 +58,8 @@
 	#include "common/serial.h"
 	#include "common/button.h"
 	#include "common/pinout.h"
+
+	#include "drivers/led.h"
 
 	#define MP_KERNEL_VERSION "1.0.0"
 
@@ -81,7 +91,19 @@
 
 	};
 
+	static inline char *mp_options_get(mp_options_t *options, char *key) {
+		while(options->key != NULL && options->value != NULL) {
+			if(strcmp(key, options->key) == 0)
+				return(options->value);
+			options++;
+		}
+		return(NULL);
 
+	}
+
+	static inline int mp_options_cmp(char *a, char *b) {
+		return(strcmp(a, b));
+	}
 
 	void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user);
 	void mp_kernel_fini(mp_kernel_t *kernel);

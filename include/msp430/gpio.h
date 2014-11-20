@@ -55,6 +55,7 @@
 	void mp_gpio_init();
 	void mp_gpio_fini();
 	mp_gpio_port_t *mp_gpio_handle(unsigned int port, unsigned int slot, char *who);
+	mp_gpio_port_t *mp_gpio_text_handle(char *text, char *who);
 	mp_ret_t mp_gpio_release(mp_gpio_port_t *port);
 	mp_ret_t mp_gpio_direction(mp_gpio_port_t *port, mp_gpio_direction_t direction);
 	mp_bool_t mp_gpio_read(mp_gpio_port_t *port);

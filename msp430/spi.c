@@ -311,27 +311,42 @@ static void __mp_spi_interrupt(void *user) {
 
 static void __mp_spi_asr(mp_task_t *task) {
 	mp_spi_t *spi = task->user;
+	unsigned char save;
+
+	/* acknowledge task end */
+	if(task->signal == MP_TASK_SIG_STOP) {
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
 
 	/* disable interrupt */
 	mp_spi_disable_rx(spi);
 	mp_spi_disable_tx(spi);
 
+	spi->task->signal = MP_TASK_SIG_SLEEP;
+
 	/* - - - - - RX - - - - - */
 
 	/* manage callbacks */
-	if(spi->rx_size%2 == 0)
+	if(spi->rx_size%2 == 0) {
 		spi->onRead(spi);
-	spi->rx_size = 0;
+		spi->rx_size = 0;
+	}
+	else {
+		save = spi->rx_buffer[spi->rx_size]; /* save rest */
+		spi->rx_size--; /* uncomplet SPI frame */
+		spi->onRead(spi);
+		spi->rx_buffer[0] = save;
+		spi->rx_size = 1;
+	}
 
 	/* - - - - - TX - - - - - */
 
 	/* write ended */
 	if(spi->onWriteEnd && spi->tx_reference > 0) {
 		spi->onWriteEnd(spi);
-		spi->tx_reference--;
+		spi->tx_reference = 0;
 	}
-
-	spi->task->signal = MP_TASK_SIG_SLEEP;
 
 	/* enable interrupt */
 	mp_spi_enable_rx(spi);

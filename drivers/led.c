@@ -1,13 +1,21 @@
 #include <mp.h>
 
 
-mp_ret_t mp_led_init(mp_led_t *led, unsigned char port, unsigned char pin, char reversed, char *who) {
+mp_ret_t mp_drv_led_init(mp_kernel_t *kernel, mp_drv_led_t *led, mp_options_t *options, char *who) {
+	char *value;
+
+	value = mp_options_get(options, "port");
+	if(!value)
+		return(FALSE);
+
     /* allocate GPIO */
-    led->gpio = mp_gpio_handle(port, pin, who);
+    led->gpio = mp_gpio_text_handle(value, who);
     if(!led->gpio)
     	return(FALSE);
 
-    led->gpio->reverse = reversed;
+    value = mp_options_get(options, "port");
+    if(value && mp_options_cmp(value, "true") == 0)
+    	led->gpio->reverse = YES;
 
     /* set direction */
     mp_gpio_direction(led->gpio, MP_GPIO_OUTPUT);
@@ -18,7 +26,7 @@ mp_ret_t mp_led_init(mp_led_t *led, unsigned char port, unsigned char pin, char 
     return(TRUE);
 }
 
-mp_ret_t mp_led_fini(mp_led_t *led) {
+mp_ret_t mp_drv_led_fini(mp_drv_led_t *led) {
 	if(led->gpio == NULL)
 		return(FALSE);
 
@@ -28,18 +36,18 @@ mp_ret_t mp_led_fini(mp_led_t *led) {
 	return(TRUE);
 }
 
-void mp_led_turnOff(mp_led_t *led) {
+void mp_drv_led_turnOff(mp_drv_led_t *led) {
     mp_gpio_unset(led->gpio);
     led->state = OFF;
 }
 
-void mp_led_turnOn(mp_led_t *led) {
+void mp_drv_led_turnOn(mp_drv_led_t *led) {
     mp_gpio_set(led->gpio);
     led->state = ON;
 
 }
 
-void mp_led_turn(mp_led_t *led) {
+void mp_drv_led_turn(mp_drv_led_t *led) {
 	mp_gpio_turn(led->gpio);
 	led->state = led->state == ON ? OFF : ON;
 }

@@ -165,6 +165,52 @@ mp_gpio_port_t *mp_gpio_handle(unsigned int port, unsigned int slot, char *who) 
 	return(porthdl);
 }
 
+/* format pX.X */
+mp_gpio_port_t *mp_gpio_text_handle(char *text, char *who) {
+	unsigned int buffer_size;
+	unsigned int port = 0;
+	unsigned int pin = 0;
+	mp_gpio_port_t *gpio;
+	char buffer[8];
+	int len;
+	int a;
+
+	len = strlen(text);
+	if(len < 4 || len > sizeof(buffer))
+		return(NULL);
+
+	/* get port */
+	buffer_size = 0;
+	for(a=1, text++; a<len; a++, text++) {
+		if(*text == '.') {
+			buffer[buffer_size] = '\0';
+			buffer_size++;
+
+			port = atoi(buffer);
+			a++; text++;
+			break;
+		}
+		else {
+			buffer[buffer_size] = *text;
+			buffer_size++;
+		}
+	}
+
+	/* get pin */
+	buffer_size = 0;
+	for(; a<len; a++, text++) {
+		buffer[buffer_size] = *text;
+		buffer_size++;
+	}
+	buffer[buffer_size] = '\0';
+	buffer_size++;
+
+	pin = atoi(buffer);
+
+	gpio = mp_gpio_handle(port, pin, who);
+	return(gpio);
+}
+
 mp_ret_t mp_gpio_release(mp_gpio_port_t *port) {
 	port->used = NO;
 	port->who = NULL;
