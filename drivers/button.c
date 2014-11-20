@@ -1,19 +1,45 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2014  Michael VERGOZ                                      *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #include <mp.h>
 
 
-#ifdef _SUPPORT_BUTTON
+#ifdef SUPPORT_DRV_BUTTON
 
 static void ___on_button(void *user);
 
-mp_ret_t mp_button_init(mp_button_t *button, unsigned int port, unsigned int pin, char *who) {
+mp_ret_t mp_drv_button_init(mp_kernel_t *kernel, mp_drv_button_t *button, mp_options_t *options, char *who) {
 	mp_ret_t ret;
+	char *value;
 
 	button->pressed = NO;
 
-	/* open GPIO */
-	button->gpio = mp_gpio_handle(port, pin, who);
-	if(button->gpio == NULL)
+	/* get port */
+	value = mp_options_get(options, "port");
+	if(!value)
 		return(FALSE);
+
+    /* allocate GPIO */
+	button->gpio = mp_gpio_text_handle(value, who);
+    if(!button->gpio)
+    	return(FALSE);
 
 	/* set interrupt */
 	ret = mp_gpio_interrupt_set(button->gpio, ___on_button, button, who);
@@ -31,7 +57,7 @@ mp_ret_t mp_button_init(mp_button_t *button, unsigned int port, unsigned int pin
 	return(TRUE);
 }
 
-mp_ret_t mp_button_fini(mp_button_t *button) {
+mp_ret_t mp_drv_button_fini(mp_drv_button_t *button) {
 
 	/* unset interrupt */
 	mp_gpio_interrupt_unset(button->gpio);
@@ -42,9 +68,9 @@ mp_ret_t mp_button_fini(mp_button_t *button) {
 	return(TRUE);
 }
 
-mp_ret_t mp_button_event_create(
-		mp_button_t *button, mp_button_event_t *bac,
-		int delay, int time, mp_button_event_on_t cb, void *user
+mp_ret_t mp_drv_button_event_create(
+		mp_drv_button_t *button, mp_drv_button_event_t *bac,
+		int delay, int time, mp_drv_button_event_on_t cb, void *user
 	) {
 	memset(bac, 0, sizeof(*bac));
 
@@ -62,15 +88,15 @@ mp_ret_t mp_button_event_create(
 	return(TRUE);
 }
 
-mp_ret_t mp_button_event_destroy(mp_button_event_t *bac) {
+mp_ret_t mp_drv_button_event_destroy(mp_drv_button_event_t *bac) {
 	return(TRUE);
 }
 
 static void ___on_button(void *user) {
 	volatile unsigned long now;
-	volatile mp_button_event_t *next;
-	volatile mp_button_event_t *seek;
-	volatile mp_button_t *button = user;
+	volatile mp_drv_button_event_t *next;
+	volatile mp_drv_button_event_t *seek;
+	volatile mp_drv_button_t *button = user;
 
 	/* get now */
 	now = mp_clock_ticks();

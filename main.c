@@ -33,14 +33,14 @@ struct olimex_msp430_s {
 	mp_drv_led_t red_led;
 	mp_serial_t uart_usb_rs232;
 
-	mp_button_t bUp;
-	mp_button_t bDown;
-	mp_button_t bLeft;
-	mp_button_t bRight;
-	mp_button_t bCenter;
+	mp_drv_button_t bUp;
+	mp_drv_button_t bDown;
+	mp_drv_button_t bLeft;
+	mp_drv_button_t bRight;
+	mp_drv_button_t bCenter;
 
 	/** implementation of power on/off */
-	mp_button_event_t bPower;
+	mp_drv_button_event_t bPower;
 };
 
 static void __olimex_onBoot(void *user);
@@ -130,33 +130,68 @@ static void __olimex_state_op_set(void *user) {
 	mp_serial_init(&olimex->uart_usb_rs232, "USB RS232");
 
 	/* create buttons */
-	olimex->bLeft.user = olimex;
-	olimex->bLeft.onSwitch = __olimex_on_button_left;
-	mp_button_init(&olimex->bLeft, 1, 6, "LEFT B");
+	{
+		mp_options_t options[] = {
+				{ "port", "p1.6" },
+				{ NULL, NULL }
+		};
+		olimex->bLeft.user = olimex;
+		olimex->bLeft.onSwitch = __olimex_on_button_left;
+		mp_drv_button_init(&olimex->kernel, &olimex->bLeft, options, "LEFT B");
+	}
 
-	olimex->bRight.user = olimex;
-	olimex->bRight.onSwitch = __olimex_on_button_right;
-	mp_button_init(&olimex->bRight, 1, 5, "RIGHT B");
+
+	{
+		mp_options_t options[] = {
+				{ "port", "p1.5" },
+				{ NULL, NULL }
+		};
+		olimex->bRight.user = olimex;
+		olimex->bRight.onSwitch = __olimex_on_button_right;
+		mp_drv_button_init(&olimex->kernel, &olimex->bRight, options, "RIGHT B");
+	}
+
 
 	/* simply create center button */
-	mp_button_init(&olimex->bCenter, 1, 4, "CENTER B");
+	{
+		mp_options_t options[] = {
+				{ "port", "p1.4" },
+				{ NULL, NULL }
+		};
+		olimex->bCenter.user = NULL;
+		olimex->bCenter.onSwitch = NULL;
+		mp_drv_button_init(&olimex->kernel, &olimex->bCenter, options, "CENTER B");
+	}
 
-	olimex->bUp.user = olimex;
-	olimex->bUp.onSwitch = __olimex_on_button_up;
-	mp_button_init(&olimex->bUp, 1, 3, "UP B");
+	{
+		mp_options_t options[] = {
+				{ "port", "p1.3" },
+				{ NULL, NULL }
+		};
+		olimex->bUp.user = olimex;
+		olimex->bUp.onSwitch = __olimex_on_button_up;
+		mp_drv_button_init(&olimex->kernel, &olimex->bUp, options, "UP B");
+	}
 
-	olimex->bDown.user = olimex;
-	olimex->bDown.onSwitch = __olimex_on_button_down;
-	mp_button_init(&olimex->bDown, 1, 2, "DOWN B");
+	{
+		mp_options_t options[] = {
+				{ "port", "p1.2" },
+				{ NULL, NULL }
+		};
+		olimex->bDown.user = olimex;
+		olimex->bDown.onSwitch = __olimex_on_button_down;
+		mp_drv_button_init(&olimex->kernel, &olimex->bDown, options, "DOWN B");
+	}
 
 	/* create a button event based on center button in order to turn a led on/off */
-	mp_button_event_create(
+	mp_drv_button_event_create(
 			&olimex->bCenter, &olimex->bPower,
 			1000, 2, __olimex_on_button_power, olimex
 	);
 
 	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 2010, 0, "Blinking green - Power ON");
 
+	//mp_drv_led_turn(&olimex->red_led);
 
 	//mp_task_create(&olimex->kernel.tasks, "Blinking RED", blinkTask, &olimex->red_led, 500);
 	//mp_task_create(&olimex->kernel.tasks, "Blinking GREEN", blinkTask, &olimex->green_led, 1000);
@@ -166,11 +201,11 @@ static void __olimex_state_op_set(void *user) {
 static void __olimex_state_op_unset(void *user) {
 	olimex_msp430_t *olimex = user;
 
-	mp_button_fini(&olimex->bLeft);
-	mp_button_fini(&olimex->bRight);
-	mp_button_fini(&olimex->bCenter);
-	mp_button_fini(&olimex->bUp);
-	mp_button_fini(&olimex->bDown);
+	mp_drv_button_fini(&olimex->bLeft);
+	mp_drv_button_fini(&olimex->bRight);
+	mp_drv_button_fini(&olimex->bCenter);
+	mp_drv_button_fini(&olimex->bUp);
+	mp_drv_button_fini(&olimex->bDown);
 
 	mp_serial_fini(&olimex->uart_usb_rs232);
 
@@ -196,7 +231,7 @@ void __olimex_on_button_right(void *user) {
 
 void __olimex_on_button_up(void *user) {
 	//olimex_msp430_t *olimex = user;
-	mp_drv_led_turn(&olimex->green_led);
+	//mp_drv_led_turn(&olimex->green_led);
 
 }
 
@@ -208,7 +243,7 @@ void __olimex_on_button_down(void *user) {
 
 void __olimex_on_button_power(void *user) {
 	olimex_msp430_t *olimex = user;
-	//mp_drv_led_turn(&olimex->green_led);
+	mp_drv_led_turn(&olimex->red_led);
 }
 
 #endif
