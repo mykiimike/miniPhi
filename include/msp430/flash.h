@@ -18,47 +18,23 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef _HAVE_CONFIG_H
-	#define _HAVE_CONFIG_H
+#ifndef _HAVE_MSP430_FLASH_H
+	#define _HAVE_MSP430_FLASH_H
 
-	#define SUPPORT_DRV_LED
-	#define SUPPORT_DRV_BUTTON
+	#ifdef __MSP430_HAS_FLASH__
+		typedef struct mp_flash_s mp_flash_t;
+		typedef unsigned long mp_flash_addr_t;
 
-	//#define SUPPORT_DRV_LCD_NOKIA3310
+		struct mp_flash_s {
+			mp_flash_addr_t base;
+			unsigned int size;
+		};
 
-	#define _SUPPORT_MEM
-	#define _SUPPORT_SERIAL
-	#define _SUPPORT_PINOUT /* enable pinout feature, need mem support */
-
-	/* mem configuration */
-	#ifndef MP_MEM_SIZE
-		#define MP_MEM_SIZE  10240 /* total memory allowed for heap */
+		mp_ret_t mp_flash_init(mp_flash_t *flash, mp_flash_addr_t base, unsigned int size);
+		mp_ret_t mp_flash_fini(mp_flash_t *flash);
+		mp_ret_t mp_flash_erase(mp_flash_t *flash);
+		mp_ret_t mp_flash_read(mp_flash_t *flash, mp_flash_addr_t offset, int size, void *in_mem);
+		mp_ret_t mp_flash_write(mp_flash_t *flash, mp_flash_addr_t offset, int size, void *out_mem);
 	#endif
-
-	#ifndef MP_MEM_CHUNK
-		#define MP_MEM_CHUNK 50    /* fixed size of a chunck */
-	#endif
-
-	/* task configuration */
-	#ifndef MP_TASK_MAX
-		#define MP_TASK_MAX 10 /* number of maximum task per instance */
-	#endif
-
-	/* state configuration */
-	#ifndef MP_STATE_MAX
-		#define MP_STATE_MAX 5 /* maximum number of machine states */
-	#endif
-
-	/* serial configuration */
-	#ifndef MP_SERIAL_RX_BUFFER_SIZE
-		#define MP_SERIAL_RX_BUFFER_SIZE 512
-	#endif
-
-	#ifndef MP_SERIAL_TX_BUFFER_SIZE
-		#define MP_SERIAL_TX_BUFFER_SIZE 240
-	#endif
-
-	/* button configuration */
-
 
 #endif

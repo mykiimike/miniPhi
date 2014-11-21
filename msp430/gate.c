@@ -24,7 +24,7 @@
 
 #include <mp.h>
 
-static mp_gate_t __gate[10];
+static mp_gate_t __gate[8];
 static unsigned char __gate_count = 0;
 
 void mp_gate_init(mp_kernel_t *kernel) {

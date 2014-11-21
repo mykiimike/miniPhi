@@ -18,47 +18,73 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef _HAVE_CONFIG_H
-	#define _HAVE_CONFIG_H
+#include <mp.h>
 
-	#define SUPPORT_DRV_LED
-	#define SUPPORT_DRV_BUTTON
+#ifdef __MSP430_HAS_FLASH__
 
-	//#define SUPPORT_DRV_LCD_NOKIA3310
+mp_ret_t mp_flash_init(mp_flash_t *flash, mp_flash_addr_t base, unsigned int size) {
+	flash->base = base;
+	flash->size = size;
+	return(TRUE);
+}
 
-	#define _SUPPORT_MEM
-	#define _SUPPORT_SERIAL
-	#define _SUPPORT_PINOUT /* enable pinout feature, need mem support */
+mp_ret_t mp_flash_fini(mp_flash_t *flash) {
+	/* nothing */
+	return(TRUE);
+}
 
-	/* mem configuration */
-	#ifndef MP_MEM_SIZE
-		#define MP_MEM_SIZE  10240 /* total memory allowed for heap */
-	#endif
+mp_ret_t mp_flash_erase(mp_flash_t *flash) {
+	int a;
 
-	#ifndef MP_MEM_CHUNK
-		#define MP_MEM_CHUNK 50    /* fixed size of a chunck */
-	#endif
+	FCTL3 = FWKEY; // Clear Lock bit
 
-	/* task configuration */
-	#ifndef MP_TASK_MAX
-		#define MP_TASK_MAX 10 /* number of maximum task per instance */
-	#endif
+	FCTL1 = FWKEY+ERASE; // Set Erase bit
+	__data20_write_char(flash->base, 0);
+	FCTL1 = FWKEY + WRT; // Set WRT bit for write operation
 
-	/* state configuration */
-	#ifndef MP_STATE_MAX
-		#define MP_STATE_MAX 5 /* maximum number of machine states */
-	#endif
+	for(a=0; a<flash->size; a++) {
+		__data20_write_char(flash->base+a, 0);
+	}
 
-	/* serial configuration */
-	#ifndef MP_SERIAL_RX_BUFFER_SIZE
-		#define MP_SERIAL_RX_BUFFER_SIZE 512
-	#endif
+	FCTL1 = FWKEY;
+	FCTL3 = FWKEY+LOCK;
+	return(TRUE);
+}
 
-	#ifndef MP_SERIAL_TX_BUFFER_SIZE
-		#define MP_SERIAL_TX_BUFFER_SIZE 240
-	#endif
+mp_ret_t mp_flash_read(mp_flash_t *flash, mp_flash_addr_t offset, int size, void *in_mem) {
+	mp_flash_addr_t addr = flash->base+offset;
+	unsigned char *ptr;
+	int a;
 
-	/* button configuration */
+	ptr = (unsigned char *)in_mem;
+	for(a=0; a<size; a++, ptr++)
+		*ptr = __data20_read_char(addr+a);
 
+	return(TRUE);
+}
+
+mp_ret_t mp_flash_write(mp_flash_t *flash, mp_flash_addr_t offset, int size, void *out_mem) {
+	mp_flash_addr_t addr = flash->base+offset;
+	unsigned char *ptr;
+	int a;
+
+	FCTL3 = FWKEY; // Clear Lock bit
+
+	FCTL1 = FWKEY+ERASE; // Set Erase bit
+	__data20_write_char(addr, 0);
+	FCTL1 = FWKEY + WRT; // Set WRT bit for write operation
+
+	ptr = (unsigned char *)out_mem;
+	for(a=0; a<size; a++, ptr++) {
+		__data20_write_char(addr+a, *ptr);
+	}
+
+	FCTL1 = FWKEY;
+	FCTL3 = FWKEY+LOCK;
+
+	return(TRUE);
+}
 
 #endif
+
+

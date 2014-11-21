@@ -1,3 +1,23 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2014  Michael VERGOZ                                      *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #include <mp.h>
 
 #ifdef _SUPPORT_MEM
@@ -8,13 +28,13 @@
 static unsigned char __line[MP_MEM_SIZE];
 
 /** linear allocation index */
-static int __line_size = 0;
+static unsigned int __line_size = 0;
 
 /** structured allocation tab */
 static mp_mem_chunk_t *__allocated_heap = NULL;
 
 /** linear allocation index */
-static int __allocated_heap_idx = 0;
+static unsigned int __allocated_heap_idx = 0;
 
 /** last free __allocated_heap */
 static mp_mem_chunk_t *__allocated_heap_last = NULL;

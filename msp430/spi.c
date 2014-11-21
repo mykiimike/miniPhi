@@ -275,7 +275,6 @@ mp_ret_t mp_spi_close(mp_spi_t *spi) {
 
 void mp_spi_write(mp_spi_t *spi, unsigned char *input, int size) {
 	int rest;
-	int a;
 
 	/* disable TX interrupt */
 	mp_spi_disable_tx(spi);
@@ -286,13 +285,13 @@ void mp_spi_write(mp_spi_t *spi, unsigned char *input, int size) {
 	if(rest < size) {
 
 		/* flush now */
-		if(spi->onWriteInterrupt)
-			spi->onWriteInterrupt(spi);
-		else {
-			for(; spi->tx_pos<spi->tx_size; spi->tx_pos++) {
+		for(; spi->tx_pos<spi->tx_size; spi->tx_pos++) {
+			if(spi->onWriteInterrupt)
+				spi->onWriteInterrupt(spi);
+			else
 				mp_spi_tx(spi, spi->tx_buffer[spi->tx_pos]);
-			}
 		}
+
 		spi->tx_size = 0;
 		spi->tx_pos = 0;
 
