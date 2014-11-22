@@ -18,6 +18,13 @@
 	mp_interrupt_t *mp_interrupt_set(int vector, mp_interrupt_cb_t in, void *user, char *who);
 	mp_ret_t mp_interrupt_unset(int vector);
 
-	#define mp_interrupt_enable() __enable_interrupt()
-	#define mp_interrupt_disable() __disable_interrupt()
+	void mp_interrupt_enable();
+	void mp_interrupt_disable();
+	mp_bool_t mp_interrupt_state();
+	void mp_interrupt_restore(mp_bool_t state);
+
+	#define MP_INTERRUPT_SAFE_BEGIN { mp_bool_t _____state = mp_interrupt_state(); \
+		mp_interrupt_disable();
+
+	#define MP_INTERRUPT_SAFE_END mp_interrupt_restore(_____state); }
 #endif

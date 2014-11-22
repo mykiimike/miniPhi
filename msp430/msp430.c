@@ -74,10 +74,8 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	/* intialize UART */
 	mp_uart_init();
 
-	/* erase mem if necessary */
-#ifdef _SUPPORT_MEM
-	mp_mem_erase(kernel);
-#endif
+	/* initialize SPI */
+	mp_spi_init();
 
 	__enable_interrupt();
 
@@ -85,6 +83,9 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 }
 
 mp_ret_t mp_machine_fini(mp_kernel_t *kernel) {
+
+	/* terminate SPI */
+	mp_spi_fini();
 
 	/* intialize UART */
 	mp_uart_fini();

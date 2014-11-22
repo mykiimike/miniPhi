@@ -12,7 +12,8 @@ static void __dummy_int();
 //#endif
 
 /* 100 shall be enougth for all msp430 series */
-mp_interrupt_t __interrupts[_MAX_INTERRUPTS];
+static mp_interrupt_t __interrupts[_MAX_INTERRUPTS];
+static mp_bool_t __state = NO;
 
 mp_ret_t mp_interrupt_init() {
 	mp_interrupt_t *inter;
@@ -21,11 +22,14 @@ mp_ret_t mp_interrupt_init() {
 		inter = &__interrupts[a];
 		inter->callback = __dummy_int;
 	}
+
+	mp_interrupt_enable();
 	return(TRUE);
 }
 
 mp_ret_t mp_interrupt_fini() {
 	/* nothing */
+	mp_interrupt_disable();
 	return(TRUE);
 }
 
@@ -36,7 +40,7 @@ mp_interrupt_t *mp_interrupt_set(int inVector, mp_interrupt_cb_t in, void *user,
 	/* apply factor */
 	vector = inVector-_FACTOR;
 
-	__disable_interrupt();
+	MP_INTERRUPT_SAFE_BEGIN
 
 	inter = &__interrupts[vector];
 
@@ -49,19 +53,42 @@ mp_interrupt_t *mp_interrupt_set(int inVector, mp_interrupt_cb_t in, void *user,
 	inter->user = user;
 	inter->who = who;
 
-	__enable_interrupt();
+	MP_INTERRUPT_SAFE_END
 
 	/* nothing */
 	return(inter);
 }
 
 mp_ret_t mp_interrupt_unset(int vector) {
-	__disable_interrupt();
+	MP_INTERRUPT_SAFE_BEGIN
+
 	__interrupts[vector].callback = __dummy_int;
 	__interrupts[vector].user = NULL;
 	__interrupts[vector].who = NULL;
-	__enable_interrupt();
+
+	MP_INTERRUPT_SAFE_END
 	return(TRUE);
+}
+
+void mp_interrupt_enable() {
+	__state = YES;
+	__enable_interrupt();
+}
+
+void mp_interrupt_disable() {
+	__state = NO;
+	__disable_interrupt();
+}
+
+mp_bool_t mp_interrupt_state() {
+	return(__state);
+}
+
+void mp_interrupt_restore(mp_bool_t state) {
+	if(state == ON)
+		mp_interrupt_enable();
+	else
+		mp_interrupt_disable();
 }
 
 static void __dummy_int() { }

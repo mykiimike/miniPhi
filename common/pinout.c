@@ -1,6 +1,6 @@
 #include <mp.h>
 
-#ifdef _SUPPORT_PINOUT
+#ifdef SUPPORT_COMMON_PINOUT
 
 MP_TASK(onoffLive);
 MP_TASK(onoffStep);

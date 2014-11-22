@@ -18,21 +18,39 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef _HAVE_MEM_H
-	#define _HAVE_MEM_H
-
-	#ifdef SUPPORT_COMMON_MEM
+#ifndef _HAVE_MSP430_ADC_H
+	#define _HAVE_MSP430_ADC_H
 
 
-		typedef struct mp_mem_chunk_s mp_mem_chunk_t;
+	typedef struct mp_adc_s mp_adc_t;
+	typedef void (*mp_adc_callback_t)(mp_adc_t *adc);
 
-		struct mp_mem_chunk_s {
-			unsigned char data[MP_MEM_CHUNK];
-		};
+	struct mp_adc_s {
+		mp_gpio_port_t *port;
+		mp_kernel_t *kernel;
 
-		mp_ret_t mp_mem_erase(mp_kernel_t *kernel);
-		void *mp_mem_alloc(mp_kernel_t *kernel, int size);
-		void mp_mem_free(mp_kernel_t *kernel, void *ptr);
-	#endif
+		char state;
+
+		char ctlId;
+
+		char channelId;
+
+		int result;
+		mp_adc_callback_t callback;
+		mp_task_t *task;
+
+		mp_list_item_t item;
+	};
+
+	mp_ret_t mp_adc_create(mp_kernel_t *kernel, mp_adc_t *adc, mp_options_t *options, const char *who);
+	mp_ret_t mp_adc_remove(mp_adc_t *adc);
+
+	void mp_adc_enable(mp_adc_t *adc);
+	void mp_adc_disable(mp_adc_t *adc);
+	void mp_adc_start();
+	void mp_adc_stop();
+	mp_ret_t mp_adc_state();
+	void mp_adc_restore(mp_bool_t status);
 
 #endif
+

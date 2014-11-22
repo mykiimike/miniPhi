@@ -1,7 +1,7 @@
 #ifndef _HAVE_MP_PINOUT_H
 	#define _HAVE_MP_PINOUT_H
 
-	#ifdef _SUPPORT_PINOUT
+	#ifdef SUPPORT_COMMON_PINOUT
 		typedef struct mp_pinout_s {
 			mp_task_t *task;
 			mp_gpio_port_t *gpio;

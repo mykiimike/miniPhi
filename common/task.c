@@ -131,6 +131,8 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 			seek->signal = MP_TASK_SIG_STOP;
 			pass = YES;
 		}
+		else if(seek->signal == MP_TASK_SIG_PENDING)
+			pass = YES;
 		else if(seek->signal == MP_TASK_SIG_SLEEP)
 			pass = NO;
 		else if(now-seek->check >= seek->delay)
@@ -141,6 +143,10 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 		if(pass == YES) {
 			/* execute wakeup */
 			seek->wakeup(seek);
+
+			/* signal was pending restore OK state */
+			if(seek->signal == MP_TASK_SIG_PENDING)
+				seek->signal = MP_TASK_SIG_OK;
 
 			/* acknowledge stop dead message */
 			if(seek->signal == MP_TASK_SIG_DEAD) {

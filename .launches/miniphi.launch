@@ -19,7 +19,7 @@
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_TARGET_CONFIG" value="${target_config_active_default:miniphi}"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.TI MSP430 USB1/MSP430" value="C:/Users\mykii\Documents\Dev\mp_workspace\miniphi\Debug\miniphi.out"/>
 <mapAttribute key="com.ti.ccstudio.debug.ui.displayFormats">
-<mapEntry key="TI MSP430 USB1/MSP430@##separator##@0" value="Character"/>
+<mapEntry key="TI MSP430 USB1/MSP430@##separator##@0" value="16-Bit Hex - TI Style"/>
 </mapAttribute>
 <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
 <listEntry value="/miniphi"/>

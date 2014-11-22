@@ -32,6 +32,7 @@
 	#include "i2c.h"
 	#include "uart.h"
 	#include "spi.h"
+	#include "adc.h"
 
 	mp_ret_t mp_machine_init(mp_kernel_t *kernel);
 	mp_ret_t mp_machine_fini(mp_kernel_t *kernel);

@@ -26,13 +26,13 @@
 
 	//#define SUPPORT_DRV_LCD_NOKIA3310
 
-	#define _SUPPORT_MEM
-	#define _SUPPORT_SERIAL
-	#define _SUPPORT_PINOUT /* enable pinout feature, need mem support */
+	#define SUPPORT_COMMON_MEM /* enable tiny-malloc */
+	#define SUPPORT_COMMON_SERIAL
+	#define SUPPORT_COMMON_PINOUT /* enable pinout feature, need mem support */
 
 	/* mem configuration */
 	#ifndef MP_MEM_SIZE
-		#define MP_MEM_SIZE  10240 /* total memory allowed for heap */
+		#define MP_MEM_SIZE  5120 /* total memory allowed for heap */
 	#endif
 
 	#ifndef MP_MEM_CHUNK

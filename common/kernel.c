@@ -11,12 +11,19 @@ static void _mp_kernel_state_kpanic_tick(void *user);
 
 void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) {
 
+	kernel->version = MP_KERNEL_VERSION;
+
 	/* setup structure */
 	kernel->onBoot = onBoot;
 	kernel->onBootUser = user;
 
 	/* initialize the machine */
 	mp_machine_init(kernel);
+
+	/* erase mem if necessary */
+#ifdef SUPPORT_COMMON_MEM
+	mp_mem_erase(kernel);
+#endif
 
 	/* initialize tasks */
 	mp_task_init(&kernel->tasks);

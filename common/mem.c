@@ -20,7 +20,7 @@
 
 #include <mp.h>
 
-#ifdef _SUPPORT_MEM
+#ifdef SUPPORT_COMMON_MEM
 
 #define _MP_HEAP_CKSIZE MP_MEM_SIZE/sizeof(mp_mem_chunk_t)
 
@@ -28,7 +28,7 @@
 static unsigned char __line[MP_MEM_SIZE];
 
 /** linear allocation index */
-static unsigned int __line_size = 0;
+static int __line_size = 0;
 
 /** structured allocation tab */
 static mp_mem_chunk_t *__allocated_heap = NULL;
