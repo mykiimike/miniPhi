@@ -105,7 +105,7 @@
 		void *onBootUser;
 
 #ifdef __MSP430__
-		/* necessary ? */
+		mp_adc_t internalTemp;
 #endif
 
 	};

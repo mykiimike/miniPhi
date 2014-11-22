@@ -20,6 +20,11 @@
 
 #include <mp.h>
 
+static void _set_machine_temperature(mp_kernel_t *kernel);
+static void _unset_machine_temperature(mp_kernel_t *kernel);
+static void _processor_temp(mp_adc_t *adc);
+
+
 mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	WDTCTL = WDTPW | WDTHOLD;	// Stop watchdog timer
 
@@ -54,8 +59,6 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 			kernel->mcuName = "MSP430F5418";
 #endif
 
-	__disable_interrupt();
-
 	/* initialize GATEs */
 	mp_gate_init(kernel);
 
@@ -77,7 +80,8 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	/* initialize SPI */
 	mp_spi_init();
 
-	__enable_interrupt();
+	/* initialize temp processor sensor */
+	//_set_machine_temperature(kernel);
 
 	return(TRUE);
 }
@@ -106,5 +110,57 @@ mp_ret_t mp_machine_fini(mp_kernel_t *kernel) {
 }
 
 
-//mp_machine_stop
-//mp_machine_
+void mp_machine_state_set(mp_kernel_t *kernel) {
+	_set_machine_temperature(kernel);
+
+}
+
+void mp_machine_state_unset(mp_kernel_t *kernel) {
+	_unset_machine_temperature(kernel);
+
+}
+
+static void _set_machine_temperature(mp_kernel_t *kernel) {
+#if defined(__msp430x54x) || defined(__msp430x54xA)
+	/* create mcu temperature */
+	{
+		mp_options_t options[] = {
+				{ "channel", "A10" },
+				{ "delay", "500" },
+				{ NULL, NULL }
+		};
+		mp_adc_create(kernel, &kernel->internalTemp, options, "MCU temp");
+		kernel->internalTemp.callback = _processor_temp;
+	}
+#endif
+}
+
+
+static void _unset_machine_temperature(mp_kernel_t *kernel) {
+#if defined(__msp430x54x) || defined(__msp430x54xA)
+	mp_adc_remove(&kernel->internalTemp);
+#endif
+}
+
+
+#if defined(__msp430x54x)
+	#define _CALADC12_15V_30C  *((unsigned int *)0x1A1C)   // Temperature Sensor Calibration-30 C
+	#define _CALADC12_15V_85C  *((unsigned int *)0x1A1E)   // Temperature Sensor Calibration-85 C
+#elif defined(__msp430x54xA)
+	#define _CALADC12_15V_30C  *((unsigned int *)0x1A1A)   // Temperature Sensor Calibration-30 C
+	#define _CALADC12_15V_85C  *((unsigned int *)0x1A1C)   // Temperature Sensor Calibration-85 C
+#endif
+
+#if defined(__msp430x54x) || defined(__msp430x54xA)
+
+static void _processor_temp(mp_adc_t *adc) {
+	float temperatureDegC;
+
+    temperatureDegC = (float)(((long)adc->result - _CALADC12_15V_30C) * (85 - 30)) /
+			(_CALADC12_15V_85C - _CALADC12_15V_30C) + 30.0f;
+
+    /* interfacing ?? */
+    P10OUT ^= 0x40;
+}
+
+#endif

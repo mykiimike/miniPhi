@@ -42,7 +42,7 @@ struct olimex_msp430_s {
 	/** implementation of power on/off */
 	mp_drv_button_event_t bPower;
 
-	mp_adc_t internal_temp;
+
 
 };
 
@@ -187,15 +187,7 @@ static void __olimex_state_op_set(void *user) {
 		mp_drv_button_init(&olimex->kernel, &olimex->bDown, options, "DOWN B");
 	}
 
-	/* create mcu temperature */
-	{
-		mp_options_t options[] = {
-				{ "channel", "A10" },
-				{ NULL, NULL }
-		};
-		mp_adc_create(&olimex->kernel, &olimex->internal_temp, options, "MCU temp");
-		olimex->internal_temp.callback = __olimex_processor_temp;
-	}
+
 
 
 	/* create a button event based on center button in order to turn a led on/off */
@@ -217,6 +209,7 @@ static void __olimex_state_op_set(void *user) {
 	//mp_task_create(&olimex->kernel.tasks, "Blinking RED", blinkTask, &olimex->red_led, 500);
 	//mp_task_create(&olimex->kernel.tasks, "Blinking GREEN", blinkTask, &olimex->green_led, 1000);
 
+	mp_machine_state_set(&olimex->kernel);
 }
 
 
@@ -234,6 +227,8 @@ static void __olimex_state_op_unset(void *user) {
 
 	mp_drv_led_fini(&olimex->red_led);
 	mp_drv_led_fini(&olimex->green_led);
+
+	mp_machine_state_unset(&olimex->kernel);
 }
 
 
@@ -242,32 +237,7 @@ static void __olimex_state_op_tick(void *user) {
 }
 
 
-#define CALADC12_15V_30C  *((unsigned int *)0x1A1C)   // Temperature Sensor Calibration-30 C
-                                                      //See device datasheet for TLV table memory mapping
-#define CALADC12_15V_85C  *((unsigned int *)0x1A1E)   // Temperature Sensor Calibration-85 C
-static void __olimex_processor_temp(mp_adc_t *adc) {
-	float temperatureDegC;
 
-    temperatureDegC = (float)(((long)adc->result - CALADC12_15V_30C) * (85 - 30)) /
-            (CALADC12_15V_85C - CALADC12_15V_30C) + 30.0f;
-
-	char buffer[100];
-	int size;
-
-
-	size = snprintf(buffer, sizeof(buffer)-1, "CALADC12_15V_30C %d\n\r", CALADC12_15V_30C);
-	mp_serial_write(&__olimex.uart_usb_rs232, buffer, size);
-
-	size = snprintf(buffer, sizeof(buffer)-1, "CALADC12_15V_85C %d\n\r", CALADC12_15V_85C);
-	mp_serial_write(&__olimex.uart_usb_rs232, buffer, size);
-
-	size = snprintf(buffer, sizeof(buffer)-1, "Sensor result %d\n\r", adc->result);
-	mp_serial_write(&__olimex.uart_usb_rs232, buffer, size);
-
-
-	size = snprintf(buffer, sizeof(buffer)-1, "Processor temperature %f\n\r\n\r", temperatureDegC);
-	mp_serial_write(&__olimex.uart_usb_rs232, buffer, size);
-}
 
 void __olimex_on_button_left(void *user) {
 	//olimex_msp430_t *olimex = user;

@@ -38,7 +38,7 @@ static mp_adc_t *__controler_channelsId[16];
  * ref =
  */
 mp_ret_t mp_adc_create(mp_kernel_t *kernel, mp_adc_t *adc, mp_options_t *options, const char *who) {
-	int timer = 500;
+	int timer = 100;
 	mp_bool_t state;
 	int inch;
 	char tmp[5];
@@ -60,6 +60,11 @@ mp_ret_t mp_adc_create(mp_kernel_t *kernel, mp_adc_t *adc, mp_options_t *options
 		if(!adc->port)
 			return(FALSE);
 	}
+
+	/* change timer value */
+	value = mp_options_get(options, "delay");
+	if(value)
+		timer = atoi(value);
 
 	/* get channel */
 	value = mp_options_get(options, "channel");

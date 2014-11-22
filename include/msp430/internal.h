@@ -37,5 +37,6 @@
 	mp_ret_t mp_machine_init(mp_kernel_t *kernel);
 	mp_ret_t mp_machine_fini(mp_kernel_t *kernel);
 	mp_ret_t mp_machine_loop(mp_kernel_t *kernel);
-
+	void mp_machine_state_set(mp_kernel_t *kernel);
+	void mp_machine_state_unset(mp_kernel_t *kernel);
 #endif
