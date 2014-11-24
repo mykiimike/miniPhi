@@ -42,7 +42,9 @@ struct olimex_msp430_s {
 	/** implementation of power on/off */
 	mp_drv_button_event_t bPower;
 
+	mp_drv_LSM9DS0_t agm;
 
+	mp_adc_t pression1;
 
 };
 
@@ -51,12 +53,16 @@ static void __olimex_state_op_set(void *user);
 static void __olimex_state_op_unset(void *user);
 static void __olimex_state_op_tick(void *user);
 
-static void __olimex_processor_temp(mp_adc_t *adc);
+static void _olimex_printk(void *user, char *fmt, ...);
+static void __olimex_pression1(mp_adc_t *adc);
 void __olimex_on_button_left(void *user);
 void __olimex_on_button_right(void *user);
 void __olimex_on_button_up(void *user);
 void __olimex_on_button_down(void *user);
 void __olimex_on_button_power(void *user);
+
+
+static void _pression1(mp_adc_t *adc);
 
 static olimex_msp430_t __olimex;
 
@@ -132,6 +138,8 @@ static void __olimex_state_op_set(void *user) {
 	olimex->uart_usb_rs232.uart.txd.port = 10;
 	olimex->uart_usb_rs232.uart.txd.pin = 4;
 	mp_serial_init(&olimex->uart_usb_rs232, "USB RS232");
+	mp_printk_set(_olimex_printk, olimex);
+
 
 	/* create buttons */
 	{
@@ -189,6 +197,33 @@ static void __olimex_state_op_set(void *user) {
 
 
 
+	/*
+	 * simo = e16 ucb0simo > p3.1
+	 * somi = e15 ucb0somi > p3.2
+	 * clk = e14 ucb0clk > p3.3
+	 * csG = e18 > p4.7
+	 * csXM = e19 > P4.6
+	 * int1 = e4 > p1.1
+	 * int2 = e3 > p1.7
+	 * intG = e5 > p1.0
+	 *
+	 */
+	{
+		mp_options_t options[] = {
+				{ "gate", "USCI_B0" },
+				{ "simo", "p3.1" },
+				{ "somi", "p3.2" },
+				{ "clk", "p3.3" },
+				{ "csG", "p4.7" },
+				{ "csXM", "p4.6" },
+				{ "int1", "p1.1" },
+				{ "int2", "p1.7" },
+				{ "intG", "p1.0" },
+				{ NULL, NULL }
+		};
+		mp_drv_LSM9DS0_init(&olimex->kernel, &olimex->agm, options, "Acce/Gyro/Magneto");
+	}
+
 
 	/* create a button event based on center button in order to turn a led on/off */
 	mp_drv_button_event_create(
@@ -199,10 +234,21 @@ static void __olimex_state_op_set(void *user) {
 	/* pinout */
 	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 2010, 0, "Blinking green - Power ON");
 
-	char buffer[100];
-	int size;
-	size = snprintf(buffer, sizeof(buffer)-1, "miniPhi version %s\n\r", olimex->kernel.version);
-	mp_serial_write(&olimex->uart_usb_rs232, buffer, size);
+
+	/* create pression test */
+	{
+		mp_options_t options[] = {
+				{ "port", "p6.6" },
+				{ "channel", "A6" },
+				{ "delay", "100" },
+				{ NULL, NULL }
+		};
+		mp_adc_create(&olimex->kernel, &olimex->pression1, options, "Pression 1");
+		olimex->pression1.callback = _pression1;
+	}
+
+
+	mp_printk("miniPhi - version %s", olimex->kernel.version);
 
 	//mp_drv_led_turn(&olimex->red_led);
 
@@ -210,6 +256,11 @@ static void __olimex_state_op_set(void *user) {
 	//mp_task_create(&olimex->kernel.tasks, "Blinking GREEN", blinkTask, &olimex->green_led, 1000);
 
 	mp_machine_state_set(&olimex->kernel);
+}
+
+
+static void _pression1(mp_adc_t *adc) {
+	mp_printk("Pression 1 result: %d", adc->result);
 }
 
 
@@ -237,7 +288,21 @@ static void __olimex_state_op_tick(void *user) {
 }
 
 
+static void _olimex_printk(void *user, char *fmt, ...) {
+	olimex_msp430_t *olimex = user;
+	char buffer[1024];
+	va_list args;
+	int size;
 
+	va_start(args, fmt);
+	size = vsnprintf(buffer, sizeof(buffer)-3, fmt, args);
+	va_end(args);
+
+	buffer[size++] = '\n';
+	buffer[size++] = '\r';
+	buffer[size++] = '\0';
+	mp_serial_write(&olimex->uart_usb_rs232, buffer, size);
+}
 
 void __olimex_on_button_left(void *user) {
 	//olimex_msp430_t *olimex = user;

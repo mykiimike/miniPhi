@@ -18,28 +18,24 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifdef SUPPORT_DRV_LED
+#ifndef _HAVE_MP_COMMON_PRINTK
+	#define _HAVE_MP_COMMON_PRINTK
 
-#ifndef _HAVE_MP_DRV_LED_H
-#define _HAVE_MP_DRV_LED_H
+	#ifdef _DEBUG
+		#define _DP(a, args...) mp_printk_call(mp_printk_user, "* %s(): "a, __func__, ##args)
+	#else
+		#define _DP(a, ...)
+	#endif
 
-	typedef struct mp_drv_led_s mp_drv_led_t;
 
-	struct mp_drv_led_s {
-		mp_gpio_port_t *gpio;
+	#define mp_printk(a, args...) mp_printk_call(mp_printk_user, a, ##args)
 
-		mp_bool_t state;
+	typedef void (*mp_printk_call_t)(void *user, char *fmt, ...);
 
-		/** in some bad case the set/unset must be reverted */
-		mp_bool_t reverted;
-	};
+	extern mp_printk_call_t mp_printk_call;
+	extern void *mp_printk_user;
 
-	mp_ret_t mp_drv_led_init(mp_kernel_t *kernel, mp_drv_led_t *led, mp_options_t *options, char *who);
-	mp_ret_t mp_drv_led_fini(mp_drv_led_t *led);
-	void mp_drv_led_turnOff(mp_drv_led_t *led);
-	void mp_drv_led_turnOn(mp_drv_led_t *led);
-	void mp_drv_led_turn(mp_drv_led_t *led);
-
-#endif
+	mp_ret_t mp_printk_set(mp_printk_call_t call, void *user);
+	mp_ret_t mp_printk_unset();
 
 #endif

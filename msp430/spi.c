@@ -39,24 +39,9 @@ void mp_spi_fini() {
 /* should be ok */
 }
 
-mp_ret_t mp_spi_open(
-		mp_kernel_t *kernel,
-		mp_spi_t *spi,
-		mp_options_t *options,
-		mp_spi_phase_t phase,
-		mp_spi_polarity_t polarity,
-		mp_spi_first_t first,
-		mp_spi_role_t role,
-		mp_spi_mode_t mode,
-		mp_spi_bit_t bit,
-		mp_spi_sync_t sync,
-		unsigned long frequency,
-		char *who
-	) {
-	unsigned int prescaler;
+mp_ret_t mp_spi_open(mp_kernel_t *kernel, mp_spi_t *spi, mp_options_t *options, char *who) {
 	char *value;
 
-	spi->frequency = frequency;
 	spi->tx_reference = 0;
 
 	/* get gate Id*/
@@ -64,17 +49,21 @@ mp_ret_t mp_spi_open(
 	if(!value)
 		return(FALSE);
 	spi->gate = mp_gate_handle(value, "SPI");
-	if(spi->gate == NULL)
+	if(spi->gate == NULL) {
+		mp_printk("SPI - No gate specify (USCI_B) for %s", who);
 		return(FALSE);
+	}
 
 	/* somi */
 	value = mp_options_get(options, "somi");
-	if(!value){
+	if(!value) {
+		mp_printk("SPI - No SOMI port for %s", who);
 		mp_spi_close(spi);
 		return(FALSE);
 	}
 	spi->somi = mp_gpio_text_handle(value, "SPI SOMI");
-    if(!spi->somi){
+    if(!spi->somi) {
+    	mp_printk("SPI - Can not handle GPIO SOMI for %s using %s", who, value);
 		mp_spi_close(spi);
 		return(FALSE);
 	}
@@ -82,55 +71,65 @@ mp_ret_t mp_spi_open(
 	/* simo */
 	value = mp_options_get(options, "simo");
 	if(!value) {
+		mp_printk("SPI - No SIMO port for %s", who);
 		mp_spi_close(spi);
 		return(FALSE);
 	}
 	spi->simo = mp_gpio_text_handle(value, "SPI SIMO");
     if(!spi->simo) {
+    	mp_printk("SPI - Can not handle GPIO SIMO for %s using %s", who, value);
 		mp_spi_close(spi);
 		return(FALSE);
 	}
 
-	/* ste */
-	value = mp_options_get(options, "ste");
-	if(value) {
-		spi->ste = mp_gpio_text_handle(value, "SPI STE");
-		if(!spi->ste) {
-			mp_spi_close(spi);
-			return(FALSE);
-		}
-	}
-	else
-		mp_gpio_set(spi->ste);
-
 	/* clk */
 	value = mp_options_get(options, "clk");
 	if(!value) {
+		mp_printk("SPI - No CLK port for %s", who);
 		mp_spi_close(spi);
 		return(FALSE);
 	}
 	spi->clk = mp_gpio_text_handle(value, "SPI CLK");
     if(!spi->clk) {
+    	mp_printk("SPI - Can not handle GPIO CLK for %s using %s", who, value);
 		mp_spi_close(spi);
 		return(FALSE);
 	}
 
 	/* create the task */
+    /*
 	spi->task = mp_task_create(&kernel->tasks, who, __mp_spi_asr, spi, 0);
 	if(spi->task == NULL) {
+		mp_printk("SPI - Can not create task for %s", who);
 		mp_spi_close(spi);
 		return(FALSE);
 	}
+	*/
+
+	return(TRUE);
+}
+
+mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
+	unsigned long frequency;
+	unsigned int prescaler;
+	char *value;
+
+	/* frequency */
+	value = mp_options_get(options, "frequency");
+	if(!value) {
+		mp_printk("SPI - No frequency specify");
+		mp_spi_close(spi);
+		return(FALSE);
+	}
+	frequency = atol(value);
+
+	/* safe non interruptible block */
+	MP_INTERRUPT_SAFE_BEGIN
 
 	/* set port alternate function and port direction */
 	_GPIO_REG8(spi->simo, _GPIO_SEL) |= 1<<spi->simo->pin;
 	_GPIO_REG8(spi->somi, _GPIO_SEL) |= 1<<spi->somi->pin;
 	_GPIO_REG8(spi->clk, _GPIO_SEL) |= 1<<spi->clk->pin;
-	if(spi->ste) {
-		_GPIO_REG8(spi->ste, _GPIO_SEL) |= 1<<spi->ste->pin;
-		/* set output ste */
-		_GPIO_REG8(spi->ste, _GPIO_DIR) |= 1<<spi->ste->pin;
-	}
 
 	_GPIO_REG8(spi->simo, _GPIO_DIR) |= 1<<spi->simo->pin;
 	_GPIO_REG8(spi->somi, _GPIO_DIR) &= ~(1<<spi->somi->pin);
@@ -141,78 +140,47 @@ mp_ret_t mp_spi_open(
 
 	/* clock source - SMCLK */
 	_SPI_REG8(spi->gate, _SPI_CTL1) |= 0x80;
-	UCB2CTL1 = UCB2CTL1 | 0x80;                     //
 
 	prescaler = mp_clock_get_speed() / frequency;
 	_SPI_REG8(spi->gate, _SPI_BR0) = prescaler % 256;
 	_SPI_REG8(spi->gate, _SPI_BR1) = prescaler / 256;
 
 	/* user options */
-	switch(phase) {
-		case MP_SPI_CLK_PHASE_CHANGE:
-			_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCCKPH);
-			break;
-		case MP_SPI_CLK_PHASE_CAPTURE:
-			_SPI_REG8(spi->gate, _SPI_CTL0) |= UCCKPH;
-			break;
-	}
+	value = mp_options_get(options, "phase");
+	if(value && mp_options_cmp(value, "change"))
+		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCCKPH);
+	else
+		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCCKPH;
 
-	switch(polarity) {
-		case MP_SPI_CLK_POLARITY_LOW:
-			_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCCKPL);
-			break;
-		case MP_SPI_CLK_POLARITY_HIGH:
-			_SPI_REG8(spi->gate, _SPI_CTL0) |= UCCKPL;
-			break;
-	}
+	value = mp_options_get(options, "polarity");
+	if(value && mp_options_cmp(value, "low"))
+		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCCKPL);
+	else
+		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCCKPL;
 
-	switch(first) {
-		case MP_SPI_LSB:
-			_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCMSB);
-			break;
-		case MP_SPI_MSB:
-			_SPI_REG8(spi->gate, _SPI_CTL0) |= UCMSB;
-			break;
-	}
+	value = mp_options_get(options, "first");
+	if(value && mp_options_cmp(value, "lsb"))
+		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCMSB);
+	else
+		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCMSB;
 
-	switch(role) {
-		case MP_SPI_SLAVE:
-			_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCMST);
-			break;
-		case MP_SPI_MASTER:
-			_SPI_REG8(spi->gate, _SPI_CTL0) |= UCMST;
-			break;
-	}
+	value = mp_options_get(options, "role");
+	if(value && mp_options_cmp(value, "slave"))
+		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCMST);
+	else
+		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCMST;
 
-	switch(mode) {
-		case MP_SPI_MODE_3PIN:
-			_SPI_REG8(spi->gate, _SPI_CTL0) |= UCMODE_0;
-			break;
-		case MP_SPI_MODE_4PIN_LOW:
-			_SPI_REG8(spi->gate, _SPI_CTL0) |= UCMODE_1;
-			break;
-		case MP_SPI_MODE_4PIN_HIGH:
-			_SPI_REG8(spi->gate, _SPI_CTL0) |= UCMODE_2;
-			break;
-	}
+	value = mp_options_get(options, "bit");
+	if(value && mp_options_cmp(value, "8"))
+		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UC7BIT);
+	else
+		_SPI_REG8(spi->gate, _SPI_CTL0) |= UC7BIT;
 
-	switch(bit) {
-		case MP_SPI_BIT_8:
-			_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UC7BIT);
-			break;
-		case MP_SPI_BIT_7:
-			_SPI_REG8(spi->gate, _SPI_CTL0) |= UC7BIT;
-			break;
-	}
-
-	switch(sync) {
-		case MP_SPI_ASYNC:
-			_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCSYNC);
-			break;
-		case MP_SPI_SYNC:
-			_SPI_REG8(spi->gate, _SPI_CTL0) |= UCSYNC;
-			break;
-	}
+	value = mp_options_get(options, "flow");
+	if(value && mp_options_cmp(value, "async"))
+		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCSYNC);
+	else
+		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCSYNC;
 
 	/* write finished */
 	_SPI_REG8(spi->gate, _SPI_CTL1) &= ~(UCSWRST);
@@ -222,12 +190,16 @@ mp_ret_t mp_spi_open(
 	mp_spi_disable_rx(spi);
 
 	/* place interrupt */
-	mp_interrupt_set(spi->gate->_ISRVector, __mp_spi_interrupt, spi, spi->gate->portDevice);
+	//mp_interrupt_set(spi->gate->_ISRVector, __mp_spi_interrupt, spi, spi->gate->portDevice);
+
+	/* safe non interruptible block */
+	MP_INTERRUPT_SAFE_END
 
 	/* list */
 	mp_list_add_last(&__spi, &spi->item, spi);
 	__spi_count++;
 	return(TRUE);
+
 }
 
 mp_ret_t mp_spi_close(mp_spi_t *spi) {
@@ -238,9 +210,9 @@ mp_ret_t mp_spi_close(mp_spi_t *spi) {
 
 	/* disble interrupts */
 	if(spi->gate) {
-		mp_spi_disable_rx(spi);
-		mp_spi_disable_tx(spi);
-		mp_interrupt_unset(spi->gate->_ISRVector);
+		//mp_spi_disable_rx(spi);
+		//mp_spi_disable_tx(spi);
+		//mp_interrupt_unset(spi->gate->_ISRVector);
 	}
 
 	if(spi->simo) {
@@ -256,13 +228,6 @@ mp_ret_t mp_spi_close(mp_spi_t *spi) {
 	if(spi->clk) {
 		_GPIO_REG8(spi->clk, _GPIO_SEL) &= ~(1<<spi->somi->pin);
 		mp_gpio_release(spi->clk);
-	}
-
-	if(spi->ste) {
-		_GPIO_REG8(spi->ste, _GPIO_SEL) &= ~(1<<spi->ste->pin);
-		/* set input ste */
-		_GPIO_REG8(spi->ste, _GPIO_DIR) &= ~(1<<spi->ste->pin);
-		mp_gpio_release(spi->ste);
 	}
 
 	if(spi->gate)

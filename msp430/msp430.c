@@ -160,7 +160,7 @@ static void _processor_temp(mp_adc_t *adc) {
 			(_CALADC12_15V_85C - _CALADC12_15V_30C) + 30.0f;
 
     /* interfacing ?? */
-    P10OUT ^= 0x40;
+    mp_printk("Processor temperature: %f %d", temperatureDegC, adc->result);
 }
 
 #endif

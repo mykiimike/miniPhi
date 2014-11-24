@@ -22,7 +22,6 @@
 
 static void __auto_init(mp_kernel_t *kernel);
 static void __auto_fini(mp_kernel_t *kernel);
-static char _mp_adc_get_mctl();
 MP_TASK(adcControler);
 MP_TASK(adcChannel);
 
@@ -30,7 +29,8 @@ static int __references = 0;
 static mp_bool_t __isInit = NO;
 static mp_list_t __list;
 static mp_task_t *__controler = NULL;
-static mp_adc_t *__controler_channelsId[16];
+static mp_adc_t *__selected_channel = NULL;
+
 
 /*
  * port = GPIO
@@ -39,8 +39,6 @@ static mp_adc_t *__controler_channelsId[16];
  */
 mp_ret_t mp_adc_create(mp_kernel_t *kernel, mp_adc_t *adc, mp_options_t *options, const char *who) {
 	int timer = 100;
-	mp_bool_t state;
-	int inch;
 	char tmp[5];
 	char *value;
 	int len;
@@ -48,10 +46,10 @@ mp_ret_t mp_adc_create(mp_kernel_t *kernel, mp_adc_t *adc, mp_options_t *options
 
 	memset(adc, 0, sizeof(*adc));
 	adc->kernel = kernel;
+	adc->state = 0;
 
 	/* check for auto init */
 	__auto_init(kernel);
-	state = mp_adc_state();
 
 	/* get port */
 	value = mp_options_get(options, "port");
@@ -59,6 +57,11 @@ mp_ret_t mp_adc_create(mp_kernel_t *kernel, mp_adc_t *adc, mp_options_t *options
 		adc->port = mp_gpio_text_handle(value, "ADC12");
 		if(!adc->port)
 			return(FALSE);
+
+		mp_gpio_direction(adc->port, MP_GPIO_INPUT);
+
+		/* select alternative function */
+		_GPIO_REG8(adc->port, _GPIO_SEL) |= 1<<adc->port->pin;
 	}
 
 	/* change timer value */
@@ -92,59 +95,38 @@ mp_ret_t mp_adc_create(mp_kernel_t *kernel, mp_adc_t *adc, mp_options_t *options
 		return(FALSE);
 	}
 
-	/* get modulation control ... */
-	adc->ctlId = _mp_adc_get_mctl();
-
 	/* safe non interruptible block */
 	MP_INTERRUPT_SAFE_BEGIN
 
-	/* stop ADC */
-	mp_adc_stop();
-
-	/* configure channel */
-	inch = ADC12INCH_0+adc->channelId;
-	value = ADC12MCTL+adc->ctlId;
-	*value = ADC12SREF_1 + inch;
-
 	/* add list */
 	mp_list_add_last(&__list, &adc->item, adc);
-	__controler_channelsId[adc->ctlId] = adc;
-
-	/* start if necessary */
-	mp_adc_restore(state);
 
 	/* safe non interruptible block */
 	MP_INTERRUPT_SAFE_END
+
+	mp_printk("Creating ADC 12bits using A%d owned by %s", adc->channelId, who);
 
 	return(TRUE);
 }
 
 mp_ret_t mp_adc_remove(mp_adc_t *adc) {
-	mp_bool_t state;
-
-	/* remove task */
-	mp_task_destroy(adc->task);
+	mp_printk("Removing ADC 12bits using A%d", adc->channelId);
 
 	/* safe non interruptible block */
 	MP_INTERRUPT_SAFE_BEGIN
 
-	state = mp_adc_state();
+	/* remove task */
+	mp_task_destroy(adc->task);
 
-	/* stop ADC */
-	mp_adc_stop();
+	if(adc->port) {
+		/* remove alternative function */
+		_GPIO_REG8(adc->port, _GPIO_SEL) &= ~(1<<adc->port->pin);
 
-	/* disable ADC channel */
-	mp_adc_disable(adc);
-
-	if(adc->port)
 		mp_gpio_release(adc->port);
+	}
 
 	/* remove from list */
 	mp_list_remove(&__list, &adc->item);
-	__controler_channelsId[adc->ctlId] = NULL;
-
-	/* restore state */
-	mp_adc_restore(state);
 
 	/* check for auto fini*/
 	__auto_fini(adc->kernel);
@@ -156,19 +138,11 @@ mp_ret_t mp_adc_remove(mp_adc_t *adc) {
 }
 
 void mp_adc_enable(mp_adc_t *adc) {
-	char *ptr;
-	ptr = ADC12MCTL+adc->ctlId;
-	*ptr |= ADC12SC;
-
 	/* enable interrupt */
 	ADC12IE |= 1<<adc->ctlId;
 }
 
 void mp_adc_disable(mp_adc_t *adc) {
-	char *ptr;
-	ptr = ADC12MCTL+adc->ctlId;
-	*ptr &= ~ADC12SC;
-
 	/* disable interrupt */
 	ADC12IE &= ~(1<<adc->ctlId);
 }
@@ -192,39 +166,12 @@ void mp_adc_restore(mp_bool_t status) {
 		ADC12CTL0 &= ~ADC12ENC;
 }
 
-static char _mp_adc_get_mctl() {
-	char ctlId = 0;
-	mp_adc_t *next;
-	mp_adc_t *seek;
-
-	/* assert */
-	if(__list.first == NULL)
-		return(0);
-
-	/* check for break list */
-	seek = __list.first->user;
-	while(seek != NULL) {
-		next = seek->item.next != NULL ? seek->item.next->user : NULL;
-
-		/* this one is free */
-		if(ctlId != seek->ctlId)
-			return(ctlId);
-
-		ctlId++;
-
-		seek = next;
-	}
-
-	/* no one in break list then allocate new one */
-	ctlId++;
-
-	return(ctlId);
-}
-
 static void __auto_init(mp_kernel_t *kernel) {
 	__references++;
 	if(__isInit == YES)
 		return;
+
+	__selected_channel = NULL;
 
 	/* create controler task */
 	__controler = mp_task_create(&kernel->tasks, "ADC controler", adcControler, NULL, 0);
@@ -250,8 +197,7 @@ static void __auto_init(mp_kernel_t *kernel) {
 	/* 35us delay ADC is based on DCO */
 	__delay_cycles(37);
 
-	/* start ADC */
-	mp_adc_start();
+	ADC12CTL0 |= ADC12MSC;
 
 	__isInit = YES;
 }
@@ -280,14 +226,49 @@ static void __auto_fini(mp_kernel_t *kernel) {
 }
 
 MP_TASK(adcControler) {
+	mp_adc_t *next;
+	mp_adc_t *seek;
+	int inch;
+
 	/* acknowledge task end */
 	if(task->signal == MP_TASK_SIG_STOP) {
 		task->signal = MP_TASK_SIG_DEAD;
 		return;
 	}
 
-	ADC12CTL0 |= ADC12SC;
-	task->signal = MP_TASK_SIG_SLEEP;
+	/* assert */
+	if(__list.first == NULL || __selected_channel != NULL)
+		return;
+
+	/* check for break list */
+	seek = __list.first->user;
+	while(seek != NULL) {
+		next = seek->item.next != NULL ? seek->item.next->user : NULL;
+
+		/* this one is free */
+		if(seek->state == 1) {
+			inch = ADC12INCH_0+seek->channelId;
+			ADC12MCTL0 = ADC12SREF_1 | inch;
+
+			__selected_channel = seek;
+
+			mp_adc_enable(seek);
+
+			mp_adc_start();
+
+			ADC12CTL0 |= ADC12SC;
+
+			task->signal = MP_TASK_SIG_SLEEP;
+			return;
+		}
+
+		seek = next;
+	}
+
+	task->signal = MP_TASK_SIG_OK;
+	return;
+
+
 }
 
 MP_TASK(adcChannel) {
@@ -307,17 +288,20 @@ MP_TASK(adcChannel) {
 		/* sleep my state */
 		task->signal = MP_TASK_SIG_SLEEP;
 
-		/* enable ADC channel */
-		mp_adc_enable(adc);
-
+		/* wait controler to send request */
 		adc->state = 1;
 	}
-	else {
+	else if(adc->state == 2) {
 		/* execute end user callback */
 		if(adc->callback)
 			adc->callback(adc);
 
 		adc->state = 0;
+		task->signal = MP_TASK_SIG_OK;
+		__selected_channel = NULL;
+
+		mp_adc_enable(adc);
+		mp_adc_stop();
 	}
 
 
@@ -336,36 +320,30 @@ void __attribute__ ((interrupt(ADC12_VECTOR))) ADC12ISR (void)
 	int dummy;
 
 #define __SET(a) \
-	adc = __controler_channelsId[a]; \
-	if(!adc) { \
-		dummy = ADC12MEM0+a; \
+	adc = __selected_channel; \
+	if(!adc) \
 		break; \
-	} \
 	adc->result = ADC12MEM0+a; \
 	adc->task->signal = MP_TASK_SIG_PENDING; \
+	adc->state = 2; \
 	ADC12IFG &= ~(1<<a)
 
 	switch(__even_in_range(ADC12IV,34)) {
 		case  0: break;                           // Vector  0:  No interrupt
 		case  2: break;                           // Vector  2:  ADC overflow
 		case  4: break;                           // Vector  4:  ADC timing overflow
-		case  6: __SET(0); break;                 // Vector  6:  ADC12IFG0
-		case  8: __SET(1); break;                 // Vector  8:  ADC12IFG1
-		case 10: __SET(2); break;                 // Vector 10:  ADC12IFG2
-		case 12: __SET(3); break;                 // Vector 12:  ADC12IFG3
-		case 14: __SET(4); break;                 // Vector 14:  ADC12IFG4
-		case 16: __SET(5); break;                 // Vector 16:  ADC12IFG5
-		case 18: __SET(6); break;                 // Vector 18:  ADC12IFG6
-		case 20: __SET(7); break;                 // Vector 20:  ADC12IFG7
-		case 22: __SET(8); break;                 // Vector 22:  ADC12IFG8
-		case 24: __SET(9); break;                 // Vector 24:  ADC12IFG9
-		case 26: __SET(10); break;                // Vector 26:  ADC12IFG10
-		case 28: __SET(11); break;                // Vector 28:  ADC12IFG11
-		case 30: __SET(12); break;                // Vector 30:  ADC12IFG12
-		case 32: __SET(13); break;                // Vector 32:  ADC12IFG13
-		case 34: __SET(14); break;                // Vector 34:  ADC12IFG14
-		case 36: __SET(15); break;                // Vector 36:  ADC12IFG15
+		case  6:
+			adc = __selected_channel;
+			if(!adc)
+				break;
+			adc->result = ADC12MEM0;
+			adc->task->signal = MP_TASK_SIG_PENDING;
+			adc->state = 2;
+			ADC12IFG = 0;
+			break;
 		default: break;
 	}
+
+	ADC12IFG = 0;
 }
 

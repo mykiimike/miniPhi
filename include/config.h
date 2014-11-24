@@ -21,10 +21,12 @@
 #ifndef _HAVE_CONFIG_H
 	#define _HAVE_CONFIG_H
 
+	#define _DEBUG
+
 	#define SUPPORT_DRV_LED
 	#define SUPPORT_DRV_BUTTON
 	//#define SUPPORT_DRV_TEMPERATURE
-
+	#define SUPPORT_DRV_LSM9DS0
 	//#define SUPPORT_DRV_LCD_NOKIA3310
 
 	#define SUPPORT_COMMON_MEM /* enable tiny-malloc */

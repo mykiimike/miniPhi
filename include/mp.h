@@ -19,7 +19,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #ifndef _MP_H
-	#define MP_H
+	#define _MP_H
 
 	#include <config.h>
 
@@ -54,6 +54,7 @@
 		#include <string.h>
 		#include <stdio.h>
 		#include <stdlib.h>
+		#include <stdarg.h>
 		#include <msp430/internal.h>
 	#endif
 
@@ -74,11 +75,14 @@
 	#include "common/state.h"
 	#include "common/serial.h"
 	#include "common/pinout.h"
+	#include "common/printk.h"
 
 	#include "drivers/button.h"
 	#include "drivers/led.h"
 
 	#include "drivers/lcd/nokia3310.h"
+
+	#include "drivers/sensors/LSM9DS0.h"
 
 	#define MP_KERNEL_VERSION "1.0.0"
 

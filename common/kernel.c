@@ -11,6 +11,9 @@ static void _mp_kernel_state_kpanic_tick(void *user);
 
 void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) {
 
+	/* initialize printk */
+	mp_printk_unset();
+
 	kernel->version = MP_KERNEL_VERSION;
 
 	/* setup structure */

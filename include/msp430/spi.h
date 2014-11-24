@@ -25,42 +25,6 @@
 
 	typedef void (*mp_spi_callback_t)(mp_spi_t *);
 
-	typedef enum {
-		MP_SPI_CLK_PHASE_CHANGE,
-		MP_SPI_CLK_PHASE_CAPTURE
-	} mp_spi_phase_t;
-
-	typedef enum {
-		MP_SPI_CLK_POLARITY_LOW,
-		MP_SPI_CLK_POLARITY_HIGH
-	} mp_spi_polarity_t;
-
-	typedef enum {
-		MP_SPI_MASTER,
-		MP_SPI_SLAVE
-	} mp_spi_role_t;
-
-	typedef enum {
-		MP_SPI_MSB,
-		MP_SPI_LSB
-	} mp_spi_first_t;
-
-	typedef enum {
-		MP_SPI_MODE_3PIN,
-		MP_SPI_MODE_4PIN_LOW,
-		MP_SPI_MODE_4PIN_HIGH
-	} mp_spi_mode_t;
-
-	typedef enum {
-		MP_SPI_BIT_7,
-		MP_SPI_BIT_8,
-	} mp_spi_bit_t;
-
-	typedef enum {
-		MP_SPI_SYNC,
-		MP_SPI_ASYNC,
-	} mp_spi_sync_t;
-
 	struct mp_spi_s {
 
 		/** SPI frequency */
@@ -88,7 +52,6 @@
 		mp_gpio_port_t *simo;
 		mp_gpio_port_t *somi;
 		mp_gpio_port_t *clk;
-		mp_gpio_port_t *ste;
 		mp_list_item_t item;
 
 		mp_task_t *task;
@@ -100,16 +63,9 @@
 		mp_kernel_t *kernel,
 		mp_spi_t *spi,
 		mp_options_t *options,
-		mp_spi_phase_t phase,
-		mp_spi_polarity_t polarity,
-		mp_spi_first_t first,
-		mp_spi_role_t role,
-		mp_spi_mode_t mode,
-		mp_spi_bit_t bit,
-		mp_spi_sync_t sync,
-		unsigned long frequency,
 		char *who
 	);
+	mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options);
 	mp_ret_t mp_spi_close(mp_spi_t *spi);
 	void mp_spi_write(mp_spi_t *spi, unsigned char *input, int size);
 
@@ -159,11 +115,7 @@
 
 	static inline void mp_spi_tx(mp_spi_t *spi, unsigned char data) {
 		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCRXIFG));
-		if(spi->ste)
-			mp_gpio_unset(spi->ste);
 		_SPI_REG8(spi->gate, _SPI_TXBUF) = data;
-		if(spi->ste)
-			mp_gpio_set(spi->ste);
 	}
 
 
