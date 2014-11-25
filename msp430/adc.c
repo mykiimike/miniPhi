@@ -25,7 +25,6 @@ static void __auto_fini(mp_kernel_t *kernel);
 MP_TASK(adcControler);
 MP_TASK(adcChannel);
 
-static int __references = 0;
 static mp_bool_t __isInit = NO;
 static mp_list_t __list;
 static mp_task_t *__controler = NULL;
@@ -139,12 +138,12 @@ mp_ret_t mp_adc_remove(mp_adc_t *adc) {
 
 void mp_adc_enable(mp_adc_t *adc) {
 	/* enable interrupt */
-	ADC12IE |= 1<<adc->ctlId;
+	ADC12IE = 1;
 }
 
 void mp_adc_disable(mp_adc_t *adc) {
 	/* disable interrupt */
-	ADC12IE &= ~(1<<adc->ctlId);
+	ADC12IE = 0;
 }
 
 void mp_adc_start() {
@@ -167,7 +166,6 @@ void mp_adc_restore(mp_bool_t status) {
 }
 
 static void __auto_init(mp_kernel_t *kernel) {
-	__references++;
 	if(__isInit == YES)
 		return;
 
@@ -203,11 +201,7 @@ static void __auto_init(mp_kernel_t *kernel) {
 }
 
 static void __auto_fini(mp_kernel_t *kernel) {
-	__references--;
 	if(__isInit == NO)
-		return;
-
-	if(__references != 0)
 		return;
 
 	/* remove task */
@@ -248,16 +242,20 @@ MP_TASK(adcControler) {
 		/* this one is free */
 		if(seek->state == 1) {
 			inch = ADC12INCH_0+seek->channelId;
+			/* set channel */
 			ADC12MCTL0 = ADC12SREF_1 | inch;
-
 			__selected_channel = seek;
 
+			/* enable channel */
 			mp_adc_enable(seek);
 
+			/* start ADC */
 			mp_adc_start();
 
+			/* send start */
 			ADC12CTL0 |= ADC12SC;
 
+			/* and wait */
 			task->signal = MP_TASK_SIG_SLEEP;
 			return;
 		}
@@ -317,16 +315,6 @@ void __attribute__ ((interrupt(ADC12_VECTOR))) ADC12ISR (void)
 #endif
 {
 	mp_adc_t *adc;
-	int dummy;
-
-#define __SET(a) \
-	adc = __selected_channel; \
-	if(!adc) \
-		break; \
-	adc->result = ADC12MEM0+a; \
-	adc->task->signal = MP_TASK_SIG_PENDING; \
-	adc->state = 2; \
-	ADC12IFG &= ~(1<<a)
 
 	switch(__even_in_range(ADC12IV,34)) {
 		case  0: break;                           // Vector  0:  No interrupt

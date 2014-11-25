@@ -240,11 +240,12 @@ static void __olimex_state_op_set(void *user) {
 		mp_options_t options[] = {
 				{ "port", "p6.6" },
 				{ "channel", "A6" },
-				{ "delay", "100" },
+				{ "delay", "250" },
 				{ NULL, NULL }
 		};
 		mp_adc_create(&olimex->kernel, &olimex->pression1, options, "Pression 1");
 		olimex->pression1.callback = _pression1;
+		olimex->pression1.user = olimex;
 	}
 
 
@@ -260,7 +261,12 @@ static void __olimex_state_op_set(void *user) {
 
 
 static void _pression1(mp_adc_t *adc) {
+	olimex_msp430_t *olimex = adc->user;
 	mp_printk("Pression 1 result: %d", adc->result);
+	if(adc->result < 2000)
+		mp_drv_led_turnOn(&olimex->red_led);
+	else
+		mp_drv_led_turnOff(&olimex->red_led);
 }
 
 

@@ -31,12 +31,12 @@
 
 		char state;
 
-		char ctlId;
-
 		char channelId;
 
 		int result;
 		mp_adc_callback_t callback;
+		void *user;
+
 		mp_task_t *task;
 
 		mp_list_item_t item;
