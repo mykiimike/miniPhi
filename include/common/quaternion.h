@@ -18,51 +18,45 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef _HAVE_CONFIG_H
-	#define _HAVE_CONFIG_H
+#ifndef _HAVE_MP_QUATERNION_H
+	#define _HAVE_MP_QUATERNION_H
 
-	#define _DEBUG
+	#ifdef SUPPORT_COMMON_QUATERNION
+		typedef struct mp_quaternion_s mp_quaternion_t;
+		typedef void (*mp_quaternion_fct_t)(mp_quaternion_t *, float, float, float, float, float, float, float, float, float);
 
-	#define SUPPORT_DRV_LED
-	#define SUPPORT_DRV_BUTTON
-	//#define SUPPORT_DRV_TEMPERATURE
-	#define SUPPORT_DRV_LSM9DS0
-	//#define SUPPORT_DRV_LCD_NOKIA3310
+		struct mp_quaternion_s {
+			/* function used to compute */
+			mp_quaternion_fct_t function;
 
-	#define SUPPORT_COMMON_MEM /* enable tiny-malloc */
-	#define SUPPORT_COMMON_SERIAL
-	#define SUPPORT_COMMON_PINOUT /* enable pinout feature, need mem support */
-	#define SUPPORT_COMMON_QUATERNION /* enable quaternion feature */
+			/* vector to hold quaternion */
+			float q[4];
 
-	/* mem configuration */
-	#ifndef MP_MEM_SIZE
-		#define MP_MEM_SIZE  5120 /* total memory allowed for heap */
+			/* vector to hold integral error for Mahony method */
+			float eInt[3];
+
+			/* mahony */
+			float Kp;
+			float Ki;
+			float beta;
+			float zeta;
+
+			/* integration interval for both filter schemes */
+			float deltat;
+
+			/* use for last update */
+			unsigned long lastUpdate;
+
+			/* frequency */
+			unsigned long frequency;
+		};
+
+		void mp_quaternion_init(mp_quaternion_t *h, mp_quaternion_fct_t *fct);
+		void mp_quaternion_fini(mp_quaternion_t *h);
+		void mp_quaternion_update(mp_quaternion_t *h, float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz);
+		void mp_quaternion_madgwick(mp_quaternion_t *h, float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz);
+		void mp_quaternion_mahony(mp_quaternion_t *h, float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz);
+
 	#endif
-
-	#ifndef MP_MEM_CHUNK
-		#define MP_MEM_CHUNK 50    /* fixed size of a chunck */
-	#endif
-
-	/* task configuration */
-	#ifndef MP_TASK_MAX
-		#define MP_TASK_MAX 10 /* number of maximum task per instance */
-	#endif
-
-	/* state configuration */
-	#ifndef MP_STATE_MAX
-		#define MP_STATE_MAX 5 /* maximum number of machine states */
-	#endif
-
-	/* serial configuration */
-	#ifndef MP_SERIAL_RX_BUFFER_SIZE
-		#define MP_SERIAL_RX_BUFFER_SIZE 512
-	#endif
-
-	#ifndef MP_SERIAL_TX_BUFFER_SIZE
-		#define MP_SERIAL_TX_BUFFER_SIZE 240
-	#endif
-
-	/* button configuration */
-
 
 #endif

@@ -76,6 +76,7 @@
 	#include "common/serial.h"
 	#include "common/pinout.h"
 	#include "common/printk.h"
+	#include "common/quaternion.h"
 
 	#include "drivers/button.h"
 	#include "drivers/led.h"
