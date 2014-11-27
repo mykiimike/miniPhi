@@ -1,89 +1,30 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2014  Michael VERGOZ                                      *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #include "mp.h"
-
-typedef struct mp_i2c_context_s mp_i2c_context_t;
-typedef struct mp_i2c_regs_s mp_i2c_regs_t;
-typedef struct mp_i2c_bus_s mp_i2c_bus_t;
-
-typedef void (*mp_i2c_cb_t)(mp_i2c_context_t *);
-
-
-struct mp_i2c_bus_s {
-	unsigned char busId;
-	unsigned char *busDevice;
-	unsigned long baseAddress;
-};
-
-/*
-struct mp_i2c_context_s {
-	unsigned char busId;
-
-	mp_i2c_cb_t result;
-};
-
-*/
-
-struct mp_i2c_slave_s {
-
-	mp_i2c_cb_t onStart;
-	mp_i2c_cb_t onStop;
-	mp_i2c_cb_t onRestart;
-};
-
-struct mp_i2c_master_s {
-	mp_i2c_cb_t onDone;
-};
-
-
-static mp_i2c_bus_t _i2c_bus[10];
-static unsigned char _i2c_bus_count = 0;
-
-
-static void __mp_i2c_bus_init(mp_i2c_bus_t *bus) {
-
-}
 
 /**
  * @brief Global I2C initialization
  * @return TRUE or FALSE
  */
 mp_ret_t mp_i2c_init() {
-	mp_i2c_bus_t *bus;
-
-#ifdef USCI_B0_BASE
-	bus = &_i2c_bus[_i2c_bus_count];
-	bus->busId = _i2c_bus_count;
-	bus->busDevice = "USCI_B0";
-	bus->baseAddress = USCI_B0_BASE;
-	__mp_i2c_bus_init(bus);
-	_i2c_bus_count++;
-#endif
-
-#ifdef USCI_B1_BASE
-	bus = &_i2c_bus[_i2c_bus_count];
-	bus->busId = _i2c_bus_count;
-	bus->busDevice = "USCI_B1";
-	bus->baseAddress = USCI_B1_BASE;
-	__mp_i2c_bus_init(bus);
-	_i2c_bus_count++;
-#endif
-
-#ifdef USCI_B2_BASE
-	bus = &_i2c_bus[_i2c_bus_count];
-	bus->busId = _i2c_bus_count;
-	bus->busDevice = "USCI_B2";
-	bus->baseAddress = USCI_B2_BASE;
-	__mp_i2c_bus_init(bus);
-	_i2c_bus_count++;
-#endif
-
-#ifdef USCI_B3_BASE
-	bus = &_i2c_bus[_i2c_bus_count];
-	bus->busId = _i2c_bus_count;
-	bus->busDevice = "USCI_B3";
-	bus->baseAddress = USCI_B3_BASE;
-	__mp_i2c_bus_init(bus);
-	_i2c_bus_count++;
-#endif
 
 	return(TRUE);
 }
@@ -97,12 +38,22 @@ mp_ret_t mp_i2c_fini() {
 }
 
 
-mp_ret_t mp_i2c_open(mp_i2c_context_t *context) {
+mp_ret_t mp_i2c_open() {
 
 
 }
 
-mp_ret_t mp_i2c_close(mp_i2c_context_t *context) {
+mp_ret_t mp_i2c_close() {
 
 }
+
+
+mp_i2c_start() {
+
+}
+
+mp_i2c_stop(mp_bool_t restart) {
+
+}
+
 

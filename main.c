@@ -70,6 +70,7 @@ int main(void) {
 	/* initialize kernel */
 	mp_kernel_init(&__olimex.kernel, __olimex_onBoot, &__olimex);
 
+
 	/* define OLIMEX OP machine state */
 	mp_state_define(
 		&__olimex.kernel.states,
@@ -201,7 +202,7 @@ static void __olimex_state_op_set(void *user) {
 	 * simo = e16 ucb0simo > p3.1
 	 * somi = e15 ucb0somi > p3.2
 	 * clk = e14 ucb0clk > p3.3
-	 * csG = e18 > p4.7
+	 * csG = e18 > p4.5
 	 * csXM = e19 > P4.6
 	 * int1 = e4 > p1.1
 	 * int2 = e3 > p1.7
@@ -214,7 +215,7 @@ static void __olimex_state_op_set(void *user) {
 				{ "simo", "p3.1" },
 				{ "somi", "p3.2" },
 				{ "clk", "p3.3" },
-				{ "csG", "p4.7" },
+				{ "csG", "p4.5" },
 				{ "csXM", "p4.6" },
 				{ "int1", "p1.1" },
 				{ "int2", "p1.7" },

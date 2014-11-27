@@ -125,8 +125,17 @@
 
 	}
 
-	static inline int mp_options_cmp(char *a, char *b) {
-		return(strcmp(a, b));
+	static inline mp_ret_t mp_options_cmp(char *a, char *b) {
+		int aL, bL, i;
+		aL = strlen(a);
+		bL = strlen(b);
+		if(aL != bL)
+			return(FALSE);
+		for(i=0; i<aL; i++, a++, b++) {
+			if(*a != *b)
+				return(FALSE);
+		}
+		return(TRUE);
 	}
 
 	void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user);

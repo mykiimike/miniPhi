@@ -147,43 +147,41 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 
 	/* user options */
 	value = mp_options_get(options, "phase");
-	if(value && mp_options_cmp(value, "change"))
+	if(value && mp_options_cmp(value, "change") == TRUE)
 		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCCKPH);
 	else
 		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCCKPH;
 
 	value = mp_options_get(options, "polarity");
-	if(value && mp_options_cmp(value, "low"))
+	if(value && mp_options_cmp(value, "low") == TRUE)
 		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCCKPL);
 	else
 		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCCKPL;
 
 	value = mp_options_get(options, "first");
-	if(value && mp_options_cmp(value, "lsb"))
+	if(value && mp_options_cmp(value, "lsb") == TRUE)
 		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCMSB);
 	else
 		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCMSB;
 
 	value = mp_options_get(options, "role");
-	if(value && mp_options_cmp(value, "slave"))
+	if(value && mp_options_cmp(value, "slave") == TRUE)
 		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCMST);
 	else
 		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCMST;
 
 	value = mp_options_get(options, "bit");
-	if(value && mp_options_cmp(value, "8"))
+	if(value && mp_options_cmp(value, "8") == TRUE)
 		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UC7BIT);
 	else
 		_SPI_REG8(spi->gate, _SPI_CTL0) |= UC7BIT;
 
-	value = mp_options_get(options, "flow");
-	if(value && mp_options_cmp(value, "async"))
-		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~(UCSYNC);
-	else
-		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCSYNC;
+	_SPI_REG8(spi->gate, _SPI_CTL0) |= UCSYNC;
 
 	/* write finished */
 	_SPI_REG8(spi->gate, _SPI_CTL1) &= ~(UCSWRST);
+	_SPI_REG8(spi->gate, _SPI_IFG) &= ~(UCRXIFG);
+//	_SPI_REG8(spi->gate, _SPI_IFG) &= ~(UCTXIFG);
 
 	/* disable interrupts */
 	mp_spi_disable_tx(spi);
@@ -194,6 +192,9 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 
 	/* safe non interruptible block */
 	MP_INTERRUPT_SAFE_END
+
+	/* initialize SPI */
+	mp_clock_delay(100);
 
 	/* list */
 	mp_list_add_last(&__spi, &spi->item, spi);
