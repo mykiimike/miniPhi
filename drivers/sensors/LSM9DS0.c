@@ -375,22 +375,21 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 	unsigned char xmTest = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, WHO_AM_I_XM); // Read the accel/mag WHO_AM_I
 
 	// Gyro initialization stuff:
-	//_mp_drv_LSM9DS0_initGyro(LSM9DS0); // This will "turn on" the gyro. Setting up interrupts, etc.
-	//	mp_drv_LSM9DS0_setGyroODR(LSM9DS0, gODR); // Set the gyro output data rate and bandwidth.
-	//mp_drv_LSM9DS0_setGyroScale(LSM9DS0, LSM9DS0->gyro_scale); // Set the gyro range
+	_mp_drv_LSM9DS0_initGyro(LSM9DS0); // This will "turn on" the gyro. Setting up interrupts, etc.
+	mp_drv_LSM9DS0_setGyroODR(LSM9DS0, gODR); // Set the gyro output data rate and bandwidth.
+	mp_drv_LSM9DS0_setGyroScale(LSM9DS0, LSM9DS0->gyro_scale); // Set the gyro range
 
 	// Accelerometer initialization stuff:
-	//_mp_drv_LSM9DS0_initAccel(LSM9DS0); // "Turn on" all axes of the accel. Set up interrupts, etc.
-	//mp_drv_LSM9DS0_setAccelODR(LSM9DS0, aODR); // Set the accel data rate.
-	//mp_drv_LSM9DS0_setAccelScale(LSM9DS0, LSM9DS0->accel_scale); // Set the accel range.
+	_mp_drv_LSM9DS0_initAccel(LSM9DS0); // "Turn on" all axes of the accel. Set up interrupts, etc.
+	mp_drv_LSM9DS0_setAccelODR(LSM9DS0, aODR); // Set the accel data rate.
+	mp_drv_LSM9DS0_setAccelScale(LSM9DS0, LSM9DS0->accel_scale); // Set the accel range.
 
 	// Magnetometer initialization stuff:
 	//_mp_drv_LSM9DS0_initMag(LSM9DS0); // "Turn on" all axes of the mag. Set up interrupts, etc.
 	//mp_drv_LSM9DS0_setMagODR(LSM9DS0, mODR); // Set the magnetometer output data rate.
 	//mp_drv_LSM9DS0_setMagScale(LSM9DS0, LSM9DS0->mag_scale); // Set the magnetometer's range.
 
-
-	mp_printk("Initialize LSM9DS0 SPI bind");
+	mp_printk("Initialize LSM9DS0 using SPI binding g=%x xm=%x", gTest, xmTest);
 	return(TRUE);
 }
 
@@ -419,7 +418,7 @@ mp_ret_t mp_drv_LSM9DS0_fini(mp_drv_LSM9DS0_t *LSM9DS0) {
 
 	mp_spi_close(&LSM9DS0->spi);
 
-	mp_printk("Stopping LSM9DS0 SPI bind");
+	mp_printk("Stopping LSM9DS0 SPI binding");
 	return(TRUE);
 }
 
@@ -430,6 +429,12 @@ mp_ret_t mp_drv_LSM9DS0_start(mp_drv_LSM9DS0_t *LSM9DS0) {
 	mp_gpio_interrupt_set(LSM9DS0->int2, __on_int2, LSM9DS0, "LSM9DS0 INT2");
 	mp_gpio_interrupt_set(LSM9DS0->intG, __on_intG, LSM9DS0, "LSM9DS0 INTG");
 	mp_gpio_interrupt_set(LSM9DS0->drdy, __on_drdy, LSM9DS0, "LSM9DS0 DRDY");
+
+
+	mp_gpio_interrupt_hi2lo(LSM9DS0->int1);
+	mp_gpio_interrupt_hi2lo(LSM9DS0->int2);
+	mp_gpio_interrupt_hi2lo(LSM9DS0->intG);
+	mp_gpio_interrupt_hi2lo(LSM9DS0->drdy);
 
 	return(TRUE);
 }
@@ -764,9 +769,9 @@ static void _mp_drv_LSM9DS0_spi_readBytes(
 	else
 		mp_spi_tx(&LSM9DS0->spi, 0x80 | (subAddress & 0x3F));
 
-	for(i=0; i<count; i++)
+	for(i=0; i<count; i++) {
 		dest[i] = mp_spi_rx(&LSM9DS0->spi);
-
+	}
 	/* close communication */
 	if(cs)
 		mp_gpio_set(cs);

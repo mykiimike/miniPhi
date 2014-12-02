@@ -25,14 +25,34 @@
 
 	typedef void (*mp_i2c_callback_t)(mp_i2c_t *);
 
-	struct mp_i2c_s {
+	#define MP_I2C_BUFFER_SIZE 32
 
+	#define MP_I2C_READY 0
+	#define MP_I2C_MRX   1
+	#define MP_I2C_MTX   2
+	#define MP_I2C_SRX   3
+	#define MP_I2C_STX   4
+
+	struct mp_i2c_s {
+		unsigned char rxBuffer[MP_I2C_BUFFER_SIZE];
+		unsigned char rxBufferIndex;
+		unsigned char rxBufferLength;
+
+		unsigned char txBuffer[MP_I2C_BUFFER_SIZE];
+		unsigned char txBufferIndex;
+		unsigned char txBufferLength;
+
+		mp_interrupt_t *inte;
+
+		unsigned char transmitting;
 
 		/** internal: gate */
 		mp_gate_t *gate;
 		mp_gpio_port_t *sda;
 		mp_gpio_port_t *clk;
 
+
+		mp_list_item_t item;
 		mp_task_t *task;
 	};
 
@@ -48,6 +68,9 @@
 	#define _I2C_RXBUF   0x0c
 	#define _I2C_TXBUF   0x0e
 
+	#define _I2C_OA      0x10
+	#define _I2C_SA      0x12
+
 	#define _I2C_IE      0x1c
 	#define _I2C_IFG     0x1d
 	#define _I2C_IV      0x1e
@@ -55,33 +78,57 @@
 	#define _I2C_REG8(_port, _type) \
 		*((volatile char *)(_port->_baseAddress+_type))
 
-	static inline void mp_i2c_enable_rx(mp_i2c_t *spi) {
+	#define _I2C_REG16(_port, _type) \
+		*((volatile short *)(_port->_baseAddress+_type))
+
+	static inline void mp_i2c_enable_rx(mp_i2c_t *i2c) {
 		/* check CTS */
-		_I2C_REG8(spi->gate, _I2C_CTL0) |= UCRXIE;
+		_I2C_REG8(i2c->gate, _I2C_CTL0) |= UCRXIE;
 	}
 
-	static inline void mp_i2c_disable_rx(mp_i2c_t *spi) {
-		_I2C_REG8(spi->gate, _I2C_CTL0) &= ~UCRXIE;
+	static inline void mp_i2c_disable_rx(mp_i2c_t *i2c) {
+		_I2C_REG8(i2c->gate, _I2C_CTL0) &= ~UCRXIE;
 	}
 
-	static inline void mp_i2c_enable_tx(mp_i2c_t *spi) {
+	static inline void mp_i2c_enable_tx(mp_i2c_t *i2c) {
 		/* check CTS */
-		_I2C_REG8(spi->gate, _I2C_CTL0) |= UCTXIE;
+		_I2C_REG8(i2c->gate, _I2C_CTL0) |= UCTXIE;
 	}
 
-	static inline void mp_i2c_disable_tx(mp_i2c_t *spi) {
-		_I2C_REG8(spi->gate, _I2C_CTL0) &= ~UCTXIE;
+	static inline void mp_i2c_disable_tx(mp_i2c_t *i2c) {
+		_I2C_REG8(i2c->gate, _I2C_CTL0) &= ~UCTXIE;
 	}
 
-	static inline unsigned char mp_i2c_rx(mp_i2c_t *spi) {
-		while (!(_I2C_REG8(spi->gate, _I2C_IFG) & UCRXIFG));
-		return(_I2C_REG8(spi->gate, _I2C_RXBUF));
+	static inline unsigned char mp_i2c_rx(mp_i2c_t *i2c) {
+		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCRXIFG));
+		return(_I2C_REG8(i2c->gate, _I2C_RXBUF));
 	}
 
-	static inline void mp_i2c_tx(mp_i2c_t *spi, unsigned char data) {
-		while (!(_I2C_REG8(spi->gate, _I2C_IFG) & UCTXIFG));
-		_I2C_REG8(spi->gate, _I2C_TXBUF) = data;
+	static inline void mp_i2c_tx(mp_i2c_t *i2c, unsigned char data) {
+		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCTXIFG));
+		_I2C_REG8(i2c->gate, _I2C_TXBUF) = data;
 	}
+
+	static inline void mp_i2c_mode(mp_i2c_t *i2c, char mode)  {
+		/* Receiver */
+		if(mode == 0)
+			_I2C_REG8(i2c->gate, _I2C_CTL1) &= ~(UCTR);
+		else
+			_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTR;
+	}
+
+	static inline void mp_i2c_txNACK(mp_i2c_t *i2c) {
+		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTXNACK;
+	}
+
+	static inline void mp_i2c_txStop(mp_i2c_t *i2c) {
+		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTXSTP;
+	}
+
+	static inline void mp_i2c_txStart(mp_i2c_t *i2c) {
+		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTXSTT;
+	}
+
 
 
 #endif

@@ -108,13 +108,16 @@
 	}
 
 	static inline unsigned char mp_spi_rx(mp_spi_t *spi) {
+		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCTXIFG));
+		_SPI_REG8(spi->gate, _SPI_TXBUF) = 0;
 		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCRXIFG));
 		return(_SPI_REG8(spi->gate, _SPI_RXBUF));
 	}
 
 	static inline void mp_spi_tx(mp_spi_t *spi, unsigned char data) {
-		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCTXIFG));
+
 		_SPI_REG8(spi->gate, _SPI_TXBUF) = data;
+		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCTXIFG));
 	}
 
 

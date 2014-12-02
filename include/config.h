@@ -36,7 +36,7 @@
 
 	/* mem configuration */
 	#ifndef MP_MEM_SIZE
-		#define MP_MEM_SIZE  5120 /* total memory allowed for heap */
+		#define MP_MEM_SIZE  1024 /* total memory allowed for heap */
 	#endif
 
 	#ifndef MP_MEM_CHUNK

@@ -139,7 +139,7 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 	_SPI_REG8(spi->gate, _SPI_CTL1) |= UCSWRST;
 
 	/* clock source - SMCLK */
-	_SPI_REG8(spi->gate, _SPI_CTL1) |= 0x80;
+	_SPI_REG8(spi->gate, _SPI_CTL1) |= UCSSEL_2;
 
 	prescaler = mp_clock_get_speed() / frequency;
 	_SPI_REG8(spi->gate, _SPI_BR0) = prescaler % 256;
@@ -180,7 +180,7 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 
 	/* write finished */
 	_SPI_REG8(spi->gate, _SPI_CTL1) &= ~(UCSWRST);
-	_SPI_REG8(spi->gate, _SPI_IFG) &= ~(UCRXIFG);
+	//_SPI_REG8(spi->gate, _SPI_IFG) &= ~(UCRXIFG);
 //	_SPI_REG8(spi->gate, _SPI_IFG) &= ~(UCTXIFG);
 
 	/* disable interrupts */
@@ -227,7 +227,7 @@ mp_ret_t mp_spi_close(mp_spi_t *spi) {
 	}
 
 	if(spi->clk) {
-		_GPIO_REG8(spi->clk, _GPIO_SEL) &= ~(1<<spi->somi->pin);
+		_GPIO_REG8(spi->clk, _GPIO_SEL) &= ~(1<<spi->clk->pin);
 		mp_gpio_release(spi->clk);
 	}
 
