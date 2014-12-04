@@ -313,7 +313,7 @@ static void _system_clock(mp_clock_t freq) {
 /* MCLK and SMCLK. */
 static void __start_crystal(void) {
 
-#if defined(__msp430x54x)
+#if defined(__msp430x54x) || defined(__msp430x54xA)
 	/* p7.0 & p7.1 on msp43x54x */
 	P7SEL |= (BIT1 | BIT0);
 #elif defined(__CC430F6143) || defined(__CC430F6145) || defined(__CC430F6147)
