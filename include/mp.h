@@ -21,7 +21,9 @@
 #ifndef _MP_H
 	#define _MP_H
 
-	#include <config.h>
+	#ifndef MP_MY_CONFIG
+		#include <config.h>
+	#endif
 
 	#define NULL (void *)0
 
