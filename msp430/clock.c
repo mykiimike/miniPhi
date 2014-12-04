@@ -51,6 +51,12 @@ unsigned long mp_clock_ticks() {
 	return(__ticks);
 }
 
+
+void mp_clock_delay(int delay) {
+	unsigned long local = __ticks+delay;
+	while(__ticks < local);
+}
+
 unsigned long mp_clock_get_speed() {
 	mp_clock_freq_settings_t *cpu_settings;
 	cpu_settings = &_mp_clock_freq_settings[__frequency - MHZ8_t];

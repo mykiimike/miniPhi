@@ -44,7 +44,6 @@ struct olimex_msp430_s {
 
 	mp_drv_LSM9DS0_t agm;
 
-	mp_adc_t pression1;
 
 };
 
@@ -54,17 +53,15 @@ static void __olimex_state_op_unset(void *user);
 static void __olimex_state_op_tick(void *user);
 
 static void _olimex_printk(void *user, char *fmt, ...);
-static void __olimex_pression1(mp_adc_t *adc);
 void __olimex_on_button_left(void *user);
 void __olimex_on_button_right(void *user);
 void __olimex_on_button_up(void *user);
 void __olimex_on_button_down(void *user);
 void __olimex_on_button_power(void *user);
 
-
-static void _pression1(mp_adc_t *adc);
-
 static olimex_msp430_t __olimex;
+
+MP_TASK(LSM9DS0_POLLING);
 
 int main(void) {
 	/* initialize kernel */
@@ -206,48 +203,39 @@ static void __olimex_state_op_set(void *user) {
 	 * csXM = e19 > P4.6
 	 * int1 = e4 > p1.1
 	 * int2 = e3 > p1.7
-	 * intG = e5 > p1.0
+	 * drdy = e5 > p1.0
 	 *
 	 */
 	{
 		mp_options_t options[] = {
-				{ "gate", "USCI_B0" },
-				{ "simo", "p3.1" },
-				{ "somi", "p3.2" },
-				{ "clk", "p3.3" },
-				{ "csG", "p4.5" },
-				{ "csXM", "p4.6" },
-				{ "int1", "p1.1" },
-				{ "int2", "p1.7" },
-				{ "intG", "p1.0" },
-				{ NULL, NULL }
+			{ "gate", "USCI_B0" },
+			{ "simo", "p3.1" },
+			{ "somi", "p3.2" },
+			{ "clk", "p3.3" },
+			{ "csG", "p4.5" },
+			{ "csXM", "p4.6" },
+			{ "int1", "p1.1" },
+			{ "int2", "p1.7" },
+			{ "drdy", "p1.0" },
+			{ NULL, NULL }
 		};
 		mp_drv_LSM9DS0_init(&olimex->kernel, &olimex->agm, options, "Acce/Gyro/Magneto");
+		mp_drv_LSM9DS0_initAccel(&olimex->agm); // "Turn on" all axes of the accel. Set up interrupts, etc.
+		mp_drv_LSM9DS0_setAccelODR(&olimex->agm, A_ODR_3125); // Set the accel data rate.
+		mp_drv_LSM9DS0_setAccelScale(&olimex->agm, A_SCALE_2G); // Set the accel range.
+
+		//mp_task_create(&olimex->kernel.tasks, "Accelero", LSM9DS0_POLLING, &olimex->agm, 10);
 	}
 
 
 	/* create a button event based on center button in order to turn a led on/off */
 	mp_drv_button_event_create(
-			&olimex->bCenter, &olimex->bPower,
-			1000, 2, __olimex_on_button_power, olimex
+		&olimex->bCenter, &olimex->bPower,
+		1000, 2, __olimex_on_button_power, olimex
 	);
 
 	/* pinout */
 	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 2010, 0, "Blinking green - Power ON");
-
-
-	/* create pression test */
-	{
-		mp_options_t options[] = {
-				{ "port", "p6.6" },
-				{ "channel", "A6" },
-				{ "delay", "250" },
-				{ NULL, NULL }
-		};
-		mp_adc_create(&olimex->kernel, &olimex->pression1, options, "Pression 1");
-		olimex->pression1.callback = _pression1;
-		olimex->pression1.user = olimex;
-	}
 
 
 	mp_printk("miniPhi - version %s", olimex->kernel.version);
@@ -258,16 +246,6 @@ static void __olimex_state_op_set(void *user) {
 	//mp_task_create(&olimex->kernel.tasks, "Blinking GREEN", blinkTask, &olimex->green_led, 1000);
 
 	mp_machine_state_set(&olimex->kernel);
-}
-
-
-static void _pression1(mp_adc_t *adc) {
-	olimex_msp430_t *olimex = adc->user;
-	mp_printk("Pression 1 result: %d", adc->result);
-	if(adc->result < 2000)
-		mp_drv_led_turnOn(&olimex->red_led);
-	else
-		mp_drv_led_turnOff(&olimex->red_led);
 }
 
 

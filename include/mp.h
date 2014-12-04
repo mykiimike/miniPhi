@@ -51,11 +51,14 @@
 
 	#ifdef __MSP430__
 		#include <msp430.h>
+		#include <math.h>
 		#include <string.h>
 		#include <stdio.h>
 		#include <stdlib.h>
 		#include <stdarg.h>
 		#include <msp430/internal.h>
+
+		#define PI (355.0 / 113.0)
 	#endif
 
 	#define MP_KERNEL_KPANIC 0
