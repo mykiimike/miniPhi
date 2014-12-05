@@ -151,6 +151,10 @@
 	void mp_drv_LSM9DS0_initAccel(mp_drv_LSM9DS0_t *LSM9DS0);
 	void mp_drv_LSM9DS0_initMag(mp_drv_LSM9DS0_t *LSM9DS0);
 
+	void mp_drv_LSM9DS0_finiGyro(mp_drv_LSM9DS0_t *LSM9DS0);
+	void mp_drv_LSM9DS0_finiAccel(mp_drv_LSM9DS0_t *LSM9DS0);
+	void mp_drv_LSM9DS0_finiMag(mp_drv_LSM9DS0_t *LSM9DS0);
+
 	void mp_drv_LSM9DS0_setGyroScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_scale_t gScl);
 	void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_scale_t aScl);
 	void mp_drv_LSM9DS0_setMagScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_scale_t mScl);

@@ -299,6 +299,29 @@ void mp_drv_LSM9DS0_initMag(mp_drv_LSM9DS0_t *LSM9DS0) {
 	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, INT_CTRL_REG_M, 0x09); // Enable interrupts for mag, active-low, push-pull
 }
 
+void mp_drv_LSM9DS0_finiGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
+	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG1_G, 0x00);
+	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG2_G, 0x00);
+	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG3_G, 0x00);
+	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG4_G, 0x00);
+	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG5_G, 0x00);
+}
+
+void mp_drv_LSM9DS0_finiAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
+	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG0_XM, 0x00);
+	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG1_XM, 0x00);
+	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG2_XM, 0x00);
+	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG3_XM, 0x00);
+}
+
+void mp_drv_LSM9DS0_finiMag(mp_drv_LSM9DS0_t *LSM9DS0) {
+	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG5_XM, 0x00);
+	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG6_XM, 0x00);
+	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG7_XM, 0x00);
+	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG4_XM, 0x00);
+	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, INT_CTRL_REG_M, 0x00);
+}
+
 
 float mp_drv_LSM9DS0_calcGyro(mp_drv_LSM9DS0_t *LSM9DS0, unsigned short gyro) {
 	// Return the gyro raw reading times our pre-calculated DPS / (ADC tick):
