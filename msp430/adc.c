@@ -193,7 +193,7 @@ static void __auto_init(mp_kernel_t *kernel) {
 	ADC12CTL1 = ADC12SHP;
 
 	/* 35us delay ADC is based on DCO */
-	__delay_cycles(37);
+	mp_clock_delay(37);
 
 	ADC12CTL0 |= ADC12MSC;
 
@@ -216,7 +216,7 @@ static void __auto_fini(mp_kernel_t *kernel) {
 	/* stop ADC */
 	mp_adc_stop();
 
-	__isInit = YES;
+	__isInit = NO;
 }
 
 MP_TASK(adcControler) {
