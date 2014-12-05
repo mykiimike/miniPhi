@@ -82,7 +82,7 @@
 			mp_drv_button_t *button, mp_drv_button_event_t *bac,
 			int delay, int time, mp_drv_button_event_on_t cb, void *user
 		);
-		mp_ret_t mp_drv_button_event_destroy(mp_drv_button_event_t *bac);
+		mp_ret_t mp_drv_button_event_destroy(mp_drv_button_t *button, mp_drv_button_event_t *bac);
 	#endif
 
 #endif

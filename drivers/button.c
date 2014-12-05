@@ -88,7 +88,8 @@ mp_ret_t mp_drv_button_event_create(
 	return(TRUE);
 }
 
-mp_ret_t mp_drv_button_event_destroy(mp_drv_button_event_t *bac) {
+mp_ret_t mp_drv_button_event_destroy(mp_drv_button_t *button, mp_drv_button_event_t *bac) {
+	mp_list_remove(&button->events, &bac->item);
 	return(TRUE);
 }
 
