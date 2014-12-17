@@ -41,7 +41,7 @@
 			mp_serial_on_t onWrite;
 		};
 
-		mp_ret_t mp_serial_init(mp_serial_t *serial, char *who);
+		mp_ret_t mp_serial_init(mp_kernel_t *kernel, mp_serial_t *serial, mp_options_t *options, char *who);
 		mp_ret_t mp_serial_fini(mp_serial_t *serial);
 
 		void mp_serial_println(mp_serial_t *serial, char *text);

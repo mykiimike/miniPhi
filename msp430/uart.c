@@ -37,100 +37,127 @@ mp_ret_t mp_uart_fini() {
 	return(TRUE);
 }
 
-mp_ret_t mp_uart_open(mp_uart_t *uart, char *who) {
+mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *options, char *who) {
 	float division_factor;
 	unsigned int brf;
 	unsigned long freq;
+	char *value;
 
-	/* get gate Id*/
-	uart->_gate = mp_gate_handle(uart->gateId, "UART");
-	if(uart->_gate == NULL)
-		return(FALSE);
+	memset(uart, 0, sizeof(*uart));
 
-	uart->_gate->gateFlags = uart->gateFlags;
-
-	/* allocate GPIO port for RX data */
-	uart->_rxd_port = mp_gpio_handle(uart->rxd.port, uart->rxd.pin, "UART RX");
-	if(uart->_rxd_port == NULL) {
-		mp_gate_release(uart->_gate);
-		mp_uart_close(uart);
+	/* frequency */
+	value = mp_options_get(options, "frequency");
+	if(!value) {
+		mp_printk("UART - No baud rate specified");
 		return(FALSE);
 	}
-	/* allocate GPIO port for TX data */
-	uart->_txd_port = mp_gpio_handle(uart->txd.port, uart->txd.pin, "UART TX");
-	if(uart->_txd_port == NULL) {
-		mp_gate_release(uart->_gate);
-		mp_uart_close(uart);
+	uart->baudRate = atoi(value);
+
+	/* get gate Id*/
+	value = mp_options_get(options, "gate");
+	if(!value)
 		return(FALSE);
+	uart->gate = mp_gate_handle(value, "UART");
+	if(uart->gate == NULL) {
+		mp_printk("UART - No gate specify (USCI_A) for %s", who);
+		return(FALSE);
+	}
+
+	/* allocate GPIO port for RX data */
+	value = mp_options_get(options, "UART RXD");
+	if(value) {
+		uart->rxd_port = mp_gpio_text_handle(value, "UART RXD");
+		if(!uart->rxd_port) {
+			mp_printk("UART - Can not handle GPIO RXD for %s using %s", who, value);
+			mp_uart_close(uart);
+			return(FALSE);
+		}
+	}
+
+	/* allocate GPIO port for TX data */
+	value = mp_options_get(options, "UART TXD");
+	if(value) {
+		uart->txd_port = mp_gpio_text_handle(value, "UART TXD");
+		if(!uart->txd_port) {
+			mp_printk("UART - Can not handle GPIO TXD for %s using %s", who, value);
+			mp_uart_close(uart);
+			return(FALSE);
+		}
 	}
 
 	/* configure ports */
-	_GPIO_REG8(uart->_rxd_port, _GPIO_SEL) |= 1<<uart->rxd.pin;
-	_GPIO_REG8(uart->_txd_port, _GPIO_SEL) |= 1<<uart->txd.pin;
-	mp_gpio_direction(uart->_rxd_port, MP_GPIO_INPUT);
-	mp_gpio_direction(uart->_txd_port, MP_GPIO_OUTPUT);
+	_GPIO_REG8(uart->rxd_port, _GPIO_SEL) |= 1<<uart->rxd_port->pin;
+	_GPIO_REG8(uart->txd_port, _GPIO_SEL) |= 1<<uart->txd_port->pin;
+	mp_gpio_direction(uart->rxd_port, MP_GPIO_INPUT);
+	mp_gpio_direction(uart->txd_port, MP_GPIO_OUTPUT);
 
 	/* disable interrupts */
-	__disable_interrupt();
+	MP_INTERRUPT_SAFE_BEGIN
 
-	_UART_REG8(uart->_gate, _UART_CTL1) |= UCSWRST; //Reset State
-	_UART_REG8(uart->_gate, _UART_CTL0) = 0;
-	if(uart->gateFlags & MP_UART_PARITY)
-		_UART_REG8(uart->_gate, _UART_CTL0) |= UCPEN;
-	else
-		_UART_REG8(uart->_gate, _UART_CTL0) &= ~UCPEN;
+	_UART_REG8(uart->gate, _UART_CTL1) |= UCSWRST; //Reset State
+	_UART_REG8(uart->gate, _UART_CTL0) = 0;
 
-	if(uart->gateFlags & MP_UART_PAR_EVEN)
-		_UART_REG8(uart->_gate, _UART_CTL0) |= UCPAR;
+	value = mp_options_get(options, "parity");
+	if(value && mp_options_cmp(value, "true") == TRUE)
+		_UART_REG8(uart->gate, _UART_CTL0) |= UCPEN;
 	else
-		_UART_REG8(uart->_gate, _UART_CTL0) &= ~UCPAR;
+		_UART_REG8(uart->gate, _UART_CTL0) &= ~UCPEN;
 
-	if(uart->gateFlags & MP_UART_7BITS)
-		_UART_REG8(uart->_gate, _UART_CTL0) |= UC7BIT;
+	value = mp_options_get(options, "paritySelect");
+	if(value && mp_options_cmp(value, "even") == TRUE)
+		_UART_REG8(uart->gate, _UART_CTL0) |= UCPAR;
 	else
-		_UART_REG8(uart->_gate, _UART_CTL0) &= ~UC7BIT;
+		_UART_REG8(uart->gate, _UART_CTL0) &= ~UCPAR;
 
-	if(uart->gateFlags & MP_UART_TWO_S)
-		_UART_REG8(uart->_gate, _UART_CTL0) |= UCSPB;
+	value = mp_options_get(options, "bit");
+	if(value && mp_options_cmp(value, "7") == TRUE)
+		_UART_REG8(uart->gate, _UART_CTL0) |= UC7BIT;
 	else
-		_UART_REG8(uart->_gate, _UART_CTL0) &= ~UCSPB;
+		_UART_REG8(uart->gate, _UART_CTL0) &= ~UC7BIT;
 
-	if(uart->gateFlags & MP_UART_SYNC)
-		_UART_REG8(uart->_gate, _UART_CTL0) |= UCSYNC;
+	value = mp_options_get(options, "stop");
+	if(value && mp_options_cmp(value, "two") == TRUE)
+		_UART_REG8(uart->gate, _UART_CTL0) |= UCSPB;
 	else
-		_UART_REG8(uart->_gate, _UART_CTL0) &= ~UCSYNC;
+		_UART_REG8(uart->gate, _UART_CTL0) &= ~UCSPB;
+
+	value = mp_options_get(options, "sync");
+	if(value && mp_options_cmp(value, "true") == TRUE)
+		_UART_REG8(uart->gate, _UART_CTL0) |= UCSYNC;
+	else
+		_UART_REG8(uart->gate, _UART_CTL0) &= ~UCSYNC;
 
 	/* uart mode */
-	_UART_REG8(uart->_gate, _UART_CTL0) |= UCMODE_0;
+	_UART_REG8(uart->gate, _UART_CTL0) |= UCMODE_0;
 
 	/* clear status register */
-	_UART_REG8(uart->_gate, _UART_STATW) = 0;
+	_UART_REG8(uart->gate, _UART_STATW) = 0;
 
 	/* clearn interrupt flags */
-	//_UART_REG8(uart->_gate, _UART_IFG) = 0;
+	//_UART_REG8(uart->gate, _UART_IFG) = 0;
 
 	/* place interrupt */
-	mp_interrupt_set(uart->_gate->_ISRVector, _mp_uart_interrupt, uart, uart->_gate->portDevice);
+	//mp_interrupt_set(uart->gate->_ISRVector, _mp_uart_interrupt, uart, uart->gate->portDevice);
 
 	/* Use ACLK for Baud rates less than 9600 to allow us to still */
 	/* receive characters while in LPM3. */
 	if(uart->baudRate <= 9600) {
-		_UART_REG8(uart->_gate, _UART_CTL1) = _UART_UCSSEL_ACLK_mask;
+		_UART_REG8(uart->gate, _UART_CTL1) = _UART_UCSSEL_ACLK_mask;
 		freq = ACLK_FREQ_HZ;
 	}
 	else {
-		_UART_REG8(uart->_gate, _UART_CTL1) = _UART_UCSSEL_SMCLK_mask;
+		_UART_REG8(uart->gate, _UART_CTL1) = _UART_UCSSEL_SMCLK_mask;
 		freq = mp_clock_get_speed();
 	}
 
 	division_factor = FLOAT_DIV(freq, uart->baudRate);
 
 	/* Set up the modulation stages and oversampling mode. */
-	_UART_REG8(uart->_gate, _UART_MCTL) = 0;
+	_UART_REG8(uart->gate, _UART_MCTL) = 0;
 	if((division_factor >= 16) && (uart->baudRate < 921600L)) {
 		/* we will use oversampling mode and formulas as in sect 19.3.10.2*/
 		/* of MSP430x5xx Family Users Guide */
-		_UART_REG16(uart->_gate, _UART_BRW) = (unsigned int) (division_factor / 16);
+		_UART_REG16(uart->gate, _UART_BRW) = (unsigned int) (division_factor / 16);
 
 		/* forumla for BRF specifies rounding up which is why 0.5 is added*/
 		/* before casting to int since C integer casts truncate */
@@ -138,27 +165,27 @@ mp_ret_t mp_uart_open(mp_uart_t *uart, char *who) {
 
 		/* set the correct BRF, then set BRS to 0 (may need this later), */
 		/* then enable oversampling mode */
-		_UART_REG8(uart->_gate, _UART_MCTL) = (((brf << _UART_MCTL_BRF_bit) & _UART_MCTL_BRF_MASK) | _UART_MCTL_UCOS16_mask);
+		_UART_REG8(uart->gate, _UART_MCTL) = (((brf << _UART_MCTL_BRF_bit) & _UART_MCTL_BRF_MASK) | _UART_MCTL_UCOS16_mask);
 	}
 	else {
 		/* we will use oversampling mode and formulas as in sect 19.3.10.1*/
 		/* of MSP430x5xx Family Users Guide section 19.3.10.1 specifies */
 		/* setting UCBRS and clearing UCOS16 bit. */
-		_UART_REG16(uart->_gate, _UART_BRW) = (unsigned int)division_factor;
+		_UART_REG16(uart->gate, _UART_BRW) = (unsigned int)division_factor;
 		brf = ((unsigned int)(((division_factor - ((unsigned int)division_factor))*8) + 0.5));
 
 		/* Set the proper BRS field */
-		_UART_REG8(uart->_gate, _UART_MCTL) = ((brf << _UART_MCTL_BRS_bit) & _UART_MCTL_BRS_MASK);
-		_UART_REG8(uart->_gate, _UART_MCTL) &= (~(_UART_MCTL_UCOS16_mask));
+		_UART_REG8(uart->gate, _UART_MCTL) = ((brf << _UART_MCTL_BRS_bit) & _UART_MCTL_BRS_MASK);
+		_UART_REG8(uart->gate, _UART_MCTL) &= (~(_UART_MCTL_UCOS16_mask));
 	}
 
 	/* lock write */
-	_UART_REG8(uart->_gate, _UART_CTL1) &= ~(UCDORM);
-	_UART_REG8(uart->_gate, _UART_CTL1) &= ~UCSWRST; // lock write
+	_UART_REG8(uart->gate, _UART_CTL1) &= ~(UCDORM);
+	_UART_REG8(uart->gate, _UART_CTL1) &= ~UCSWRST; // lock write
 
-	__enable_interrupt();
+	MP_INTERRUPT_SAFE_END
 
-	_UART_REG8(uart->_gate, _UART_IE) |= UCRXIE;
+	//_UART_REG8(uart->gate, _UART_IE) |= UCRXIE;
 
 	return(TRUE);
 }
@@ -166,19 +193,26 @@ mp_ret_t mp_uart_open(mp_uart_t *uart, char *who) {
 mp_ret_t mp_uart_close(mp_uart_t *uart) {
 
 	/* remove interrupt */
-	mp_interrupt_unset(uart->_gate->_ISRVector);
+	//mp_interrupt_unset(uart->gate->_ISRVector);
 
 	/* clean gpio */
-	if(uart->_rxd_port != NULL)
-		mp_gpio_release(uart->_rxd_port);
+	if(uart->rxd_port != NULL) {
+		_GPIO_REG8(uart->rxd_port, _GPIO_SEL) &= ~(1<<uart->rxd_port->pin);
+		mp_gpio_release(uart->rxd_port);
+	}
 
-	if(uart->_txd_port != NULL)
-		mp_gpio_release(uart->_txd_port);
+	if(uart->txd_port != NULL) {
+		_GPIO_REG8(uart->txd_port, _GPIO_SEL) &= ~(1<<uart->txd_port->pin);
+		mp_gpio_release(uart->txd_port);
+	}
 
-	_GPIO_REG8(uart->_rxd_port, _GPIO_SEL) &= ~(1<<uart->rxd.pin);
-	_GPIO_REG8(uart->_txd_port, _GPIO_SEL) &= ~(1<<uart->txd.pin);
+	if(uart->gate) {
+		_UART_REG8(uart->gate, _UART_CTL1) |= UCSWRST;
+		_UART_REG8(uart->gate, _UART_CTL1) |= UCDORM;
+		_UART_REG8(uart->gate, _UART_CTL1) &= ~(UCSWRST);
 
-	mp_gate_release(uart->_gate);
+		mp_gate_release(uart->gate);
+	}
 
 	return(TRUE);
 }

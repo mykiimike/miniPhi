@@ -31,7 +31,7 @@ struct olimex_msp430_s {
 	mp_kernel_t kernel;
 	mp_drv_led_t green_led;
 	mp_drv_led_t red_led;
-	mp_serial_t uart_usb_rs232;
+	//mp_serial_t uart_usb_rs232;
 
 	mp_drv_button_t bUp;
 	mp_drv_button_t bDown;
@@ -126,6 +126,7 @@ static void __olimex_state_op_set(void *user) {
 
 
 	/* initialize UART USB RS232 */
+	/*
 	memset(&olimex->uart_usb_rs232, 0, sizeof(olimex->uart_usb_rs232));
 	olimex->uart_usb_rs232.uart.gateId = "USCI_A3";
 	olimex->uart_usb_rs232.uart.baudRate = 9600;
@@ -137,7 +138,7 @@ static void __olimex_state_op_set(void *user) {
 	olimex->uart_usb_rs232.uart.txd.pin = 4;
 	mp_serial_init(&olimex->uart_usb_rs232, "USB RS232");
 	mp_printk_set(_olimex_printk, olimex);
-
+	*/
 
 	/* create buttons */
 	{
@@ -259,7 +260,7 @@ static void __olimex_state_op_unset(void *user) {
 	mp_drv_button_fini(&olimex->bUp);
 	mp_drv_button_fini(&olimex->bDown);
 
-	mp_serial_fini(&olimex->uart_usb_rs232);
+	//mp_serial_fini(&olimex->uart_usb_rs232);
 
 	mp_drv_led_fini(&olimex->red_led);
 	mp_drv_led_fini(&olimex->green_led);
@@ -272,7 +273,7 @@ static void __olimex_state_op_tick(void *user) {
 	/* master loop, better to use tasks */
 }
 
-
+/*
 static void _olimex_printk(void *user, char *fmt, ...) {
 	olimex_msp430_t *olimex = user;
 	char buffer[1024];
@@ -288,6 +289,7 @@ static void _olimex_printk(void *user, char *fmt, ...) {
 	buffer[size++] = '\0';
 	mp_serial_write(&olimex->uart_usb_rs232, buffer, size);
 }
+*/
 
 void __olimex_on_button_left(void *user) {
 	//olimex_msp430_t *olimex = user;

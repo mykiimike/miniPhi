@@ -25,22 +25,22 @@
 static void _mp_serial_on_read(mp_uart_t *uart);
 static void _mp_serial_on_write(mp_uart_t *uart);
 
-mp_ret_t mp_serial_init(mp_serial_t *serial, char *who) {
+mp_ret_t mp_serial_init(mp_kernel_t *kernel, mp_serial_t *serial, mp_options_t *options, char *who) {
 	mp_ret_t ret;
 
 	serial->uart.onRead = _mp_serial_on_read;
 	serial->uart.onWrite = _mp_serial_on_write;
 	serial->uart.user = serial;
+
 	serial->rx_size = 0;
 	serial->rx_pos = 0;
 	serial->tx_size = 0;
 	serial->tx_pos = 0;
 
 	/* initialize UART */
-	ret = mp_uart_open(&serial->uart, who);
+	ret = mp_uart_open(kernel, &serial->uart, options, who);
 	if(ret == FALSE)
 		return(FALSE);
-
 
 	return(TRUE);
 }

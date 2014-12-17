@@ -198,7 +198,7 @@ mp_i2c_setAddress(mp_i2c_t *i2c, char address) {
 	_I2C_REG8(i2c->gate, _I2C_CTL1) &= ~(UCSWRST);
 }
 
-mp_i2_read(mp_i2c_t *i2c, unsigned char address, int len) {
+mp_i2c_read(mp_i2c_t *i2c, unsigned char address, int len) {
 
 	/* receiver mode */
 	_I2C_REG8(i2c->gate, _I2C_CTL1) &= ~(UCTR);
@@ -228,7 +228,7 @@ mp_i2_read(mp_i2c_t *i2c, unsigned char address, int len) {
 
 }
 
-mp_i2_write(mp_i2c_t *i2c, char address, char *data, int len) {
+mp_i2c_write(mp_i2c_t *i2c, char address, char *data, int len) {
 	/* TX mode */
 	_I2C_REG8(i2c->gate, _I2C_CTL1) &= UCTR;
 

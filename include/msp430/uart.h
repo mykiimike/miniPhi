@@ -35,23 +35,8 @@
 	typedef void (*mp_uart_on_t)(mp_uart_t *uart);
 
 	struct mp_uart_s {
-		/** UART gate */
-		char *gateId;
-
-		/** GPIO pair for tx */
-		mp_gpio_pair_t rxd;
-
-		/** GPIO pair for tx */
-		mp_gpio_pair_t txd;
-
-		/** GPIO pair for cts */
-		mp_gpio_pair_t cts;
-
-		/** GPIO pair for rts */
-		mp_gpio_pair_t rts;
-
-		/** gate flags */
-		unsigned int gateFlags;
+		/** Kernel handler */
+		mp_kernel_t *kernel;
 
 		/** Baud rate */
 		unsigned int baudRate;
@@ -60,14 +45,14 @@
 		mp_uart_on_t onRead;
 		void *user;
 
-		/** internal: gate */
-		mp_gate_t *_gate;
+		/** internal: UART gate */
+		mp_gate_t *gate;
 
 		/** internal: rxd_port */
-		mp_gpio_port_t *_rxd_port;
+		mp_gpio_port_t *rxd_port;
 
 		/** internal: txd_port */
-		mp_gpio_port_t *_txd_port;
+		mp_gpio_port_t *txd_port;
 
 
 
@@ -76,7 +61,7 @@
 
 	mp_ret_t mp_uart_init();
 	mp_ret_t mp_uart_fini();
-	mp_ret_t mp_uart_open(mp_uart_t *uart, char *who);
+	mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *options, char *who);
 	mp_ret_t mp_uart_close(mp_uart_t *uart);
 
 	/* machine specs */
@@ -134,21 +119,21 @@
 
 	static inline void mp_uart_enable_tx_int(mp_uart_t *uart) {
 		/* check CTS */
-		//_UART_REG8(uart->_gate, _UART_CTL0) |= UCTXIE;
+		//_UART_REG8(uart->gate, _UART_CTL0) |= UCTXIE;
 	}
 
 	static inline void mp_uart_disable_tx_int(mp_uart_t *uart) {
-		//_UART_REG8(uart->_gate, _UART_CTL0) &= ~UCTXIE;
+		//_UART_REG8(uart->gate, _UART_CTL0) &= ~UCTXIE;
 	}
 
 	static inline void mp_uart_tx(mp_uart_t *uart, unsigned char data) {
-		while (!(_UART_REG8(uart->_gate, _UART_IFG) & UCTXIFG));
-		_UART_REG8(uart->_gate, _UART_TXBUF) = data;
+		while (!(_UART_REG8(uart->gate, _UART_IFG) & UCTXIFG));
+		_UART_REG8(uart->gate, _UART_TXBUF) = data;
 	}
 
 	static inline unsigned char mp_uart_rx(mp_uart_t *uart) {
-		while (!(_UART_REG8(uart->_gate, _UART_IFG) & UCRXIFG));
-		return(_UART_REG8(uart->_gate, _UART_RXBUF));
+		while (!(_UART_REG8(uart->gate, _UART_IFG) & UCRXIFG));
+		return(_UART_REG8(uart->gate, _UART_RXBUF));
 	}
 
 #endif
