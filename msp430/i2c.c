@@ -139,7 +139,7 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 	mp_i2c_disable_rx(i2c);
 
 	/* place interrupt */
-	i2c->inte = mp_interrupt_set(i2c->gate->_ISRVector, __mp_i2c_intMRX, i2c, i2c->gate->portDevice);
+	//i2c->inte = mp_interrupt_set(i2c->gate->_ISRVector, __mp_i2c_intMRX, i2c, i2c->gate->portDevice);
 
 	/* safe non interruptible block */
 	MP_INTERRUPT_SAFE_END
@@ -160,12 +160,14 @@ mp_ret_t mp_i2c_close(mp_i2c_t *i2c) {
 		//mp_task_destroy(i2c->task);
 
 	/* disable interrupts */
+	/*
 	if(i2c->inte) {
 		mp_i2c_disable_rx(i2c);
 		mp_i2c_disable_tx(i2c);
 
 		mp_interrupt_unset(i2c->gate->_ISRVector);
 	}
+	*/
 
 	if(i2c->sda) {
 		_GPIO_REG8(i2c->sda, _GPIO_SEL) &= ~(1<<i2c->sda->pin);
