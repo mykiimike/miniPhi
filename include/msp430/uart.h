@@ -127,8 +127,8 @@
 	}
 
 	static inline void mp_uart_tx(mp_uart_t *uart, unsigned char data) {
-		while (!(_UART_REG8(uart->gate, _UART_IFG) & UCTXIFG));
 		_UART_REG8(uart->gate, _UART_TXBUF) = data;
+		while (!(_UART_REG8(uart->gate, _UART_IFG) & UCTXIFG));
 	}
 
 	static inline unsigned char mp_uart_rx(mp_uart_t *uart) {

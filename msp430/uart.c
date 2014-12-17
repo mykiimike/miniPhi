@@ -237,8 +237,6 @@ void hal_uart_dma_receive_block(uint8_t *buffer, uint16_t len){
 static void _mp_uart_interrupt(void *user) {
 	mp_uart_t *uart = user;
 
-	P10OUT ^= 0x40 | 0x80;
-
 	switch(_UART_REG8(uart->gate, _UART_IFG)) {
 		case UCRXIFG:
 			if(uart->onRead)

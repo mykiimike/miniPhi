@@ -52,6 +52,8 @@ static void __olimex_state_op_unset(void *user);
 static void __olimex_state_op_tick(void *user);
 
 static void _olimex_printk(void *user, char *fmt, ...);
+static void _mp_uart_forwarder(mp_uart_t *uart);
+
 void __olimex_on_button_left(void *user);
 void __olimex_on_button_right(void *user);
 void __olimex_on_button_up(void *user);
@@ -206,7 +208,8 @@ static void __olimex_state_op_set(void *user) {
 			return(FALSE);
 	}
 
-
+	olimex->proxyUARTSrc.user = olimex;
+	olimex->proxyUARTSrc.onRead = _mp_uart_forwarder;
 	mp_printk_set(_olimex_printk, olimex);
 	//mp_uart_enable_rx_int(&olimex->proxyUARTDst);
 	mp_uart_enable_rx_int(&olimex->proxyUARTSrc);
@@ -281,6 +284,16 @@ static void _olimex_printk(void *user, char *fmt, ...) {
 	return;
 }
 
+static void _mp_uart_forwarder(mp_uart_t *uart) {
+	unsigned char source;
+	olimex_msp430_t *olimex = uart->user;
+
+	source = mp_uart_rx(uart);
+	mp_uart_tx(&olimex->proxyUARTDst, source);
+
+
+	P10OUT ^= 0x80;
+}
 
 void __olimex_on_button_left(void *user) {
 	//olimex_msp430_t *olimex = user;
