@@ -46,7 +46,7 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 	memset(uart, 0, sizeof(*uart));
 
 	/* frequency */
-	value = mp_options_get(options, "frequency");
+	value = mp_options_get(options, "baudRate");
 	if(!value) {
 		mp_printk("UART - No baud rate specified");
 		return(FALSE);
@@ -57,14 +57,16 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 	value = mp_options_get(options, "gate");
 	if(!value)
 		return(FALSE);
+
 	uart->gate = mp_gate_handle(value, "UART");
-	if(uart->gate == NULL) {
+	if(!uart->gate) {
 		mp_printk("UART - No gate specify (USCI_A) for %s", who);
 		return(FALSE);
 	}
 
 	/* allocate GPIO port for RX data */
-	value = mp_options_get(options, "UART RXD");
+	value = mp_options_get(options, "rxd");
+	mp_printk("ta mere");
 	if(value) {
 		uart->rxd_port = mp_gpio_text_handle(value, "UART RXD");
 		if(!uart->rxd_port) {
@@ -75,7 +77,7 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 	}
 
 	/* allocate GPIO port for TX data */
-	value = mp_options_get(options, "UART TXD");
+	value = mp_options_get(options, "txd");
 	if(value) {
 		uart->txd_port = mp_gpio_text_handle(value, "UART TXD");
 		if(!uart->txd_port) {
@@ -137,7 +139,7 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 	//_UART_REG8(uart->gate, _UART_IFG) = 0;
 
 	/* place interrupt */
-	//mp_interrupt_set(uart->gate->_ISRVector, _mp_uart_interrupt, uart, uart->gate->portDevice);
+	mp_interrupt_set(uart->gate->_ISRVector, _mp_uart_interrupt, uart, uart->gate->portDevice);
 
 	/* Use ACLK for Baud rates less than 9600 to allow us to still */
 	/* receive characters while in LPM3. */
@@ -185,7 +187,6 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 
 	MP_INTERRUPT_SAFE_END
 
-	//_UART_REG8(uart->gate, _UART_IE) |= UCRXIE;
 
 	return(TRUE);
 }
@@ -193,7 +194,7 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 mp_ret_t mp_uart_close(mp_uart_t *uart) {
 
 	/* remove interrupt */
-	//mp_interrupt_unset(uart->gate->_ISRVector);
+	mp_interrupt_unset(uart->gate->_ISRVector);
 
 	/* clean gpio */
 	if(uart->rxd_port != NULL) {
@@ -236,7 +237,21 @@ void hal_uart_dma_receive_block(uint8_t *buffer, uint16_t len){
 static void _mp_uart_interrupt(void *user) {
 	mp_uart_t *uart = user;
 
-	P10OUT ^= 0x40;
+	P10OUT ^= 0x40 | 0x80;
+
+	switch(_UART_REG8(uart->gate, _UART_IFG)) {
+		case UCRXIFG:
+			if(uart->onRead)
+				uart->onRead(uart);
+			break;
+
+		case UCTXIFG:
+			if(uart->onWrite)
+				uart->onWrite(uart);
+			break;
+	}
+
+	_UART_REG8(uart->gate, _UART_IFG) = 0;
 
 }
 

@@ -120,28 +120,8 @@
 
 	};
 
-	static inline char *mp_options_get(mp_options_t *options, char *key) {
-		while(options->key != NULL && options->value != NULL) {
-			if(strcmp(key, options->key) == 0)
-				return(options->value);
-			options++;
-		}
-		return(NULL);
-
-	}
-
-	static inline mp_ret_t mp_options_cmp(char *a, char *b) {
-		int aL, bL, i;
-		aL = strlen(a);
-		bL = strlen(b);
-		if(aL != bL)
-			return(FALSE);
-		for(i=0; i<aL; i++, a++, b++) {
-			if(*a != *b)
-				return(FALSE);
-		}
-		return(TRUE);
-	}
+	char *mp_options_get(mp_options_t *options, char *key);
+	mp_ret_t mp_options_cmp(char *a, char *b);
 
 	void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user);
 	void mp_kernel_fini(mp_kernel_t *kernel);

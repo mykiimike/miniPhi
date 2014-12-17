@@ -21,14 +21,6 @@
 #ifndef _HAVE_MSP430_UART_H
 	#define _HAVE_MSP430_UART_H
 
-	#define MP_UART_PARITY    1    /* default disabled */
-	#define MP_UART_PAR_EVEN  1<<1 /* default odd */
-	#define MP_UART_MSB       1<<2 /* default lsb */
-	#define MP_UART_7BITS     1<<3 /* default 8bits */
-	#define MP_UART_TWO_S     1<<4 /* default one */
-	#define MP_UART_SYNC      1<<5 /* default async */
-
-	typedef struct mp_uart_regs_s mp_uart_regs_t;
 
 	typedef struct mp_uart_s mp_uart_t;
 
@@ -119,11 +111,19 @@
 
 	static inline void mp_uart_enable_tx_int(mp_uart_t *uart) {
 		/* check CTS */
-		//_UART_REG8(uart->gate, _UART_CTL0) |= UCTXIE;
+		_UART_REG8(uart->gate, _UART_IE) |= UCTXIE;
 	}
 
 	static inline void mp_uart_disable_tx_int(mp_uart_t *uart) {
-		//_UART_REG8(uart->gate, _UART_CTL0) &= ~UCTXIE;
+		_UART_REG8(uart->gate, _UART_IE) &= ~UCTXIE;
+	}
+
+	static inline void mp_uart_enable_rx_int(mp_uart_t *uart) {
+		_UART_REG8(uart->gate, _UART_IE) |= UCRXIE;
+	}
+
+	static inline void mp_uart_disable_rx_int(mp_uart_t *uart) {
+		_UART_REG8(uart->gate, _UART_IE) &= ~UCRXIE;
 	}
 
 	static inline void mp_uart_tx(mp_uart_t *uart, unsigned char data) {

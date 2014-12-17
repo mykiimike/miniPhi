@@ -42,9 +42,8 @@ struct olimex_msp430_s {
 	/** implementation of power on/off */
 	mp_drv_button_event_t bPower;
 
-	mp_drv_LSM9DS0_t agm;
-
-
+	mp_uart_t proxyUARTSrc;
+	mp_uart_t proxyUARTDst;
 };
 
 static void __olimex_onBoot(void *user);
@@ -60,8 +59,6 @@ void __olimex_on_button_down(void *user);
 void __olimex_on_button_power(void *user);
 
 static olimex_msp430_t __olimex;
-
-MP_TASK(LSM9DS0_POLLING);
 
 int main(void) {
 	/* initialize kernel */
@@ -125,21 +122,6 @@ static void __olimex_state_op_set(void *user) {
 	}
 
 
-	/* initialize UART USB RS232 */
-	/*
-	memset(&olimex->uart_usb_rs232, 0, sizeof(olimex->uart_usb_rs232));
-	olimex->uart_usb_rs232.uart.gateId = "USCI_A3";
-	olimex->uart_usb_rs232.uart.baudRate = 9600;
-
-	olimex->uart_usb_rs232.uart.rxd.port = 10;
-	olimex->uart_usb_rs232.uart.rxd.pin = 5;
-
-	olimex->uart_usb_rs232.uart.txd.port = 10;
-	olimex->uart_usb_rs232.uart.txd.pin = 4;
-	mp_serial_init(&olimex->uart_usb_rs232, "USB RS232");
-	mp_printk_set(_olimex_printk, olimex);
-	*/
-
 	/* create buttons */
 	{
 		mp_options_t options[] = {
@@ -195,38 +177,39 @@ static void __olimex_state_op_set(void *user) {
 	}
 
 
+	mp_ret_t ret;
 
-	/*
-	 * simo = e16 ucb0simo > p3.1
-	 * somi = e15 ucb0somi > p3.2
-	 * clk = e14 ucb0clk > p3.3
-	 * csG = e18 > p4.5
-	 * csXM = e19 > P4.6
-	 * int1 = e4 > p1.1
-	 * int2 = e3 > p1.7
-	 * drdy = e5 > p1.0
-	 *
-	 */
+	/* initialize UART source */
 	{
 		mp_options_t options[] = {
-			{ "gate", "USCI_B0" },
-			{ "simo", "p3.1" },
-			{ "somi", "p3.2" },
-			{ "clk", "p3.3" },
-			{ "csG", "p4.5" },
-			{ "csXM", "p4.6" },
-			{ "int1", "p1.1" },
-			{ "int2", "p1.7" },
-			{ "drdy", "p1.0" },
+			{ "gate", "USCI_A3" },
+			{ "txd", "p10.4" },
+			{ "rxd", "p10.5" },
+			{ "baudRate", "9600" },
 			{ NULL, NULL }
 		};
-		mp_drv_LSM9DS0_init(&olimex->kernel, &olimex->agm, options, "Acce/Gyro/Magneto");
-		mp_drv_LSM9DS0_initAccel(&olimex->agm); // "Turn on" all axes of the accel. Set up interrupts, etc.
-		mp_drv_LSM9DS0_setAccelODR(&olimex->agm, A_ODR_3125); // Set the accel data rate.
-		mp_drv_LSM9DS0_setAccelScale(&olimex->agm, A_SCALE_2G); // Set the accel range.
-
-		//mp_task_create(&olimex->kernel.tasks, "Accelero", LSM9DS0_POLLING, &olimex->agm, 10);
+		ret = mp_uart_open(&olimex->kernel, &olimex->proxyUARTDst, options, "UART destination");
+		if(ret == FALSE)
+			return(FALSE);
 	}
+
+	{
+		mp_options_t options[] = {
+				{ "gate", "USCI_A0" },
+				{ "txd", "p3.4" },
+				{ "rxd", "p3.5" },
+				{ "baudRate", "9600" },
+				{ NULL, NULL }
+		};
+		ret = mp_uart_open(&olimex->kernel, &olimex->proxyUARTSrc, options, "UART source");
+		if(ret == FALSE)
+			return(FALSE);
+	}
+
+
+	mp_printk_set(_olimex_printk, olimex);
+	//mp_uart_enable_rx_int(&olimex->proxyUARTDst);
+	mp_uart_enable_rx_int(&olimex->proxyUARTSrc);
 
 
 	/* create a button event based on center button in order to turn a led on/off */
@@ -247,6 +230,8 @@ static void __olimex_state_op_set(void *user) {
 	//mp_task_create(&olimex->kernel.tasks, "Blinking GREEN", blinkTask, &olimex->green_led, 1000);
 
 	mp_machine_state_set(&olimex->kernel);
+
+
 }
 
 
@@ -273,7 +258,7 @@ static void __olimex_state_op_tick(void *user) {
 	/* master loop, better to use tasks */
 }
 
-/*
+
 static void _olimex_printk(void *user, char *fmt, ...) {
 	olimex_msp430_t *olimex = user;
 	char buffer[1024];
@@ -287,9 +272,15 @@ static void _olimex_printk(void *user, char *fmt, ...) {
 	buffer[size++] = '\n';
 	buffer[size++] = '\r';
 	buffer[size++] = '\0';
-	mp_serial_write(&olimex->uart_usb_rs232, buffer, size);
+
+	int a;
+
+	for(a=0; a<size; a++)
+		mp_uart_tx(&olimex->proxyUARTDst, buffer[a]);
+
+	return;
 }
-*/
+
 
 void __olimex_on_button_left(void *user) {
 	//olimex_msp430_t *olimex = user;

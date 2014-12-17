@@ -134,14 +134,10 @@ _INSIDE_ISR(USCI_A1_VECTOR);
 _INSIDE_ISR(USCI_A2_VECTOR);
 #endif
 
-//_INSIDE_ISR(USCI_A3_VECTOR);
-//#ifdef USCI_A3_BASE
+#ifdef USCI_A3_BASE
 #pragma vector=USCI_A3_VECTOR
-__interrupt void test_isr(void) {
-	P10OUT ^= 0x40;
-	UCA3RXBUF = 0;
-}
-//#endif
+_INSIDE_ISR(USCI_A3_VECTOR);
+#endif
 
 #ifdef PORT1_VECTOR
 #pragma vector=PORT1_VECTOR
