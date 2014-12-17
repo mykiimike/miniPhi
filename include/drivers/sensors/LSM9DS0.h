@@ -132,10 +132,10 @@
 		// Units of these values would be DPS (or g's or Gs's) per ADC tick.
 		// This value is calculated as (sensor scale) / (2^15).
 		float gRes, aRes, mRes;
-		unsigned short gx, gy, gz; // x, y, and z axis readings of the gyroscope
-		unsigned short ax, ay, az; // x, y, and z axis readings of the accelerometer
-		unsigned short mx, my, mz; // x, y, and z axis readings of the magnetometer
-		unsigned short temperature;
+		signed short gx, gy, gz; // x, y, and z axis readings of the gyroscope
+		signed short ax, ay, az; // x, y, and z axis readings of the accelerometer
+		signed short mx, my, mz; // x, y, and z axis readings of the magnetometer
+		signed short temperature;
 		float abias[3];
 		float gbias[3];
 
