@@ -100,6 +100,9 @@
 	#define _UART_REG16(_port, _type) \
 		*((volatile short *)(_port->_baseAddress+_type))
 
+	static inline char mp_uart_isBusy(mp_uart_t *uart) {
+		return(_UART_REG8(uart->gate, _UART_STATW) & 0x1);
+	}
 
 	static inline void mp_uart_enable_rx(mp_uart_t *uart) {
 		// P1OUT &= ~BIT4; // = 0 - RTS low -> ok

@@ -138,7 +138,7 @@
 	#define mp_gpio_intEdgeIsNeg(port)    (_GPIO_REG8(port, _GPIO_IES)  &  (1<<port->pin))
 
 		 /* Enable/Disable Flow Control                                 */
-	#define mp_gpio_read(port)             (_GPIO_REG8(port, _GPIO_INPUT))
+	#define mp_gpio_raw_read(port)             (_GPIO_REG8(port, _GPIO_INPUT))
 
 		 /* RTS/CTS Flow Control Utilities                              */
 	#define mp_gpio_intEdgeEnableFlow(port)          (mp_gpio_intEdgeIsNeg(port))
