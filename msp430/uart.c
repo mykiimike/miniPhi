@@ -40,18 +40,9 @@ mp_ret_t mp_uart_fini() {
 mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *options, char *who) {
 	float division_factor;
 	unsigned int brf;
-	unsigned long freq;
 	char *value;
 
 	memset(uart, 0, sizeof(*uart));
-
-	/* frequency */
-	value = mp_options_get(options, "baudRate");
-	if(!value) {
-		mp_printk("UART - No baud rate specified");
-		return(FALSE);
-	}
-	uart->baudRate = atoi(value);
 
 	/* get gate Id*/
 	value = mp_options_get(options, "gate");
@@ -92,6 +83,21 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 	_GPIO_REG8(uart->txd_port, _GPIO_SEL) |= 1<<uart->txd_port->pin;
 	mp_gpio_direction(uart->rxd_port, MP_GPIO_INPUT);
 	mp_gpio_direction(uart->txd_port, MP_GPIO_OUTPUT);
+
+	/* setup */
+	mp_uart_setup(uart, options);
+
+	return(TRUE);
+}
+
+mp_ret_t mp_uart_setup(mp_uart_t *uart, mp_options_t *options) {
+	unsigned long freq;
+	char *value;
+
+	/* frequency */
+	value = mp_options_get(options, "baudRate");
+	if(value)
+		uart->baudRate = atoi(value);
 
 	/* disable interrupts */
 	MP_INTERRUPT_SAFE_BEGIN
@@ -186,7 +192,6 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 	_UART_REG8(uart->gate, _UART_CTL1) &= ~UCSWRST; // lock write
 
 	MP_INTERRUPT_SAFE_END
-
 
 	return(TRUE);
 }

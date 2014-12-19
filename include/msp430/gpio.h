@@ -121,7 +121,7 @@
 		 _GPIO_REG8(port, _GPIO_IFG))&= (~(1<<port->pin));   \
 		 _GPIO_REG8(port, _GPIO_IES) |= (1<<port->pin);      \
 		 _GPIO_REG8(port, _GPIO_IE) |= (1<<port->pin);      \
-		 _GPIO_REG8(port, _GPIO_OUTPUT) &= (~(1<<port->pin));   \
+		 _GPIO_REG8(port, _GPIO_OUT) &= (~(1<<port->pin));   \
 	}
 
 	#define mp_gpio_typeRtsFlow(port)         \
@@ -130,7 +130,7 @@
 		 _GPIO_REG8(port, _GPIO_DIR) |= (1<<port->pin);      \
 		 _GPIO_REG8(port, _GPIO_DRIVE) |= (1<<port->pin);      \
 		 _GPIO_REG8(port, _GPIO_IFG)) &= (~(1<<port->pin));   \
-		 _GPIO_REG8(port, _GPIO_OUTPUT) &= (~(1<<port->pin));   \
+		 _GPIO_REG8(port, _GPIO_OUT) &= (~(1<<port->pin));   \
 	}
 
 	#define mp_gpio_intPosEdge(port)      (_GPIO_REG8(port, _GPIO_IES)  &= (~(1<<port->pin)))
@@ -138,7 +138,7 @@
 	#define mp_gpio_intEdgeIsNeg(port)    (_GPIO_REG8(port, _GPIO_IES)  &  (1<<port->pin))
 
 		 /* Enable/Disable Flow Control                                 */
-	#define mp_gpio_raw_read(port)             (_GPIO_REG8(port, _GPIO_INPUT))
+	#define mp_gpio_raw_read(port)             (_GPIO_REG8(port, _GPIO_IN) & (1<<port->pin))
 
 		 /* RTS/CTS Flow Control Utilities                              */
 	#define mp_gpio_intEdgeEnableFlow(port)          (mp_gpio_intEdgeIsNeg(port))
@@ -151,7 +151,7 @@
 	{ \
 		_GPIO_REG8(port, _GPIO_SEL) &= (~(_pin));   \
 		_GPIO_REG8(port, _GPIO_DIR) |= (1<<port->pin);      \
-		_GPIO_REG8(port, _GPIO_OUTPUT) &= (~(1<<port->pin));   \
+		_GPIO_REG8(port, _GPIO_OUT) &= (~(1<<port->pin));   \
 	}
 
 

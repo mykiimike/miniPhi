@@ -31,7 +31,7 @@
 		mp_kernel_t *kernel;
 
 		/** Baud rate */
-		unsigned int baudRate;
+		unsigned long baudRate;
 
 		mp_uart_on_t onWrite;
 		mp_uart_on_t onRead;
@@ -54,6 +54,7 @@
 	mp_ret_t mp_uart_init();
 	mp_ret_t mp_uart_fini();
 	mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *options, char *who);
+	mp_ret_t mp_uart_setup(mp_uart_t *uart, mp_options_t *options);
 	mp_ret_t mp_uart_close(mp_uart_t *uart);
 
 	/* machine specs */
@@ -102,6 +103,10 @@
 
 	static inline char mp_uart_isBusy(mp_uart_t *uart) {
 		return(_UART_REG8(uart->gate, _UART_STATW) & 0x1);
+	}
+
+	static inline char mp_uart_hasOverrun(mp_uart_t *uart) {
+		return(_UART_REG8(uart->gate, _UART_STATW) & 0xEC);
 	}
 
 	static inline void mp_uart_enable_rx(mp_uart_t *uart) {
