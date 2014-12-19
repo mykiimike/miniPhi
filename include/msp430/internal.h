@@ -34,6 +34,15 @@
 	#include "spi.h"
 	#include "adc.h"
 
+	typedef unsigned char uint8_t;
+	typedef signed char int8_t;
+
+	typedef unsigned int uint16_t;
+	typedef signed int int16_t;
+
+	typedef unsigned long uint32_t;
+	typedef signed long int32_t;
+
 	mp_ret_t mp_machine_init(mp_kernel_t *kernel);
 	mp_ret_t mp_machine_fini(mp_kernel_t *kernel);
 	mp_ret_t mp_machine_loop(mp_kernel_t *kernel);

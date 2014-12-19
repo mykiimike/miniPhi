@@ -76,12 +76,16 @@
 	#define MP_KERNEL_RES09  10
 	#define MP_KERNEL_RES10  11
 
+	#include "common/utils.h"
 	#include "common/mem.h"
 	#include "common/state.h"
 	#include "common/serial.h"
 	#include "common/pinout.h"
 	#include "common/printk.h"
 	#include "common/quaternion.h"
+
+	/* Bluetooth */
+	#include "bluetooth/internal.h"
 
 	#include "drivers/button.h"
 	#include "drivers/led.h"

@@ -1,3 +1,23 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2014  Michael VERGOZ                                      *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #ifndef _HAVE_MSP430_GPIO_H
 	#define _HAVE_MSP430_GPIO_H
 
@@ -93,5 +113,46 @@
 	static inline void mp_gpio_interrupt_hilo_switch(mp_gpio_port_t *port) {
 		_GPIO_REG8(port, _GPIO_IES) ^= 1<<port->pin;
 	}
+
+	#define mp_gpio_typeCtsFlow(port)           \
+	{                                                 \
+		 _GPIO_REG8(port, _GPIO_SEL) &= (~(1<<port->pin));   \
+		 _GPIO_REG8(port, _GPIO_DIR) &= (~(1<<port->pin));   \
+		 _GPIO_REG8(port, _GPIO_IFG))&= (~(1<<port->pin));   \
+		 _GPIO_REG8(port, _GPIO_IES) |= (1<<port->pin);      \
+		 _GPIO_REG8(port, _GPIO_IE) |= (1<<port->pin);      \
+		 _GPIO_REG8(port, _GPIO_OUTPUT) &= (~(1<<port->pin));   \
+	}
+
+	#define mp_gpio_typeRtsFlow(port)         \
+	{                                            \
+		 _GPIO_REG8(port, _GPIO_SEL) &= (~(1<<port->pin));   \
+		 _GPIO_REG8(port, _GPIO_DIR) |= (1<<port->pin);      \
+		 _GPIO_REG8(port, _GPIO_DRIVE) |= (1<<port->pin);      \
+		 _GPIO_REG8(port, _GPIO_IFG)) &= (~(1<<port->pin));   \
+		 _GPIO_REG8(port, _GPIO_OUTPUT) &= (~(1<<port->pin));   \
+	}
+
+	#define mp_gpio_intPosEdge(port)      (_GPIO_REG8(port, _GPIO_IES)  &= (~(1<<port->pin)))
+	#define mp_gpio_intNegEdge(port)      (_GPIO_REG8(port, _GPIO_IES)  |= (1<<port->pin))
+	#define mp_gpio_intEdgeIsNeg(port)    (_GPIO_REG8(port, _GPIO_IES)  &  (1<<port->pin))
+
+		 /* Enable/Disable Flow Control                                 */
+	#define mp_gpio_read(port)             (_GPIO_REG8(port, _GPIO_INPUT))
+
+		 /* RTS/CTS Flow Control Utilities                              */
+	#define mp_gpio_intEdgeEnableFlow(port)          (mp_gpio_intEdgeIsNeg(port))
+	#define mp_gpio_intEdgeDisableFlow(port)         (!mp_gpio_intEdgeIsNeg(port))
+	#define mp_gpio_intEdgeEnableStateChange(port)   (mp_gpio_intPosEdge(port))
+	#define mp_gpio_intEdgeDisableStateChange(port)  (mp_gpio_intNegEdge(port))
+
+			 /* Chip Reset Control                                          */
+	#define mp_gpio_typeReset(port) \
+	{ \
+		_GPIO_REG8(port, _GPIO_SEL) &= (~(_pin));   \
+		_GPIO_REG8(port, _GPIO_DIR) |= (1<<port->pin);      \
+		_GPIO_REG8(port, _GPIO_OUTPUT) &= (~(1<<port->pin));   \
+	}
+
 
 #endif
