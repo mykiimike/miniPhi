@@ -38,8 +38,6 @@ mp_ret_t mp_uart_fini() {
 }
 
 mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *options, char *who) {
-	float division_factor;
-	unsigned int brf;
 	char *value;
 
 	memset(uart, 0, sizeof(*uart));
@@ -57,7 +55,6 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 
 	/* allocate GPIO port for RX data */
 	value = mp_options_get(options, "rxd");
-	mp_printk("ta mere");
 	if(value) {
 		uart->rxd_port = mp_gpio_text_handle(value, "UART RXD");
 		if(!uart->rxd_port) {
@@ -91,6 +88,8 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 }
 
 mp_ret_t mp_uart_setup(mp_uart_t *uart, mp_options_t *options) {
+	float division_factor;
+	unsigned int brf;
 	unsigned long freq;
 	char *value;
 

@@ -21,7 +21,7 @@
 #include <mp.h>
 
 char *mp_options_get(mp_options_t *options, char *key) {
-	if!(options)
+	if(!options)
 			return(NULL);
 	while(options->key != NULL && options->value != NULL) {
 		if(strcmp(key, options->key) == 0)

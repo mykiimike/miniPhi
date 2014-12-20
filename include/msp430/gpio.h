@@ -118,7 +118,7 @@
 	{                                                 \
 		 _GPIO_REG8(port, _GPIO_SEL) &= (~(1<<port->pin));   \
 		 _GPIO_REG8(port, _GPIO_DIR) &= (~(1<<port->pin));   \
-		 _GPIO_REG8(port, _GPIO_IFG))&= (~(1<<port->pin));   \
+		 _GPIO_REG8(port, _GPIO_IFG) &= (~(1<<port->pin));   \
 		 _GPIO_REG8(port, _GPIO_IES) |= (1<<port->pin);      \
 		 _GPIO_REG8(port, _GPIO_IE) |= (1<<port->pin);      \
 		 _GPIO_REG8(port, _GPIO_OUT) &= (~(1<<port->pin));   \
@@ -129,7 +129,7 @@
 		 _GPIO_REG8(port, _GPIO_SEL) &= (~(1<<port->pin));   \
 		 _GPIO_REG8(port, _GPIO_DIR) |= (1<<port->pin);      \
 		 _GPIO_REG8(port, _GPIO_DRIVE) |= (1<<port->pin);      \
-		 _GPIO_REG8(port, _GPIO_IFG)) &= (~(1<<port->pin));   \
+		 _GPIO_REG8(port, _GPIO_IFG) &= (~(1<<port->pin));   \
 		 _GPIO_REG8(port, _GPIO_OUT) &= (~(1<<port->pin));   \
 	}
 

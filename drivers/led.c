@@ -23,9 +23,9 @@
 #ifdef SUPPORT_DRV_LED
 
 mp_ret_t mp_drv_led_init(mp_kernel_t *kernel, mp_drv_led_t *led, mp_options_t *options, char *who) {
-	char *value;
+	char *value, *port;
 
-	value = mp_options_get(options, "port");
+	port = value = mp_options_get(options, "port");
 	if(!value)
 		return(FALSE);
 
@@ -35,7 +35,7 @@ mp_ret_t mp_drv_led_init(mp_kernel_t *kernel, mp_drv_led_t *led, mp_options_t *o
     	return(FALSE);
 
     value = mp_options_get(options, "reverse");
-    if(value && mp_options_cmp(value, "true") == 0)
+    if(value && mp_options_cmp(value, "true"))
     	led->gpio->reverse = YES;
 
     /* set direction */
@@ -44,6 +44,9 @@ mp_ret_t mp_drv_led_init(mp_kernel_t *kernel, mp_drv_led_t *led, mp_options_t *o
     /* set to off */
     mp_gpio_unset(led->gpio);
     led->state = OFF;
+
+    mp_printk("Initializing LED control on %s called %s", port, who);
+
     return(TRUE);
 }
 
@@ -51,8 +54,11 @@ mp_ret_t mp_drv_led_fini(mp_drv_led_t *led) {
 	if(led->gpio == NULL)
 		return(FALSE);
 
+	mp_printk("Terminating LED control on %s", led->gpio->who);
+
 	/* release GPIO port */
 	mp_gpio_release(led->gpio);
+
 
 	return(TRUE);
 }

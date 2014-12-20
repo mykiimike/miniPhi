@@ -27,13 +27,14 @@
 
 	#define NULL (void *)0
 
-	#define TRUE 0
-	#define FALSE -1
+	#define TRUE 1
+	#define FALSE 0
 
-	#define YES 1
-	#define NO 0
-	#define ON 1
-	#define OFF 0
+	#define YES TRUE
+	#define NO FALSE
+
+	#define ON TRUE
+	#define OFF FALSE
 
 	typedef signed char mp_ret_t;
 	typedef signed char mp_bool_t;

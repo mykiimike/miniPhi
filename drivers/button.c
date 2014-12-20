@@ -27,12 +27,12 @@ static void ___on_button(void *user);
 
 mp_ret_t mp_drv_button_init(mp_kernel_t *kernel, mp_drv_button_t *button, mp_options_t *options, char *who) {
 	mp_ret_t ret;
-	char *value;
+	char *value, *port;
 
 	button->pressed = NO;
 
 	/* get port */
-	value = mp_options_get(options, "port");
+	port = value = mp_options_get(options, "port");
 	if(!value)
 		return(FALSE);
 
@@ -54,10 +54,14 @@ mp_ret_t mp_drv_button_init(mp_kernel_t *kernel, mp_drv_button_t *button, mp_opt
 	/* set hi to low */
 	mp_gpio_interrupt_hi2lo(button->gpio);
 
+	mp_printk("Creating button driver on GPIO %s used by %s", port, who);
+
 	return(TRUE);
 }
 
 mp_ret_t mp_drv_button_fini(mp_drv_button_t *button) {
+
+	mp_printk("Removing button driver on GPIO used by %s", button->gpio->who);
 
 	/* unset interrupt */
 	mp_gpio_interrupt_unset(button->gpio);
@@ -85,10 +89,13 @@ mp_ret_t mp_drv_button_event_create(
 	/* add the event */
 	mp_list_add_first(&button->events, &bac->item, bac);
 
+	mp_printk("Creating button event on %s delay=%d time=%d cb=%p", button->gpio->who, delay, time, cb);
+
 	return(TRUE);
 }
 
 mp_ret_t mp_drv_button_event_destroy(mp_drv_button_t *button, mp_drv_button_event_t *bac) {
+	mp_printk("Destroying button event on %s cb=%p", bac->button->gpio->who, bac->cb);
 	mp_list_remove(&button->events, &bac->item);
 	return(TRUE);
 }

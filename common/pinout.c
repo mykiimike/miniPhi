@@ -23,7 +23,7 @@ MP_TASK(onoffLive) {
 	else
 		mp_gpio_unset(pinout->gpio);
 
-	//_DP("Live pinout turn=%s count=%d", turn == ON ? "ON" : "OFF", pinout->count);
+	//mp_printk("Live pinout turn=%s count=%d", turn == ON ? "ON" : "OFF", pinout->count);
 
 	if(pinout->repeat >= 0) {
 		pinout->task->wakeup = onoffStep;
@@ -51,7 +51,7 @@ MP_TASK(onoffStep) {
 	else
 		mp_gpio_unset(pinout->gpio);
 
-	//_DP("Step pinout turn=%s", pinout->turn == ON ? "ON" : "OFF");
+	//mp_printk("Step pinout turn=%s", pinout->turn == ON ? "ON" : "OFF");
 
 	if(pinout->live > 0) {
 		/* change wakeup task */
@@ -99,7 +99,7 @@ mp_task_t *mp_pinout_onoff(mp_kernel_t *kernel, mp_gpio_port_t *gpio, char turn,
 			mp_gpio_set(gpio);
 		else
 			mp_gpio_unset(gpio);
-		//_DP("Direct pinout type=%d turn=%s", type, turn == ON ? "ON" : "OFF");
+		//mp_printk("Direct pinout type=%d turn=%s", type, turn == ON ? "ON" : "OFF");
 	}
 
 	if(live > 0) {

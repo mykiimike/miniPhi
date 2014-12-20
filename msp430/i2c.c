@@ -123,7 +123,7 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 
 	/* user options */
 	value = mp_options_get(options, "role");
-	if(value && mp_options_cmp(value, "slave") == TRUE)
+	if(value && mp_options_cmp(value, "slave"))
 		_I2C_REG8(i2c->gate, _I2C_CTL0) &= ~(UCMST);
 	else
 		_I2C_REG8(i2c->gate, _I2C_CTL0) |= UCMST;
