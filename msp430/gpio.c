@@ -250,18 +250,11 @@ mp_ret_t mp_gpio_release(mp_gpio_port_t *port) {
 
 mp_ret_t mp_gpio_direction(mp_gpio_port_t *port, mp_gpio_direction_t direction) {
 
-	switch(direction) {
-		case MP_GPIO_INPUT:
-			_GPIO_REG8(port, _GPIO_DIR) &= ~(1<<port->pin);
-			break;
+	if(direction == MP_GPIO_INPUT)
+		_GPIO_REG8(port, _GPIO_DIR) &= ~(1<<port->pin);
+	else
+		_GPIO_REG8(port, _GPIO_DIR) |= 1<<port->pin;
 
-		case MP_GPIO_OUTPUT:
-			_GPIO_REG8(port, _GPIO_DIR) |= 1<<port->pin;
-			break;
-
-		default:
-			return(FALSE);
-	}
 	port->direction = direction;
 	return(TRUE);
 }

@@ -80,6 +80,8 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	/* initialize SPI */
 	mp_spi_init();
 
+	mp_interrupt_enable();
+
 	/* initialize temp processor sensor */
 	//_set_machine_temperature(kernel);
 

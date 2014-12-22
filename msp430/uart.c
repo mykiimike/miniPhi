@@ -102,6 +102,7 @@ mp_ret_t mp_uart_setup(mp_uart_t *uart, mp_options_t *options) {
 	MP_INTERRUPT_SAFE_BEGIN
 
 	_UART_REG8(uart->gate, _UART_CTL1) |= UCSWRST; //Reset State
+
 	_UART_REG8(uart->gate, _UART_CTL0) = 0;
 
 	value = mp_options_get(options, "parity");
@@ -156,6 +157,10 @@ mp_ret_t mp_uart_setup(mp_uart_t *uart, mp_options_t *options) {
 		_UART_REG8(uart->gate, _UART_CTL1) = _UART_UCSSEL_SMCLK_mask;
 		freq = mp_clock_get_speed();
 	}
+
+	/* optionning ? */
+	_UART_REG8(uart->gate, _UART_CTL1) |= UCRXEIE+UCBRKIE;
+
 
 	division_factor = FLOAT_DIV(freq, uart->baudRate);
 
@@ -240,20 +245,23 @@ void hal_uart_dma_receive_block(uint8_t *buffer, uint16_t len){
 
 static void _mp_uart_interrupt(void *user) {
 	mp_uart_t *uart = user;
+	char flag = _UART_REG8(uart->gate, _UART_IFG);
 
-	switch(_UART_REG8(uart->gate, _UART_IFG)) {
-		case UCRXIFG:
-			if(uart->onRead)
-				uart->onRead(uart);
-			break;
-
-		case UCTXIFG:
-			if(uart->onWrite)
-				uart->onWrite(uart);
-			break;
+	if(flag & UCRXIFG) {
+		if(uart->onRead)
+			uart->onRead(uart);
+		else
+			_UART_REG8(uart->gate, _UART_IFG) &= ~(UCRXIFG);
 	}
 
-	_UART_REG8(uart->gate, _UART_IFG) = 0;
+	if(flag & UCTXIFG) {
+		if(uart->onWrite)
+			uart->onWrite(uart);
+		else
+			_UART_REG8(uart->gate, _UART_IFG) &= ~(UCTXIFG);
+	}
+
+
 
 }
 

@@ -88,6 +88,8 @@
 	#define _SPI_REG8(_port, _type) \
 		*((volatile char *)(_port->_baseAddress+_type))
 
+	#define _SPI_REG16(_port, _type) \
+		*((volatile short *)(_port->_baseAddress+_type))
 
 	static inline void mp_spi_enable_rx(mp_spi_t *spi) {
 		/* check CTS */
@@ -108,14 +110,11 @@
 	}
 
 	static inline unsigned char mp_spi_rx(mp_spi_t *spi) {
-		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCTXIFG));
-		_SPI_REG8(spi->gate, _SPI_TXBUF) = 0;
 		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCRXIFG));
 		return(_SPI_REG8(spi->gate, _SPI_RXBUF));
 	}
 
 	static inline void mp_spi_tx(mp_spi_t *spi, unsigned char data) {
-
 		_SPI_REG8(spi->gate, _SPI_TXBUF) = data;
 		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCTXIFG));
 	}

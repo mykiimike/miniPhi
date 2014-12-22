@@ -24,7 +24,7 @@
 	/* compatible API */
 	typedef enum {
 		MP_GPIO_INPUT = 1,
-		MP_GPIO_OUTPUT,
+		MP_GPIO_OUTPUT = 2,
 	} mp_gpio_direction_t;
 
 	typedef struct mp_gpio_pair_s mp_gpio_pair_t;

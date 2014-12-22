@@ -23,7 +23,7 @@ mp_ret_t mp_interrupt_init() {
 		inter->callback = __dummy_int;
 	}
 
-	mp_interrupt_enable();
+
 	return(TRUE);
 }
 

@@ -36,13 +36,13 @@ mp_ret_t mp_clock_fini(mp_kernel_t *kernel) {
 }
 
 mp_ret_t mp_clock_low_energy() {
-	_system_clock(MHZ8_t);
+	//_system_clock(MHZ8_t);
 	_BIS_SR(LPM3_bits + GIE);
 	return(TRUE);
 }
 
 mp_ret_t mp_clock_high_energy() {
-	_system_clock(MHZ16_t);
+	//_system_clock(MHZ16_t);
 	_BIS_SR(LPM0_bits + GIE);
 	return(TRUE);
 }
@@ -282,6 +282,13 @@ static mp_bool_t _processor_type(void) {
 /* The following function is responsible for setting up the system */
 /* clock at a specified freq. */
 static void _system_clock(mp_clock_t freq) {
+	int                       UseDCO;
+	unsigned int                    Ratio;
+	unsigned int                    DCODivBits;
+	unsigned long                   SystemFrequency;
+	volatile unsigned int           Counter;
+
+
 	mp_clock_freq_settings_t *cpu_settings;
 
 	/** \todo Check for erratum flash28 */
@@ -303,7 +310,88 @@ static void _system_clock(mp_clock_t freq) {
 	__frequency = freq;
 
 	/* Configure the PMM core voltage. */
-	_conf_VCORE(cpu_settings->VCORE);
+	//_conf_VCORE(cpu_settings->VCORE);
+
+	/* Get the ratio of the system frequency to the source clock.        */
+	Ratio           = cpu_settings->DCO;
+
+	/* Use a divider of at least 2 in the FLL control loop.              */
+	DCODivBits      = FLLD__2;
+
+	/* Get the system frequency that is configured.                      */
+	SystemFrequency  = mp_clock_get_speed();
+	SystemFrequency /= 1000;
+
+	/* If the requested frequency is above 16MHz we will use DCO as the  */
+	/* source of the system clocks, otherwise we will use DCOCLKDIV.     */
+	if(SystemFrequency > 16000)
+	{
+		Ratio  >>= 1;
+		UseDCO   = TRUE;
+	}
+	else
+	{
+		SystemFrequency <<= 1;
+		UseDCO            = FALSE;
+	}
+
+	/* While needed set next higher div level.                           */
+	while (Ratio > 512)
+	{
+		DCODivBits   = DCODivBits + FLLD0;
+		Ratio      >>= 1;
+	}
+
+	/* Disable the FLL.                                                  */
+	__bis_SR_register(SCG0);
+
+	/* Set DCO to lowest Tap.                                            */
+	UCSCTL0 = 0x0000;
+
+	/* Reset FN bits.                                                    */
+	UCSCTL2 &= ~(0x03FF);
+	UCSCTL2  = (DCODivBits | (Ratio - 1));
+
+	UCSCTL1 = DCORSEL_5;
+
+	/* Re-enable the FLL.                                                */
+	__bic_SR_register(SCG0);
+
+	/* Loop until the DCO is stabilized.                                 */
+	while(UCSCTL7 & DCOFFG)
+	{
+		/* Clear DCO Fault Flag.                                         */
+		UCSCTL7 &= ~DCOFFG;
+
+		/* Clear OFIFG fault flag.                                       */
+		SFRIFG1 &= ~OFIFG;
+	}
+
+	/* Enable the FLL control loop.                                      */
+	__bic_SR_register(SCG0);
+
+	/* Based on the frequency we will use either DCO or DCOCLKDIV as the */
+	/* source of MCLK and SMCLK.                                         */
+	if (UseDCO)
+	{
+		/* Select DCOCLK for MCLK and SMCLK.                              */
+		UCSCTL4 &=  ~(SELM_7 | SELS_7);
+		UCSCTL4 |= (SELM__DCOCLK | SELS__DCOCLK);
+	}
+	else
+	{
+		/* Select DCOCLKDIV for MCLK and SMCLK.                           */
+		UCSCTL4 &=  ~(SELM_7 | SELS_7);
+//		UCSCTL4 |= (SELM__DCOCLKDIV | SELS__DCOCLKDIV);
+		UCSCTL4 = SELA__XT1CLK | SELS__DCOCLKDIV  |  SELM__DCOCLKDIV ;
+
+	}
+
+	/* Delay the appropriate amount of cycles for the clock to settle.   */
+	Counter = Ratio * 32;
+	while (Counter--)
+		__delay_cycles(30);
+
 
 	return;
 }
@@ -313,29 +401,19 @@ static void _system_clock(mp_clock_t freq) {
 /* MCLK and SMCLK. */
 static void __start_crystal(void) {
 
-#if defined(__msp430x54x) || defined(__msp430x54xA)
-	/* p7.0 & p7.1 on msp43x54x */
-	P7SEL |= (BIT1 | BIT0);
-#elif defined(__CC430F6143) || defined(__CC430F6145) || defined(__CC430F6147)
-	/* p5.0 & p5.1 */
-	P5SEL |= (BIT1 | BIT0);
-#else
-	return;
-#endif
+	  // Set up XT1 Pins to analog function, and to lowest drive
+	  P7SEL |= 0x03;
+	  UCSCTL6 |= XCAP_3 ;                       // Set internal cap values
 
-	/* Set internal cap values. */
-	UCSCTL6 |= XCAP_3;
-	/* Loop while the Oscillator Fault bit is set. */
-	while(SFRIFG1 & OFIFG) {
-		while (SFRIFG1 & OFIFG) {
-			/* Clear OSC fault flags. */
-			UCSCTL7 &= ~(DCOFFG + XT1LFOFFG + XT1HFOFFG + XT2OFFG);
-			SFRIFG1 &= ~OFIFG;
-		}
-		/* Reduce the drive strength. */
-		UCSCTL6 &= ~(XT1DRIVE1_L + XT1DRIVE0);
-	}
-
+	  while(SFRIFG1 & OFIFG) {                  // Check OFIFG fault flag
+	    while ( (SFRIFG1 & OFIFG))              // Check OFIFG fault flag
+	    {
+	      // Clear OSC fault flags
+	      UCSCTL7 &= ~(DCOFFG + XT1LFOFFG + XT1HFOFFG + XT2OFFG);
+	      SFRIFG1 &= ~OFIFG;                    // Clear OFIFG fault flag
+	    }
+	    UCSCTL6 &= ~(XT1DRIVE1_L+XT1DRIVE0);    // Reduce the drive strength
+	  }
 
 }
 

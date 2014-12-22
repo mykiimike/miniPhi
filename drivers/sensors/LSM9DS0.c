@@ -135,7 +135,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 		return(FALSE);
 
 	mp_options_t setup[] = {
-		{ "frequency", "10000000" },
+		{ "frequency", "1000000" },
 		{ "phase", "change" },
 		{ "polarity", "high" },
 		{ "first", "MSB" },
@@ -548,6 +548,8 @@ void mp_drv_LSM9DS0_calibrate(mp_drv_LSM9DS0_t *LSM9DS0) {
 }
 
 
+
+
 static _mp_drv_LSM9DS0_spi_writeByte(mp_drv_LSM9DS0_t *LSM9DS0, mp_gpio_port_t *cs, unsigned char subAddress, unsigned char data) {
 	/* Initiate communication */
 	if(cs)
@@ -555,9 +557,11 @@ static _mp_drv_LSM9DS0_spi_writeByte(mp_drv_LSM9DS0_t *LSM9DS0, mp_gpio_port_t *
 
 	/* send address */
 	mp_spi_tx(&LSM9DS0->spi, subAddress & 0x3F);
+	mp_spi_rx(&LSM9DS0->spi);
 
 	/* send data */
 	mp_spi_tx(&LSM9DS0->spi, data);
+	mp_spi_rx(&LSM9DS0->spi);
 
 	/* close communication */
 	if(cs)
@@ -592,8 +596,12 @@ static void _mp_drv_LSM9DS0_spi_readBytes(
 	else
 		mp_spi_tx(&LSM9DS0->spi, 0x80 | (subAddress & 0x3F));
 
-	for(i=0; i<count; i++)
+	mp_spi_rx(&LSM9DS0->spi);
+
+	for(i=0; i<count; i++) {
+		mp_spi_tx(&LSM9DS0->spi, 0);
 		dest[i] = mp_spi_rx(&LSM9DS0->spi);
+	}
 
 	/* close communication */
 	if(cs)
