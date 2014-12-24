@@ -254,7 +254,7 @@ static void _mp_uart_interrupt(void *user) {
 			_UART_REG8(uart->gate, _UART_IFG) &= ~(UCRXIFG);
 	}
 
-	else if(flag & UCTXIFG) {
+	if(flag & UCTXIFG) {
 		if(uart->onWrite)
 			uart->onWrite(uart);
 		else
