@@ -382,8 +382,8 @@ static void _system_clock(mp_clock_t freq) {
 	{
 		/* Select DCOCLKDIV for MCLK and SMCLK.                           */
 		UCSCTL4 &=  ~(SELM_7 | SELS_7);
-//		UCSCTL4 |= (SELM__DCOCLKDIV | SELS__DCOCLKDIV);
-		UCSCTL4 = SELA__XT1CLK | SELS__DCOCLKDIV  |  SELM__DCOCLKDIV ;
+		UCSCTL4 |= (SELM__DCOCLKDIV | SELS__DCOCLKDIV);
+//		UCSCTL4 = SELA__XT1CLK | SELS__DCOCLKDIV  |  SELM__DCOCLKDIV ;
 
 	}
 
@@ -401,19 +401,25 @@ static void _system_clock(mp_clock_t freq) {
 /* MCLK and SMCLK. */
 static void __start_crystal(void) {
 
-	  // Set up XT1 Pins to analog function, and to lowest drive
-	  P7SEL |= 0x03;
-	  UCSCTL6 |= XCAP_3 ;                       // Set internal cap values
+	   /* Set up XT1 Pins to analog function, and to lowest drive           */
+	   P7SEL   |= (BIT1 | BIT0);
 
-	  while(SFRIFG1 & OFIFG) {                  // Check OFIFG fault flag
-	    while ( (SFRIFG1 & OFIFG))              // Check OFIFG fault flag
-	    {
-	      // Clear OSC fault flags
-	      UCSCTL7 &= ~(DCOFFG + XT1LFOFFG + XT1HFOFFG + XT2OFFG);
-	      SFRIFG1 &= ~OFIFG;                    // Clear OFIFG fault flag
-	    }
-	    UCSCTL6 &= ~(XT1DRIVE1_L+XT1DRIVE0);    // Reduce the drive strength
-	  }
+	   /* Set internal cap values.                                          */
+	   UCSCTL6 |= XCAP_3;
+
+	   /* Loop while the Oscillator Fault bit is set.                       */
+	   while(SFRIFG1 & OFIFG)
+	   {
+	     while (SFRIFG1 & OFIFG)
+	     {
+	        /* Clear OSC fault flags.                                       */
+	       UCSCTL7 &= ~(DCOFFG + XT1LFOFFG + XT1HFOFFG + XT2OFFG);
+	       SFRIFG1 &= ~OFIFG;
+	     }
+
+	     /* Reduce the drive strength.                                      */
+	     UCSCTL6 &= ~(XT1DRIVE1_L + XT1DRIVE0);
+	   }
 
 }
 
