@@ -86,7 +86,7 @@
 	#include "common/quaternion.h"
 
 	/* Bluetooth */
-	#include "bluetooth/internal.h"
+	//#include "bluetooth/internal.h"
 
 	#include "drivers/button.h"
 	#include "drivers/led.h"

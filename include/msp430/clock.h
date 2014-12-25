@@ -27,12 +27,17 @@
 	#define ACLK_FREQ_HZ ((unsigned int)32768)
 
 	typedef struct mp_clock_freq_settings_s {
+		unsigned char ID;
+		unsigned char DCORSEL;
 		unsigned char VCORE;
 		unsigned int DCO;
 	} mp_clock_freq_settings_t;
 
 	typedef enum {
+		MHZ1_t,
+		MHZ4_t,
 		MHZ8_t,
+		MHZ12_t,
 		MHZ16_t,
 		MHZ20_t,
 		MHZ25_t
@@ -44,6 +49,7 @@
 	mp_ret_t mp_clock_high_energy();
 	unsigned long mp_clock_ticks();
 	unsigned long mp_clock_get_speed();
+	const char *mp_clock_name(mp_clock_t clock);
 
 	void mp_clock_delay(int delay);
 
