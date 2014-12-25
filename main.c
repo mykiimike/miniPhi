@@ -292,7 +292,7 @@ static void _mp_uart_forwarder(mp_uart_t *uart) {
 	mp_uart_tx(&olimex->proxyUARTDst, source);
 
 
-	P10OUT ^= 0x80;
+	P10OUT ^= 0x40;
 }
 
 void __olimex_on_button_left(void *user) {
