@@ -34,6 +34,15 @@
 	#define SUPPORT_COMMON_PINOUT /* enable pinout feature, need mem support */
 	#define SUPPORT_COMMON_QUATERNION /* enable quaternion feature */
 
+	/* clock manager */
+	#ifndef MP_CLOCK_LE_FREQ
+		#define MP_CLOCK_LE_FREQ MHZ1_t
+	#endif
+
+	#ifndef MP_CLOCK_HE_FREQ
+		#define MP_CLOCK_HE_FREQ MHZ25_t
+	#endif
+
 	/* mem configuration */
 	#ifndef MP_MEM_SIZE
 		#define MP_MEM_SIZE  1024 /* total memory allowed for heap */
@@ -62,7 +71,7 @@
 		#define MP_SERIAL_TX_BUFFER_SIZE 240
 	#endif
 
-	/* button configuration */
+
 
 
 #endif

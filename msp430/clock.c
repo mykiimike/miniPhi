@@ -62,7 +62,7 @@ mp_ret_t mp_clock_init(mp_kernel_t *kernel) {
 	__start_crystal();
 
 	/* CPU voltage and freq */
-	_system_clock(MHZ16_t);
+	_system_clock(MP_CLOCK_LE_FREQ);
 
 	/* tick timer */
 	_set_timer();
@@ -76,13 +76,13 @@ mp_ret_t mp_clock_fini(mp_kernel_t *kernel) {
 }
 
 mp_ret_t mp_clock_low_energy() {
-	_system_clock(MHZ8_t);
+	_system_clock(MP_CLOCK_LE_FREQ);
 	_BIS_SR(LPM3_bits + GIE);
 	return(TRUE);
 }
 
 mp_ret_t mp_clock_high_energy() {
-	_system_clock(MHZ16_t);
+	_system_clock(MP_CLOCK_HE_FREQ);
 	_BIS_SR(LPM0_bits + GIE);
 	return(TRUE);
 }
