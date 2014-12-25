@@ -127,8 +127,8 @@ void hexdump(const void *data, int size){
     char buffer[6*16+1];
     int i, j;
 
-    uint8_t low = 0x0F;
-    uint8_t high = 0xF0;
+    const uint8_t low = 0x0F;
+    const uint8_t high = 0xF0;
     j = 0;
     for (i=0; i<size;i++){
         uint8_t byte = ((uint8_t *)data)[i];

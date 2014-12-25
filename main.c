@@ -18,6 +18,13 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+/*
+ * THIS FILE IS FOR TEST PRUPOSE ONLY
+ * NEVER DEFINE __OLIMEX_PROTOBOARD__
+ * IN YOUR PRODUCTION BINARY
+ *
+ */
+
 #ifdef __OLIMEX_PROTOBOARD__
 
 #include <mp.h>
@@ -60,9 +67,11 @@ void __olimex_on_button_up(void *user);
 void __olimex_on_button_down(void *user);
 void __olimex_on_button_power(void *user);
 
-static olimex_msp430_t __olimex;
+
 
 int main(void) {
+	static olimex_msp430_t __olimex;
+
 	/* initialize kernel */
 	mp_kernel_init(&__olimex.kernel, __olimex_onBoot, &__olimex);
 
