@@ -50,9 +50,9 @@ void *mp_mem_alloc(mp_kernel_t *kernel, int size) {
 	mp_mem_chunk_t **prev;
 
 	/* sanatize */
-	if(size >= MP_MEM_CHUNK-4) {
+	if(size >= MP_MEM_CHUNK-MP_MEM_SPACING) {
 		mp_kernel_panic(kernel, KPANIC_MEM_SIZE);
-		mp_printk("chunk is too low %d you are asking for %d", MP_MEM_CHUNK-4, size);
+		mp_printk("chunk is too low %d you are asking for %d", MP_MEM_CHUNK-MP_MEM_SPACING, size);
 		return(NULL);
 	}
 
