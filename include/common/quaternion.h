@@ -51,7 +51,7 @@
 			unsigned long frequency;
 		};
 
-		void mp_quaternion_init(mp_quaternion_t *h, mp_quaternion_fct_t *fct);
+		void mp_quaternion_init(mp_quaternion_t *h, mp_quaternion_fct_t fct);
 		void mp_quaternion_fini(mp_quaternion_t *h);
 		void mp_quaternion_update(mp_quaternion_t *h, float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz);
 		void mp_quaternion_madgwick(mp_quaternion_t *h, float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz);

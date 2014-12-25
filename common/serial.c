@@ -64,8 +64,6 @@ void mp_serial_write(mp_serial_t *serial, char *input, int size) {
 	for(a=0; a<size; a++)
 		mp_uart_tx(&serial->uart, input[a]);
 
-	return;
-
 	/* enable RX */
 
 	/* no more space flush output now */
@@ -110,15 +108,9 @@ void mp_serial_write(mp_serial_t *serial, char *input, int size) {
 }
 
 
-static void _mp_serial_on_read(mp_uart_t *uart) {
-	mp_serial_t *serial = uart->user;
+static void _mp_serial_on_read(mp_uart_t *uart) { }
 
-}
-
-static void _mp_serial_on_write(mp_uart_t *uart) {
-	mp_serial_t *serial = uart->user;
-
-}
+static void _mp_serial_on_write(mp_uart_t *uart) { }
 
 #endif
 

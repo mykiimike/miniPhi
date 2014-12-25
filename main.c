@@ -192,7 +192,7 @@ static void __olimex_state_op_set(void *user) {
 		};
 		ret = mp_uart_open(&olimex->kernel, &olimex->proxyUARTDst, options, "UART destination");
 		if(ret == FALSE)
-			return(FALSE);
+			return;
 	}
 
 	{
@@ -205,7 +205,7 @@ static void __olimex_state_op_set(void *user) {
 		};
 		ret = mp_uart_open(&olimex->kernel, &olimex->proxyUARTSrc, options, "UART source");
 		if(ret == FALSE)
-			return(FALSE);
+			return;
 	}
 
 	olimex->proxyUARTSrc.user = olimex;

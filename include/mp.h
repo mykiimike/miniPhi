@@ -132,5 +132,9 @@
 	void mp_kernel_fini(mp_kernel_t *kernel);
 	void mp_kernel_state(mp_kernel_t *kernel, char number);
 	void mp_kernel_loop(mp_kernel_t *kernel);
+	void mp_kernel_panic(mp_kernel_t *kernel, int error);
 
+	/* error codes for kpanic */
+	#define KPANIC_MEM_SIZE 1
+	#define KPANIC_MEM_OOM  2
 #endif

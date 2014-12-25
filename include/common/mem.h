@@ -23,7 +23,6 @@
 
 	#ifdef SUPPORT_COMMON_MEM
 
-
 		typedef struct mp_mem_chunk_s mp_mem_chunk_t;
 
 		struct mp_mem_chunk_s {

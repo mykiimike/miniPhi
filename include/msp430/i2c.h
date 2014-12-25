@@ -75,6 +75,12 @@
 	#define _I2C_IFG     0x1d
 	#define _I2C_IV      0x1e
 
+	mp_ret_t mp_i2c_init();
+	mp_ret_t mp_i2c_fini();
+	mp_ret_t mp_i2c_open(mp_kernel_t *kernel, mp_i2c_t *i2c, mp_options_t *options, char *who);
+	mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options);
+	mp_ret_t mp_i2c_close(mp_i2c_t *i2c);
+
 	#define _I2C_REG8(_port, _type) \
 		*((volatile char *)(_port->_baseAddress+_type))
 

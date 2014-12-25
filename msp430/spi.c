@@ -27,8 +27,7 @@ static unsigned int __spi_count;
 
 static unsigned char mp_spi_rx(mp_spi_t *spi);
 static void mp_spi_tx(mp_spi_t *spi, unsigned char data);
-static void __mp_spi_interrupt(void *user);
-static void __mp_spi_asr(mp_task_t *task);
+
 
 void mp_spi_init() {
 	mp_list_init(&__spi);
@@ -275,6 +274,7 @@ void mp_spi_write(mp_spi_t *spi, unsigned char *input, int size) {
 	mp_spi_enable_tx(spi);
 }
 
+#ifdef __UNUSED_FOR_THE_MOMENT
 static void __mp_spi_interrupt(void *user) {
 	mp_spi_t *spi = user;
 
@@ -361,3 +361,5 @@ static void __mp_spi_asr(mp_task_t *task) {
 	mp_spi_enable_rx(spi);
 	mp_spi_enable_tx(spi);
 }
+
+#endif

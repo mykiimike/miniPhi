@@ -40,11 +40,7 @@ mp_ret_t mp_i2c_init() {
 }
 
 mp_ret_t mp_i2c_fini() {
-
-
-
-
-
+	return(TRUE);
 }
 
 
@@ -88,6 +84,7 @@ mp_ret_t mp_i2c_open(mp_kernel_t *kernel, mp_i2c_t *i2c, mp_options_t *options, 
 		mp_i2c_close(i2c);
 		return(FALSE);
 	}
+    return(TRUE);
 }
 
 mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {

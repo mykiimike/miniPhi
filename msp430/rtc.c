@@ -2,13 +2,12 @@
 
 
 mp_ret_t mp_rtc_init() {
-
+	return(TRUE);
 }
 
 
-mp_rtc_fini() {
-
-
+mp_ret_t mp_rtc_fini() {
+	return(TRUE);
 }
 
 

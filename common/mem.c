@@ -51,12 +51,14 @@ void *mp_mem_alloc(mp_kernel_t *kernel, int size) {
 
 	/* sanatize */
 	if(size >= MP_MEM_CHUNK-4) {
-		//mp_kernel_kpanic(kernel, KPANIC_MEM_SIZE);
+		mp_kernel_panic(kernel, KPANIC_MEM_SIZE);
+		mp_printk("chunk is too low %d you are asking for %d", MP_MEM_CHUNK-4, size);
 		return(NULL);
 	}
+
 	if(__line_size >= MP_MEM_SIZE) {
-		//mp_kernel_kpanic(kernel, KPANIC_MEM_OOM);
-		//_DP("chunk has no reach the limit at %p increase MP_MEM_SIZE", __allocated_heap);
+		mp_kernel_panic(kernel, KPANIC_MEM_OOM);
+		mp_printk("chunk has no reach the limit at %p increase MP_MEM_SIZE", __allocated_heap);
 		return(NULL);
 	}
 	chunk = (mp_mem_chunk_t *)__allocated_heap_last;

@@ -27,7 +27,7 @@
 
 static void _mp_quaternion_tick(mp_quaternion_t *h);
 
-void mp_quaternion_init(mp_quaternion_t *h, mp_quaternion_fct_t *fct) {
+void mp_quaternion_init(mp_quaternion_t *h, mp_quaternion_fct_t fct) {
 	memset(h, 0, sizeof(*h));
 	h->function = fct;
 	h->q[0] = 1.0f;
