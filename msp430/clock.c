@@ -18,13 +18,13 @@ static void _set_timer(void);
 	#define _VCORE_20MHZ  PMMCOREV_2
 	#define _VCORE_25MHZ  PMMCOREV_2
 #else
-	#define VCORE_1MHZ    PMMCOREV_0
-	#define VCORE_4MHZ    PMMCOREV_0
-	#define VCORE_8MHZ    PMMCOREV_0
-	#define VCORE_12MHZ   PMMCOREV_0
-	#define VCORE_16MHZ   PMMCOREV_1
-	#define VCORE_20MHZ   PMMCOREV_2
-	#define VCORE_25MHZ   PMMCOREV_3
+	#define _VCORE_1MHZ    PMMCOREV_0
+	#define _VCORE_4MHZ    PMMCOREV_0
+	#define _VCORE_8MHZ    PMMCOREV_0
+	#define _VCORE_12MHZ   PMMCOREV_0
+	#define _VCORE_16MHZ   PMMCOREV_1
+	#define _VCORE_20MHZ   PMMCOREV_2
+	#define _VCORE_25MHZ   PMMCOREV_3
 #endif
 
 static unsigned long __ticks;
