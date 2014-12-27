@@ -21,33 +21,7 @@
 
 #include <mp.h>
 
-#define MP_CIRCULAR_BUFFER_SIZE \
-	MP_MEM_CHUNK-MP_MEM_SPACING-sizeof(int)-sizeof(mp_circular_buffer_t *)
 
-typedef struct mp_circular_s mp_circular_t;
-typedef struct mp_circular_buffer_s mp_circular_buffer_t;
-
-typedef void (*mp_circular_int_t)(mp_circular_t *cir);
-
-struct mp_circular_buffer_s {
-	unsigned char data[MP_CIRCULAR_BUFFER_SIZE];
-	unsigned int size;
-	mp_circular_buffer_t *next;
-};
-
-struct mp_circular_s {
-	mp_kernel_t *kernel;
-
-	int totalSize;
-
-	mp_circular_buffer_t *first;
-	mp_circular_buffer_t *last;
-
-	mp_circular_int_t enable;
-	mp_circular_int_t disable;
-
-	void *user;
-};
 
 static void _mp_circular_dummyInt();
 

@@ -84,6 +84,7 @@
 	#include "common/pinout.h"
 	#include "common/printk.h"
 	#include "common/quaternion.h"
+	#include "common/circular.h"
 
 	/* Bluetooth */
 	//#include "bluetooth/internal.h"
