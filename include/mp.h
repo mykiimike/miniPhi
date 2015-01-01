@@ -97,7 +97,7 @@
 
 	#include "drivers/sensors/LSM9DS0.h"
 
-	#define MP_KERNEL_VERSION "1.0.1"
+	#define MP_KERNEL_VERSION "1.0.2"
 
 	struct mp_kernel_s {
 		/** Vendor name  */
