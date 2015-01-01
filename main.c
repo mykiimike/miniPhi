@@ -68,30 +68,34 @@ void __olimex_on_button_down(void *user);
 void __olimex_on_button_power(void *user);
 
 
-static olimex_msp430_t __olimex;
+
 
 int main(void) {
 
-	memset(&__olimex, 0, sizeof(__olimex));
+	olimex_msp430_t *olimex;
+
+	olimex = malloc(sizeof(*olimex));
+
+	memset(olimex, 0, sizeof(*olimex));
 
 	/* initialize kernel */
-	mp_kernel_init(&__olimex.kernel, __olimex_onBoot, &__olimex);
+	mp_kernel_init(&olimex->kernel, __olimex_onBoot, olimex);
 
 
 	/* define OLIMEX OP machine state */
 	mp_state_define(
-		&__olimex.kernel.states,
-		OLIMEX_OP, "OP", &__olimex,
+		&olimex->kernel.states,
+		OLIMEX_OP, "OP", olimex,
 		__olimex_state_op_set,
 		__olimex_state_op_unset,
 		__olimex_state_op_tick
 	);
 
 	/* master loop */
-	mp_kernel_loop(&__olimex.kernel);
+	mp_kernel_loop(&olimex->kernel);
 
 	/* terminate kernel */
-	mp_kernel_fini(&__olimex.kernel);
+	mp_kernel_fini(&olimex->kernel);
 
 	return 0;
 }
@@ -100,7 +104,6 @@ static void __olimex_onBoot(void *user) {
 	olimex_msp430_t *olimex;
 	olimex = user;
 
-	mp_printk("Olimex struct size: %d", sizeof(*olimex));
 	/* switch to olimex operationnal state */
 	mp_kernel_state(&olimex->kernel, OLIMEX_OP);
 }
@@ -245,6 +248,8 @@ static void __olimex_state_op_set(void *user) {
 
 	//mp_task_create(&olimex->kernel.tasks, "Blinking RED", blinkTask, &olimex->red_led, 500);
 	//mp_task_create(&olimex->kernel.tasks, "Blinking GREEN", blinkTask, &olimex->green_led, 1000);
+
+	mp_printk("Olimex struct size: %d", sizeof(*olimex));
 
 	mp_machine_state_set(&olimex->kernel);
 

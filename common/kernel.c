@@ -28,6 +28,11 @@ void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) 
 	mp_mem_erase(kernel);
 #endif
 
+	/* init sensors */
+#ifdef SUPPORT_COMMON_SENSOR
+	mp_sensor_init(kernel);
+#endif
+
 	/* initialize tasks */
 	mp_task_init(&kernel->tasks);
 

@@ -32,7 +32,8 @@
 	#define SUPPORT_COMMON_MEM /* enable tiny-malloc */
 	#define SUPPORT_COMMON_SERIAL
 	#define SUPPORT_COMMON_PINOUT /* enable pinout feature, need mem support */
-	#define SUPPORT_COMMON_QUATERNION /* enable quaternion feature */
+	//#define SUPPORT_COMMON_QUATERNION /* enable quaternion feature */
+	#define SUPPORT_COMMON_SENSOR /* enable sensor feature */
 
 	/* clock manager */
 	#ifndef MP_CLOCK_LE_FREQ
@@ -42,6 +43,8 @@
 	#ifndef MP_CLOCK_HE_FREQ
 		#define MP_CLOCK_HE_FREQ MHZ25_t
 	#endif
+
+	/* sensor configuration */
 
 	/* mem configuration */
 	#ifndef MP_MEM_SIZE
