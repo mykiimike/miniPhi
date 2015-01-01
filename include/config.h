@@ -52,6 +52,10 @@
 		#define MP_MEM_CHUNK 50    /* fixed size of a chunck */
 	#endif
 
+	#ifndef MP_COMMON_MEM_USE_MALLOC
+		#define MP_COMMON_MEM_USE_MALLOC
+	#endif
+
 	/* task configuration */
 	#ifndef MP_TASK_MAX
 		#define MP_TASK_MAX 10 /* number of maximum task per instance */

@@ -68,9 +68,11 @@ void __olimex_on_button_down(void *user);
 void __olimex_on_button_power(void *user);
 
 
+static olimex_msp430_t __olimex;
 
 int main(void) {
-	static olimex_msp430_t __olimex;
+
+	memset(&__olimex, 0, sizeof(__olimex));
 
 	/* initialize kernel */
 	mp_kernel_init(&__olimex.kernel, __olimex_onBoot, &__olimex);
@@ -115,6 +117,8 @@ MP_TASK(blinkTask) {
 
 static void __olimex_state_op_set(void *user) {
 	olimex_msp430_t *olimex = user;
+
+	mp_clock_high_energy();
 
 	/* initialize green led */
 	{

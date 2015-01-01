@@ -24,8 +24,12 @@
 
 #define _MP_HEAP_CKSIZE MP_MEM_SIZE/sizeof(mp_mem_chunk_t)
 
-/** linear allocation tab */
-static unsigned char __line[MP_MEM_SIZE];
+#ifndef MP_COMMON_MEM_USE_MALLOC
+	/** linear allocation tab */
+	static unsigned char __line[MP_MEM_SIZE];
+#else
+	static unsigned char *__line = NULL;
+#endif
 
 /** linear allocation index */
 static int __line_size = 0;
@@ -92,14 +96,26 @@ void mp_mem_free(mp_kernel_t *kernel, void *ptr) {
   * @return TRUE or FALSE
   */
 mp_ret_t mp_mem_erase(mp_kernel_t *kernel) {
+
 	mp_mem_chunk_t *chunk;
 	mp_mem_chunk_t **prev;
 
 	/* control modulo */
 	if(_MP_HEAP_CKSIZE % sizeof(unsigned int)) {
-		//mp_kernel_kpanic(kernel, KPANIC_MEM_MODULO);
+		mp_kernel_panic(kernel, KPANIC_MEM_SIZE);
 		return(FALSE);
 	}
+
+#ifdef MP_COMMON_MEM_USE_MALLOC
+	if(__line)
+		free(__line);
+	__line = malloc(MP_MEM_SIZE);
+	if(!__line) {
+		mp_printk("Can not allocate %d using malloc()", MP_MEM_SIZE);
+		mp_kernel_panic(kernel, KPANIC_MEM_OOM);
+		return(FALSE);
+	}
+#endif
 
 	/* erase memory */
 	unsigned char *ptr = __line;
