@@ -100,6 +100,7 @@ static void __olimex_onBoot(void *user) {
 	olimex_msp430_t *olimex;
 	olimex = user;
 
+	mp_printk("Olimex struct size: %d", sizeof(*olimex));
 	/* switch to olimex operationnal state */
 	mp_kernel_state(&olimex->kernel, OLIMEX_OP);
 }

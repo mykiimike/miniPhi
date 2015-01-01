@@ -27,6 +27,7 @@ static void _set_timer(void);
 	#define _VCORE_25MHZ   PMMCOREV_3
 #endif
 
+#pragma DATA_SECTION(__ticks, ".sysmem")
 static unsigned long __ticks;
 
 static const mp_clock_freq_settings_t _mp_clock_freq_settings[] = {
@@ -345,6 +346,12 @@ static void _set_timer(void) {
 
 	/* Up mode. */
 	TA1CTL |= TASSEL_1 | MC_1 | ID_0;
+}
+
+/* disable Watchdog at pre init in order to use correctly eabi */
+int _system_pre_init(void) {
+	WDTCTL = WDTPW + WDTHOLD;
+	return(1);
 }
 
 #pragma vector=TIMER1_A0_VECTOR

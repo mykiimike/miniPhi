@@ -85,6 +85,7 @@
 	#include "common/printk.h"
 	#include "common/quaternion.h"
 	#include "common/circular.h"
+	#include "common/sensor.h"
 
 	/* Bluetooth */
 	//#include "bluetooth/internal.h"
@@ -113,6 +114,9 @@
 
 		/** Kernel tasks */
 		mp_task_handler_t tasks;
+
+		/** Sensors handler */
+		mp_sensor_handler_t sensors;
 
 		/** Kernel on boot state */
 		mp_kernel_onBoot_t onBoot;
