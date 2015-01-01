@@ -61,7 +61,7 @@ mp_sensor_t *mp_sensor_register(mp_kernel_t *kernel, mp_sensor_type_t type, char
 	sensorHdl = &kernel->sensors;
 
 	if(size >= MP_COMMON_SENSOR_NAME_SIZE) {
-		mp_printk("Common sensor register: name is too long");
+		mp_printk("Common sensor register: name is too long %d", size);
 		return(NULL);
 	}
 
@@ -81,6 +81,7 @@ mp_sensor_t *mp_sensor_register(mp_kernel_t *kernel, mp_sensor_type_t type, char
 	mp_list_add_last(&sensorHdl->list, &sensor->item, sensor);
 
 	mp_printk("Registering sensor type #%d : %s", type, name);
+
 	return(sensor);
 
 }

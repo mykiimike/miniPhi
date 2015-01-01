@@ -23,7 +23,7 @@
 #ifndef _HAVE_MP_COMMON_SENSOR_H
 	#define _HAVE_MP_COMMON_SENSOR_H
 
-	#define MP_COMMON_SENSOR_NAME_SIZE 10
+	#define MP_COMMON_SENSOR_NAME_SIZE 20
 
 	typedef struct mp_sensor_handler_s mp_sensor_handler_t;
 	typedef struct mp_sensor_s mp_sensor_t;
@@ -51,10 +51,10 @@
 
 		mp_sensor_type_t type;
 
-		union {
-			mp_sensor_temperature_t _temperature;
-			mp_sensor_3axis_t _3axis;
-		};
+		//union {
+			mp_sensor_temperature_t temperature;
+			//mp_sensor_3axis_t _3axis;
+		//};
 
 		mp_list_item_t item;
 	};

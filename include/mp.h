@@ -126,6 +126,7 @@
 
 #ifdef __MSP430__
 		mp_adc_t internalTemp;
+		mp_sensor_t *sensorMCU;
 #endif
 
 	};
