@@ -49,6 +49,8 @@ struct olimex_msp430_s {
 	/** implementation of power on/off */
 	mp_drv_button_event_t bPower;
 
+	mp_serial_t serial;
+
 	mp_uart_t proxyUARTSrc;
 	mp_uart_t proxyUARTDst;
 };
@@ -124,6 +126,50 @@ static void __olimex_state_op_set(void *user) {
 
 	mp_clock_high_energy();
 
+	mp_ret_t ret;
+
+	/* initialize UART source */
+	{
+		mp_options_t options[] = {
+			{ "gate", "USCI_A3" },
+			{ "txd", "p10.4" },
+			{ "rxd", "p10.5" },
+			{ "baudRate", "9600" },
+			{ NULL, NULL }
+		};
+		ret = mp_uart_open(&olimex->kernel, &olimex->proxyUARTDst, options, "UART destination");
+		if(ret == FALSE)
+			return;
+	}
+
+	{
+		mp_options_t options[] = {
+				{ "gate", "USCI_A0" },
+				{ "txd", "p3.4" },
+				{ "rxd", "p3.5" },
+				{ "baudRate", "9600" },
+				{ NULL, NULL }
+		};
+		ret = mp_uart_open(&olimex->kernel, &olimex->proxyUARTSrc, options, "UART source");
+		if(ret == FALSE)
+			return;
+	}
+
+	/* setup serial interface */
+	{
+		ret = mp_serial_initUART(&olimex->kernel, &olimex->serial, &olimex->proxyUARTDst, "Serial DST UART");
+		if(ret == FALSE)
+			return;
+	}
+
+	/* set printk */
+	mp_printk_set(_olimex_printk, olimex);
+
+	/* UART proxy */
+	olimex->proxyUARTSrc.user = olimex;
+	olimex->proxyUARTSrc.onRead = _mp_uart_forwarder;
+	mp_uart_enable_rx_int(&olimex->proxyUARTSrc);
+
 	/* initialize green led */
 	{
 		mp_options_t options[] = {
@@ -196,40 +242,7 @@ static void __olimex_state_op_set(void *user) {
 	}
 
 
-	mp_ret_t ret;
 
-	/* initialize UART source */
-	{
-		mp_options_t options[] = {
-			{ "gate", "USCI_A3" },
-			{ "txd", "p10.4" },
-			{ "rxd", "p10.5" },
-			{ "baudRate", "9600" },
-			{ NULL, NULL }
-		};
-		ret = mp_uart_open(&olimex->kernel, &olimex->proxyUARTDst, options, "UART destination");
-		if(ret == FALSE)
-			return;
-	}
-
-	{
-		mp_options_t options[] = {
-				{ "gate", "USCI_A0" },
-				{ "txd", "p3.4" },
-				{ "rxd", "p3.5" },
-				{ "baudRate", "9600" },
-				{ NULL, NULL }
-		};
-		ret = mp_uart_open(&olimex->kernel, &olimex->proxyUARTSrc, options, "UART source");
-		if(ret == FALSE)
-			return;
-	}
-
-	olimex->proxyUARTSrc.user = olimex;
-	olimex->proxyUARTSrc.onRead = _mp_uart_forwarder;
-	mp_printk_set(_olimex_printk, olimex);
-	//mp_uart_enable_rx_int(&olimex->proxyUARTDst);
-	mp_uart_enable_rx_int(&olimex->proxyUARTSrc);
 
 
 	/* create a button event based on center button in order to turn a led on/off */
@@ -283,14 +296,20 @@ static void __olimex_state_op_tick(void *user) {
 
 static void _olimex_printk(void *user, char *fmt, ...) {
 	olimex_msp430_t *olimex = user;
-	char buffer[1024];
+	/*
+	unsigned char *buffer = malloc(256);
 	va_list args;
 	int size;
 
 	va_start(args, fmt);
 	size = vsnprintf(buffer, sizeof(buffer)-3, fmt, args);
 	va_end(args);
+*/
 
+	mp_serial_write(&olimex->serial, NULL, 0);
+
+	//free(buffer);
+	/*
 	buffer[size++] = '\n';
 	buffer[size++] = '\r';
 	buffer[size++] = '\0';
@@ -299,6 +318,7 @@ static void _olimex_printk(void *user, char *fmt, ...) {
 
 	for(a=0; a<size; a++)
 		mp_uart_tx(&olimex->proxyUARTDst, buffer[a]);
+	*/
 
 	return;
 }

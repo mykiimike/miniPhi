@@ -23,29 +23,38 @@
 
 	#ifdef SUPPORT_COMMON_SERIAL
 		typedef struct mp_serial_s mp_serial_t;
+		typedef struct mp_serial_interface_s mp_serial_interface_t;
 
 		typedef void (*mp_serial_on_t)(mp_serial_t *serial);
 
-		struct mp_serial_s {
-			mp_uart_t uart;
+		typedef void (*mp_serial_onTx_t)(mp_serial_t *serial, unsigned char chr);
+		typedef unsigned char (*mp_serial_onRx_t)(mp_serial_t *serial);
+		typedef void (*mp_serial_onInt_t)(mp_serial_t *serial);
 
-			unsigned char rx_buffer[MP_SERIAL_RX_BUFFER_SIZE];
-			int rx_size;
-			int rx_pos;
-
-			unsigned char tx_buffer[MP_SERIAL_TX_BUFFER_SIZE];
-			int tx_size;
-			int tx_pos;
-
-			mp_serial_on_t onRead;
-			mp_serial_on_t onWrite;
+		struct mp_serial_interface_s {
+			mp_serial_onTx_t tx;
+			mp_serial_onRx_t rx;
+			mp_serial_onInt_t intRxDisable;
+			mp_serial_onInt_t intRxEnable;
+			void *user;
 		};
 
-		mp_ret_t mp_serial_init(mp_kernel_t *kernel, mp_serial_t *serial, mp_options_t *options, char *who);
+		struct mp_serial_s {
+			mp_kernel_t *kernel;
+
+			mp_uart_t *uart;
+
+			mp_serial_interface_t iface;
+
+			mp_circular_t txCir;
+			mp_circular_t rxCir;
+		};
+
+		mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who);
 		mp_ret_t mp_serial_fini(mp_serial_t *serial);
 
-		void mp_serial_println(mp_serial_t *serial, char *text);
-		void mp_serial_write(mp_serial_t *serial, char *input, int size);
+
+		void mp_serial_write(mp_serial_t *serial, unsigned char *input, int size);
 	#endif
 
 #endif

@@ -21,9 +21,7 @@
 
 #include <mp.h>
 
-
-
-static void _mp_circular_dummyInt();
+static void _mp_circular_dummyInt(mp_circular_t *cir);
 
 mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_int_t enable, mp_circular_int_t disable) {
 	mp_circular_buffer_t *buffer;
@@ -39,6 +37,8 @@ mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_i
 
 	cir->enable = enable ? enable : _mp_circular_dummyInt;
 	cir->disable = disable ? disable : _mp_circular_dummyInt;
+
+	cir->disable(cir);
 
 	return(TRUE);
 }
@@ -106,7 +106,8 @@ mp_ret_t mp_circular_write(mp_circular_t *cir, unsigned char *data, int size) {
 	pos = 0;
 	prev = NULL;
 	block = size/MP_CIRCULAR_BUFFER_SIZE;
-	block += size%MP_CIRCULAR_BUFFER_SIZE;
+	block += size%MP_CIRCULAR_BUFFER_SIZE ? 1 : 0;
+
 
 	while(block) {
 		/* allocate the buffer */
@@ -211,6 +212,6 @@ int mp_circular_bufferSize() {
 }
 
 
-static void _mp_circular_dummyInt() { }
+static void _mp_circular_dummyInt(mp_circular_t *cir) { }
 
 

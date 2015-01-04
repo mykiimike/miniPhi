@@ -22,95 +22,121 @@
 
 #ifdef SUPPORT_COMMON_SERIAL
 
-static void _mp_serial_on_read(mp_uart_t *uart);
-static void _mp_serial_on_write(mp_uart_t *uart);
+static void mp_serial_UART_rxInt(mp_uart_t *uart);
+static void mp_serial_UART_txInt(mp_uart_t *uart);
 
-mp_ret_t mp_serial_init(mp_kernel_t *kernel, mp_serial_t *serial, mp_options_t *options, char *who) {
+static void mp_serial_UART_rxIntDisable(mp_circular_t *cir);
+static void mp_serial_UART_rxIntEnable(mp_circular_t *cir);
+static void mp_serial_UART_txIntDisable(mp_circular_t *cir);
+static void mp_serial_UART_txIntEnable(mp_circular_t *cir);
+
+mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who) {
 	mp_ret_t ret;
 
-	/* initialize UART */
-	ret = mp_uart_open(kernel, &serial->uart, options, who);
-	if(ret == FALSE)
+	serial->kernel = kernel;
+	serial->uart = uart;
+
+	/* Circular context for TX */
+	ret = mp_circular_init(
+		kernel, &serial->txCir,
+		mp_serial_UART_txIntEnable, mp_serial_UART_txIntDisable
+	);
+	if(!ret) {
+		mp_printk("Serial UART: Can not create TX circular");
 		return(FALSE);
+	}
 
-	serial->uart.onRead = _mp_serial_on_read;
-	serial->uart.onWrite = _mp_serial_on_write;
-	serial->uart.user = serial;
+	/* Circular context for RX */
+	ret = mp_circular_init(
+		kernel, &serial->rxCir,
+		mp_serial_UART_rxIntEnable, mp_serial_UART_rxIntDisable
+	);
+	if(!ret) {
+		mp_printk("Serial UART: Can not create RX circular");
+		return(FALSE);
+	}
 
-	serial->rx_size = 0;
-	serial->rx_pos = 0;
-	serial->tx_size = 0;
-	serial->tx_pos = 0;
+	serial->txCir.user = serial;
+	serial->rxCir.user = serial;
 
+	/* setup interruption vectors */
+	serial->uart->onRead = mp_serial_UART_rxInt;
+	serial->uart->onWrite = mp_serial_UART_txInt;
+
+	mp_printk("Initialize Serial over UART: %s", who);
 	return(TRUE);
 }
 
 mp_ret_t mp_serial_fini(mp_serial_t *serial) {
 
+	serial->uart->onRead = NULL;
+	serial->uart->onWrite = NULL;
+	serial->uart->user = NULL;
+
+	mp_circular_fini(&serial->rxCir);
+	mp_circular_fini(&serial->txCir);
+
 	return(TRUE);
 }
 
-void mp_serial_println(mp_serial_t *serial, char *text) {
-	int len = strlen(text);
-	mp_serial_write(serial, text, len);
-	mp_serial_write(serial, "\n\r", 2);
+
+void mp_serial_write(mp_serial_t *serial, unsigned char *input, int size) {
+
+	mp_circular_write(&serial->txCir, input, size);
 
 }
 
-void mp_serial_write(mp_serial_t *serial, char *input, int size) {
-	int rest = sizeof(serial->tx_buffer)-serial->tx_size;
-	int a;
+/* UART predefined interfacing */
+static void mp_serial_UART_rxInt(mp_uart_t *uart) {
+	unsigned char chr;
 
-	for(a=0; a<size; a++)
-		mp_uart_tx(&serial->uart, input[a]);
+	mp_serial_t *serial = uart->user;
 
-	/* enable RX */
+	/* read register */
+	chr = mp_uart_rx(uart);
 
-	/* no more space flush output now */
-	if(rest < size) {
+	/* run circular interrupt service */
+	mp_circular_rxInterrupt(&serial->rxCir, chr);
+}
 
-		/* disable TX interrupt */
-		mp_uart_disable_tx_int(&serial->uart);
+static void mp_serial_UART_txInt(mp_uart_t *uart) {
+	mp_serial_t *serial = uart->user;
+	unsigned char toSend;
+	mp_bool_t done;
 
-		for(a=serial->tx_pos; a<serial->tx_size; a++)
-			mp_uart_tx(&serial->uart, serial->tx_buffer[a]);
-		serial->tx_size = 0;
-		serial->tx_pos = 0;
+	/* run circular interrupt service */
+	toSend = mp_circular_txInterrupt(&serial->txCir, &done);
+	if(!done)
+		mp_uart_tx(uart, toSend);
 
-		/* input buffer biggest than tx buffer flushing now */
-		if(size > sizeof(serial->tx_buffer)) {
-			for(a=0; a<size; a++)
-				mp_uart_tx(&serial->uart, input[a]);
-
-			/* end of buffer disable RX */
-		}
-		else {
-			memcpy(serial->tx_buffer, input, size);
-			serial->tx_size += size;
-
-			/* enable TX interrupt */
-			mp_uart_enable_tx_int(&serial->uart);
-		}
-	}
-	/* space available */
-	else {
-		/* disable TX interrupt */
-		mp_uart_disable_tx_int(&serial->uart);
-
-		memcpy(serial->tx_buffer+serial->tx_pos, input, size);
-		serial->tx_size += size;
-
-		/* enable TX interrupt */
-		mp_uart_enable_tx_int(&serial->uart);
-
-	}
+	/* done could be used to manage CTS */
 
 }
 
+static void mp_serial_UART_rxIntDisable(mp_circular_t *cir) {
+	mp_serial_t *serial = cir->user;
+	mp_uart_disable_rx_int(serial->uart);
+	return;
+}
 
-static void _mp_serial_on_read(mp_uart_t *uart) { }
+static void mp_serial_UART_rxIntEnable(mp_circular_t *cir) {
+	mp_serial_t *serial = cir->user;
+	mp_uart_enable_rx_int(serial->uart);
+	return;
+}
 
-static void _mp_serial_on_write(mp_uart_t *uart) { }
+
+static void mp_serial_UART_txIntDisable(mp_circular_t *cir) {
+	mp_serial_t *serial = cir->user;
+	mp_uart_disable_tx_int(serial->uart);
+	return;
+}
+
+static void mp_serial_UART_txIntEnable(mp_circular_t *cir) {
+	mp_serial_t *serial = cir->user;
+	mp_uart_enable_tx_int(serial->uart);
+
+}
 
 #endif
 

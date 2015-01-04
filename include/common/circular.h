@@ -23,7 +23,7 @@
 	#define _HAVE_MP_COMMON_CIRCULAR_H
 
 	#define MP_CIRCULAR_BUFFER_SIZE \
-		MP_MEM_CHUNK-MP_MEM_SPACING-sizeof(int)-sizeof(mp_circular_buffer_t *)
+		(MP_MEM_CHUNK-MP_MEM_SPACING-sizeof(int)-sizeof(mp_circular_buffer_t *)-2)
 
 	typedef struct mp_circular_s mp_circular_t;
 	typedef struct mp_circular_buffer_s mp_circular_buffer_t;
@@ -49,5 +49,13 @@
 
 		void *user;
 	};
+
+	mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_int_t enable, mp_circular_int_t disable);
+	void mp_circular_fini(mp_circular_t *cir);
+	mp_circular_buffer_t *mp_circular_read(mp_circular_t *cir);
+	mp_ret_t mp_circular_write(mp_circular_t *cir, unsigned char *data, int size);
+	void mp_circular_rxInterrupt(mp_circular_t *cir, unsigned char c);
+	unsigned char mp_circular_txInterrupt(mp_circular_t *cir, mp_bool_t *done);
+	int mp_circular_bufferSize();
 
 #endif
