@@ -96,6 +96,7 @@
 	#include "drivers/lcd/nokia3310.h"
 
 	#include "drivers/sensors/LSM9DS0.h"
+	#include "drivers/sensors/TMP006.h"
 
 	#define MP_KERNEL_VERSION "1.0.2"
 

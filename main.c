@@ -51,6 +51,8 @@ struct olimex_msp430_s {
 
 	mp_serial_t serial;
 
+	mp_drv_TMP006_t tmp006;
+
 	mp_uart_t proxyUARTSrc;
 	mp_uart_t proxyUARTDst;
 };
@@ -251,6 +253,26 @@ static void __olimex_state_op_set(void *user) {
 		1000, 2, __olimex_on_button_power, olimex
 	);
 
+	/*
+	 * Configuration
+	 * gate = USCI_B3
+	 * SDA = 10.1 / ext 1-17
+	 * SCL = 10.2 / ext 1-16
+	 * DRDY = 1.1 / ext 2-5
+	 */
+	{
+		mp_options_t options[] = {
+			{ "gate", "USCI_B3" },
+			{ "sda", "p10.1" },
+			{ "clk", "p10.2" },
+			{ "drdy", "p1.1" },
+			{ NULL, NULL }
+		};
+
+		mp_drv_TMP006_init(&olimex->kernel, &olimex->tmp006, options, "Ti TMP006");
+	}
+
+
 	/* pinout */
 	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 2010, 0, "Blinking green - Power ON");
 
@@ -296,20 +318,18 @@ static void __olimex_state_op_tick(void *user) {
 
 static void _olimex_printk(void *user, char *fmt, ...) {
 	olimex_msp430_t *olimex = user;
-	/*
-	unsigned char *buffer = malloc(256);
+
+	char *buffer = malloc(256);
 	va_list args;
 	int size;
 
 	va_start(args, fmt);
-	size = vsnprintf(buffer, sizeof(buffer)-3, fmt, args);
+	size = vsnprintf(buffer, 256-3, fmt, args);
 	va_end(args);
-*/
 
-	mp_serial_write(&olimex->serial, NULL, 0);
 
-	//free(buffer);
-	/*
+	//mp_serial_write(&olimex->serial, NULL, 0);
+
 	buffer[size++] = '\n';
 	buffer[size++] = '\r';
 	buffer[size++] = '\0';
@@ -318,7 +338,8 @@ static void _olimex_printk(void *user, char *fmt, ...) {
 
 	for(a=0; a<size; a++)
 		mp_uart_tx(&olimex->proxyUARTDst, buffer[a]);
-	*/
+
+	free(buffer);
 
 	return;
 }

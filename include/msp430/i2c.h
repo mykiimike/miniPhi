@@ -116,11 +116,17 @@
 	}
 
 	static inline void mp_i2c_mode(mp_i2c_t *i2c, char mode)  {
+
+
 		/* Receiver */
-		if(mode == 0)
+		if(mode == 0) {
+			_I2C_REG8(i2c->gate, _I2C_IFG) &= ~(UCRXIFG);
 			_I2C_REG8(i2c->gate, _I2C_CTL1) &= ~(UCTR);
-		else
+		}
+		else {
+			_I2C_REG8(i2c->gate, _I2C_IFG) &= ~(UCTXIFG);
 			_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTR;
+		}
 	}
 
 	static inline void mp_i2c_txNACK(mp_i2c_t *i2c) {
@@ -128,6 +134,7 @@
 	}
 
 	static inline void mp_i2c_txStop(mp_i2c_t *i2c) {
+		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCTXIFG));
 		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTXSTP;
 	}
 
@@ -135,6 +142,12 @@
 		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTXSTT;
 	}
 
+	static inline void mp_i2c_setSlaveAddress(mp_i2c_t *i2c, unsigned short address) {
+		_I2C_REG8(i2c->gate, _I2C_SA) = address;
+	}
 
+	static inline void mp_i2c_setMyAddress(mp_i2c_t *i2c, unsigned short address) {
+		_I2C_REG8(i2c->gate, _I2C_OA) = address;
+	}
 
 #endif
