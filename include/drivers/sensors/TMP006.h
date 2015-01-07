@@ -32,19 +32,13 @@
 		mp_i2c_t i2c;
 		mp_gpio_port_t *drdy;
 
-	    /** Calculated temperature reading */
-	    long double temp;
+		mp_task_t *task;
 
-	    /** Stores the current object voltage */
-	    int vObj;
-
-	    /** Stores the current ambient temperature */
-	    int tDie;
-
+		mp_sensor_t *sensor;
 
 	};
 
-	mp_ret_t mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who);
+	mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who);
 	void mp_drv_TMP006_fini(mp_drv_TMP006_t *TMP006);
 	void mp_drv_TMP006_sleep(mp_drv_TMP006_t *TMP006);
 	void mp_drv_TMP006_wakeUp(mp_drv_TMP006_t *TMP006);
@@ -53,35 +47,34 @@
 	 * @{
 	 */
 	/*! TMP006 object voltage register pointer */
-	#define TMP006_P_VOBJ       0x00
+	#define TMP006_REG_VOBJ       0x00
 
 	/*! TMP006 ambient temperature register pointer */
-	#define TMP006_P_TABT       0x01
+	#define TMP006_REG_TABT       0x01
 
 	/*! TMP006 configuration register pointer */
-	#define TMP006_P_WRITE_REG  0x02
+	#define TMP006_REG_WRITE_REG  0x02
 
 	/*! TMP006 manufacturer ID register pointer */
-	#define TMP006_P_MAN_ID     0xFE
+	#define TMP006_REG_MAN_ID     0xFE
 
 	/*! TMP006 device ID register pointer */
-	#define TMP006_P_DEVICE_ID  0xFF
+	#define TMP006_REG_DEVICE_ID  0xFF
 
 	/*! @} */
 
 	/*! \name TMP006 Configuration Register Bits
 	 * @{
 	 */
-	#define TMP006_RST          0x8000
-	#define TMP006_POWER_DOWN   0x0000
-	#define TMP006_POWER_UP     0x7000
-	#define TMP006_CR_4         0x0000
-	#define TMP006_CR_2         0x0200
-	#define TMP006_CR_1         0x0400
-	#define TMP006_CR_0_5       0x0600
-	#define TMP006_CR_0_25      0x0800
-	#define TMP006_EN           0x0100
-	#define TMP006_DRDY         0x0080
+	#define TMP006_CFG_RESET    0x8000
+	#define TMP006_CFG_MODEON   0x7000
+	#define TMP006_CFG_1SAMPLE  0x0000
+	#define TMP006_CFG_2SAMPLE  0x0200
+	#define TMP006_CFG_4SAMPLE  0x0400
+	#define TMP006_CFG_8SAMPLE  0x0600
+	#define TMP006_CFG_16SAMPLE 0x0800
+	#define TMP006_CFG_DRDYEN   0x0100
+	#define TMP006_CFG_DRDY     0x0080
 
 	/*! @} */
 

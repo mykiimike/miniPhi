@@ -72,8 +72,6 @@ void __olimex_on_button_down(void *user);
 void __olimex_on_button_power(void *user);
 
 
-
-
 int main(void) {
 
 	olimex_msp430_t *olimex;

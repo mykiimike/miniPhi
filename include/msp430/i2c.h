@@ -106,13 +106,18 @@
 	}
 
 	static inline unsigned char mp_i2c_rx(mp_i2c_t *i2c) {
-		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCRXIFG));
 		return(_I2C_REG8(i2c->gate, _I2C_RXBUF));
 	}
 
 	static inline void mp_i2c_tx(mp_i2c_t *i2c, unsigned char data) {
-
 		_I2C_REG8(i2c->gate, _I2C_TXBUF) = data;
+	}
+
+	static inline void mp_i2c_waitRX(mp_i2c_t *i2c) {
+		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCRXIFG));
+	}
+
+	static inline void mp_i2c_waitTX(mp_i2c_t *i2c) {
 		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCTXIFG));
 	}
 
@@ -136,7 +141,7 @@
 
 	static inline void mp_i2c_txStop(mp_i2c_t *i2c) {
 		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTXSTP;
-		while (UCB3CTL1&UCTXSTP);
+		while (_I2C_REG8(i2c->gate, _I2C_CTL1) & UCTXSTP);
 	}
 
 	static inline void mp_i2c_txStart(mp_i2c_t *i2c) {
