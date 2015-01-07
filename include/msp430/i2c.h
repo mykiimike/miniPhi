@@ -111,8 +111,9 @@
 	}
 
 	static inline void mp_i2c_tx(mp_i2c_t *i2c, unsigned char data) {
-		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCTXIFG));
+
 		_I2C_REG8(i2c->gate, _I2C_TXBUF) = data;
+		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCTXIFG));
 	}
 
 	static inline void mp_i2c_mode(mp_i2c_t *i2c, char mode)  {
@@ -120,11 +121,11 @@
 
 		/* Receiver */
 		if(mode == 0) {
-			_I2C_REG8(i2c->gate, _I2C_IFG) &= ~(UCRXIFG);
+			//_I2C_REG8(i2c->gate, _I2C_IFG) &= ~(UCRXIFG);
 			_I2C_REG8(i2c->gate, _I2C_CTL1) &= ~(UCTR);
 		}
 		else {
-			_I2C_REG8(i2c->gate, _I2C_IFG) &= ~(UCTXIFG);
+			//_I2C_REG8(i2c->gate, _I2C_IFG) &= ~(UCTXIFG);
 			_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTR;
 		}
 	}
@@ -134,8 +135,8 @@
 	}
 
 	static inline void mp_i2c_txStop(mp_i2c_t *i2c) {
-		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCTXIFG));
 		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTXSTP;
+		while (UCB3CTL1&UCTXSTP);
 	}
 
 	static inline void mp_i2c_txStart(mp_i2c_t *i2c) {

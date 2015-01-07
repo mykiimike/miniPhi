@@ -131,7 +131,6 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 	/* write finished */
 	_I2C_REG8(i2c->gate, _I2C_CTL1) &= ~(UCSWRST);
 
-	_I2C_REG8(i2c->gate, _I2C_IFG) = 0;
 	/* disable interrupts */
 	//mp_i2c_disable_tx(i2c);
 	//mp_i2c_disable_rx(i2c);
