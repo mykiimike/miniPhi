@@ -47,12 +47,12 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 			mp_drv_TMP006_fini(TMP006);
 			return(NULL);
 		}
+
+		/* set CS high */
+		mp_gpio_direction(TMP006->drdy, MP_GPIO_INPUT);
 	}
 	else
 		TMP006->drdy = NULL;
-
-	/* set CS high */
-	mp_gpio_direction(TMP006->drdy, MP_GPIO_INPUT);
 
 	/* open spi */
 	ret = mp_i2c_open(kernel, &TMP006->i2c, options, "TMP006");
@@ -147,9 +147,6 @@ void mp_drv_TMP006_wakeUp(mp_drv_TMP006_t *TMP006) {
 
 	mp_drv_TMP006_write(TMP006, TMP006_REG_WRITE_REG, settings);
 }
-
-
-
 
 static unsigned short mp_drv_TMP006_read(mp_drv_TMP006_t *TMP006, unsigned char address) {
 	unsigned short val = 0;

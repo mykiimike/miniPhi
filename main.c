@@ -252,12 +252,13 @@ static void __olimex_state_op_set(void *user) {
 	);
 
 	/*
-	 * Configuration
+	 * Configuration for TMP006 example
 	 * gate = USCI_B3
 	 * SDA = 10.1 / ext 1-17
 	 * SCL = 10.2 / ext 1-16
 	 * DRDY = 1.1 / ext 2-5
 	 */
+	/*
 	{
 		mp_options_t options[] = {
 			{ "gate", "USCI_B3" },
@@ -269,10 +270,10 @@ static void __olimex_state_op_set(void *user) {
 
 		mp_drv_TMP006_init(&olimex->kernel, &olimex->tmp006, options, "Ti TMP006");
 	}
-
+	*/
 
 	/* pinout */
-	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 2010, 0, "Blinking green - Power ON");
+	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 1010, 0, "Blinking green - Power ON");
 
 
 	mp_printk("miniPhi - version %s", olimex->kernel.version);
