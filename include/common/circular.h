@@ -23,7 +23,7 @@
 	#define _HAVE_MP_COMMON_CIRCULAR_H
 
 	#define MP_CIRCULAR_BUFFER_SIZE \
-		(MP_MEM_CHUNK-MP_MEM_SPACING-sizeof(int)-sizeof(mp_circular_buffer_t *)-2)
+		(MP_MEM_CHUNK-MP_MEM_SPACING-(sizeof(unsigned short)*2)-sizeof(mp_circular_buffer_t *)-3)
 
 	typedef struct mp_circular_s mp_circular_t;
 	typedef struct mp_circular_buffer_s mp_circular_buffer_t;
@@ -32,7 +32,8 @@
 
 	struct mp_circular_buffer_s {
 		unsigned char data[MP_CIRCULAR_BUFFER_SIZE];
-		unsigned int size;
+		unsigned short size;
+		unsigned short pos;
 		mp_circular_buffer_t *next;
 	};
 

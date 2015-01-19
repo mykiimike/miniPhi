@@ -178,7 +178,7 @@ void mp_drv_MPL3115A2_setSeaLevel(mp_drv_MPL3115A2_t *MPL3115A2, int Pa) {
 	//lsb = mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_BAR_IN_LSB);
 
 
-	mp_printk("%x %x", msb, lsb);
+	//mp_printk("%x %x", msb, lsb);
 }
 
 float mp_drv_MPL3115A2_readPressure(mp_drv_MPL3115A2_t *MPL3115A2) {

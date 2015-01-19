@@ -24,16 +24,11 @@
 static void _mp_circular_dummyInt(mp_circular_t *cir);
 
 mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_int_t enable, mp_circular_int_t disable) {
-	mp_circular_buffer_t *buffer;
 	memset(cir, 0, sizeof(*cir));
 
-	buffer = mp_mem_alloc(kernel, sizeof(mp_circular_buffer_t));
-	buffer->size = 0;
-	buffer->next = 0;
-
 	cir->kernel = kernel;
-	cir->first = buffer;
-	cir->last = buffer;
+	cir->first = NULL;
+	cir->last = NULL;
 
 	cir->enable = enable ? enable : _mp_circular_dummyInt;
 	cir->disable = disable ? disable : _mp_circular_dummyInt;
@@ -108,11 +103,11 @@ mp_ret_t mp_circular_write(mp_circular_t *cir, unsigned char *data, int size) {
 	block = size/MP_CIRCULAR_BUFFER_SIZE;
 	block += size%MP_CIRCULAR_BUFFER_SIZE ? 1 : 0;
 
-
 	while(block) {
 		/* allocate the buffer */
 		buffer = mp_mem_alloc(cir->kernel, sizeof(mp_circular_buffer_t));
 		buffer->size = rest > MP_CIRCULAR_BUFFER_SIZE ? MP_CIRCULAR_BUFFER_SIZE : rest;
+		buffer->pos = 0;
 		buffer->next = NULL;
 
 		/* copy and positionning buffer */
@@ -137,7 +132,7 @@ mp_ret_t mp_circular_write(mp_circular_t *cir, unsigned char *data, int size) {
 	if(cir->last)
 		cir->last->next = first;
 	else
-		cir->first = buffer;
+		cir->first = first;
 	cir->last = buffer;
 	cir->totalSize += size;
 
@@ -179,7 +174,8 @@ unsigned char mp_circular_txInterrupt(mp_circular_t *cir, mp_bool_t *done) {
 		cir->disable(cir);
 		return(0);
 	}
-	if(buffer->size == 0) {
+
+	if(buffer->size == buffer->pos) {
 		if(buffer->next) {
 			cir->first = buffer->next;
 
@@ -200,7 +196,7 @@ unsigned char mp_circular_txInterrupt(mp_circular_t *cir, mp_bool_t *done) {
 
 	/* retrieve char */
 	*done = NO;
-	ret = buffer->data[buffer->size--];
+	ret = buffer->data[buffer->pos++];
 	cir->totalSize--;
 
 	return(ret);

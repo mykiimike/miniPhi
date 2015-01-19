@@ -52,7 +52,7 @@ struct olimex_msp430_s {
 	mp_serial_t serial;
 
 	//mp_drv_TMP006_t tmp006;
-	mp_drv_MPL3115A2_t bat;
+	//mp_drv_MPL3115A2_t bat;
 
 	mp_uart_t proxyUARTSrc;
 	mp_uart_t proxyUARTDst;
@@ -280,6 +280,7 @@ static void __olimex_state_op_set(void *user) {
 	 * SCL = 10.2 / ext 1-16
 	 * DRDY = 1.1 / ext 2-5
 	 */
+	/*
 	{
 		mp_options_t options[] = {
 			{ "gate", "USCI_B3" },
@@ -291,6 +292,7 @@ static void __olimex_state_op_set(void *user) {
 
 		mp_drv_MPL3115A2_init(&olimex->kernel, &olimex->bat, options, "Freescale MPL3115A2");
 	}
+	*/
 
 
 	/* pinout */
@@ -338,26 +340,18 @@ static void __olimex_state_op_tick(void *user) {
 
 static void _olimex_printk(void *user, char *fmt, ...) {
 	olimex_msp430_t *olimex = user;
-
-	char *buffer = malloc(256);
+	unsigned char *buffer = malloc(256);
 	va_list args;
 	int size;
 
 	va_start(args, fmt);
-	size = vsnprintf(buffer, 256-3, fmt, args);
+	size = vsnprintf((char *)buffer, 256-3, fmt, args);
 	va_end(args);
-
-
-	//mp_serial_write(&olimex->serial, NULL, 0);
 
 	buffer[size++] = '\n';
 	buffer[size++] = '\r';
-	buffer[size++] = '\0';
 
-	int a;
-
-	for(a=0; a<size; a++)
-		mp_uart_tx(&olimex->proxyUARTDst, buffer[a]);
+	mp_serial_write(&olimex->serial, buffer, size);
 
 	free(buffer);
 

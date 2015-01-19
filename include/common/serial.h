@@ -31,12 +31,14 @@
 		typedef unsigned char (*mp_serial_onRx_t)(mp_serial_t *serial);
 		typedef void (*mp_serial_onInt_t)(mp_serial_t *serial);
 
+
 		struct mp_serial_interface_s {
 			mp_serial_onTx_t tx;
 			mp_serial_onRx_t rx;
 			mp_serial_onInt_t intRxDisable;
 			mp_serial_onInt_t intRxEnable;
 			void *user;
+
 		};
 
 		struct mp_serial_s {
@@ -48,6 +50,8 @@
 
 			mp_circular_t txCir;
 			mp_circular_t rxCir;
+
+			char opened;
 		};
 
 		mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who);

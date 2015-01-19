@@ -22,6 +22,8 @@
 
 #ifdef SUPPORT_COMMON_SERIAL
 
+#define _MP_SERIAL_IS_OPEN 0x45
+
 static void mp_serial_UART_rxInt(mp_uart_t *uart);
 static void mp_serial_UART_txInt(mp_uart_t *uart);
 
@@ -32,6 +34,8 @@ static void mp_serial_UART_txIntEnable(mp_circular_t *cir);
 
 mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who) {
 	mp_ret_t ret;
+
+	memset(serial, 0, sizeof(*serial));
 
 	serial->kernel = kernel;
 	serial->uart = uart;
@@ -60,10 +64,13 @@ mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t 
 	serial->rxCir.user = serial;
 
 	/* setup interruption vectors */
+	serial->uart->user = serial;
 	serial->uart->onRead = mp_serial_UART_rxInt;
 	serial->uart->onWrite = mp_serial_UART_txInt;
 
 	mp_printk("Initialize Serial over UART: %s", who);
+
+	serial->opened = _MP_SERIAL_IS_OPEN;
 	return(TRUE);
 }
 
@@ -81,6 +88,9 @@ mp_ret_t mp_serial_fini(mp_serial_t *serial) {
 
 
 void mp_serial_write(mp_serial_t *serial, unsigned char *input, int size) {
+
+	if(serial->opened != _MP_SERIAL_IS_OPEN)
+		return;
 
 	mp_circular_write(&serial->txCir, input, size);
 
