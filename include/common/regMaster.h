@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
- * Copyright (C) 2014  Michael VERGOZ                                      *
+ * Copyright (C) 2015  Michael VERGOZ                                      *
+ * Copyright (C) 2015  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -18,56 +19,56 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef _HAVE_CONFIG_H
-	#define _HAVE_CONFIG_H
+#ifndef _HAVE_MP_COMMON_REGMASTER_H
+	#define _HAVE_MP_COMMON_REGMASTER_H
 
-	#define _DEBUG
 
-	#define SUPPORT_DRV_LED
-	#define SUPPORT_DRV_BUTTON
-	//#define SUPPORT_DRV_LSM9DS0
-	//#define SUPPORT_DRV_TMP006
-	//#define SUPPORT_DRV_LCD_NOKIA3310
-	#define SUPPORT_DRV_MPL3115A2
+	typedef struct mp_regMaster_op_s mp_regMaster_op_t;
+	typedef struct mp_regMaster_s mp_regMaster_t;
 
-	#define SUPPORT_COMMON_MEM /* enable tiny-malloc */
-	#define SUPPORT_COMMON_SERIAL /* serial interface */
-	#define SUPPORT_COMMON_PINOUT /* enable pinout feature, need mem support */
-	//#define SUPPORT_COMMON_QUATERNION /* enable quaternion feature */
-	#define SUPPORT_COMMON_SENSOR /* enable sensor feature */
+	typedef void (*mp_regMaster_cb_t)(mp_regMaster_op_t *operand);
+	typedef void (*mp_regMaster_int_t)(mp_regMaster_t *cirr);
 
-	/* clock manager */
-	#ifndef MP_CLOCK_LE_FREQ
-		#define MP_CLOCK_LE_FREQ MHZ1_t
-	#endif
+	#define MP_REGMASTER_STATE_TX 1
+	#define MP_REGMASTER_STATE_RX 2
 
-	#ifndef MP_CLOCK_HE_FREQ
-		#define MP_CLOCK_HE_FREQ MHZ25_t
-	#endif
+	struct mp_regMaster_op_s {
+		char state;
 
-	/* sensor configuration */
+		unsigned char *reg;
+		int regSize;
+		int regPos;
 
-	/* mem configuration */
-	#ifndef MP_MEM_SIZE
-		#define MP_MEM_SIZE  1024 /* total memory allowed for heap */
-	#endif
+		unsigned char *wait;
+		int waitSize;
+		int waitPos;
 
-	#ifndef MP_MEM_CHUNK
-		#define MP_MEM_CHUNK 50    /* fixed size of a chunck */
-	#endif
+		mp_regMaster_cb_t callback;
+		void *user;
 
-	#ifndef MP_COMMON_MEM_USE_MALLOC
-		#define MP_COMMON_MEM_USE_MALLOC
-	#endif
+		mp_regMaster_op_t *next;
+	};
 
-	/* task configuration */
-	#ifndef MP_TASK_MAX
-		#define MP_TASK_MAX 10 /* number of maximum task per instance */
-	#endif
+	struct mp_regMaster_s {
+		mp_kernel_t *kernel;
 
-	/* state configuration */
-	#ifndef MP_STATE_MAX
-		#define MP_STATE_MAX 5 /* maximum number of machine states */
-	#endif
+		mp_regMaster_op_t *first;
+		mp_regMaster_op_t *last;
+
+		mp_regMaster_int_t enableRX;
+		mp_regMaster_int_t disableRX;
+
+		mp_regMaster_int_t enableTX;
+		mp_regMaster_int_t disableTX;
+
+		union {
+			mp_i2c_t *i2c;
+		};
+
+		void *user;
+
+		mp_task_t *asr;
+	};
+
 
 #endif

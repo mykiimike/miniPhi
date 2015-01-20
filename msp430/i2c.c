@@ -20,12 +20,6 @@
 
 #include "mp.h"
 
-static void __mp_i2c_intMRX(void *user);
-static void __mp_i2c_intMTX(void *user);
-static void __mp_i2c_intSRX(void *user);
-static void __mp_i2c_intSTX(void *user);
-
-
 /* internal pointers */
 static mp_list_t __i2c;
 static unsigned int __i2c_count;
@@ -186,83 +180,6 @@ mp_ret_t mp_i2c_close(mp_i2c_t *i2c) {
 }
 
 
-static void __mp_i2c_intMRX(void *user) {
-	mp_spi_t *i2c = user;
 
-	switch(_SPI_REG8(i2c->gate, _SPI_IFG)) {
-		case UCSTPIFG:
-			break;
-
-		case UCRXIFG:
-			break;
-	}
-
-}
-
-static void __mp_i2c_intMTX(void *user) {
-	mp_spi_t *i2c = user;
-
-	switch(_SPI_REG8(i2c->gate, _SPI_IFG)) {
-		case UCNACKIFG:
-			break;
-
-		case UCSTPIFG:
-			break;
-
-		case UCSTTIFG:
-			break;
-
-		case UCTXIFG:
-			break;
-
-		case UCRXIFG:
-			break;
-	}
-
-}
-
-static void __mp_i2c_intSRX(void *user) {
-	mp_spi_t *i2c = user;
-
-	switch(_SPI_REG8(i2c->gate, _SPI_IFG)) {
-		case UCNACKIFG:
-			break;
-
-		case UCSTPIFG:
-			break;
-
-		case UCSTTIFG:
-			break;
-
-		case UCTXIFG:
-			break;
-
-		case UCRXIFG:
-			break;
-	}
-
-}
-
-static void __mp_i2c_intSTX(void *user) {
-	mp_spi_t *i2c = user;
-
-	switch(_SPI_REG8(i2c->gate, _SPI_IFG)) {
-		case UCNACKIFG:
-			break;
-
-		case UCSTPIFG:
-			break;
-
-		case UCSTTIFG:
-			break;
-
-		case UCTXIFG:
-			break;
-
-		case UCRXIFG:
-			break;
-	}
-
-}
 
 

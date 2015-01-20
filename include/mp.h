@@ -86,6 +86,7 @@
 	#include "common/printk.h"
 	#include "common/quaternion.h"
 	#include "common/sensor.h"
+	#include "common/regMaster.h"
 
 	/* Bluetooth */
 	//#include "bluetooth/internal.h"

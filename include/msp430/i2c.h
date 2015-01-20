@@ -25,28 +25,28 @@
 
 	typedef void (*mp_i2c_callback_t)(mp_i2c_t *);
 
-	#define MP_I2C_BUFFER_SIZE 32
-
-	#define MP_I2C_READY 0
-	#define MP_I2C_MRX   1
-	#define MP_I2C_MTX   2
-	#define MP_I2C_SRX   3
-	#define MP_I2C_STX   4
-
 	struct mp_i2c_s {
 		mp_interrupt_t *inte;
-
-		unsigned char transmitting;
 
 		/** internal: gate */
 		mp_gate_t *gate;
 		mp_gpio_port_t *sda;
 		mp_gpio_port_t *clk;
 
-
 		mp_list_item_t item;
+
+		void *user;
 	};
 
+	typedef enum {
+		MP_I2C_FL_NACK,
+		MP_I2C_FL_STOP,
+		MP_I2C_FL_START,
+		MP_I2C_FL_TX,
+		MP_I2C_FL_RX,
+	} mp_i2c_flag_t;
+
+	typedef void (*mp_i2c_interrupt_t)(mp_i2c_t *i2c, mp_i2c_flag_t flag);
 
 	#define _I2C_CTLW0   0x00
 	#define _I2C_CTL0    0x01
