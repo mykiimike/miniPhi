@@ -34,14 +34,6 @@
 	#define MP_I2C_STX   4
 
 	struct mp_i2c_s {
-		unsigned char rxBuffer[MP_I2C_BUFFER_SIZE];
-		unsigned char rxBufferIndex;
-		unsigned char rxBufferLength;
-
-		unsigned char txBuffer[MP_I2C_BUFFER_SIZE];
-		unsigned char txBufferIndex;
-		unsigned char txBufferLength;
-
 		mp_interrupt_t *inte;
 
 		unsigned char transmitting;
@@ -53,7 +45,6 @@
 
 
 		mp_list_item_t item;
-		mp_task_t *task;
 	};
 
 

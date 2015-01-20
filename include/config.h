@@ -70,16 +70,4 @@
 		#define MP_STATE_MAX 5 /* maximum number of machine states */
 	#endif
 
-	/* serial configuration */
-	#ifndef MP_SERIAL_RX_BUFFER_SIZE
-		#define MP_SERIAL_RX_BUFFER_SIZE 512
-	#endif
-
-	#ifndef MP_SERIAL_TX_BUFFER_SIZE
-		#define MP_SERIAL_TX_BUFFER_SIZE 240
-	#endif
-
-
-
-
 #endif
