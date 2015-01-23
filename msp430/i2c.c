@@ -20,6 +20,8 @@
 
 #include "mp.h"
 
+static void mp_i2c_interruptDispatch(void *user);
+
 /* internal pointers */
 static mp_list_t __i2c;
 static unsigned int __i2c_count;
@@ -119,18 +121,17 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 	else
 		_I2C_REG8(i2c->gate, _I2C_CTL0) |= UCMST;
 
-
 	_I2C_REG8(i2c->gate, _I2C_CTL0) |= UCSYNC + UCMODE_3;
 
 	/* write finished */
 	_I2C_REG8(i2c->gate, _I2C_CTL1) &= ~(UCSWRST);
 
 	/* disable interrupts */
-	//mp_i2c_disable_tx(i2c);
-	//mp_i2c_disable_rx(i2c);
+	mp_i2c_disable_tx(i2c);
+	mp_i2c_disable_rx(i2c);
 
 	/* place interrupt */
-	//i2c->inte = mp_interrupt_set(i2c->gate->_ISRVector, __mp_i2c_intMRX, i2c, i2c->gate->portDevice);
+	mp_interrupt_set(i2c->gate->_ISRVector, mp_i2c_interruptDispatch, i2c, i2c->gate->portDevice);
 
 	/* safe non interruptible block */
 	MP_INTERRUPT_SAFE_END
@@ -146,19 +147,11 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 }
 
 mp_ret_t mp_i2c_close(mp_i2c_t *i2c) {
-	/* kill the task */
-	//if(i2c->task)
-		//mp_task_destroy(i2c->task);
 
 	/* disable interrupts */
-	/*
-	if(i2c->inte) {
-		mp_i2c_disable_rx(i2c);
-		mp_i2c_disable_tx(i2c);
-
-		mp_interrupt_unset(i2c->gate->_ISRVector);
-	}
-	*/
+	mp_i2c_disable_tx(i2c);
+	mp_i2c_disable_rx(i2c);
+	mp_interrupt_unset(i2c->gate->_ISRVector);
 
 	if(i2c->sda) {
 		_GPIO_REG8(i2c->sda, _GPIO_SEL) &= ~(1<<i2c->sda->pin);
@@ -180,6 +173,11 @@ mp_ret_t mp_i2c_close(mp_i2c_t *i2c) {
 }
 
 
-
+static void mp_i2c_interruptDispatch(void *user) {
+	mp_i2c_t *i2c = user;
+	mp_i2c_flag_t iv = (mp_i2c_flag_t)_I2C_REG16(i2c->gate, _I2C_IV);
+	if(i2c->intDispatch)
+		i2c->intDispatch(i2c, iv);
+}
 
 

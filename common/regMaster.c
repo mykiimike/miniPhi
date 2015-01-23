@@ -27,6 +27,7 @@ static void _mp_regMaster_i2c_disableRX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_enableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_disableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag);
+MP_TASK(mp_regMaster_asr);
 
 /**
  * @brief Initiate circular register context
@@ -46,6 +47,9 @@ mp_ret_t mp_regMaster_init_i2c(
 
 	cirr->kernel = kernel;
 
+	mp_list_init(&cirr->pending);
+	mp_list_init(&cirr->executing);
+
 	cirr->enableRX = _mp_regMaster_i2c_enableRX;
 	cirr->disableRX = _mp_regMaster_i2c_disableRX;
 
@@ -56,9 +60,16 @@ mp_ret_t mp_regMaster_init_i2c(
 
 	cirr->i2c = i2c;
 	cirr->i2c->user = cirr;
+	mp_i2c_setInterruption(i2c, _mp_regMaster_i2c_interrupt);
 
 	cirr->disableRX(cirr);
 	cirr->disableTX(cirr);
+
+	/* create task and place it in sleep mode */
+	cirr->asr = mp_task_create(&kernel->tasks, "regMaster", mp_regMaster_asr, cirr, 0);
+	if(!cirr->asr)
+		return(FALSE);
+	cirr->asr->signal = MP_TASK_SIG_SLEEP;
 
 	return(TRUE);
 }
@@ -71,10 +82,11 @@ mp_ret_t mp_regMaster_init_i2c(
  * @param[in] cirr Circular context.
  */
 void mp_register_fini(mp_regMaster_t *cirr) {
-
+	/* regMaster is destructed using ASR task then
+	 * we just send stop signal and disable interrupts */
+	mp_task_destroy(cirr->asr);
 	cirr->disableRX(cirr);
 	cirr->disableTX(cirr);
-
 }
 
 
@@ -82,7 +94,12 @@ void mp_register_fini(mp_regMaster_t *cirr) {
 /**
  * @brief Start circular register read operation
  *
- * This initiates a read operation using circular register
+ * This initiates a read operation using circular register.
+ *
+ * When callback() is executed you must take care of the allocated
+ * pointer (if used). The terminate boolean argument is set to TRUE
+ * to notify whether regMaster has been shutdown.
+ * In this case you must stop actions and free buffers if needed.
  *
  * @param[in] cirr Circular context.
  * @param[in] reg Registers to write
@@ -116,16 +133,11 @@ mp_ret_t mp_regMaster_read(
 	operand->callback = callback;
 	operand->user = user;
 
-	operand->next = NULL;
-
 	/* then move buffers */
 	cirr->disableTX(cirr);
 
-	if(cirr->last)
-		cirr->last->next = operand;
-	else
-		cirr->first = operand;
-	cirr->last = operand;
+	/* add operand at last pending */
+	mp_list_add_last(&cirr->pending, &operand->item, operand);
 
 	cirr->enableTX(cirr);
 
@@ -162,16 +174,11 @@ mp_ret_t mp_regMaster_write(
 	operand->callback = callback;
 	operand->user = user;
 
-	operand->next = NULL;
-
 	/* then move buffers */
 	cirr->disableTX(cirr);
 
-	if(cirr->last)
-		cirr->last->next = operand;
-	else
-		cirr->first = operand;
-	cirr->last = operand;
+	/* add operand at last pending */
+	mp_list_add_last(&cirr->pending, &operand->item, operand);
 
 	cirr->enableTX(cirr);
 
@@ -201,7 +208,7 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 	int rest;
 
 	/* get first operand */
-	operand = cirr->first;
+	operand = cirr->pending.first ? cirr->pending.first->user : NULL;
 	if(!operand) {
 		cirr->disableRX(cirr);
 		cirr->disableTX(cirr);
@@ -229,25 +236,11 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 			}
 			/* no need to read */
 			else {
-				/* execute callback */
-				if(operand->callback)
-					operand->callback(operand);
+				/* switch buffer into ASR space */
+				mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
 
-				/* free operand */
-				if(operand->next) {
-					cirr->first = operand->next;
-
-					mp_mem_free(cirr->kernel, operand);
-
-					/* don't touch interrupts */
-				}
-				else {
-					/* free last buffer */
-					mp_mem_free(cirr->kernel, operand);
-
-					cirr->first = NULL;
-					cirr->last = NULL;
-
+				/* no more buffer disable interrupts */
+				if(!operand->item.next) {
 					cirr->disableTX(cirr);
 					cirr->disableRX(cirr);
 				}
@@ -280,30 +273,84 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 		else {
 			operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
 
-			/* execute callback */
-			if(operand->callback)
-				operand->callback(operand);
+			/* switch buffer into ASR space */
+			mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
 
-			/* free operand */
-			if(operand->next) {
-				cirr->first = operand->next;
-
-				mp_mem_free(cirr->kernel, operand);
-
-				/* change interrupt context */
-				cirr->enableTX(cirr);
-				cirr->disableRX(cirr);
-			}
-			else {
-				/* free last buffer */
-				mp_mem_free(cirr->kernel, operand);
-
-				cirr->first = NULL;
-				cirr->last = NULL;
-
+			/* no more buffer disable interrupts */
+			if(!operand->item.next) {
 				cirr->disableTX(cirr);
 				cirr->disableRX(cirr);
 			}
 		}
 	}
 }
+
+MP_TASK(mp_regMaster_asr) {
+	mp_regMaster_t *cirr = task->user;
+	mp_regMaster_op_t *cur;
+	mp_regMaster_op_t *next;
+
+
+	/* receive regMaster shutdown */
+	if(task->signal == MP_TASK_SIG_STOP) {
+		cirr->disableTX(cirr);
+		cirr->disableRX(cirr);
+
+		/* free pending list */
+		if(cirr->pending.first) {
+			cur = cirr->pending.first->user;
+			while(cur) {
+				next = cur->item.next != NULL ? cur->item.next->user : NULL;
+
+				if(cur->callback)
+					cur->callback(cur, TRUE);
+
+				mp_list_remove(&cirr->pending, &cur->item);
+				mp_mem_free(cirr->kernel, cur);
+				cur = next;
+			}
+		}
+
+		/* free executing list */
+		if(cirr->pending.first) {
+			cur = cirr->pending.first->user;
+			while(cur) {
+				next = cur->item.next != NULL ? cur->item.next->user : NULL;
+
+				if(cur->callback)
+					cur->callback(cur, TRUE);
+
+				mp_list_remove(&cirr->pending, &cur->item);
+				mp_mem_free(cirr->kernel, cur);
+				cur = next;
+			}
+		}
+
+		/* close i2c interface */
+		mp_i2c_close(cirr->i2c);
+
+		/* acknowledging */
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+
+	/* FIFO pop */
+	if(cirr->executing.first) {
+		cur = cirr->executing.first->user;
+
+		/* execute callback in asr mode */
+		if(cur->callback)
+			cur->callback(cur, FALSE);
+
+		/* remove completely the buffer */
+		mp_list_remove(&cirr->executing, &cur->item);
+		mp_mem_free(cirr->kernel, cur);
+	}
+	/* no more task sleeping */
+	else
+		task->signal = MP_TASK_SIG_SLEEP;
+
+
+
+}
+

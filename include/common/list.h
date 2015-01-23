@@ -81,5 +81,22 @@
 		item->next = NULL;
 	}
 
+	static inline void mp_list_switch_last(mp_list_t *dst, mp_list_t *src, mp_list_item_t *item) {
+
+		/* extract item from src list */
+		mp_list_remove(src, item);
+
+		/* inject into the dst list */
+		mp_list_add_last(dst, item, item->user);
+	}
+
+	static inline void mp_list_switch_first(mp_list_t *dst, mp_list_t *src, mp_list_item_t *item) {
+
+		/* extract item from src list */
+		mp_list_remove(src, item);
+
+		/* inject into the dst list */
+		mp_list_add_first(dst, item, item->user);
+	}
 
 #endif

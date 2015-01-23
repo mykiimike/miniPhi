@@ -25,8 +25,18 @@
 
 	typedef void (*mp_i2c_callback_t)(mp_i2c_t *);
 
+	typedef enum {
+		MP_I2C_FL_NACK = USCI_I2C_UCNACKIFG,
+		MP_I2C_FL_STOP = USCI_I2C_UCSTPIFG,
+		MP_I2C_FL_START = USCI_I2C_UCSTTIFG,
+		MP_I2C_FL_TX = USCI_I2C_UCTXIFG,
+		MP_I2C_FL_RX = USCI_I2C_UCRXIFG,
+	} mp_i2c_flag_t;
+
+	typedef void (*mp_i2c_interrupt_t)(mp_i2c_t *i2c, mp_i2c_flag_t flag);
+
 	struct mp_i2c_s {
-		mp_interrupt_t *inte;
+		mp_i2c_interrupt_t intDispatch;
 
 		/** internal: gate */
 		mp_gate_t *gate;
@@ -38,15 +48,7 @@
 		void *user;
 	};
 
-	typedef enum {
-		MP_I2C_FL_NACK,
-		MP_I2C_FL_STOP,
-		MP_I2C_FL_START,
-		MP_I2C_FL_TX,
-		MP_I2C_FL_RX,
-	} mp_i2c_flag_t;
 
-	typedef void (*mp_i2c_interrupt_t)(mp_i2c_t *i2c, mp_i2c_flag_t flag);
 
 	#define _I2C_CTLW0   0x00
 	#define _I2C_CTL0    0x01
@@ -147,6 +149,11 @@
 		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCSWRST;
 		_I2C_REG8(i2c->gate, _I2C_OA) = address;
 		_I2C_REG8(i2c->gate, _I2C_CTL1) &= ~(UCSWRST);
+	}
+
+
+	static inline void mp_i2c_setInterruption(mp_i2c_t *i2c, mp_i2c_interrupt_t cb) {
+		i2c->intDispatch = cb;
 	}
 
 #endif
