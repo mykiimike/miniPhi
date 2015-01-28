@@ -46,12 +46,57 @@ void mp_drv_MPL3115A2_OST(mp_drv_MPL3115A2_t *MPL3115A2);
 float mp_drv_MPL3115A2_readPressure(mp_drv_MPL3115A2_t *MPL3115A2);
 float mp_drv_MPL3115A2_readAltitude(mp_drv_MPL3115A2_t *MPL3115A2);
 
-MP_TASK(_mp_drv_MPL3115A2_ASR);
+
+void _mp_drv_MPL3115A2_onWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	if(MPL3115A2->whoIam != 0xc4) {
+		mp_printk("MPL3115A2(%p): Got who iam %x (bad), terminating", operand->user, MPL3115A2->whoIam);
+		mp_regMaster_fini(&MPL3115A2->regMaster);
+	}
+	else
+		mp_printk("MPL3115A2(%p): Got who iam %x (good)", operand->user, MPL3115A2->whoIam);
+}
+
+void _mp_drv_MPL3115A2_onSettings(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	mp_printk("MPL3115A2(%p): Initial settings is %x", operand->user, MPL3115A2->settings);
+}
+
+void _mp_drv_MPL3115A2_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	mp_mem_free(MPL3115A2->kernel, operand->reg);
+	//mp_printk("MPL3115A2(%p): Got write control", operand->user);
+
+}
+
+static unsigned char *_registers = NULL;
+static int _register_references = 0;
+
+static void _mp_drv_MPL3115A2_ginit(mp_kernel_t *kernel) {
+	int a;
+
+	if(_registers)
+		return;
+
+	_registers = malloc(MPL3115A2_OFF_H+1);
+	for(a=0; a<MPL3115A2_OFF_H+1; a++)
+		_registers[a] = a;
+
+	_register_references++;
+}
+
+static void _mp_drv_MPL3115A2_gfini(mp_kernel_t *kernel) {
+	_register_references--;
+	if(_register_references == 0)
+		free(_registers);
+
+}
 
 mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who) {
-	unsigned char deviceId;
 	char *value;
 	mp_ret_t ret;
+
+	_mp_drv_MPL3115A2_ginit(kernel);
 
 	memset(MPL3115A2, 0, sizeof(*MPL3115A2));
 	MPL3115A2->kernel = kernel;
@@ -109,22 +154,51 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 		return(NULL);
 	}
 
+	/* create regmaster control */
+	ret = mp_regMaster_init_i2c(kernel, &MPL3115A2->regMaster,
+			&MPL3115A2->i2c, MPL3115A2, "MPL3115A2 I2C");
+	if(ret == FALSE) {
+		mp_printk("MPL3115A2 error while creating regMaster context");
+		mp_i2c_close(&MPL3115A2->i2c);
+		return(NULL);
+	}
+
+	mp_printk("MPL3115A2(%p): Initializing", MPL3115A2);
+
 	/* check for device id */
+	mp_regMaster_read(
+		&MPL3115A2->regMaster,
+		&_registers[MPL3115A2_WHO_AM_I], 1,
+		(unsigned char *)&MPL3115A2->whoIam, 1,
+		_mp_drv_MPL3115A2_onWhoIAm, MPL3115A2
+	);
+
+	mp_drv_MPL3115A2_wakeUp(MPL3115A2);
+
+	mp_regMaster_read(
+		&MPL3115A2->regMaster,
+		&_registers[MPL3115A2_CTRL_REG1], 1,
+		(unsigned char *)&MPL3115A2->settings, 1,
+		_mp_drv_MPL3115A2_onSettings, MPL3115A2
+	);
+
+
+	/*
 	deviceId = mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_WHO_AM_I);
 	if(deviceId != 0xc4) {
 		mp_printk("Error loading MPL3115A2 driver: invalid device ID id=%x", deviceId);
 		mp_i2c_close(&MPL3115A2->i2c);
 		return(NULL);
 	}
-
+*/
 	/* read settings */
-	mp_drv_MPL3115A2_wakeUp(MPL3115A2);
+	//mp_drv_MPL3115A2_wakeUp(MPL3115A2);
 
 	//mp_drv_MPL3115A2_setSeaLevel(MPL3115A2, 100343);
 
-	MPL3115A2->settings = mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_CTRL_REG1);
+	//MPL3115A2->settings = mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_CTRL_REG1);
 
-	mp_printk("Loading MPL3115A2 driver with device id=%x settings=%x", deviceId, MPL3115A2->settings);
+	//mp_printk("Loading MPL3115A2 driver with device id=%x settings=%x", deviceId, MPL3115A2->settings);
 
 	/*
 	mp_drv_MPL3115A2_OST(MPL3115A2);
@@ -138,35 +212,87 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 void mp_drv_MPL3115A2_fini(mp_drv_MPL3115A2_t *MPL3115A2) {
 	mp_printk("Unloading MPL3115A2 driver");
 
-	mp_task_destroy(MPL3115A2->task);
+	_mp_drv_MPL3115A2_gfini(MPL3115A2->kernel);
 }
 
 
 void mp_drv_MPL3115A2_sleep(mp_drv_MPL3115A2_t *MPL3115A2) {
-	MPL3115A2->settings &= ~(1<<0); //Set SBYB bit for Active mode
-	mp_drv_MPL3115A2_write(MPL3115A2, MPL3115A2_CTRL_REG1, MPL3115A2->settings);
+	MPL3115A2->settings &= ~(1<<0);
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG1;
+	*ptr = MPL3115A2->settings;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+
 }
 
 void mp_drv_MPL3115A2_wakeUp(mp_drv_MPL3115A2_t *MPL3115A2) {
 	MPL3115A2->settings |= (1<<0); //Set SBYB bit for Active mode
-	mp_drv_MPL3115A2_write(MPL3115A2, MPL3115A2_CTRL_REG1, MPL3115A2->settings);
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG1;
+	*ptr = MPL3115A2->settings;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
 }
 
 void mp_drv_MPL3115A2_reset(mp_drv_MPL3115A2_t *MPL3115A2) {
 	MPL3115A2->settings |= (1<<2); //Set RST bit
-	mp_drv_MPL3115A2_write(MPL3115A2, MPL3115A2_CTRL_REG1, MPL3115A2->settings);
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG1;
+	*ptr = MPL3115A2->settings;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
 }
 
 
 void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 	MPL3115A2->settings &= ~(1<<7); //Clear ALT bit
-	mp_drv_MPL3115A2_write(MPL3115A2, MPL3115A2_CTRL_REG1, MPL3115A2->settings);
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG1;
+	*ptr = MPL3115A2->settings;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
 }
 
 
 void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2) {
 	MPL3115A2->settings |= (1<<7); //Set ALT bit
-	mp_drv_MPL3115A2_write(MPL3115A2, MPL3115A2_CTRL_REG1, MPL3115A2->settings);
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG1;
+	*ptr = MPL3115A2->settings;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
 }
 
 void mp_drv_MPL3115A2_setSeaLevel(mp_drv_MPL3115A2_t *MPL3115A2, int Pa) {
@@ -338,17 +464,6 @@ static void _mp_drv_MPL3115A2_onDRDY(void *user) {
 
 }
 
-MP_TASK(_mp_drv_MPL3115A2_ASR) {
-	mp_drv_MPL3115A2_t *MPL3115A2 = task->user;
-
-	/* acknowledge task end */
-	if(task->signal == MP_TASK_SIG_STOP) {
-		task->signal = MP_TASK_SIG_DEAD;
-		return;
-	}
-
-	MPL3115A2->task->signal = MP_TASK_SIG_SLEEP;
-}
 
 #endif
 

@@ -41,7 +41,8 @@ MP_TASK(mp_regMaster_asr);
 mp_ret_t mp_regMaster_init_i2c(
 		mp_kernel_t *kernel, mp_regMaster_t *cirr,
 		mp_i2c_t *i2c,
-		void *user
+		void *user,
+		char *who
 	) {
 	memset(cirr, 0, sizeof(*cirr));
 
@@ -56,17 +57,17 @@ mp_ret_t mp_regMaster_init_i2c(
 	cirr->enableTX = _mp_regMaster_i2c_enableTX;
 	cirr->disableTX = _mp_regMaster_i2c_disableTX;
 
-	cirr = user;
+	cirr->user = user;
 
 	cirr->i2c = i2c;
 	cirr->i2c->user = cirr;
 	mp_i2c_setInterruption(i2c, _mp_regMaster_i2c_interrupt);
 
-	cirr->disableRX(cirr);
-	cirr->disableTX(cirr);
+	cirr->enableRX(cirr);
+	cirr->enableTX(cirr);
 
 	/* create task and place it in sleep mode */
-	cirr->asr = mp_task_create(&kernel->tasks, "regMaster", mp_regMaster_asr, cirr, 0);
+	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_asr, cirr, 100);
 	if(!cirr->asr)
 		return(FALSE);
 	cirr->asr->signal = MP_TASK_SIG_SLEEP;
@@ -81,7 +82,7 @@ mp_ret_t mp_regMaster_init_i2c(
  *
  * @param[in] cirr Circular context.
  */
-void mp_register_fini(mp_regMaster_t *cirr) {
+void mp_regMaster_fini(mp_regMaster_t *cirr) {
 	/* regMaster is destructed using ASR task then
 	 * we just send stop signal and disable interrupts */
 	mp_task_destroy(cirr->asr);
@@ -118,7 +119,8 @@ mp_ret_t mp_regMaster_read(
 	mp_regMaster_op_t *operand;
 
 	/* allocate new operand */
-	operand = mp_mem_alloc(cirr->kernel, sizeof(*operand));
+	//operand = mp_mem_alloc(cirr->kernel, sizeof(*operand));
+	operand = malloc(sizeof(*operand));
 
 	operand->state = MP_REGMASTER_STATE_TX;
 
@@ -126,20 +128,19 @@ mp_ret_t mp_regMaster_read(
 	operand->regSize = regSize;
 	operand->regPos = 0;
 
-	operand->wait = reg;
-	operand->waitSize = regSize;
+	operand->wait = wait;
+	operand->waitSize = waitSize;
 	operand->waitPos = 0;
 
 	operand->callback = callback;
 	operand->user = user;
 
-	/* then move buffers */
-	cirr->disableTX(cirr);
-
 	/* add operand at last pending */
 	mp_list_add_last(&cirr->pending, &operand->item, operand);
 
-	cirr->enableTX(cirr);
+	/* tell to the scheduler task pending */
+	if(cirr->asr->signal == MP_TASK_SIG_SLEEP)
+		cirr->asr->signal = MP_TASK_SIG_PENDING;
 
 	return(TRUE);
 }
@@ -174,14 +175,12 @@ mp_ret_t mp_regMaster_write(
 	operand->callback = callback;
 	operand->user = user;
 
-	/* then move buffers */
-	cirr->disableTX(cirr);
-
 	/* add operand at last pending */
 	mp_list_add_last(&cirr->pending, &operand->item, operand);
 
-	cirr->enableTX(cirr);
-
+	/* tell to the scheduler task pending */
+	if(cirr->asr->signal == MP_TASK_SIG_SLEEP)
+		cirr->asr->signal = MP_TASK_SIG_PENDING;
 	return(TRUE);
 }
 
@@ -209,80 +208,61 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 
 	/* get first operand */
 	operand = cirr->pending.first ? cirr->pending.first->user : NULL;
-	if(!operand) {
-		cirr->disableRX(cirr);
-		cirr->disableTX(cirr);
+	if(!operand)
 		return;
-	}
 
 	/* send registers */
 	if(operand->state == MP_REGMASTER_STATE_TX && flag == MP_I2C_FL_TX) {
 
 		/* check for end of register */
 		if(operand->regPos == operand->regSize) {
+
 			/* need to read data */
 			if(operand->waitSize > 0) {
-				cirr->disableTX(cirr);
-				cirr->enableRX(cirr);
-
-				/* receiver mode */
-				mp_i2c_mode(i2c, 0);
-
-				/* restart */
-				mp_i2c_txStart(i2c);
-
 				operand->state = MP_REGMASTER_STATE_RX;
-
+				cirr->asr->signal = MP_TASK_SIG_PENDING;
+				cirr->disableTX(cirr);
 			}
 			/* no need to read */
 			else {
+				mp_i2c_txStop(i2c);
+
 				/* switch buffer into ASR space */
 				mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
+				cirr->asr->signal = MP_TASK_SIG_PENDING;
 
-				/* no more buffer disable interrupts */
-				if(!operand->item.next) {
-					cirr->disableTX(cirr);
-					cirr->disableRX(cirr);
-				}
+				cirr->disableTX(cirr);
 			}
-
-		}
-		/* initiate start */
-		else if(operand->regPos == 0) {
-			/* TX mode */
-			mp_i2c_mode(i2c, 1);
-			mp_i2c_txStart(i2c);
-			mp_i2c_tx(i2c, operand->reg[operand->regPos++]);
 		}
 		else
 			mp_i2c_tx(i2c, operand->reg[operand->regPos++]);
+
 	}
 
 	/* read data, CTR and start has already been sent */
 	else if(operand->state == MP_REGMASTER_STATE_RX && flag == MP_I2C_FL_RX) {
+
 		rest = operand->waitSize-operand->waitPos-1;
 
-		if(rest) {
-			operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
-
-			/* Only one byte left? */
-			if (rest == 1)
+		if(rest == 0) {
+			if(operand->waitSize > 1)
 				mp_i2c_txStop(i2c);
-		}
-		/* Move final RX data */
-		else {
+
 			operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
 
 			/* switch buffer into ASR space */
 			mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
+			cirr->asr->signal = MP_TASK_SIG_PENDING;
 
-			/* no more buffer disable interrupts */
-			if(!operand->item.next) {
-				cirr->disableTX(cirr);
-				cirr->disableRX(cirr);
-			}
+			cirr->disableRX(cirr);
+			cirr->disableTX(cirr);
+		}
+		else {
+			operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
 		}
 	}
+
+	return;
 }
 
 MP_TASK(mp_regMaster_asr) {
@@ -346,11 +326,37 @@ MP_TASK(mp_regMaster_asr) {
 		mp_list_remove(&cirr->executing, &cur->item);
 		mp_mem_free(cirr->kernel, cur);
 	}
-	/* no more task sleeping */
-	else
-		task->signal = MP_TASK_SIG_SLEEP;
 
+	task->signal = MP_TASK_SIG_SLEEP;
 
+	/* pending request activate interruption */
 
+	if(cirr->pending.first) {
+		cur = cirr->pending.first->user;
+
+		if(cur->state == MP_REGMASTER_STATE_TX) {
+			mp_i2c_mode(cirr->i2c, 1);
+			mp_i2c_txStart(cirr->i2c);
+			cirr->enableTX(cirr);
+		}
+		else if(cur->state == MP_REGMASTER_STATE_RX) {
+			if(cur->waitSize == 1) {
+				mp_i2c_waitStop(cirr->i2c);
+				mp_i2c_mode(cirr->i2c, 0);
+				mp_i2c_txStart(cirr->i2c);
+				mp_i2c_waitStart(cirr->i2c);
+				mp_i2c_txStop(cirr->i2c);
+
+				cirr->enableRX(cirr);
+			}
+			else {
+				/* receiver mode */
+				mp_i2c_mode(cirr->i2c, 0);
+				mp_i2c_txStart(cirr->i2c);
+
+				cirr->enableRX(cirr);
+			}
+		}
+	}
 }
 

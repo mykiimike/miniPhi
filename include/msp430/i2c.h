@@ -82,21 +82,22 @@
 
 	static inline void mp_i2c_enable_rx(mp_i2c_t *i2c) {
 		/* check CTS */
-		_I2C_REG8(i2c->gate, _I2C_CTL0) |= UCRXIE;
+		_I2C_REG8(i2c->gate, _I2C_IE) |= UCRXIE;
 	}
 
 	static inline void mp_i2c_disable_rx(mp_i2c_t *i2c) {
-		_I2C_REG8(i2c->gate, _I2C_CTL0) &= ~UCRXIE;
+		_I2C_REG8(i2c->gate, _I2C_IE) &= ~UCRXIE;
 	}
 
 	static inline void mp_i2c_enable_tx(mp_i2c_t *i2c) {
 		/* check CTS */
-		_I2C_REG8(i2c->gate, _I2C_CTL0) |= UCTXIE;
+		_I2C_REG8(i2c->gate, _I2C_IE) |= UCTXIE;
 	}
 
 	static inline void mp_i2c_disable_tx(mp_i2c_t *i2c) {
-		_I2C_REG8(i2c->gate, _I2C_CTL0) &= ~UCTXIE;
+		_I2C_REG8(i2c->gate, _I2C_IE) &= ~UCTXIE;
 	}
+
 
 	static inline unsigned char mp_i2c_rx(mp_i2c_t *i2c) {
 		return(_I2C_REG8(i2c->gate, _I2C_RXBUF));
@@ -112,6 +113,10 @@
 
 	static inline void mp_i2c_waitTX(mp_i2c_t *i2c) {
 		while (!(_I2C_REG8(i2c->gate, _I2C_IFG) & UCTXIFG));
+	}
+
+	static inline void mp_i2c_clearFlags(mp_i2c_t *i2c) {
+		_I2C_REG8(i2c->gate, _I2C_IFG) = 0;
 	}
 
 	static inline void mp_i2c_mode(mp_i2c_t *i2c, char mode)  {
@@ -134,11 +139,18 @@
 
 	static inline void mp_i2c_txStop(mp_i2c_t *i2c) {
 		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTXSTP;
-		while (_I2C_REG8(i2c->gate, _I2C_CTL1) & UCTXSTP);
 	}
 
 	static inline void mp_i2c_txStart(mp_i2c_t *i2c) {
 		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCTXSTT;
+	}
+
+	static inline void mp_i2c_waitStop(mp_i2c_t *i2c) {
+		while ((_I2C_REG8(i2c->gate, _I2C_CTL1) & UCTXSTP));
+	}
+
+	static inline void mp_i2c_waitStart(mp_i2c_t *i2c) {
+		while ((_I2C_REG8(i2c->gate, _I2C_CTL1) & UCTXSTT));
 	}
 
 	static inline void mp_i2c_setSlaveAddress(mp_i2c_t *i2c, unsigned short address) {

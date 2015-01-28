@@ -61,14 +61,37 @@
 		mp_regMaster_int_t enableTX;
 		mp_regMaster_int_t disableTX;
 
-		union {
-			mp_i2c_t *i2c;
-		};
+		/** On bus error */
+		//mp_regMaster_int_t error;
+
+		mp_i2c_t *i2c;
+
 
 		void *user;
 
 		mp_task_t *asr;
+
+
+
 	};
 
+	mp_ret_t mp_regMaster_init_i2c(
+		mp_kernel_t *kernel, mp_regMaster_t *cirr,
+		mp_i2c_t *i2c,
+		void *user,
+		char *who
+	);
+	void mp_regMaster_fini(mp_regMaster_t *cirr);
+	mp_ret_t mp_regMaster_read(
+		mp_regMaster_t *cirr,
+		unsigned char *reg, int regSize,
+		unsigned char *wait, int waitSize,
+		mp_regMaster_cb_t callback, void *user
+	);
+	mp_ret_t mp_regMaster_write(
+		mp_regMaster_t *cirr,
+		unsigned char *reg, int regSize,
+		mp_regMaster_cb_t callback, void *user
+	);
 
 #endif

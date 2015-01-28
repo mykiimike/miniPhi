@@ -31,6 +31,7 @@
 		mp_kernel_t *kernel;
 
 		mp_i2c_t i2c;
+		mp_regMaster_t regMaster;
 
 		mp_gpio_port_t *drdy;
 
@@ -39,6 +40,8 @@
 		mp_sensor_t *sensor;
 
 		unsigned char settings;
+
+		char whoIam;
 	};
 
 	mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who);
