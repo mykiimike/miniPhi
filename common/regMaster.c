@@ -119,8 +119,8 @@ mp_ret_t mp_regMaster_read(
 	mp_regMaster_op_t *operand;
 
 	/* allocate new operand */
-	//operand = mp_mem_alloc(cirr->kernel, sizeof(*operand));
-	operand = malloc(sizeof(*operand));
+	operand = mp_mem_alloc(cirr->kernel, sizeof(*operand));
+	//operand = malloc(sizeof(*operand));
 
 	operand->state = MP_REGMASTER_STATE_TX;
 

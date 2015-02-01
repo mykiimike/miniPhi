@@ -102,6 +102,14 @@
 	#define _GPIO_REG8(_port, _type) \
 		*((volatile char *)(_port->base+_type+((_port->port%2)^1)))
 
+	static inline void mp_gpio_interrupt_enable(mp_gpio_port_t *port) {
+		_GPIO_REG8(port, _GPIO_IE) |= 1<<port->pin;
+	}
+
+	static inline void mp_gpio_interrupt_disable(mp_gpio_port_t *port) {
+		_GPIO_REG8(port, _GPIO_IE) &= ~(1<<port->pin);
+	}
+
 	static inline void mp_gpio_interrupt_lo2hi(mp_gpio_port_t *port) {
 		_GPIO_REG8(port, _GPIO_IES) &= ~(1<<port->pin);
 	}

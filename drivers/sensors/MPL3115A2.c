@@ -35,16 +35,12 @@
 
 #ifdef SUPPORT_DRV_MPL3115A2
 
-static unsigned short mp_drv_MPL3115A2_read(mp_drv_MPL3115A2_t *MPL3115A2, unsigned char regAddr);
-static void mp_drv_MPL3115A2_write(mp_drv_MPL3115A2_t *MPL3115A2, unsigned char address, unsigned char writeByte);
 static void _mp_drv_MPL3115A2_onDRDY(void *user);
-
 
 void mp_drv_MPL3115A2_setSeaLevel(mp_drv_MPL3115A2_t *MPL3115A2, int Pa);
 
-void mp_drv_MPL3115A2_OST(mp_drv_MPL3115A2_t *MPL3115A2);
-float mp_drv_MPL3115A2_readPressure(mp_drv_MPL3115A2_t *MPL3115A2);
-float mp_drv_MPL3115A2_readAltitude(mp_drv_MPL3115A2_t *MPL3115A2);
+static unsigned char *_registers = NULL;
+static int _register_references = 0;
 
 
 void _mp_drv_MPL3115A2_onWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate) {
@@ -66,11 +62,52 @@ void _mp_drv_MPL3115A2_writeControl(mp_regMaster_op_t *operand, mp_bool_t termin
 	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
 	mp_mem_free(MPL3115A2->kernel, operand->reg);
 	//mp_printk("MPL3115A2(%p): Got write control", operand->user);
+}
+
+void _mp_drv_MPL3115A2_readPressureControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+
+	/* Pressure comes back as a left shifted 20 bit number */
+	//unsigned long pressure_whole = (long)msb<<16 | (long)csb<<8 | (long)lsb;
+	//pressure_whole >>= 6; //Pressure is an 18 bit number with 2 bits of decimal. Get rid of decimal portion.
+
+	//lsb &= 0x30; /* Bits 5/4 represent the fractional component */
+	//lsb >>= 4; /* Get it right aligned */
+	//float pressure_decimal = (float)lsb/4.0; /* Turn it into fraction */
+
+	//float pressure = (float)pressure_whole + pressure_decimal;
+
 
 }
 
-static unsigned char *_registers = NULL;
-static int _register_references = 0;
+void _mp_drv_MPL3115A2_readAltimeterControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	float tempcsb = (operand->wait[2]>>4)/16.0;
+	float altitude = (float)( (operand->wait[0] << 8) | operand->wait[1]) + tempcsb;
+	mp_printk("Got altimeter information: %f ft", altitude);
+	mp_mem_free(MPL3115A2->kernel, operand->wait);
+	//mp_gpio_interrupt_enable(MPL3115A2->drdy);
+}
+
+void _mp_drv_MPL3115A2_readIntSource(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+
+	mp_printk("got read int source %x", operand->wait[0]);
+
+	if(operand->wait[0] & 0x80) {
+		unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 6);
+
+		mp_regMaster_read(
+			&MPL3115A2->regMaster,
+			&_registers[MPL3115A2_OUT_P_MSB], 1,
+			ptr, 6,
+			MPL3115A2->readerControl, MPL3115A2
+		);
+	}
+
+	mp_mem_free(MPL3115A2->kernel, operand->wait);
+}
+
+
 
 static void _mp_drv_MPL3115A2_ginit(mp_kernel_t *kernel) {
 	int a;
@@ -145,11 +182,9 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 			return(NULL);
 		}
 		mp_gpio_interrupt_hi2lo(MPL3115A2->drdy);
-
-
 	}
 	else {
-		mp_printk("MPL3115A2 require DRDY interrupt for the moment");
+		mp_printk("MPL3115A2(%p): require DRDY interrupt for the moment", MPL3115A2);
 		mp_i2c_close(&MPL3115A2->i2c);
 		return(NULL);
 	}
@@ -173,14 +208,77 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 		_mp_drv_MPL3115A2_onWhoIAm, MPL3115A2
 	);
 
+	/* set altimeter mode */
+	mp_drv_MPL3115A2_setModeAltimeter(MPL3115A2);
+
+	/* Enable Data Flags in PT_DATA_CFG */
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
+
+	*(ptr++) = MPL3115A2_PT_DATA_CFG;
+	*ptr = 0x07;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+	/* Set INT to Active Low Open Drain */
+	/*
+	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG3;
+	*ptr = 0x11;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+*/
+
+	/* Route DRDY INT to INT1 */
+	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG5;
+	*ptr = 0x80;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+	/* Enable DRDY Interrupt */
+	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG4;
+	*ptr = 0x80;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+	/* change OS timer */
+	mp_drv_MPL3115A2_OSTimer(MPL3115A2, MPL3115A_512MS);
+
+	/* active mode */
 	mp_drv_MPL3115A2_wakeUp(MPL3115A2);
 
+	/* get back reg1 */
 	mp_regMaster_read(
 		&MPL3115A2->regMaster,
 		&_registers[MPL3115A2_CTRL_REG1], 1,
 		(unsigned char *)&MPL3115A2->settings, 1,
 		_mp_drv_MPL3115A2_onSettings, MPL3115A2
 	);
+
 
 
 	/*
@@ -249,7 +347,7 @@ void mp_drv_MPL3115A2_wakeUp(mp_drv_MPL3115A2_t *MPL3115A2) {
 }
 
 void mp_drv_MPL3115A2_reset(mp_drv_MPL3115A2_t *MPL3115A2) {
-	MPL3115A2->settings |= (1<<2); //Set RST bit
+	MPL3115A2->settings |= (1<<2);
 	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
 	unsigned char *src = ptr;
 
@@ -261,11 +359,33 @@ void mp_drv_MPL3115A2_reset(mp_drv_MPL3115A2_t *MPL3115A2) {
 		src, 2,
 		_mp_drv_MPL3115A2_writeControl, MPL3115A2
 	);
+}
+
+mp_ret_t mp_drv_MPL3115A2_acquisitionTimeStep(mp_drv_MPL3115A2_t *MPL3115A2, unsigned char st) {
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
+	unsigned char control = st;
+
+	if(st > 15)
+		return(FALSE);
+
+	*(ptr++) = MPL3115A2_CTRL_REG2;
+	*ptr = control;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+	return(TRUE);
 }
 
 
 void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 	MPL3115A2->settings &= ~(1<<7); //Clear ALT bit
+	MPL3115A2->readerControl = _mp_drv_MPL3115A2_readPressureControl;
+
 	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
 	unsigned char *src = ptr;
 
@@ -277,11 +397,13 @@ void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 		src, 2,
 		_mp_drv_MPL3115A2_writeControl, MPL3115A2
 	);
+
 }
 
 
 void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2) {
 	MPL3115A2->settings |= (1<<7); //Set ALT bit
+	MPL3115A2->readerControl = _mp_drv_MPL3115A2_readAltimeterControl;
 	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
 	unsigned char *src = ptr;
 
@@ -293,6 +415,7 @@ void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2) {
 		src, 2,
 		_mp_drv_MPL3115A2_writeControl, MPL3115A2
 	);
+
 }
 
 void mp_drv_MPL3115A2_setSeaLevel(mp_drv_MPL3115A2_t *MPL3115A2, int Pa) {
@@ -307,161 +430,77 @@ void mp_drv_MPL3115A2_setSeaLevel(mp_drv_MPL3115A2_t *MPL3115A2, int Pa) {
 	//mp_printk("%x %x", msb, lsb);
 }
 
-float mp_drv_MPL3115A2_readPressure(mp_drv_MPL3115A2_t *MPL3115A2) {
-	unsigned char msb, csb, lsb;
 
-	/** \todo this function must be improved */
-
-	/* Check PDR bit, if it's not set then toggle OST */
-	if(mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_STATUS) & (1<<2) == 0) mp_drv_MPL3115A2_OST(MPL3115A2);
-
-	/* Wait for PDR bit, indicates we have new pressure data */
-	int counter = 0;
-	while(mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_STATUS) & (1<<2) == 0) {
-		if(++counter > 600) return(-999); //Error out after max of 512ms for a read
-		mp_clock_delay(1);
-	}
-
-	mp_i2c_mode(&MPL3115A2->i2c, 1);
-	mp_i2c_txStart(&MPL3115A2->i2c);
-
-	/* write register */
-	mp_i2c_tx(&MPL3115A2->i2c, MPL3115A2_OUT_P_MSB);
-	mp_i2c_waitTX(&MPL3115A2->i2c);
-
-	/* no stop let do a restart */
-	mp_i2c_mode(&MPL3115A2->i2c, 0); /* receiver */
-	mp_i2c_txStart(&MPL3115A2->i2c); /* start */
-
-	mp_i2c_waitRX(&MPL3115A2->i2c);
-	msb = mp_i2c_rx(&MPL3115A2->i2c);
-
-	mp_i2c_waitRX(&MPL3115A2->i2c);
-	csb = mp_i2c_rx(&MPL3115A2->i2c);
-
-	mp_i2c_waitRX(&MPL3115A2->i2c);
-	lsb = mp_i2c_rx(&MPL3115A2->i2c);
-
-	/* prepare stop */
-	mp_i2c_txStop(&MPL3115A2->i2c);
-
-	mp_drv_MPL3115A2_OST(MPL3115A2);
-
-	/* Pressure comes back as a left shifted 20 bit number */
-	unsigned long pressure_whole = (long)msb<<16 | (long)csb<<8 | (long)lsb;
-	pressure_whole >>= 6; //Pressure is an 18 bit number with 2 bits of decimal. Get rid of decimal portion.
-
-	lsb &= 0x30; /* Bits 5/4 represent the fractional component */
-	lsb >>= 4; /* Get it right aligned */
-	float pressure_decimal = (float)lsb/4.0; /* Turn it into fraction */
-
-	float pressure = (float)pressure_whole + pressure_decimal;
-
-	return(pressure);
-}
-
-float mp_drv_MPL3115A2_readAltitude(mp_drv_MPL3115A2_t *MPL3115A2) {
-	unsigned char msb, csb, lsb;
-
-	/** \todo this function must be improved */
-
-	/* Check PDR bit, if it's not set then toggle OST */
-	if(mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_STATUS) & (1<<2) == 0) mp_drv_MPL3115A2_OST(MPL3115A2);
-
-	/* Wait for PDR bit, indicates we have new pressure data */
-	int counter = 0;
-	while(mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_STATUS) & (1<<2) == 0) {
-		if(++counter > 600) return(-999); //Error out after max of 512ms for a read
-		mp_clock_delay(1);
-	}
-
-	mp_i2c_mode(&MPL3115A2->i2c, 1);
-	mp_i2c_txStart(&MPL3115A2->i2c);
-
-	/* write register */
-	mp_i2c_tx(&MPL3115A2->i2c, MPL3115A2_OUT_P_MSB);
-	mp_i2c_waitTX(&MPL3115A2->i2c);
-
-	/* no stop let do a restart */
-	mp_i2c_mode(&MPL3115A2->i2c, 0); /* receiver */
-	mp_i2c_txStart(&MPL3115A2->i2c); /* start */
-
-	mp_i2c_waitRX(&MPL3115A2->i2c);
-	msb = mp_i2c_rx(&MPL3115A2->i2c);
-
-	mp_i2c_waitRX(&MPL3115A2->i2c);
-	csb = mp_i2c_rx(&MPL3115A2->i2c);
-
-	mp_i2c_waitRX(&MPL3115A2->i2c);
-	lsb = mp_i2c_rx(&MPL3115A2->i2c);
-
-	/* prepare stop */
-	mp_i2c_txStop(&MPL3115A2->i2c);
-
-	mp_drv_MPL3115A2_OST(MPL3115A2);
-
-	float tempcsb = (lsb>>4)/16.0;
-
-	float altitude = (float)( (msb << 8) | csb) + tempcsb;
-
-	return(altitude);
-}
 
 void mp_drv_MPL3115A2_OST(mp_drv_MPL3115A2_t *MPL3115A2) {
-	MPL3115A2->settings &= ~(1<<1); //Clear OST bit
-	mp_drv_MPL3115A2_write(MPL3115A2, MPL3115A2_CTRL_REG1, MPL3115A2->settings);
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
 
-	MPL3115A2->settings |= (1<<1); //Set OST bit
-	mp_drv_MPL3115A2_write(MPL3115A2, MPL3115A2_CTRL_REG1, MPL3115A2->settings);
+	/* Clear OST bit */
+	MPL3115A2->settings &= ~(1<<1);
+
+	*(ptr++) = MPL3115A2_CTRL_REG1;
+	*ptr = MPL3115A2->settings;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+	/* Set OST bit */
+	MPL3115A2->settings |= (1<<1);
+
+	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG1;
+	*ptr = MPL3115A2->settings;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+
 }
 
-static unsigned short mp_drv_MPL3115A2_read(mp_drv_MPL3115A2_t *MPL3115A2, unsigned char regAddr) {
-	unsigned short val = 0;
+void mp_drv_MPL3115A2_OSTimer(mp_drv_MPL3115A2_t *MPL3115A2, mp_drv_MPL3115A_OS_t timer) {
+	MPL3115A2->settings |= (timer<<3);
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
 
-	mp_i2c_mode(&MPL3115A2->i2c, 1);
-	mp_i2c_txStart(&MPL3115A2->i2c);
+	*(ptr++) = MPL3115A2_CTRL_REG1;
+	*ptr = MPL3115A2->settings;
 
-	/* write register */
-	mp_i2c_tx(&MPL3115A2->i2c, regAddr);
-	mp_i2c_waitTX(&MPL3115A2->i2c);
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
 
-	/* no stop let do a restart */
-	mp_i2c_mode(&MPL3115A2->i2c, 0); /* receiver */
-	mp_i2c_txStart(&MPL3115A2->i2c); /* start */
-
-	/* get a char */
-	mp_i2c_waitRX(&MPL3115A2->i2c);
-	val = mp_i2c_rx(&MPL3115A2->i2c);
-
-	/* prepare stop */
-	mp_i2c_txStop(&MPL3115A2->i2c);
-
-	/* Return val */
-	return val;
 }
 
 
-static void mp_drv_MPL3115A2_write(mp_drv_MPL3115A2_t *MPL3115A2, unsigned char address, unsigned char writeByte) {
-	mp_i2c_mode(&MPL3115A2->i2c, 1);
-	mp_i2c_txStart(&MPL3115A2->i2c);
 
-    /* Send pointer byte */
-    mp_i2c_tx(&MPL3115A2->i2c, address);
-    mp_i2c_waitTX(&MPL3115A2->i2c);
-
-    /* Send byte */
-    mp_i2c_tx(&MPL3115A2->i2c, writeByte);
-    mp_i2c_waitTX(&MPL3115A2->i2c);
-
-    mp_i2c_txStop(&MPL3115A2->i2c);
-}
 
 static void _mp_drv_MPL3115A2_onDRDY(void *user) {
 	mp_drv_MPL3115A2_t *MPL3115A2 = user;
 
-	/* reroute asr */
-	MPL3115A2->task->signal = MP_TASK_SIG_PENDING;
+	P10OUT ^= 0xc0;
 
+	/* run read */
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 1);
+
+	mp_regMaster_read(
+		&MPL3115A2->regMaster,
+		&_registers[MPL3115A2_INT_SOURCE], 1,
+		ptr, 1,
+		_mp_drv_MPL3115A2_readIntSource, MPL3115A2
+	);
+
+	//mp_gpio_interrupt_disable(MPL3115A2->drdy);
 }
 
 

@@ -35,13 +35,13 @@
 
 		mp_gpio_port_t *drdy;
 
-		mp_task_t *task;
-
 		mp_sensor_t *sensor;
 
 		unsigned char settings;
 
 		char whoIam;
+
+		mp_regMaster_cb_t readerControl;
 	};
 
 	mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who);
@@ -51,6 +51,20 @@
 	void mp_drv_MPL3115A2_reset(mp_drv_MPL3115A2_t *MPL3115A2);
 	void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2);
 	void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2);
+	void mp_drv_MPL3115A2_OST(mp_drv_MPL3115A2_t *MPL3115A2);
+
+	typedef enum {
+		MPL3115A_6MS,
+		MPL3115A_10MS,
+		MPL3115A_18MS,
+		MPL3115A_34MS,
+		MPL3115A_66MS,
+		MPL3115A_130MS,
+		MPL3115A_258MS,
+		MPL3115A_512MS,
+	} mp_drv_MPL3115A_OS_t;
+
+	void mp_drv_MPL3115A2_OSTimer(mp_drv_MPL3115A2_t *MPL3115A2, mp_drv_MPL3115A_OS_t timer);
 
 	#define MPL3115A2_ADDRESS 0x60
 
