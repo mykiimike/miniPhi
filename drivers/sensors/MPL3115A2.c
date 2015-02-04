@@ -21,18 +21,6 @@
 
 #include <mp.h>
 
-/*
- * Freescale MPL3115A2 Altimeter / Barometer / Temperature
- *
- * INT1 is configured by design for DRDY interrupt.
- * DRDY must be connected to drive the read of datas.
- *
- * Breakouts available on :
- * https://www.sparkfun.com/products/11084
- * http://www.adafruit.com/product/1893
- * http://www.artekit.eu/products/breakout-boards/ak-mpl3115a2-altimeter-pressure-sensor-breakout/
- */
-
 #ifdef SUPPORT_DRV_MPL3115A2
 
 static void _mp_drv_MPL3115A2_onDRDY(void *user);
@@ -128,6 +116,64 @@ static void _mp_drv_MPL3115A2_gfini(mp_kernel_t *kernel) {
 		free(_registers);
 
 }
+
+/**
+@defgroup mpDriverFreescaleMPL3115A2 Freescale MPL3115A2
+
+@ingroup mpDriver
+
+@brief Freescale MPL3115A2 Altimeter / Barometer / Temperature
+
+@version 1.0.0
+
+@author @htmlonly &copy; @endhtmlonly 2015
+Michael Vergoz <mv@verman.fr>
+
+@date 03 Feb 2015
+
+Informations :
+@li <strong>INT1</strong> is configured by design for DRDY interrupt.
+@li <strong>DRDY</strong> must be connected to drive the read of datas.
+
+Breakouts available on :
+@li https://www.sparkfun.com/products/11084
+@li http://www.adafruit.com/product/1893
+@li http://www.artekit.eu/products/breakout-boards/ak-mpl3115a2-altimeter-pressure-sensor-breakout/
+
+
+Configuration for MPL3115A2 example :
+@li gate = USCI_B3 // msp430 based
+@li SDA = 10.1 / ext 1-17
+@li SCL = 10.2 / ext 1-16
+@li DRDY = 1.1 / ext 2-5
+
+Initializing the driver :
+@code
+typedef struct olimex_msp430_s olimex_msp430_t;
+
+struct olimex_msp430_s {
+	mp_kernel_t kernel;
+
+	mp_drv_MPL3115A2_t bat;
+};
+
+// [...]
+{
+	mp_options_t options[] = {
+		{ "gate", "USCI_B3" },
+		{ "sda", "p10.1" },
+		{ "clk", "p10.2" },
+		{ "drdy", "p1.1" },
+		{ NULL, NULL }
+	};
+
+	mp_drv_MPL3115A2_init(&olimex->kernel, &olimex->bat, options, "Freescale MPL3115A2");
+}
+@endcode
+
+@{
+*/
+
 
 mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who) {
 	char *value;
@@ -482,7 +528,7 @@ void mp_drv_MPL3115A2_OSTimer(mp_drv_MPL3115A2_t *MPL3115A2, mp_drv_MPL3115A_OS_
 
 }
 
-
+/**@}*/
 
 
 static void _mp_drv_MPL3115A2_onDRDY(void *user) {

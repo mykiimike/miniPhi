@@ -30,6 +30,56 @@ static void _mp_drv_TMP006_onDRDY(void *user);
 
 MP_TASK(_mp_drv_TMP006_ASR);
 
+/**
+@defgroup mpDriverTiTMP006 Ti TMP006
+
+@ingroup mpDriver
+
+@brief Ti TMP006 Object temperature
+
+@version 1.0.0
+
+@author @htmlonly &copy; @endhtmlonly 2015
+Michael Vergoz <mv@verman.fr>
+
+@date 03 Feb 2015
+
+
+Configuration for TMP006 example :
+@li gate = USCI_B3
+@li SDA = 10.1 / ext 1-17
+@li SCL = 10.2 / ext 1-16
+@li DRDY = 1.1 / ext 2-5
+
+Initializing the driver :
+@code
+typedef struct olimex_msp430_s olimex_msp430_t;
+
+struct olimex_msp430_s {
+	mp_kernel_t kernel;
+
+	mp_drv_TMP006_t tmp006;
+
+};
+
+// [...]
+{
+	mp_options_t options[] = {
+		{ "gate", "USCI_B3" },
+		{ "sda", "p10.1" },
+		{ "clk", "p10.2" },
+		{ "drdy", "p1.1" },
+		{ NULL, NULL }
+	};
+
+	mp_drv_TMP006_init(&olimex->kernel, &olimex->tmp006, options, "Ti TMP006");
+}
+@endcode
+
+@{
+*/
+
+
 mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who) {
 	unsigned short info1, info2;
 	char *value;
@@ -147,6 +197,8 @@ void mp_drv_TMP006_wakeUp(mp_drv_TMP006_t *TMP006) {
 
 	mp_drv_TMP006_write(TMP006, TMP006_REG_WRITE_REG, settings);
 }
+
+/**@}*/
 
 static unsigned short mp_drv_TMP006_read(mp_drv_TMP006_t *TMP006, unsigned char address) {
 	unsigned short val = 0;

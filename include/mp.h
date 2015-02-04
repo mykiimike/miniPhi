@@ -19,11 +19,17 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /**
-@defgroup mpCommon miniPhi base of system
+@defgroup mpCommon miniPhi Base of system
 
 @brief Implementation of features to build your firmware
 */
 
+
+/**
+@defgroup mpDriver miniPhi Drivers
+
+@brief Implementation of different chips on miniPhi
+*/
 
 /**
 @defgroup mpArch Architecture dependant implementation

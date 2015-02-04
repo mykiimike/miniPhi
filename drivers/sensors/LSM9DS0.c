@@ -14,7 +14,7 @@
  *                                                                         *
  * You should have received a copy of the GNU General Public License       *
  * along with this program; if not, write to the Free Software Foundation, *
- * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ * Inc., 51 Franklin STreet, Fifth Floor, Boston, MA 02110-1301  USA       *
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -41,6 +41,23 @@ static void _mp_drv_LSM9DS0_spi_readBytes(
 	mp_drv_LSM9DS0_t *LSM9DS0, mp_gpio_port_t *cs,
 	unsigned char subAddress, unsigned char * dest, unsigned char count
 );
+
+/**
+@defgroup mpDriverSTLSM9DS0 ST LSM9DS0
+
+@ingroup mpDriver
+
+@brief ST LSM9DS0 3-axis Accelerometer / Gyroscope / Magneto
+
+@version 1.0.0
+
+@author @htmlonly &copy; @endhtmlonly 2015
+Michael Vergoz <mv@verman.fr>
+
+@date 03 Feb 2015
+
+@{
+*/
 
 mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_options_t *options, char *who) {
 	char *value;
@@ -150,7 +167,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 	}
 
 	// To verify communication, we can read from the WHO_AM_I register of
-	// each device. Store those in a variable so we can return them.
+	// each device. STore those in a variable so we can return them.
 	unsigned char gTest = mp_drv_LSM9DS0_gReadByte(LSM9DS0, WHO_AM_I_G); // Read the gyro WHO_AM_I
 	unsigned char xmTest = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, WHO_AM_I_XM); // Read the accel/mag WHO_AM_I
 
@@ -203,10 +220,11 @@ mp_ret_t mp_drv_LSM9DS0_fini(mp_drv_LSM9DS0_t *LSM9DS0) {
 
 	mp_spi_close(&LSM9DS0->spi);
 
-	mp_printk("Stopping LSM9DS0 SPI binding");
+	mp_printk("STopping LSM9DS0 SPI binding");
 	return(TRUE);
 }
 
+/**@}*/
 
 static void _mp_drv_LSM9DS0_calcgRes(mp_drv_LSM9DS0_t *LSM9DS0) {
 	// Possible gyro scales (and their register bit settings) are:
@@ -247,17 +265,17 @@ static void _mp_drv_LSM9DS0_calcmRes(mp_drv_LSM9DS0_t *LSM9DS0) {
 void mp_drv_LSM9DS0_readAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
 	unsigned char temp[6]; // We'll read six bytes from the accelerometer into temp
 	mp_drv_LSM9DS0_xmReadBytes(LSM9DS0, OUT_X_L_A, temp, 6); // Read 6 bytes, beginning at OUT_X_L_A
-	LSM9DS0->ax = (temp[1] << 8) | temp[0]; // Store x-axis values into ax
-	LSM9DS0->ay = (temp[3] << 8) | temp[2]; // Store y-axis values into ay
-	LSM9DS0->az = (temp[5] << 8) | temp[4]; // Store z-axis values into az
+	LSM9DS0->ax = (temp[1] << 8) | temp[0]; // STore x-axis values into ax
+	LSM9DS0->ay = (temp[3] << 8) | temp[2]; // STore y-axis values into ay
+	LSM9DS0->az = (temp[5] << 8) | temp[4]; // STore z-axis values into az
 }
 
 void mp_drv_LSM9DS0_readMag(mp_drv_LSM9DS0_t *LSM9DS0) {
 	unsigned char temp[6]; // We'll read six bytes from the mag into temp
 	mp_drv_LSM9DS0_xmReadBytes(LSM9DS0, OUT_X_L_M, temp, 6); // Read 6 bytes, beginning at OUT_X_L_M
-	LSM9DS0->mx = (temp[1] << 8) | temp[0]; // Store x-axis values into mx
-	LSM9DS0->my = (temp[3] << 8) | temp[2]; // Store y-axis values into my
-	LSM9DS0->mz = (temp[5] << 8) | temp[4]; // Store z-axis values into mz
+	LSM9DS0->mx = (temp[1] << 8) | temp[0]; // STore x-axis values into mx
+	LSM9DS0->my = (temp[3] << 8) | temp[2]; // STore y-axis values into my
+	LSM9DS0->mz = (temp[5] << 8) | temp[4]; // STore z-axis values into mz
 }
 
 void mp_drv_LSM9DS0_readTemp(mp_drv_LSM9DS0_t *LSM9DS0) {
@@ -269,9 +287,9 @@ void mp_drv_LSM9DS0_readTemp(mp_drv_LSM9DS0_t *LSM9DS0) {
 void mp_drv_LSM9DS0_readGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
 	unsigned char temp[6]; // We'll read six bytes from the gyro into temp
 	mp_drv_LSM9DS0_gReadBytes(LSM9DS0, OUT_X_L_G, temp, 6); // Read 6 bytes, beginning at OUT_X_L_G
-	LSM9DS0->gx = (temp[1] << 8) | temp[0]; // Store x-axis values into gx
-	LSM9DS0->gy = (temp[3] << 8) | temp[2]; // Store y-axis values into gy
-	LSM9DS0->gz = (temp[5] << 8) | temp[4]; // Store z-axis values into gz
+	LSM9DS0->gx = (temp[1] << 8) | temp[0]; // STore x-axis values into gx
+	LSM9DS0->gy = (temp[3] << 8) | temp[2]; // STore y-axis values into gy
+	LSM9DS0->gz = (temp[5] << 8) | temp[4]; // STore z-axis values into gz
 }
 
 void mp_drv_LSM9DS0_initGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
