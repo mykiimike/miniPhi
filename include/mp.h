@@ -18,6 +18,20 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+/**
+@defgroup mpCommon miniPhi base of system
+
+@brief Implementation of features to build your firmware
+*/
+
+
+/**
+@defgroup mpArch Architecture dependant implementation
+
+@brief Differents processor architecture
+*/
+
+
 #ifndef _MP_H
 	#define _MP_H
 

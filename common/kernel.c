@@ -31,6 +31,8 @@ static void _mp_kernel_state_kpanic_tick(void *user);
 /**
 @defgroup mpCommonKernel miniPhi base of the kernel
 
+@ingroup mpCommon
+
 @brief Provides logical base for an embedded kernel
 
 @version 1.0.0

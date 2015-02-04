@@ -20,6 +20,24 @@
 
 #include <mp.h>
 
+/**
+@defgroup mpCommonTask Task manager
+
+@ingroup mpCommon
+
+@brief Create and control kernel task
+
+@version 1.0.0
+
+@author @htmlonly &copy; @endhtmlonly 2015
+Michael Vergoz <mv@verman.fr>
+
+@date 03 Feb 2015
+
+@{
+*/
+
+
 void mp_task_init(mp_task_handler_t *hdl) {
 	mp_task_t *task;
 	memset(hdl, 0, sizeof(*hdl));
@@ -173,3 +191,5 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 
 	return(MP_TASK_WORKING);
 }
+
+/**@}*/

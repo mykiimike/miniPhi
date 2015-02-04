@@ -28,6 +28,8 @@ void *mp_printk_user;
 /**
 @defgroup mpCommonPrintk printk() feature
 
+@ingroup mpCommon
+
 @brief Common kernel print
 
 @version 1.0.0

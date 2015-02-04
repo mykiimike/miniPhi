@@ -21,6 +21,11 @@
 #ifndef _HAVE_TASK_H
 	#define _HAVE_TASK_H
 
+	/**
+	 * @defgroup mpCommonTask
+	 * @{
+	 */
+
 	typedef struct mp_task_handler_s mp_task_handler_t;
 	typedef struct mp_task_s mp_task_t;
 
@@ -79,6 +84,8 @@
 		/** global signal */
 		mp_task_signal_t signal;
 	};
+
+	/** @} */
 
 	void mp_task_init(mp_task_handler_t *hdl);
 	void mp_task_fini(mp_task_handler_t *hdl);

@@ -46,6 +46,8 @@ static mp_mem_chunk_t *__allocated_heap_last = NULL;
 /**
 @defgroup mpCommonMem Memory allocator
 
+@ingroup mpCommon
+
 @brief Tiny memory allocation system
 
 @version 1.0.0

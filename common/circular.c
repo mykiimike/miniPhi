@@ -26,6 +26,8 @@ static void _mp_circular_dummyInt(mp_circular_t *cir);
 /**
 @defgroup mpCommonCircular Circular buffer
 
+@ingroup mpCommon
+
 @brief Circular queueing system
 
 @version 1.0.0

@@ -18,6 +18,19 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+/**
+@defgroup mpArchTiMSP430 Texas Instrument MSP430
+
+@ingroup mpArch
+
+@brief Ti MSP430 implementation
+
+@author @htmlonly &copy; @endhtmlonly 2015
+Michael Vergoz <mv@verman.fr>
+
+*/
+
+
 #ifndef _HAVE_MSP430_INTERNAL_H
 	#define _HAVE_MSP430_INTERNAL_H
 

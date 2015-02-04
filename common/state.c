@@ -23,6 +23,8 @@
 /**
 @defgroup mpCommonState Common state manager
 
+@ingroup mpCommon
+
 @brief States machine
 
 @version 1.0.0

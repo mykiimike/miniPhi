@@ -32,6 +32,8 @@ MP_TASK(mp_regMaster_asr);
 /**
 @defgroup mpCommonRegMaster Register Master communication
 
+@ingroup mpCommon
+
 @brief Circular register model for Master node
 
 @version 1.0.0
