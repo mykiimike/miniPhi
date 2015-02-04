@@ -23,6 +23,51 @@
 
 static void _mp_circular_dummyInt(mp_circular_t *cir);
 
+/**
+@defgroup mpCommonCircular Circular buffer
+
+@brief Circular queueing system
+
+@version 1.0.0
+
+@author @htmlonly &copy; @endhtmlonly 2015
+Michael Vergoz <mv@verman.fr>
+
+@date 03 Feb 2015
+
+This library supports circular buffering used into generaly in communication
+systems.
+Common circular buffering respects the heap organisation and the interrupt model.
+
+Example 1: Initiate context for RX
+@code
+// Circular context for RX
+ret = mp_circular_init(
+	kernel, &hdl->rxCir,
+	PHY_rxIntEnable, PHY_rxIntDisable
+);
+if(!ret) {
+	mp_printk("PHY: Can not create RX circular");
+	return(FALSE);
+}
+
+// place my user pointer
+serial->txCir.user = serial;
+@endcode
+
+@{
+*/
+
+/**
+ * @brief Initiate circular buffer context
+ *
+ * This initiates a circular buffer context
+ *
+ * @param[in] kernel Kernel handler
+ * @param[in] cir Circular context
+ * @param[in] enable Enable interrupt
+ * @param[in] disable Disable interrupt
+ */
 mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_int_t enable, mp_circular_int_t disable) {
 	memset(cir, 0, sizeof(*cir));
 
@@ -38,6 +83,14 @@ mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_i
 	return(TRUE);
 }
 
+/**
+ * @brief Terminate circular buffer context
+ *
+ * This terminate a circular buffer context by
+ * freeing all circular buffer.
+ *
+ * @param[in] cir Circular context
+ */
 void mp_circular_fini(mp_circular_t *cir) {
 	mp_circular_buffer_t *cur;
 	mp_circular_buffer_t *next;
@@ -141,6 +194,13 @@ mp_ret_t mp_circular_write(mp_circular_t *cir, unsigned char *data, int size) {
 	return(TRUE);
 }
 
+/**
+ * @brief Circular buffer RX interrupt handler
+ *
+ * This control RX buffer interrupt.
+ *
+ * @param[in] cir Circular context
+ */
 void mp_circular_rxInterrupt(mp_circular_t *cir, unsigned char c) {
 	mp_circular_buffer_t *buffer;
 
@@ -162,6 +222,19 @@ void mp_circular_rxInterrupt(mp_circular_t *cir, unsigned char c) {
 	cir->totalSize++;
 }
 
+/**
+ * @brief Circular buffer TX interrupt handler
+ *
+ * This control TX buffer interrupt.
+ * When there is no more buffer the *done pointer is set to YES and
+ * the returned char is not sent. If *done is set to NO then the
+ * function returns the unsigned char which must be sent by the
+ * PHY driver.
+ *
+ * @param[in] cir Circular context
+ * @param[out] done Interrupt status
+ * @return unsigned char has to be sent
+ */
 unsigned char mp_circular_txInterrupt(mp_circular_t *cir, mp_bool_t *done) {
 	mp_circular_buffer_t *buffer;
 	unsigned char ret;
@@ -210,11 +283,16 @@ unsigned char mp_circular_txInterrupt(mp_circular_t *cir, mp_bool_t *done) {
 	return(ret);
 }
 
+/**
+ * @brief Returns the circular buffer size
+ *
+ * This returns the circular buffer size
+ */
 int mp_circular_bufferSize() {
 	return(MP_CIRCULAR_BUFFER_SIZE);
-
 }
 
+/**@}*/
 
 static void _mp_circular_dummyInt(mp_circular_t *cir) { }
 

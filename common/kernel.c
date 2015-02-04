@@ -1,5 +1,24 @@
-#include <mp.h>
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2014  Michael VERGOZ                                      *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <mp.h>
 
 static void _mp_kernel_state_boot_set(void *user);
 static void _mp_kernel_state_boot_unset(void *user);
@@ -8,6 +27,23 @@ static void _mp_kernel_state_boot_tick(void *user);
 static void _mp_kernel_state_kpanic_set(void *user);
 static void _mp_kernel_state_kpanic_unset(void *user);
 static void _mp_kernel_state_kpanic_tick(void *user);
+
+/**
+@defgroup mpCommonKernel miniPhi base of the kernel
+
+@brief Provides logical base for an embedded kernel
+
+@version 1.0.0
+
+@author @htmlonly &copy; @endhtmlonly 2014
+Michael Vergoz <mv@verman.fr>
+
+@date 03 Feb 2015
+
+
+@{
+*/
+
 
 void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) {
 
@@ -89,6 +125,7 @@ void mp_kernel_loop(mp_kernel_t *kernel) {
 	}
 }
 
+/**@}*/
 
 void mp_kernel_panic(mp_kernel_t *kernel, int error) {
 

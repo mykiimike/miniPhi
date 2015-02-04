@@ -23,14 +23,19 @@
 	#define _HAVE_MP_COMMON_REGMASTER_H
 
 
+	#define MP_REGMASTER_STATE_TX 1
+	#define MP_REGMASTER_STATE_RX 2
+
+	/**
+	 * @defgroup mpCommonRegMaster
+	 * @{
+	 */
 	typedef struct mp_regMaster_op_s mp_regMaster_op_t;
 	typedef struct mp_regMaster_s mp_regMaster_t;
 
 	typedef void (*mp_regMaster_cb_t)(mp_regMaster_op_t *operand, mp_bool_t terminate);
 	typedef void (*mp_regMaster_int_t)(mp_regMaster_t *cirr);
 
-	#define MP_REGMASTER_STATE_TX 1
-	#define MP_REGMASTER_STATE_RX 2
 
 	struct mp_regMaster_op_s {
 		char state;
@@ -74,6 +79,8 @@
 
 
 	};
+
+	/** @} */
 
 	mp_ret_t mp_regMaster_init_i2c(
 		mp_kernel_t *kernel, mp_regMaster_t *cirr,

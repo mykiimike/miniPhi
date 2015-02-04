@@ -21,16 +21,30 @@
 #ifndef _HAVE_MP_COMMON_PRINTK
 	#define _HAVE_MP_COMMON_PRINTK
 
+	/**
+	 * @defgroup mpCommonPrintk
+	 * @{
+	 */
+
 	#ifdef _DEBUG
 		#define _DP(a, args...) mp_printk_call(mp_printk_user, "* %s(): "a, __func__, ##args)
 	#else
 		#define _DP(a, ...)
 	#endif
 
-
+	/**
+	 * @brief miniPhi printk()
+	 *
+	 * This function is the general call to output messages.
+	 *
+	 * @param[in] a Format string
+	 * @param[in] args Format argument
+	 */
 	#define mp_printk(a, args...) mp_printk_call(mp_printk_user, a, ##args)
 
 	typedef void (*mp_printk_call_t)(void *user, char *fmt, ...);
+
+	/**@}*/
 
 	extern mp_printk_call_t mp_printk_call;
 	extern void *mp_printk_user;

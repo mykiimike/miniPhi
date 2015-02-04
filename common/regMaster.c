@@ -30,6 +30,93 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag);
 MP_TASK(mp_regMaster_asr);
 
 /**
+@defgroup mpCommonRegMaster Register Master communication
+
+@brief Circular register model for Master node
+
+@version 1.0.0
+
+@author @htmlonly &copy; @endhtmlonly 2015
+Michael Vergoz <mv@verman.fr>
+
+@date 03 Feb 2015
+
+Examples
+
+Driver structure
+@code
+struct mp_drv_MPL3115A2_s {
+	mp_kernel_t *kernel;
+
+	mp_i2c_t i2c;
+	mp_regMaster_t regMaster;
+
+	// [...]
+};
+@endcode
+
+Before initializing regMaster you must setup the I2C or SPI interfaces.
+Here is an example using I2C
+
+@code
+ret = mp_regMaster_init_i2c(kernel, &MPL3115A2->regMaster,
+		&MPL3115A2->i2c, MPL3115A2, "MPL3115A2 I2C");
+if(ret == FALSE) {
+	mp_printk("MPL3115A2 error while creating regMaster context");
+	mp_i2c_close(&MPL3115A2->i2c);
+	return(NULL);
+}
+@endcode
+
+
+In regMaster a read operation comes with a write before to read.
+This is how register communication works.
+regMaster has it own queuing system which is splited in "operands".
+Each operand has a reg pointer and a wait pointer respectively are the
+register(s) to write and the data to receive.
+The allocation of those pointers are not managed by regMaster then you
+will have to control the buffer by yourself.
+
+There are two ways to control it. Use a .bss pointer which doesn't
+need to be free as followed :
+@code
+mp_regMaster_read(
+	&MPL3115A2->regMaster,
+	&_registers[MPL3115A2_WHO_AM_I], 1,
+	(unsigned char *)&MPL3115A2->whoIam, 1,
+	_mp_drv_MPL3115A2_onWhoIAm, MPL3115A2
+);
+@endcode
+
+Or use an allocated memory space in the HEAP to receive or emit information
+and then you will have to the end callback to free the buffer :
+@code
+void _mp_drv_MPL3115A2_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	// free allocated register
+	mp_mem_free(MPL3115A2->kernel, operand->reg);
+}
+
+// [...]
+
+unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+unsigned char *src = ptr;
+
+// forge the registers to write
+*(ptr++) = MPL3115A2_PT_DATA_CFG;
+*ptr = 0x07;
+
+mp_regMaster_write(
+	&MPL3115A2->regMaster,
+	src, 2,
+	_mp_drv_MPL3115A2_writeControl, MPL3115A2
+);
+@endcode
+
+@{
+*/
+
+/**
  * @brief Initiate circular register context
  *
  * This initiates a circular register context
@@ -184,6 +271,7 @@ mp_ret_t mp_regMaster_write(
 	return(TRUE);
 }
 
+/**@}*/
 
 static void _mp_regMaster_i2c_enableRX(mp_regMaster_t *cirr) {
 	mp_i2c_enable_rx(cirr->i2c);

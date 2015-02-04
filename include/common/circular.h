@@ -25,6 +25,12 @@
 	#define MP_CIRCULAR_BUFFER_SIZE \
 		(MP_MEM_CHUNK-MP_MEM_SPACING-(sizeof(unsigned short)*2)-sizeof(mp_circular_buffer_t *)-4)
 
+
+	/**
+	 * @defgroup mpCommonCircular
+	 * @{
+	 */
+
 	typedef struct mp_circular_s mp_circular_t;
 	typedef struct mp_circular_buffer_s mp_circular_buffer_t;
 
@@ -50,6 +56,8 @@
 
 		void *user;
 	};
+
+	/** @} */
 
 	mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_int_t enable, mp_circular_int_t disable);
 	void mp_circular_fini(mp_circular_t *cir);

@@ -1,6 +1,11 @@
 #ifndef _HAVE_MP_STATE_H
 	#define _HAVE_MP_STATE_H
 
+	/**
+	 * @defgroup mpCommonState
+	 * @{
+	 */
+
 	typedef struct mp_state_handler_s mp_state_handler_t;
 	typedef struct mp_state_s mp_state_t;
 
@@ -23,6 +28,8 @@
 		char changeState;
 
 	};
+
+	/** @} */
 
 	void mp_state_init(mp_state_handler_t *hdl);
 	void mp_state_fini(mp_state_handler_t *hdl);
