@@ -177,9 +177,17 @@ unsigned char mp_circular_txInterrupt(mp_circular_t *cir, mp_bool_t *done) {
 
 	if(buffer->size == buffer->pos) {
 		if(buffer->next) {
+			/* swap free buffer */
 			cir->first = buffer->next;
-
 			mp_mem_free(cir->kernel, buffer);
+			buffer = cir->first;
+
+			/* tx new buffer */
+			*done = NO;
+			ret = buffer->data[buffer->pos++];
+			cir->totalSize--;
+
+			return(ret);
 		}
 		else {
 			/* free last buffer */
