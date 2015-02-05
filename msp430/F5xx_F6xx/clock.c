@@ -1,3 +1,24 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2014  Michael VERGOZ                                      *
+ * Copyright (C) 2014  VERMAN                                              *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #include <mp.h>
 
 static unsigned char _inc_VCORE(unsigned char level);
@@ -58,6 +79,67 @@ static const char *_mp_clock_freq_name[] = {
 
 static mp_clock_t __frequency;
 
+/**
+@defgroup mpArchTiMSP430F5xx6xxClock The clock system
+
+@ingroup mpArchTiMSP430
+
+@brief The clock system for Ti MSP430 F5xx/F6xx
+
+@version 1.0.0
+
+@author @htmlonly &copy; @endhtmlonly 2015
+Michael Vergoz <mv@verman.fr>
+
+@date 03 Feb 2015
+
+The clock system for Ti MSP430 F5xx/F6xx is based on Ti UCS (Unified Clock System).
+
+The UCS module supports low system cost and ultralow power consumption. Using three internal clock
+signals, the user can select the best balance of performance and low power consumption. The UCS
+module can be configured to operate without any external components, with one or two external crystals,
+or with resonators, under full software control.
+
+The UCS module includes up to five clock sources:
+@li XT1CLK: Low-frequency or high-frequency oscillator that can be used either with low-frequency 32768
+Hz watch crystals, standard crystals, resonators, or external clock sources in the 4 MHz to 32 MHz
+range. XT1CLK can be used as a clock reference into the FLL. Some devices only support the low
+frequency oscillator for XT1CLK. See the device-specific data sheet for supported functions.
+@li VLOCLK: Internal very low power, low frequency oscillator with 10 kHz typical frequency
+@li REFOCLK: Internal, trimmed, low-frequency oscillator with 32768 Hz typical frequency, with the ability
+to be used as a clock reference into the FLL
+@li DCOCLK: Internal digitally-controlled oscillator (DCO) that can be stabilized by the FLL
+@li XT2CLK: Optional high-frequency oscillator that can be used with standard crystals, resonators, or
+external clock sources in the 4 MHz to 32 MHz range. XT2CLK can be used as a clock reference into
+the FLL.
+
+Three clock signals are available from the UCS module:
+@li ACLK: Auxiliary clock. The ACLK is software selectable as XT1CLK, REFOCLK, VLOCLK, DCOCLK,
+DCOCLKDIV, and when available, XT2CLK. DCOCLKDIV is the DCOCLK frequency divided by 1, 2, 4,
+8, 16, or 32 within the FLL block. ACLK can be divided by 1, 2, 4, 8, 16, or 32. ACLK/n is ACLK
+divided by 1, 2, 4, 8, 16, or 32 and is available externally at a pin. ACLK is software selectable by
+individual peripheral modules.
+@li MCLK: Master clock. MCLK is software selectable as XT1CLK, REFOCLK, VLOCLK, DCOCLK,
+DCOCLKDIV, and when available, XT2CLK. DCOCLKDIV is the DCOCLK frequency divided by 1, 2, 4,
+8, 16, or 32 within the FLL block. MCLK can be divided by 1, 2, 4, 8, 16, or 32. MCLK is used by the
+CPU and system.
+@li SMCLK: Subsystem master clock. SMCLK is software selectable as XT1CLK, REFOCLK, VLOCLK,
+DCOCLK, DCOCLKDIV, and when available, XT2CLK. DCOCLKDIV is the DCOCLK frequency divided
+by 1, 2, 4, 8, 16, or 32 within the FLL block. SMCLK can be divided by 1, 2, 4, 8, 16, or 32. SMCLK is
+software selectable by individual peripheral modules.
+
+Depending the maximum CPU frequency miniPhi will choose the best way to drive clocks on the device.
+
+@li ACLK is driven by XT1 at anytime fixed to 32Khz
+@li MCLK could be driven by XT1 or XT2 depending if MP_CLOCK_XT2_DRIVE is set and the kernel is running
+in high power mode. At full speed the MCLK is driven by XT2 is possible.
+@li SCLK could be driven by XT1 or XT2
+
+You can specify the frequency of each oscillator by setting MP_CLOCK_XT1_FREQ and MP_CLOCK_XT2_FREQ
+
+@{
+
+*/
 mp_ret_t mp_clock_init(mp_kernel_t *kernel) {
 	/* start crystal oscillo */
 	__start_crystal();
@@ -107,6 +189,8 @@ unsigned long mp_clock_get_speed() {
 const char *mp_clock_name(mp_clock_t clock) {
 	return(_mp_clock_freq_name[clock]);
 }
+
+/** @} */
 
 /* The following function is a utility function the is used to */
 /* increment the VCore setting to the specified value. */
@@ -210,7 +294,7 @@ static void _system_clock(mp_clock_t freq) {
 #endif
 
 	/* Get the CPU settings for the specified freq. */
-	cpu_settings = &_mp_clock_freq_settings[freq - MHZ8_t];
+	cpu_settings = &_mp_clock_freq_settings[freq];
 
 	/* set global frequency */
 	__frequency = freq;
