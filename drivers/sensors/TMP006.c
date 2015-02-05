@@ -30,6 +30,12 @@ static void _mp_drv_TMP006_onDRDY(void *user);
 
 MP_TASK(_mp_drv_TMP006_ASR);
 
+static void _mp_drv_TMP006_onManufacturerID(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_TMP006_onDeviceID(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_TMP006_onSettings(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_TMP006_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_TMP006_onVoid(mp_regMaster_op_t *operand, mp_bool_t terminate);
+
 /**
 @defgroup mpDriverTiTMP006 Ti TMP006
 
@@ -132,18 +138,6 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 			return(NULL);
 		}
 		mp_gpio_interrupt_hi2lo(TMP006->drdy);
-
-		mp_drv_TMP006_write(
-			TMP006, TMP006_REG_WRITE_REG,
-			TMP006_CFG_RESET
-		);
-
-		/* enable */
-		mp_drv_TMP006_write(
-			TMP006, TMP006_REG_WRITE_REG,
-			TMP006_CFG_MODEON + TMP006_CFG_8SAMPLE + TMP006_CFG_DRDYEN
-		);
-
 	}
 	else {
 		mp_printk("TMP006 require DRDY interrupt for the moment");
@@ -151,18 +145,82 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 		return(NULL);
 	}
 
-	/* create ASR task */
-	TMP006->task = mp_task_create(&kernel->tasks, "TMP006 ASR", _mp_drv_TMP006_ASR, TMP006, 0);
-	TMP006->task->signal = MP_TASK_SIG_SLEEP;
+
+	/* create regmaster control */
+	ret = mp_regMaster_init_i2c(kernel, &TMP006->regMaster,
+			&TMP006->i2c, TMP006, "TMP006 I2C");
+	if(ret == FALSE) {
+		mp_printk("TMP006 error while creating regMaster context");
+		mp_gpio_release(TMP006->drdy);
+		mp_i2c_close(&TMP006->i2c);
+		return(NULL);
+	}
+
+	mp_printk("TMP006(%p): Initializing", TMP006);
+
+	mp_regMaster_readExt(
+		&TMP006->regMaster,
+		mp_regMaster_register(TMP006_REG_WRITE_REG), 1,
+		(unsigned char *)&TMP006->settings, 2,
+		_mp_drv_TMP006_onSettings, TMP006,
+		TRUE
+	);
+
+	/* read manufacturer */
+	mp_regMaster_readExt(
+		&TMP006->regMaster,
+		mp_regMaster_register(TMP006_REG_MAN_ID), 1,
+		(unsigned char *)&TMP006->manufacturerId, 2,
+		_mp_drv_TMP006_onManufacturerID, TMP006,
+		TRUE
+	);
+
+	/* check for device id */
+	mp_regMaster_readExt(
+		&TMP006->regMaster,
+		mp_regMaster_register(TMP006_REG_DEVICE_ID), 1,
+		(unsigned char *)&TMP006->deviceId, 2,
+		_mp_drv_TMP006_onDeviceID, TMP006,
+		TRUE
+	);
+
+
+	/*
+	mp_regMaster_readExt(
+		&TMP006->regMaster,
+		mp_regMaster_register(TMP006_REG_MAN_ID), 1,
+		(unsigned char *)&TMP006->deviceId, 2,
+		_mp_drv_TMP006_onDeviceID, TMP006,
+		FALSE
+	);
+	*/
+
+	/* setup drdy */
+	/*
+	mp_drv_TMP006_write(
+		TMP006, TMP006_REG_WRITE_REG,
+		TMP006_CFG_RESET
+	);
+	*/
+	/* enable */
+	/*
+	mp_drv_TMP006_write(
+		TMP006, TMP006_REG_WRITE_REG,
+		TMP006_CFG_MODEON + TMP006_CFG_8SAMPLE + TMP006_CFG_DRDYEN
+	);
+	*/
+
 
 	/* create sensor */
 	TMP006->sensor = mp_sensor_register(kernel, MP_SENSOR_TEMPERATURE, who);
 
 	/* check for communication */
+	/*
 	info1 = mp_drv_TMP006_read(TMP006, TMP006_REG_MAN_ID);
 	info2 = mp_drv_TMP006_read(TMP006, TMP006_REG_DEVICE_ID);
 
 	mp_printk("Loading TMP006 driver manId=0x%x deviceId=0x%x", info1, info2);
+	*/
 
 	return(TMP006->sensor);
 }
@@ -231,31 +289,18 @@ static unsigned short mp_drv_TMP006_read(mp_drv_TMP006_t *TMP006, unsigned char 
 
 
 static void mp_drv_TMP006_write(mp_drv_TMP006_t *TMP006, unsigned char address, unsigned short writeByte) {
-    /* I2C TX, start condition
-     * This will also send out slave address
-     */
-	mp_i2c_mode(&TMP006->i2c, 1);
-	mp_i2c_txStart(&TMP006->i2c);
+	unsigned char *ptr = mp_mem_alloc(TMP006->kernel, 3);
+	unsigned char *src = ptr;
 
-    /* Send pointer byte */
-    mp_i2c_tx(&TMP006->i2c, address);
+	*(ptr++) = address;
+	*(ptr++) = (unsigned char)(writeByte>>8);
+	*(ptr++) = (unsigned char)(writeByte&0x0F);
 
-    /* Wait for TX buffer to empty */
-    mp_i2c_waitTX(&TMP006->i2c);
-
-    /* Send MSB byte */
-    mp_i2c_tx(&TMP006->i2c, (unsigned char)(writeByte>>8));
-
-    /* Wait for TX buffer to empty */
-    mp_i2c_waitTX(&TMP006->i2c);
-
-    /* Send LSB byte */
-    mp_i2c_tx(&TMP006->i2c, (unsigned char)(writeByte&0x0F));
-
-    /* Wait for TX buffer to empty */
-    mp_i2c_waitTX(&TMP006->i2c);
-
-    mp_i2c_txStop(&TMP006->i2c);
+	mp_regMaster_write(
+		&TMP006->regMaster,
+		src, 3,
+		_mp_drv_TMP006_writeControl, TMP006
+	);
 }
 
 static unsigned short mp_drv_TMP006_readRawDieTemperature(mp_drv_TMP006_t *TMP006) {
@@ -302,8 +347,9 @@ static float mp_drv_TMP006_readObjTempC(mp_drv_TMP006_t *TMP006) {
 static void _mp_drv_TMP006_onDRDY(void *user) {
 	mp_drv_TMP006_t *TMP006 = user;
 
+	P10OUT ^= 0xc0;
 	/* reroute asr */
-	TMP006->task->signal = MP_TASK_SIG_PENDING;
+	//TMP006->task->signal = MP_TASK_SIG_PENDING;
 
 }
 
@@ -322,6 +368,64 @@ MP_TASK(_mp_drv_TMP006_ASR) {
 
 	TMP006->task->signal = MP_TASK_SIG_SLEEP;
 }
+
+
+static void _mp_drv_TMP006_onManufacturerID(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+
+	if(TMP006->manufacturerId != 0x5449) {
+		mp_printk("TMP006(%p): Got manufacturer ID 0x%x (bad), terminating", operand->user, TMP006->manufacturerId);
+		mp_regMaster_fini(&TMP006->regMaster);
+	}
+	else
+		mp_printk("TMP006(%p): Got manufacturer ID 0x%x (good)", operand->user, TMP006->manufacturerId);
+}
+
+static void _mp_drv_TMP006_onDeviceID(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+
+	if(TMP006->deviceId != 0x67) {
+		mp_printk("TMP006(%p): Got device ID 0x%x (bad), terminating", operand->user, TMP006->deviceId);
+		mp_regMaster_fini(&TMP006->regMaster);
+	}
+	else {
+		mp_printk("TMP006(%p): Got device ID 0x%x (good)", operand->user, TMP006->deviceId);
+
+		mp_drv_TMP006_write(
+			TMP006, TMP006_REG_WRITE_REG,
+			TMP006_CFG_MODEON + TMP006_CFG_8SAMPLE + TMP006_CFG_DRDYEN
+		);
+	}
+}
+
+static void _mp_drv_TMP006_onSettings(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+
+	mp_printk("TMP006(%p): Initial settings is 0x%x", operand->user, TMP006->settings);
+
+
+
+}
+
+static void _mp_drv_TMP006_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+	mp_mem_free(TMP006->kernel, operand->reg);
+	//mp_printk("TMP006(%p): Got write control", operand->user);
+}
+
+
+static void _mp_drv_TMP006_onRawDieTemperature(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+
+
+
+}
+
+static void _mp_drv_TMP006_onRawVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+
+
+
+}
+
 
 #endif
 

@@ -32,9 +32,16 @@
 		mp_i2c_t i2c;
 		mp_gpio_port_t *drdy;
 
+		mp_regMaster_t regMaster;
+
 		mp_task_t *task;
 
 		mp_sensor_t *sensor;
+
+		unsigned short deviceId;
+		unsigned short manufacturerId;
+
+		unsigned short settings;
 
 	};
 

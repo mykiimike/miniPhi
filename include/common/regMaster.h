@@ -51,6 +51,9 @@
 		mp_regMaster_cb_t callback;
 		void *user;
 
+		/** Activate swap */
+		mp_bool_t swap;
+
 		mp_list_item_t item;
 	};
 
@@ -76,9 +79,34 @@
 
 		mp_task_t *asr;
 
-
-
 	};
+
+	/**
+	 * @brief Start circular register read operation
+	 *
+	 * This initiates a read operation using circular register.
+	 *
+	 * When callback() is executed you must take care of the allocated
+	 * pointer (if used). The terminate boolean argument is set to TRUE
+	 * to notify whether regMaster has been shutdown.
+	 * In this case you must stop actions and free buffers if needed.
+	 *
+	 * @param[in] cirr Circular context.
+	 * @param[in] reg Registers to write
+	 * @param[in] regSize Size of the registers to write
+	 * @param[out] wait Buffer to fill
+	 * @param[in] waitSize Number of bytes to read. wait allocation must be aligned with waitSize.
+	 * @param[in] callback Callback executed on the end of operation
+	 * @param[in] user User pointer embedded and passed as argument
+	 */
+	static inline mp_ret_t mp_regMaster_read(
+			mp_regMaster_t *cirr,
+			unsigned char *reg, int regSize,
+			unsigned char *wait, int waitSize,
+			mp_regMaster_cb_t callback, void *user
+		) {
+		return(mp_regMaster_readExt(cirr, reg, regSize, wait, waitSize, callback, user, FALSE));
+	}
 
 	/** @} */
 
@@ -89,16 +117,17 @@
 		char *who
 	);
 	void mp_regMaster_fini(mp_regMaster_t *cirr);
-	mp_ret_t mp_regMaster_read(
+	mp_ret_t mp_regMaster_readExt(
 		mp_regMaster_t *cirr,
 		unsigned char *reg, int regSize,
 		unsigned char *wait, int waitSize,
-		mp_regMaster_cb_t callback, void *user
+		mp_regMaster_cb_t callback, void *user,
+		mp_bool_t swap
 	);
 	mp_ret_t mp_regMaster_write(
 		mp_regMaster_t *cirr,
 		unsigned char *reg, int regSize,
 		mp_regMaster_cb_t callback, void *user
 	);
-
+	unsigned char *mp_regMaster_register(unsigned char reg);
 #endif

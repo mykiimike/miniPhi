@@ -29,6 +29,29 @@ static void _mp_regMaster_i2c_disableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag);
 MP_TASK(mp_regMaster_asr);
 
+static unsigned char *_registers = NULL;
+static int _register_references = 0;
+
+static void _mp_regMaster_ginit(mp_kernel_t *kernel) {
+	int a;
+
+	if(_registers)
+		return;
+
+	_registers = malloc(256);
+	for(a=0; a<256; a++)
+		_registers[a] = a;
+
+	_register_references++;
+}
+
+static void _mp_regMaster_gfini(mp_kernel_t *kernel) {
+	_register_references--;
+	if(_register_references == 0)
+		free(_registers);
+
+}
+
 /**
 @defgroup mpCommonRegMaster Register Master communication
 
@@ -135,6 +158,9 @@ mp_ret_t mp_regMaster_init_i2c(
 	) {
 	memset(cirr, 0, sizeof(*cirr));
 
+	/* run ginit */
+	_mp_regMaster_ginit(kernel);
+
 	cirr->kernel = kernel;
 
 	mp_list_init(&cirr->pending);
@@ -172,6 +198,8 @@ mp_ret_t mp_regMaster_init_i2c(
  * @param[in] cirr Circular context.
  */
 void mp_regMaster_fini(mp_regMaster_t *cirr) {
+
+
 	/* regMaster is destructed using ASR task then
 	 * we just send stop signal and disable interrupts */
 	mp_task_destroy(cirr->asr);
@@ -182,7 +210,7 @@ void mp_regMaster_fini(mp_regMaster_t *cirr) {
 
 
 /**
- * @brief Start circular register read operation
+ * @brief Extended circular register read operation
  *
  * This initiates a read operation using circular register.
  *
@@ -198,12 +226,14 @@ void mp_regMaster_fini(mp_regMaster_t *cirr) {
  * @param[in] waitSize Number of bytes to read. wait allocation must be aligned with waitSize.
  * @param[in] callback Callback executed on the end of operation
  * @param[in] user User pointer embedded and passed as argument
+ * @param[in] swap set to TRUE to swap RX buffer
  */
-mp_ret_t mp_regMaster_read(
+mp_ret_t mp_regMaster_readExt(
 		mp_regMaster_t *cirr,
 		unsigned char *reg, int regSize,
 		unsigned char *wait, int waitSize,
-		mp_regMaster_cb_t callback, void *user
+		mp_regMaster_cb_t callback, void *user,
+		mp_bool_t swap
 	) {
 	mp_regMaster_op_t *operand;
 
@@ -223,6 +253,8 @@ mp_ret_t mp_regMaster_read(
 
 	operand->callback = callback;
 	operand->user = user;
+
+	operand->swap = swap;
 
 	/* add operand at last pending */
 	mp_list_add_last(&cirr->pending, &operand->item, operand);
@@ -271,6 +303,20 @@ mp_ret_t mp_regMaster_write(
 	if(cirr->asr->signal == MP_TASK_SIG_SLEEP)
 		cirr->asr->signal = MP_TASK_SIG_PENDING;
 	return(TRUE);
+}
+
+/**
+ * @brief Get HEAP memory for register
+ *
+ * This function is very useful because it allows to get a valid HEAP pointer which contains the register to write.
+ * In this case you don't need to allocate or free register after its usage.
+ * Only limitation register is limited to 8bits.
+ *
+ * @param[in] reg Register content
+ * @return HEAP memory pointer contains the register
+ */
+unsigned char *mp_regMaster_register(unsigned char reg) {
+	return(&_registers[reg]);
 }
 
 /**@}*/
@@ -334,11 +380,18 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 
 		rest = operand->waitSize-operand->waitPos-1;
 
-		if(rest == 0) {
+		if(rest == 1) {
 			if(operand->waitSize > 1)
 				mp_i2c_txStop(i2c);
+		}
 
-			operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
+		if(rest == 0) {
+			if(!operand->swap)
+				operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
+			else {
+				operand->wait[rest] = mp_i2c_rx(i2c);
+				operand->waitPos++;
+			}
 
 			/* switch buffer into ASR space */
 			mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
@@ -348,8 +401,14 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 			cirr->disableTX(cirr);
 		}
 		else {
-			operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
+			if(!operand->swap)
+				operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
+			else {
+				operand->wait[rest] = mp_i2c_rx(i2c);
+				operand->waitPos++;
+			}
 		}
+
 	}
 
 	return;
@@ -398,6 +457,9 @@ MP_TASK(mp_regMaster_asr) {
 
 		/* close i2c interface */
 		mp_i2c_close(cirr->i2c);
+
+		/* run ginit */
+		_mp_regMaster_gfini(cirr->kernel);
 
 		/* acknowledging */
 		task->signal = MP_TASK_SIG_DEAD;
