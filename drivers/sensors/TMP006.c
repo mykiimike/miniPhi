@@ -23,18 +23,15 @@
 
 #ifdef SUPPORT_DRV_TMP006
 
-static unsigned short mp_drv_TMP006_read(mp_drv_TMP006_t *TMP006, unsigned char address);
 static void mp_drv_TMP006_write(mp_drv_TMP006_t *TMP006, unsigned char address, unsigned short writeByte);
-static float mp_drv_TMP006_readObjTempC(mp_drv_TMP006_t *TMP006);
 static void _mp_drv_TMP006_onDRDY(void *user);
-
-MP_TASK(_mp_drv_TMP006_ASR);
 
 static void _mp_drv_TMP006_onManufacturerID(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _mp_drv_TMP006_onDeviceID(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _mp_drv_TMP006_onSettings(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _mp_drv_TMP006_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate);
-static void _mp_drv_TMP006_onVoid(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_TMP006_onRawDieTemperature(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_TMP006_onRawVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate);
 
 /**
 @defgroup mpDriverTiTMP006 Ti TMP006
@@ -85,9 +82,7 @@ struct olimex_msp430_s {
 @{
 */
 
-
 mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who) {
-	unsigned short info1, info2;
 	char *value;
 	mp_ret_t ret;
 
@@ -145,7 +140,6 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 		return(NULL);
 	}
 
-
 	/* create regmaster control */
 	ret = mp_regMaster_init_i2c(kernel, &TMP006->regMaster,
 			&TMP006->i2c, TMP006, "TMP006 I2C");
@@ -184,43 +178,8 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 		TRUE
 	);
 
-
-	/*
-	mp_regMaster_readExt(
-		&TMP006->regMaster,
-		mp_regMaster_register(TMP006_REG_MAN_ID), 1,
-		(unsigned char *)&TMP006->deviceId, 2,
-		_mp_drv_TMP006_onDeviceID, TMP006,
-		FALSE
-	);
-	*/
-
-	/* setup drdy */
-	/*
-	mp_drv_TMP006_write(
-		TMP006, TMP006_REG_WRITE_REG,
-		TMP006_CFG_RESET
-	);
-	*/
-	/* enable */
-	/*
-	mp_drv_TMP006_write(
-		TMP006, TMP006_REG_WRITE_REG,
-		TMP006_CFG_MODEON + TMP006_CFG_8SAMPLE + TMP006_CFG_DRDYEN
-	);
-	*/
-
-
 	/* create sensor */
 	TMP006->sensor = mp_sensor_register(kernel, MP_SENSOR_TEMPERATURE, who);
-
-	/* check for communication */
-	/*
-	info1 = mp_drv_TMP006_read(TMP006, TMP006_REG_MAN_ID);
-	info2 = mp_drv_TMP006_read(TMP006, TMP006_REG_DEVICE_ID);
-
-	mp_printk("Loading TMP006 driver manId=0x%x deviceId=0x%x", info1, info2);
-	*/
 
 	return(TMP006->sensor);
 }
@@ -228,64 +187,63 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 void mp_drv_TMP006_fini(mp_drv_TMP006_t *TMP006) {
 	mp_printk("Unloading TMP006 driver");
 
-	mp_task_destroy(TMP006->task);
+	mp_regMaster_fini(&TMP006->regMaster);
 }
 
-
+/**
+ * @brief Power down TMP006
+ *
+ * @param[in] TMP006 context
+ */
 void mp_drv_TMP006_sleep(mp_drv_TMP006_t *TMP006) {
-	unsigned int settings;
+	/* Power-down TMP006 */
+	TMP006->settings &= ~(TMP006_CFG_MODEON);
 
-	/* Read current settings */
-	settings = mp_drv_TMP006_read(TMP006, TMP006_REG_WRITE_REG);
-
-	/* Power-up TMP006 */
-	settings &= ~(TMP006_CFG_MODEON);
-
-	mp_drv_TMP006_write(TMP006, TMP006_REG_WRITE_REG, settings);
+	mp_drv_TMP006_write(
+		TMP006, TMP006_REG_WRITE_REG,
+		TMP006->settings
+	);
 }
 
+/**
+ * @brief Power up TMP006
+ *
+ * @param[in] TMP006 context
+ */
 void mp_drv_TMP006_wakeUp(mp_drv_TMP006_t *TMP006) {
-	unsigned int settings;
-
-	/* Read current settings */
-	settings = mp_drv_TMP006_read(TMP006, TMP006_REG_WRITE_REG);
-
 	/* Power-up TMP006 */
-	settings |= TMP006_CFG_MODEON;
+	TMP006->settings |= TMP006_CFG_MODEON | TMP006_CFG_DRDYEN;
 
-	mp_drv_TMP006_write(TMP006, TMP006_REG_WRITE_REG, settings);
+	mp_drv_TMP006_write(
+		TMP006, TMP006_REG_WRITE_REG,
+		TMP006->settings
+	);
 }
+
+/**
+ * @brief Change sample rate for TMP006
+ *
+ * @param[in] TMP006 context
+ * @param[in] sample Sample rate possible value are :
+ * @li @ref TMP006_CFG_1SAMPLE : conversion rate 4 per second
+ * @li @ref TMP006_CFG_2SAMPLE : conversion rate 2 per second
+ * @li @ref TMP006_CFG_4SAMPLE : conversion rate 1 per second
+ * @li @ref TMP006_CFG_8SAMPLE : conversion rate 0.5 per second
+ * @li @ref TMP006_CFG_16SAMPLE : conversion rate 0.25 per second
+ */
+void mp_drv_TMP006_sample(mp_drv_TMP006_t *TMP006, mp_drv_TMP006_sample_t sample) {
+	/* Change TMP006 sample rate */
+	TMP006->settings |= sample;
+
+	mp_drv_TMP006_write(
+		TMP006, TMP006_REG_WRITE_REG,
+		TMP006->settings
+	);
+}
+
+
 
 /**@}*/
-
-static unsigned short mp_drv_TMP006_read(mp_drv_TMP006_t *TMP006, unsigned char address) {
-	unsigned short val = 0;
-
-	mp_i2c_mode(&TMP006->i2c, 1);
-	mp_i2c_txStart(&TMP006->i2c);
-
-	/* write register */
-	mp_i2c_tx(&TMP006->i2c, address);
-	mp_i2c_waitTX(&TMP006->i2c);
-
-	/* no stop let do a restart */
-	mp_i2c_mode(&TMP006->i2c, 0); /* receiver */
-	mp_i2c_txStart(&TMP006->i2c); /* start */
-
-	/* get a char */
-	mp_i2c_waitRX(&TMP006->i2c);
-	val = mp_i2c_rx(&TMP006->i2c)<<8;
-
-	/* prepare stop */
-	mp_i2c_txStop(&TMP006->i2c);
-
-	/* and receive last char */
-	mp_i2c_waitRX(&TMP006->i2c);
-	val |= mp_i2c_rx(&TMP006->i2c);
-
-	/* Return val */
-	return val;
-}
 
 
 static void mp_drv_TMP006_write(mp_drv_TMP006_t *TMP006, unsigned char address, unsigned short writeByte) {
@@ -303,20 +261,87 @@ static void mp_drv_TMP006_write(mp_drv_TMP006_t *TMP006, unsigned char address, 
 	);
 }
 
-static unsigned short mp_drv_TMP006_readRawDieTemperature(mp_drv_TMP006_t *TMP006) {
-	unsigned short raw = mp_drv_TMP006_read(TMP006, TMP006_REG_TABT);
-	raw >>= 2;
-	return(raw);
+
+
+static void _mp_drv_TMP006_onDRDY(void *user) {
+	mp_drv_TMP006_t *TMP006 = user;
+
+	/* read die T */
+	mp_regMaster_readExt(
+		&TMP006->regMaster,
+		mp_regMaster_register(TMP006_REG_TABT), 1,
+		(unsigned char *)&TMP006->rawDieTemperature, 2,
+		_mp_drv_TMP006_onRawDieTemperature, TMP006,
+		TRUE
+	);
+
+	/* read voltage */
+	mp_regMaster_readExt(
+		&TMP006->regMaster,
+		mp_regMaster_register(TMP006_REG_VOBJ), 1,
+		(unsigned char *)&TMP006->rawVoltage, 2,
+		_mp_drv_TMP006_onRawVoltage, TMP006,
+		TRUE
+	);
 }
 
-static unsigned short mp_drv_TMP006_readRawVoltage(mp_drv_TMP006_t *TMP006) {
-	unsigned short raw = mp_drv_TMP006_read(TMP006, TMP006_REG_VOBJ);
-	return(raw);
+static void _mp_drv_TMP006_onManufacturerID(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+
+	if(TMP006->manufacturerId != 0x5449) {
+		mp_printk("TMP006(%p): Got manufacturer ID 0x%x (bad), terminating", operand->user, TMP006->manufacturerId);
+		mp_regMaster_fini(&TMP006->regMaster);
+	}
+	else
+		mp_printk("TMP006(%p): Got manufacturer ID 0x%x (good)", operand->user, TMP006->manufacturerId);
 }
 
-static float mp_drv_TMP006_readObjTempC(mp_drv_TMP006_t *TMP006) {
-	float Tdie = mp_drv_TMP006_readRawDieTemperature(TMP006);
-	float Vobj = mp_drv_TMP006_readRawVoltage(TMP006);
+static void _mp_drv_TMP006_onDeviceID(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+
+	if(TMP006->deviceId != 0x67) {
+		mp_printk("TMP006(%p): Got device ID 0x%x (bad), terminating", operand->user, TMP006->deviceId);
+		mp_regMaster_fini(&TMP006->regMaster);
+	}
+	else {
+		mp_printk("TMP006(%p): Got device ID 0x%x (good)", operand->user, TMP006->deviceId);
+
+		/* start interrupt  */
+		mp_drv_TMP006_write(
+			TMP006, TMP006_REG_WRITE_REG,
+			TMP006_CFG_MODEON + TMP006_CFG_DRDYEN
+		);
+
+		/* change default sample rate */
+		mp_drv_TMP006_sample(TMP006, TMP006_CFG_8SAMPLE);
+	}
+}
+
+static void _mp_drv_TMP006_onSettings(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+	mp_printk("TMP006(%p): Initial settings is 0x%x", operand->user, TMP006->settings);
+}
+
+static void _mp_drv_TMP006_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+	mp_mem_free(TMP006->kernel, operand->reg);
+}
+
+
+
+static void _mp_drv_TMP006_onRawDieTemperature(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+	TMP006->rawDieTemperature >>= 2;
+	mp_printk("TMP006(%p): Got RawDieTemperature %x", operand->user, TMP006->rawDieTemperature);
+}
+
+static void _mp_drv_TMP006_onRawVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_TMP006_t *TMP006 = operand->user;
+	mp_printk("TMP006(%p): Got RawVoltage %x", operand->user, TMP006->rawVoltage);
+
+
+	float Tdie = TMP006->rawDieTemperature;
+	float Vobj = TMP006->rawVoltage;
 
 	Vobj *= 156.25;  // 156.25 nV per LSB
 	Vobj /= 1000; // nV -> uV
@@ -341,89 +366,7 @@ static float mp_drv_TMP006_readObjTempC(mp_drv_TMP006_t *TMP006) {
 
 	Tobj -= 273.15; // Kelvin -> *C
 
-	return(Tobj);
-}
-
-static void _mp_drv_TMP006_onDRDY(void *user) {
-	mp_drv_TMP006_t *TMP006 = user;
-
-	P10OUT ^= 0xc0;
-	/* reroute asr */
-	//TMP006->task->signal = MP_TASK_SIG_PENDING;
-
-}
-
-MP_TASK(_mp_drv_TMP006_ASR) {
-	mp_drv_TMP006_t *TMP006 = task->user;
-
-	/* acknowledge task end */
-	if(task->signal == MP_TASK_SIG_STOP) {
-		mp_sensor_unregister(TMP006->kernel, TMP006->sensor);
-		task->signal = MP_TASK_SIG_DEAD;
-		return;
-	}
-
-	/* update sensor */
-	TMP006->sensor->temperature.result = mp_drv_TMP006_readObjTempC(TMP006);
-
-	TMP006->task->signal = MP_TASK_SIG_SLEEP;
-}
-
-
-static void _mp_drv_TMP006_onManufacturerID(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_TMP006_t *TMP006 = operand->user;
-
-	if(TMP006->manufacturerId != 0x5449) {
-		mp_printk("TMP006(%p): Got manufacturer ID 0x%x (bad), terminating", operand->user, TMP006->manufacturerId);
-		mp_regMaster_fini(&TMP006->regMaster);
-	}
-	else
-		mp_printk("TMP006(%p): Got manufacturer ID 0x%x (good)", operand->user, TMP006->manufacturerId);
-}
-
-static void _mp_drv_TMP006_onDeviceID(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_TMP006_t *TMP006 = operand->user;
-
-	if(TMP006->deviceId != 0x67) {
-		mp_printk("TMP006(%p): Got device ID 0x%x (bad), terminating", operand->user, TMP006->deviceId);
-		mp_regMaster_fini(&TMP006->regMaster);
-	}
-	else {
-		mp_printk("TMP006(%p): Got device ID 0x%x (good)", operand->user, TMP006->deviceId);
-
-		mp_drv_TMP006_write(
-			TMP006, TMP006_REG_WRITE_REG,
-			TMP006_CFG_MODEON + TMP006_CFG_8SAMPLE + TMP006_CFG_DRDYEN
-		);
-	}
-}
-
-static void _mp_drv_TMP006_onSettings(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_TMP006_t *TMP006 = operand->user;
-
-	mp_printk("TMP006(%p): Initial settings is 0x%x", operand->user, TMP006->settings);
-
-
-
-}
-
-static void _mp_drv_TMP006_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_TMP006_t *TMP006 = operand->user;
-	mp_mem_free(TMP006->kernel, operand->reg);
-	//mp_printk("TMP006(%p): Got write control", operand->user);
-}
-
-
-static void _mp_drv_TMP006_onRawDieTemperature(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-
-
-
-}
-
-static void _mp_drv_TMP006_onRawVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-
-
-
+	mp_printk("object temperature %f", Tobj);
 }
 
 

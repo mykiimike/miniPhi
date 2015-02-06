@@ -25,6 +25,11 @@
 #ifndef _HAVE_MP_DRV_TMP006_H
 	#define _HAVE_MP_DRV_TMP006_H
 
+	/**
+	 * @defgroup mpDriverTiTMP006
+	 * @{
+	 */
+
 	typedef struct mp_drv_TMP006_s mp_drv_TMP006_t;
 
 	struct mp_drv_TMP006_s {
@@ -34,21 +39,15 @@
 
 		mp_regMaster_t regMaster;
 
-		mp_task_t *task;
-
 		mp_sensor_t *sensor;
 
 		unsigned short deviceId;
 		unsigned short manufacturerId;
-
 		unsigned short settings;
+		unsigned short rawDieTemperature;
+		unsigned short rawVoltage;
 
 	};
-
-	mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who);
-	void mp_drv_TMP006_fini(mp_drv_TMP006_t *TMP006);
-	void mp_drv_TMP006_sleep(mp_drv_TMP006_t *TMP006);
-	void mp_drv_TMP006_wakeUp(mp_drv_TMP006_t *TMP006);
 
 	/*! \name TMP006 Internal Pointer Register Address
 	 * @{
@@ -70,17 +69,22 @@
 
 	/*! @} */
 
+
 	/*! \name TMP006 Configuration Register Bits
 	 * @{
 	 */
 	#define TMP006_CFG_RESET    0x8000
 	#define TMP006_CFG_MODEON   0x7000
-	#define TMP006_CFG_1SAMPLE  0x0000
-	#define TMP006_CFG_2SAMPLE  0x0200
-	#define TMP006_CFG_4SAMPLE  0x0400
-	#define TMP006_CFG_8SAMPLE  0x0600
-	#define TMP006_CFG_16SAMPLE 0x0800
 	#define TMP006_CFG_DRDYEN   0x0100
+
+	typedef enum  {
+		TMP006_CFG_1SAMPLE = 0x0000,
+		TMP006_CFG_2SAMPLE = 0x0200,
+		TMP006_CFG_4SAMPLE = 0x0400,
+		TMP006_CFG_8SAMPLE = 0x0600,
+		TMP006_CFG_16SAMPLE = 0x0800,
+	} mp_drv_TMP006_sample_t;
+
 	#define TMP006_CFG_DRDY     0x0080
 
 	/*! @} */
@@ -97,6 +101,14 @@
 	#define TMP006_A1 0.00175
 	#define TMP006_S0 6.4  // * 10^-14
 	/*! @} */
+
+	/** @} */
+
+	mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who);
+	void mp_drv_TMP006_fini(mp_drv_TMP006_t *TMP006);
+	void mp_drv_TMP006_sleep(mp_drv_TMP006_t *TMP006);
+	void mp_drv_TMP006_wakeUp(mp_drv_TMP006_t *TMP006);
+	void mp_drv_TMP006_sample(mp_drv_TMP006_t *TMP006, mp_drv_TMP006_sample_t sample);
 
 #endif
 
