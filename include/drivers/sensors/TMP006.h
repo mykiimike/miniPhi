@@ -47,7 +47,102 @@
 		unsigned short rawDieTemperature;
 		unsigned short rawVoltage;
 
+		/** Corrects for energy sources B0 */
+		float b0;
+
+		/** Corrects for energy sources B1 */
+		float b1;
+
+		/** Corrects for energy sources B2 */
+		float b2;
+
+		/** FOV and emissivity of object */
+		float s0;
 	};
+
+	typedef enum  {
+		TMP006_CFG_1SAMPLE = 0x0000,
+		TMP006_CFG_2SAMPLE = 0x0200,
+		TMP006_CFG_4SAMPLE = 0x0400,
+		TMP006_CFG_8SAMPLE = 0x0600,
+		TMP006_CFG_16SAMPLE = 0x0800,
+	} mp_drv_TMP006_sample_t;
+
+	/**
+	 * @brief Change B0 calculation register
+	 *
+	 * Corrects for energy sources
+	 * Environment dependent
+	 * Calibrate in end-application environment
+	 * Default value is set by @ref TMP006_B0
+	 *
+	 * @param[in] TMP006 context
+	 * @param[in] value new value
+	 */
+	static inline void mp_drv_TMP006_setB0(mp_drv_TMP006_t *TMP006, float value) {
+		TMP006->b0 = value;
+	}
+
+	/**
+	 * @brief Change B1 calculation register
+	 *
+	 * Corrects for energy sources
+	 * Environment dependent
+	 * Calibrate in end-application environment
+	 * Default value is set by @ref TMP006_B1
+	 *
+	 * @param[in] TMP006 context
+	 * @param[in] value new value
+	 */
+	static inline void mp_drv_TMP006_setB1(mp_drv_TMP006_t *TMP006, float value) {
+		TMP006->b1 = value;
+	}
+
+	/**
+	 * @brief Change B2 calculation register
+	 *
+	 * Corrects for energy sources
+	 * Environment dependent
+	 * Calibrate in end-application environment
+	 * Default value is set by @ref TMP006_B2
+	 *
+	 * @param[in] TMP006 context
+	 * @param[in] value new value
+	 */
+	static inline void mp_drv_TMP006_setB2(mp_drv_TMP006_t *TMP006, float value) {
+		TMP006->b2 = value;
+	}
+
+	/**
+	 * @brief Change S0 calculation register
+	 *
+	 * FOV and emissivity of object
+	 * Application and object dependent
+	 * Default values based on black body with epsilon = 0.95, and 110° FOV
+	 * Default value is set by @ref TMP006_S0
+	 *
+	 * @param[in] TMP006 context
+	 * @param[in] value new value
+	 */
+	static inline void mp_drv_TMP006_setS0(mp_drv_TMP006_t *TMP006, float value) {
+		TMP006->s0 = value;
+	}
+
+
+	/*! \name TMP006 Constants
+	 * @{
+	 */
+	#define TMP006_B0 -0.0000294
+	#define TMP006_B1 -0.00000057
+	#define TMP006_B2 0.00000000463
+	#define TMP006_C2 13.4
+	#define TMP006_TREF 298.15
+	#define TMP006_A2 -0.00001678
+	#define TMP006_A1 0.00175
+	#define TMP006_S0 6.4  // * 10^-14
+	/*! @} */
+
+	/*! @} */
 
 	/*! \name TMP006 Internal Pointer Register Address
 	 * @{
@@ -76,31 +171,7 @@
 	#define TMP006_CFG_RESET    0x8000
 	#define TMP006_CFG_MODEON   0x7000
 	#define TMP006_CFG_DRDYEN   0x0100
-
-	typedef enum  {
-		TMP006_CFG_1SAMPLE = 0x0000,
-		TMP006_CFG_2SAMPLE = 0x0200,
-		TMP006_CFG_4SAMPLE = 0x0400,
-		TMP006_CFG_8SAMPLE = 0x0600,
-		TMP006_CFG_16SAMPLE = 0x0800,
-	} mp_drv_TMP006_sample_t;
-
 	#define TMP006_CFG_DRDY     0x0080
-
-	/*! @} */
-
-	/*! \name TMP006 Constants
-	 * @{
-	 */
-	#define TMP006_B0 -0.0000294
-	#define TMP006_B1 -0.00000057
-	#define TMP006_B2 0.00000000463
-	#define TMP006_C2 13.4
-	#define TMP006_TREF 298.15
-	#define TMP006_A2 -0.00001678
-	#define TMP006_A1 0.00175
-	#define TMP006_S0 6.4  // * 10^-14
-	/*! @} */
 
 	/** @} */
 

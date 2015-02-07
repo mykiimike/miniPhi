@@ -79,6 +79,10 @@ struct olimex_msp430_s {
 }
 @endcode
 
+In order to understand the role of the FOV using TMP006 i recommand to watch
+the cool video from Adafruit on
+@li https://learn.adafruit.com/infrared-thermopile-sensor-breakout/using-the-thermopile-sensor
+
 @{
 */
 
@@ -151,6 +155,11 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 	}
 
 	mp_printk("TMP006(%p): Initializing", TMP006);
+
+	mp_drv_TMP006_setB0(TMP006, TMP006_B0);
+	mp_drv_TMP006_setB1(TMP006, TMP006_B1);
+	mp_drv_TMP006_setB2(TMP006, TMP006_B2);
+	mp_drv_TMP006_setS0(TMP006, TMP006_S0);
 
 	mp_regMaster_readExt(
 		&TMP006->regMaster,
@@ -353,12 +362,12 @@ static void _mp_drv_TMP006_onRawVoltage(mp_regMaster_op_t *operand, mp_bool_t te
 	float tdie_tref = Tdie - TMP006_TREF;
 	float S = (1 + TMP006_A1*tdie_tref +
 		 TMP006_A2*tdie_tref*tdie_tref);
-	S *= TMP006_S0;
+	S *= TMP006->s0;
 	S /= 10000000;
 	S /= 10000000;
 
-	float Vos = TMP006_B0 + TMP006_B1*tdie_tref +
-		TMP006_B2*tdie_tref*tdie_tref;
+	float Vos = TMP006->b0 + TMP006->b1*tdie_tref +
+		TMP006->b2*tdie_tref*tdie_tref;
 
 	float fVobj = (Vobj - Vos) + TMP006_C2*(Vobj-Vos)*(Vobj-Vos);
 
