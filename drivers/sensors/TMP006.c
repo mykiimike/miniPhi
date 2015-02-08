@@ -80,7 +80,7 @@ struct olimex_msp430_s {
 @endcode
 
 In order to understand the role of the FOV using TMP006 i recommand to watch
-the cool video from Adafruit on
+the cool video from Adafruit/Ti on
 @li https://learn.adafruit.com/infrared-thermopile-sensor-breakout/using-the-thermopile-sensor
 
 @{
@@ -154,6 +154,9 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 		return(NULL);
 	}
 
+	/* create sensor */
+	TMP006->sensor = mp_sensor_register(kernel, MP_SENSOR_TEMPERATURE, who);
+
 	mp_printk("TMP006(%p): Initializing", TMP006);
 
 	mp_drv_TMP006_setB0(TMP006, TMP006_B0);
@@ -187,8 +190,7 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 		TRUE
 	);
 
-	/* create sensor */
-	TMP006->sensor = mp_sensor_register(kernel, MP_SENSOR_TEMPERATURE, who);
+
 
 	return(TMP006->sensor);
 }
@@ -341,12 +343,12 @@ static void _mp_drv_TMP006_writeControl(mp_regMaster_op_t *operand, mp_bool_t te
 static void _mp_drv_TMP006_onRawDieTemperature(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_TMP006_t *TMP006 = operand->user;
 	TMP006->rawDieTemperature >>= 2;
-	mp_printk("TMP006(%p): Got RawDieTemperature %x", operand->user, TMP006->rawDieTemperature);
+	//mp_printk("TMP006(%p): Got RawDieTemperature %x", operand->user, TMP006->rawDieTemperature);
 }
 
 static void _mp_drv_TMP006_onRawVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_TMP006_t *TMP006 = operand->user;
-	mp_printk("TMP006(%p): Got RawVoltage %x", operand->user, TMP006->rawVoltage);
+	//mp_printk("TMP006(%p): Got RawVoltage %x", operand->user, TMP006->rawVoltage);
 
 
 	float Tdie = TMP006->rawDieTemperature;
@@ -375,7 +377,7 @@ static void _mp_drv_TMP006_onRawVoltage(mp_regMaster_op_t *operand, mp_bool_t te
 
 	Tobj -= 273.15; // Kelvin -> *C
 
-	mp_printk("object temperature %f", Tobj);
+	TMP006->sensor->temperature.result = Tobj;
 }
 
 
