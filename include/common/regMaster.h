@@ -81,6 +81,27 @@
 
 	};
 
+	mp_ret_t mp_regMaster_init_i2c(
+		mp_kernel_t *kernel, mp_regMaster_t *cirr,
+		mp_i2c_t *i2c,
+		void *user,
+		char *who
+	);
+	void mp_regMaster_fini(mp_regMaster_t *cirr);
+	mp_ret_t mp_regMaster_readExt(
+		mp_regMaster_t *cirr,
+		unsigned char *reg, int regSize,
+		unsigned char *wait, int waitSize,
+		mp_regMaster_cb_t callback, void *user,
+		mp_bool_t swap
+	);
+	mp_ret_t mp_regMaster_write(
+		mp_regMaster_t *cirr,
+		unsigned char *reg, int regSize,
+		mp_regMaster_cb_t callback, void *user
+	);
+	unsigned char *mp_regMaster_register(unsigned char reg);
+
 	/**
 	 * @brief Start circular register read operation
 	 *
@@ -109,25 +130,4 @@
 	}
 
 	/** @} */
-
-	mp_ret_t mp_regMaster_init_i2c(
-		mp_kernel_t *kernel, mp_regMaster_t *cirr,
-		mp_i2c_t *i2c,
-		void *user,
-		char *who
-	);
-	void mp_regMaster_fini(mp_regMaster_t *cirr);
-	mp_ret_t mp_regMaster_readExt(
-		mp_regMaster_t *cirr,
-		unsigned char *reg, int regSize,
-		unsigned char *wait, int waitSize,
-		mp_regMaster_cb_t callback, void *user,
-		mp_bool_t swap
-	);
-	mp_ret_t mp_regMaster_write(
-		mp_regMaster_t *cirr,
-		unsigned char *reg, int regSize,
-		mp_regMaster_cb_t callback, void *user
-	);
-	unsigned char *mp_regMaster_register(unsigned char reg);
 #endif

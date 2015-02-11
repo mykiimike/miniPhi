@@ -71,23 +71,28 @@ void _mp_drv_MPL3115A2_readAltimeterControl(mp_regMaster_op_t *operand, mp_bool_
 	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
 	float tempcsb = (operand->wait[2]>>4)/16.0;
 	float altitude = (float)( (operand->wait[0] << 8) | operand->wait[1]) + tempcsb;
-	mp_printk("Got altimeter information: %f ft", altitude);
+
+	if(MPL3115A2->sensor->altimeter.conversion == MP_SENSOR_ALTIMETER_FEET)
+		MPL3115A2->sensor->altimeter.result = altitude;
+	else
+		MPL3115A2->sensor->altimeter.result = altitude/MP_SENSOR_ALTIMETER_FMC;
+
+	//mp_printk("Got altimeter information: %f", MPL3115A2->sensor->altimeter.result);
 	mp_mem_free(MPL3115A2->kernel, operand->wait);
-	//mp_gpio_interrupt_enable(MPL3115A2->drdy);
 }
 
 void _mp_drv_MPL3115A2_readIntSource(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
 
-	mp_printk("got read int source %x", operand->wait[0]);
 
+	/* OUT PRESSURE interrupt */
 	if(operand->wait[0] & 0x80) {
 		unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 6);
 
 		mp_regMaster_read(
 			&MPL3115A2->regMaster,
 			&_registers[MPL3115A2_OUT_P_MSB], 1,
-			ptr, 6,
+			ptr, 4,
 			MPL3115A2->readerControl, MPL3115A2
 		);
 	}
@@ -145,7 +150,7 @@ Configuration for MPL3115A2 example :
 @li gate = USCI_B3 // msp430 based
 @li SDA = 10.1 / ext 1-17
 @li SCL = 10.2 / ext 1-16
-@li DRDY = 1.1 / ext 2-5
+@li DRDY = 1.1 / ext 2-5 (to INT1)
 
 Initializing the driver :
 @code
@@ -175,7 +180,7 @@ struct olimex_msp430_s {
 */
 
 
-mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who) {
+mp_ret_t mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who) {
 	char *value;
 	mp_ret_t ret;
 
@@ -191,7 +196,7 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 		if(!MPL3115A2->drdy) {
 			mp_printk("MPL3115A2: need a valid DRDY port");
 			mp_drv_MPL3115A2_fini(MPL3115A2);
-			return(NULL);
+			return(FALSE);
 		}
 
 		/* set CS high */
@@ -203,7 +208,7 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 	/* open spi */
 	ret = mp_i2c_open(kernel, &MPL3115A2->i2c, options, "MPL3115A2");
 	if(ret == FALSE)
-		return(NULL);
+		return(FALSE);
 
 	mp_options_t setup[] = {
 		{ "frequency", "100000" },
@@ -213,7 +218,7 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 	ret = mp_i2c_setup(&MPL3115A2->i2c, setup);
 	if(ret == FALSE) {
 		mp_i2c_close(&MPL3115A2->i2c);
-		return(NULL);
+		return(FALSE);
 	}
 
 	/* set slave address */
@@ -225,14 +230,14 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 		ret = mp_gpio_interrupt_set(MPL3115A2->drdy, _mp_drv_MPL3115A2_onDRDY, MPL3115A2, who);
 		if(ret == FALSE) {
 			mp_gpio_release(MPL3115A2->drdy);
-			return(NULL);
+			return(FALSE);
 		}
 		mp_gpio_interrupt_hi2lo(MPL3115A2->drdy);
 	}
 	else {
 		mp_printk("MPL3115A2(%p): require DRDY interrupt for the moment", MPL3115A2);
 		mp_i2c_close(&MPL3115A2->i2c);
-		return(NULL);
+		return(FALSE);
 	}
 
 	/* create regmaster control */
@@ -241,7 +246,7 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 	if(ret == FALSE) {
 		mp_printk("MPL3115A2 error while creating regMaster context");
 		mp_i2c_close(&MPL3115A2->i2c);
-		return(NULL);
+		return(FALSE);
 	}
 
 	mp_printk("MPL3115A2(%p): Initializing", MPL3115A2);
@@ -253,6 +258,9 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 		(unsigned char *)&MPL3115A2->whoIam, 1,
 		_mp_drv_MPL3115A2_onWhoIAm, MPL3115A2
 	);
+
+	/* reset the device */
+	//mp_drv_MPL3115A2_reset(MPL3115A2);
 
 	/* set altimeter mode */
 	mp_drv_MPL3115A2_setModeAltimeter(MPL3115A2);
@@ -284,6 +292,8 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 		_mp_drv_MPL3115A2_writeControl, MPL3115A2
 	);
 */
+
+
 
 	/* Route DRDY INT to INT1 */
 	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
@@ -325,32 +335,7 @@ mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3
 		_mp_drv_MPL3115A2_onSettings, MPL3115A2
 	);
 
-
-
-	/*
-	deviceId = mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_WHO_AM_I);
-	if(deviceId != 0xc4) {
-		mp_printk("Error loading MPL3115A2 driver: invalid device ID id=%x", deviceId);
-		mp_i2c_close(&MPL3115A2->i2c);
-		return(NULL);
-	}
-*/
-	/* read settings */
-	//mp_drv_MPL3115A2_wakeUp(MPL3115A2);
-
-	//mp_drv_MPL3115A2_setSeaLevel(MPL3115A2, 100343);
-
-	//MPL3115A2->settings = mp_drv_MPL3115A2_read(MPL3115A2, MPL3115A2_CTRL_REG1);
-
-	//mp_printk("Loading MPL3115A2 driver with device id=%x settings=%x", deviceId, MPL3115A2->settings);
-
-	/*
-	mp_drv_MPL3115A2_OST(MPL3115A2);
-
-	float test = mp_drv_MPL3115A2_readPressure(MPL3115A2);
-	mp_printk("test: %f", test);
-	*/
-	return(MPL3115A2->sensor);
+	return(TRUE);
 }
 
 void mp_drv_MPL3115A2_fini(mp_drv_MPL3115A2_t *MPL3115A2) {
@@ -448,6 +433,13 @@ void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 
 
 void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2) {
+	/* enable sensor */
+	if(MPL3115A2->sensor)
+		mp_sensor_unregister(MPL3115A2->kernel, MPL3115A2->sensor);
+	MPL3115A2->sensor = mp_sensor_register(MPL3115A2->kernel, MP_SENSOR_ALTIMETER, "Altimeter");
+	MPL3115A2->sensor->altimeter.conversion = MP_SENSOR_ALTIMETER_FEET;
+
+	/* request command */
 	MPL3115A2->settings |= (1<<7); //Set ALT bit
 	MPL3115A2->readerControl = _mp_drv_MPL3115A2_readAltimeterControl;
 	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);

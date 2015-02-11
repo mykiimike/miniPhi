@@ -23,13 +23,15 @@
 #ifndef _HAVE_MP_COMMON_SENSOR_H
 	#define _HAVE_MP_COMMON_SENSOR_H
 
-	#define MP_COMMON_SENSOR_NAME_SIZE 20
+	#define MP_COMMON_SENSOR_NAME_SIZE 19
 
 	typedef struct mp_sensor_handler_s mp_sensor_handler_t;
 	typedef struct mp_sensor_s mp_sensor_t;
 
 	typedef enum {
 		MP_SENSOR_TEMPERATURE,
+		MP_SENSOR_BAROMETER,
+		MP_SENSOR_ALTIMETER,
 		MP_SENSOR_3AXIS,
 
 	} mp_sensor_type_t;
@@ -44,6 +46,22 @@
 		unsigned int z;
 	} mp_sensor_3axis_t;
 
+	typedef struct {
+		float result;
+	} mp_sensor_barometer_t;
+
+	typedef struct {
+#define MP_SENSOR_ALTIMETER_FEET  0
+#define MP_SENSOR_ALTIMETER_METER 1
+#define MP_SENSOR_ALTIMETER_FMC   0.30480
+
+		/** convert to feet or meter */
+		char conversion;
+
+		/** altimeter result */
+		float result;
+	} mp_sensor_altimeter_t;
+
 	struct mp_sensor_s {
 		unsigned short id;
 
@@ -51,10 +69,13 @@
 
 		mp_sensor_type_t type;
 
-		//union {
+		union {
 			mp_sensor_temperature_t temperature;
+			mp_sensor_barometer_t barometer;
+			mp_sensor_altimeter_t altimeter;
+
 			//mp_sensor_3axis_t _3axis;
-		//};
+		};
 
 		mp_list_item_t item;
 	};

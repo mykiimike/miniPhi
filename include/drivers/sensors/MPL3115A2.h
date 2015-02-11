@@ -35,7 +35,10 @@
 
 		mp_gpio_port_t *drdy;
 
+
 		mp_sensor_t *sensor;
+
+		mp_sensor_t *temperature;
 
 		unsigned char settings;
 
@@ -44,7 +47,7 @@
 		mp_regMaster_cb_t readerControl;
 	};
 
-	mp_sensor_t *mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who);
+	mp_ret_t mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who);
 	void mp_drv_MPL3115A2_fini(mp_drv_MPL3115A2_t *MPL3115A2);
 	void mp_drv_MPL3115A2_sleep(mp_drv_MPL3115A2_t *MPL3115A2);
 	void mp_drv_MPL3115A2_wakeUp(mp_drv_MPL3115A2_t *MPL3115A2);
