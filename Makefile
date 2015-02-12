@@ -2,6 +2,7 @@ doc:
 	doxygen > docs/doxylog.log; \
 	cp ./docs/conf/Makefile ./docs/latex/; \
 	cp ./docs/conf/pdflatex.input ./docs/latex/; \
+	cp ./docs/conf/refman.tex ./docs/latex/; \
 	cd ./docs/latex/; \
 	make; \
 	rm refman.pdf; \
