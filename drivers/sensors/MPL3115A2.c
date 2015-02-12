@@ -27,83 +27,13 @@ static void _mp_drv_MPL3115A2_onDRDY(void *user);
 
 void mp_drv_MPL3115A2_setSeaLevel(mp_drv_MPL3115A2_t *MPL3115A2, int Pa);
 
-void _mp_drv_MPL3115A2_onWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
-	if(MPL3115A2->whoIam != 0xc4) {
-		mp_printk("MPL3115A2(%p): Got who iam %x (bad), terminating", operand->user, MPL3115A2->whoIam);
-		mp_regMaster_fini(&MPL3115A2->regMaster);
-	}
-	else
-		mp_printk("MPL3115A2(%p): Got who iam %x (good)", operand->user, MPL3115A2->whoIam);
-}
-
-void _mp_drv_MPL3115A2_onSettings(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
-	mp_printk("MPL3115A2(%p): Initial settings is %x", operand->user, MPL3115A2->settings);
-}
-
-void _mp_drv_MPL3115A2_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
-	mp_mem_free(MPL3115A2->kernel, operand->reg);
-	//mp_printk("MPL3115A2(%p): Got write control", operand->user);
-}
-
-void _mp_drv_MPL3115A2_readPressureControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
-	unsigned char msb, csb, lsb;
-
-	msb = operand->wait[0];
-	csb = operand->wait[1];
-	lsb = operand->wait[2];
-
-	/* Pressure comes back as a left shifted 20 bit number */
-	unsigned long pressure_whole = (long)msb<<16 | (long)csb<<8 | (long)lsb;
-	pressure_whole >>= 6; //Pressure is an 18 bit number with 2 bits of decimal. Get rid of decimal portion.
-
-	lsb &= 0x30; /* Bits 5/4 represent the fractional component */
-	lsb >>= 4; /* Get it right aligned */
-	float pressure_decimal = (float)lsb/4.0; /* Turn it into fraction */
-
-	MPL3115A2->sensor->barometer.result = (float)pressure_whole + pressure_decimal;
-
-	mp_printk("Got pressure information: %f", MPL3115A2->sensor->barometer.result);
-
-	mp_mem_free(MPL3115A2->kernel, operand->wait);
-}
-
-void _mp_drv_MPL3115A2_readAltimeterControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
-	float tempcsb = (operand->wait[2]>>4)/16.0;
-	float altitude = (float)( (operand->wait[0] << 8) | operand->wait[1]) + tempcsb;
-
-	if(MPL3115A2->sensor->altimeter.conversion == MP_SENSOR_ALTIMETER_FEET)
-		MPL3115A2->sensor->altimeter.result = altitude;
-	else
-		MPL3115A2->sensor->altimeter.result = altitude/MP_SENSOR_ALTIMETER_FMC;
-
-	//mp_printk("Got altimeter information: %f", MPL3115A2->sensor->altimeter.result);
-	mp_mem_free(MPL3115A2->kernel, operand->wait);
-}
-
-void _mp_drv_MPL3115A2_readIntSource(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
-
-
-	/* OUT PRESSURE interrupt */
-	if(operand->wait[0] & 0x80) {
-		unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 6);
-
-		mp_regMaster_read(
-			&MPL3115A2->regMaster,
-			mp_regMaster_register(MPL3115A2_OUT_P_MSB), 1,
-			ptr, 3,
-			MPL3115A2->readerControl, MPL3115A2
-		);
-	}
-
-	mp_mem_free(MPL3115A2->kernel, operand->wait);
-}
-
+static void _mp_drv_MPL3115A2_onWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_MPL3115A2_onSettings(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_MPL3115A2_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_MPL3115A2_readPressureControl(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_MPL3115A2_readAltimeterControl(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_MPL3115A2_readTemperature(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_MPL3115A2_readIntSource(mp_regMaster_op_t *operand, mp_bool_t terminate);
 
 /**
 @defgroup mpDriverFreescaleMPL3115A2 Freescale MPL3115A2
@@ -273,34 +203,8 @@ mp_ret_t mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A
 		_mp_drv_MPL3115A2_writeControl, MPL3115A2
 	);
 */
-
-
-
-	/* Route DRDY INT to INT1 */
-	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
-	src = ptr;
-
-	*(ptr++) = MPL3115A2_CTRL_REG5;
-	*ptr = 0x80;
-
-	mp_regMaster_write(
-		&MPL3115A2->regMaster,
-		src, 2,
-		_mp_drv_MPL3115A2_writeControl, MPL3115A2
-	);
-
-	/* Enable DRDY Interrupt */
-	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
-	src = ptr;
-
-	*(ptr++) = MPL3115A2_CTRL_REG4;
-	*ptr = 0x80;
-
-	mp_regMaster_write(
-		&MPL3115A2->regMaster,
-		src, 2,
-		_mp_drv_MPL3115A2_writeControl, MPL3115A2
-	);
+	/* enable interrupt but disable temperature */
+	mp_drv_MPL3115A2_enableTemperature(MPL3115A2);
 
 	/* change OS timer */
 	mp_drv_MPL3115A2_OSTimer(MPL3115A2, MPL3115A_512MS);
@@ -504,13 +408,216 @@ void mp_drv_MPL3115A2_OSTimer(mp_drv_MPL3115A2_t *MPL3115A2, mp_drv_MPL3115A_OS_
 
 }
 
+
+
+void mp_drv_MPL3115A2_enableTemperature(mp_drv_MPL3115A2_t *MPL3115A2) {
+
+	/* enable sensor */
+	if(MPL3115A2->temperature)
+		mp_sensor_unregister(MPL3115A2->kernel, MPL3115A2->sensor);
+	MPL3115A2->temperature = mp_sensor_register(MPL3115A2->kernel, MP_SENSOR_TEMPERATURE, "Temperature");
+
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
+
+	/* Route DRDY INT to INT1 */
+	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG5;
+	*ptr = 0x81;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+	/* Enable DRDY Interrupt */
+	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG4;
+	*ptr = 0x81;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+}
+
+void mp_drv_MPL3115A2_disableTemperature(mp_drv_MPL3115A2_t *MPL3115A2) {
+	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	unsigned char *src = ptr;
+
+	/* disable sensor */
+	if(MPL3115A2->temperature)
+		mp_sensor_unregister(MPL3115A2->kernel, MPL3115A2->sensor);
+
+	/* Route DRDY INT to INT1 */
+	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG5;
+	*ptr = 0x80;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+	/* Enable DRDY Interrupt */
+	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
+	src = ptr;
+
+	*(ptr++) = MPL3115A2_CTRL_REG4;
+	*ptr = 0x80;
+
+	mp_regMaster_write(
+		&MPL3115A2->regMaster,
+		src, 2,
+		_mp_drv_MPL3115A2_writeControl, MPL3115A2
+	);
+
+}
+
+
 /**@}*/
 
+static void _mp_drv_MPL3115A2_onWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	if(MPL3115A2->whoIam != 0xc4) {
+		mp_printk("MPL3115A2(%p): Got who iam %x (bad), terminating", operand->user, MPL3115A2->whoIam);
+		mp_regMaster_fini(&MPL3115A2->regMaster);
+	}
+	else
+		mp_printk("MPL3115A2(%p): Got who iam %x (good)", operand->user, MPL3115A2->whoIam);
+}
+
+static void _mp_drv_MPL3115A2_onSettings(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	mp_printk("MPL3115A2(%p): Initial settings is %x", operand->user, MPL3115A2->settings);
+}
+
+static void _mp_drv_MPL3115A2_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	mp_mem_free(MPL3115A2->kernel, operand->reg);
+	//mp_printk("MPL3115A2(%p): Got write control", operand->user);
+}
+
+static void _mp_drv_MPL3115A2_readPressureControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	unsigned char msb, csb, lsb;
+
+	msb = operand->wait[0];
+	csb = operand->wait[1];
+	lsb = operand->wait[2];
+
+	/* Pressure comes back as a left shifted 20 bit number */
+	unsigned long pressure_whole = (long)msb<<16 | (long)csb<<8 | (long)lsb;
+	pressure_whole >>= 6; //Pressure is an 18 bit number with 2 bits of decimal. Get rid of decimal portion.
+
+	lsb &= 0x30; /* Bits 5/4 represent the fractional component */
+	lsb >>= 4; /* Get it right aligned */
+	float pressure_decimal = (float)lsb/4.0; /* Turn it into fraction */
+
+	MPL3115A2->sensor->barometer.result = (float)pressure_whole + pressure_decimal;
+
+	mp_printk("Got pressure information: %f", MPL3115A2->sensor->barometer.result);
+
+	mp_mem_free(MPL3115A2->kernel, operand->wait);
+}
+
+static void _mp_drv_MPL3115A2_readAltimeterControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	float tempcsb = (operand->wait[2]>>4)/16.0;
+	float altitude = (float)( (operand->wait[0] << 8) | operand->wait[1]) + tempcsb;
+
+	if(MPL3115A2->sensor->altimeter.conversion == MP_SENSOR_ALTIMETER_FEET)
+		MPL3115A2->sensor->altimeter.result = altitude;
+	else
+		MPL3115A2->sensor->altimeter.result = altitude/MP_SENSOR_ALTIMETER_FMC;
+
+	//mp_printk("Got altimeter information: %f", MPL3115A2->sensor->altimeter.result);
+	mp_mem_free(MPL3115A2->kernel, operand->wait);
+}
+
+static void _mp_drv_MPL3115A2_readTemperature(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+	unsigned char msb, lsb;
+
+	if(MPL3115A2->temperature) {
+		msb = operand->wait[0];
+		lsb = operand->wait[1];
+
+		/* Negative temperature fix by D.D.G. */
+		unsigned short foo = 0;
+		mp_bool_t negSign = FALSE;
+
+		/* Check for 2s compliment */
+		if(msb > 0x7F) {
+			foo = ~((msb << 8) + lsb) + 1;  //2’s complement
+			msb = foo >> 8;
+			lsb = foo & 0x00F0;
+			negSign = TRUE;
+		}
+
+		/*
+		 * The least significant bytes l_altitude and l_temp are 4-bit,
+		 * fractional values, so you must cast the calulation in (float),
+		 * shift the value over 4 spots to the right and divide by 16 (since
+		 * there are 16 values in 4-bits).
+		 */
+		float templsb = (lsb>>4)/16.0; //temp, fraction of a degree
+
+		float temperature = (float)(msb + templsb);
+
+		if (negSign) temperature = 0 - temperature;
+
+		MPL3115A2->temperature->temperature.result = temperature;
+
+		//mp_printk("Got temperature %f", temperature);
+	}
+
+	mp_mem_free(MPL3115A2->kernel, operand->wait);
+}
+
+static void _mp_drv_MPL3115A2_readIntSource(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
+
+	//mp_printk("Got interrupt control: %x", operand->wait[0]);
+
+	/* OUT PRESSURE interrupt */
+	if(operand->wait[0] & 0x80) {
+		unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 6);
+
+		mp_regMaster_read(
+			&MPL3115A2->regMaster,
+			mp_regMaster_register(MPL3115A2_OUT_P_MSB), 1,
+			ptr, 3,
+			MPL3115A2->readerControl, MPL3115A2
+		);
+	}
+
+	/* OUT TEMPERATURE interrupt */
+	if(operand->wait[0] & 1) {
+		unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 6);
+
+		mp_regMaster_read(
+			&MPL3115A2->regMaster,
+			mp_regMaster_register(MPL3115A2_OUT_T_MSB), 1,
+			ptr, 3,
+			_mp_drv_MPL3115A2_readTemperature, MPL3115A2
+		);
+	}
+
+	mp_mem_free(MPL3115A2->kernel, operand->wait);
+}
 
 static void _mp_drv_MPL3115A2_onDRDY(void *user) {
 	mp_drv_MPL3115A2_t *MPL3115A2 = user;
-
-	P10OUT ^= 0xc0;
 
 	/* run read */
 	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 1);

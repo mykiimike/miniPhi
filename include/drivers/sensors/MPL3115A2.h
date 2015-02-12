@@ -25,16 +25,22 @@
 #ifndef _HAVE_MP_DRV_MPL3115A2_H
 	#define _HAVE_MP_DRV_MPL3115A2_H
 
+	/**
+	 * @defgroup mpDriverFreescaleMPL3115A2
+	 * @{
+	 */
+
 	typedef struct mp_drv_MPL3115A2_s mp_drv_MPL3115A2_t;
 
 	struct mp_drv_MPL3115A2_s {
+		/** kernel handler */
 		mp_kernel_t *kernel;
 
 		mp_i2c_t i2c;
+
 		mp_regMaster_t regMaster;
 
 		mp_gpio_port_t *drdy;
-
 
 		mp_sensor_t *sensor;
 
@@ -47,15 +53,6 @@
 		mp_regMaster_cb_t readerControl;
 	};
 
-	mp_ret_t mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who);
-	void mp_drv_MPL3115A2_fini(mp_drv_MPL3115A2_t *MPL3115A2);
-	void mp_drv_MPL3115A2_sleep(mp_drv_MPL3115A2_t *MPL3115A2);
-	void mp_drv_MPL3115A2_wakeUp(mp_drv_MPL3115A2_t *MPL3115A2);
-	void mp_drv_MPL3115A2_reset(mp_drv_MPL3115A2_t *MPL3115A2);
-	void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2);
-	void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2);
-	void mp_drv_MPL3115A2_OST(mp_drv_MPL3115A2_t *MPL3115A2);
-
 	typedef enum {
 		MPL3115A_6MS,
 		MPL3115A_10MS,
@@ -67,9 +64,24 @@
 		MPL3115A_512MS,
 	} mp_drv_MPL3115A_OS_t;
 
+	/** Slave address */
+	#define MPL3115A2_ADDRESS 0x60
+
+	/**@}*/
+
+	mp_ret_t mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A2, mp_options_t *options, char *who);
+	void mp_drv_MPL3115A2_fini(mp_drv_MPL3115A2_t *MPL3115A2);
+	void mp_drv_MPL3115A2_sleep(mp_drv_MPL3115A2_t *MPL3115A2);
+	void mp_drv_MPL3115A2_wakeUp(mp_drv_MPL3115A2_t *MPL3115A2);
+	void mp_drv_MPL3115A2_reset(mp_drv_MPL3115A2_t *MPL3115A2);
+	void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2);
+	void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2);
+	void mp_drv_MPL3115A2_OST(mp_drv_MPL3115A2_t *MPL3115A2);
+
 	void mp_drv_MPL3115A2_OSTimer(mp_drv_MPL3115A2_t *MPL3115A2, mp_drv_MPL3115A_OS_t timer);
 
-	#define MPL3115A2_ADDRESS 0x60
+	void mp_drv_MPL3115A2_enableTemperature(mp_drv_MPL3115A2_t *MPL3115A2);
+	void mp_drv_MPL3115A2_disableTemperature(mp_drv_MPL3115A2_t *MPL3115A2);
 
 	/*! \name MPL3115A2 Configuration Register Bits
 	 * @{
