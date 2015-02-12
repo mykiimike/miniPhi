@@ -279,6 +279,7 @@ static void __olimex_state_op_set(void *user) {
 	 * SCL = 10.2 / ext 1-16
 	 * DRDY = 1.1 / ext 2-5
 	 */
+
 	{
 		mp_options_t options[] = {
 			{ "gate", "USCI_B3" },
@@ -338,7 +339,7 @@ static void __olimex_state_op_tick(void *user) {
 
 static void _olimex_printk(void *user, char *fmt, ...) {
 	olimex_msp430_t *olimex = user;
-	unsigned char *buffer = malloc(256);
+	unsigned char buffer[256];
 	va_list args;
 	int size;
 
@@ -350,8 +351,6 @@ static void _olimex_printk(void *user, char *fmt, ...) {
 	buffer[size++] = '\r';
 
 	mp_serial_write(&olimex->serial, buffer, size);
-
-	free(buffer);
 
 	return;
 }

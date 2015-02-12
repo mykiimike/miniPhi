@@ -66,7 +66,7 @@ mp_sensor_t *mp_sensor_register(mp_kernel_t *kernel, mp_sensor_type_t type, char
 	}
 
 	/* allocate sensor */
-	sensor = mp_mem_alloc(kernel, sizeof(mp_sensor_t));
+	sensor = mp_mem_alloc(kernel, sizeof(sensor));
 	if(!sensor) {
 		mp_printk("Common sensor register: can not allocate sensor");
 		return(NULL);
