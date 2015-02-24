@@ -101,6 +101,7 @@
 	#include "common/mem.h"
 	#include "common/circular.h"
 	#include "common/state.h"
+	#include "common/hci.h"
 	#include "common/serial.h"
 	#include "common/pinout.h"
 	#include "common/printk.h"

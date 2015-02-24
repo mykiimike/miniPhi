@@ -26,12 +26,13 @@
 	#define SUPPORT_DRV_LED
 	#define SUPPORT_DRV_BUTTON
 	//#define SUPPORT_DRV_LSM9DS0
-	#define SUPPORT_DRV_TMP006
+//	#define SUPPORT_DRV_TMP006
 	//#define SUPPORT_DRV_LCD_NOKIA3310
-	#define SUPPORT_DRV_MPL3115A2
+//	#define SUPPORT_DRV_MPL3115A2
 
 	#define SUPPORT_COMMON_MEM /* enable tiny-malloc */
 	#define SUPPORT_COMMON_SERIAL /* serial interface */
+	#define SUPPORT_COMMON_HCI /* HCI interface */
 	#define SUPPORT_COMMON_PINOUT /* enable pinout feature, need mem support */
 	//#define SUPPORT_COMMON_QUATERNION /* enable quaternion feature */
 	#define SUPPORT_COMMON_SENSOR /* enable sensor feature */
