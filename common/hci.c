@@ -66,11 +66,13 @@ mp_ret_t mp_hci_initUART(mp_kernel_t *kernel, mp_hci_t *hci, mp_uart_t *uart, ch
 
 	mp_printk("Initialize HCI over UART: %s", who);
 
-	hci->opened = TRUE;
+	hci->state |= MP_HCI_STATE_OPENED;
 	return(TRUE);
 }
 
 mp_ret_t mp_hci_fini(mp_hci_t *hci) {
+	hci->state = 0;
+
 	hci->uart->onRead = NULL;
 	hci->uart->onWrite = NULL;
 	hci->uart->user = NULL;
@@ -79,6 +81,20 @@ mp_ret_t mp_hci_fini(mp_hci_t *hci) {
 	mp_circular_fini(&hci->txCir);
 
 	return(TRUE);
+}
+
+void mp_hci_connect(mp_hci_t *hci, uint8_t *addr) {
+	if((hci->state | MP_HCI_STATE_OPENED) == 0)
+		return;
+	memcpy(hci->addr, addr, sizeof(hci->addr));
+	hci->state |= MP_HCI_STATE_CONNECTED;
+}
+
+void mp_hci_send_raw(mp_hci_t *hci, uint8_t *input, int size) {
+	if((hci->state | MP_HCI_STATE_CONNECTED) == 0)
+		return;
+
+	mp_circular_write(&hci->txCir, input, size);
 }
 
 

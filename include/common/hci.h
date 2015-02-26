@@ -24,7 +24,21 @@
 
 	#ifdef SUPPORT_COMMON_HCI
 
+		#define MP_HCI_CMD_BUFFER_SIZE	260
+		#define MP_HCI_CMD_CREATE_OPCODE(ocf, ogf, out_arr) (((ocf) << 10) | (ogf))
+
+		typedef struct mp_hci_cmd_s mp_hci_cmd_t;
 		typedef struct mp_hci_s mp_hci_t;
+
+		enum {
+			MP_HCI_STATE_OPENED = 0x01,
+			MP_HCI_STATE_CONNECTED = 0x02,
+		};
+
+		struct mp_hci_cmd_s {
+		    uint16_t    opcode;
+		    const char *format;
+		};
 
 		struct mp_hci_s {
 			mp_kernel_t *kernel;
@@ -34,11 +48,21 @@
 			mp_circular_t txCir;
 			mp_circular_t rxCir;
 
-			char opened;
+			uint8_t addr[6];
+
+			uint8_t state;
 		};
 
 		mp_ret_t mp_hci_initUART(mp_kernel_t *kernel, mp_hci_t *hci, mp_uart_t *uart, char *who);
 		mp_ret_t mp_hci_fini(mp_hci_t *hci);
+
+		void mp_hci_connect(mp_hci_t *hci, uint8_t *addr);
+		void mp_hci_send_raw(mp_hci_t *hci, uint8_t *input, int size);
+
+		uint16_t mp_hci_create_cmd_internal(uint8_t *hci_cmd_buffer, const mp_hci_cmd_t *cmd, va_list argptr);
+		uint16_t mp_hci_create_cmd(uint8_t *hci_cmd_buffer, mp_hci_cmd_t *cmd, ...);
+
+		void mp_hci_send_cmd(mp_hci_t *hci, mp_hci_cmd_t *cmd, ...);
 
 	#endif
 
