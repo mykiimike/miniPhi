@@ -18,18 +18,6 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-/*
- * The file hci_cmds.itm was mainly generated with this shell command :
-Y2F0IGhjaV9jbWRzLmMgfAoJc2VkIC1lICcxLDE3N2QnIHwKCXNlZCAtZSAncyMvL1woLipcKSMv
-KiogKiBcMSAqLyMnIHwKCXRyIC1kICdcbicgfAoJdHIgJzsnICdcbicgfAoJc2VkIC1lICcKCXMv
-IFwqL1xuICovZzsKCXMvIFwqXC8vICpcL1xuL2c7CglzIy9cKlwqI1xuLyoqI2c7CglzL2NvbnN0
-IGhjaV9jbWRfdCBcP1woLipcKSBcPz0gXD97L0lURU0oXDEsIC9nOwoJcy9bIFx0XVwrLyAvZzsK
-CXMvfS8pLzsKCXMvI1thLXpBLVpfIF1cKy8mXG4vOwoJcy9JVEVNKFwoW14sXVwrXCkvSVRFTShN
-UF9IQ0lfQ01EX1xVXDEvZzsKCXMvTVBfSENJX0NNRF9IQ0lfL01QX0hDSV9DTURfLzsKCXMjXCgv
-L1teKF0qXCkpIylcMVxuI2cnCg==
- * (base64'ed to avoid C comments escaping problems...)
- */
-
 #include <mp.h>
 
 /**
@@ -48,7 +36,7 @@ uint16_t mp_hci_create_cmd_internal(uint8_t *hci_cmd_buffer, const mp_hci_cmd_t 
 
     hci_cmd_buffer[0] = cmd->opcode & 0xff;
     hci_cmd_buffer[1] = cmd->opcode >> 8;
-    int pos = 3;
+    unsigned int pos = 3;
 
     const char *format = cmd->format;
     uint16_t word;
@@ -156,5 +144,5 @@ void mp_hci_send_cmd(mp_hci_t *hci, mp_hci_cmd_t *cmd, ...) {
     len = mp_hci_create_cmd_internal(hci_cmd_buffer, cmd, argptr);
     va_end(argptr);
 
-    mp_hci_send_raw(hci, hci_cmd_buffer, len);
+    mp_hci_send(hci, MP_HCI_MSG_COMMAND, hci_cmd_buffer, len);
 }

@@ -97,6 +97,27 @@ void mp_hci_send_raw(mp_hci_t *hci, uint8_t *input, int size) {
 	mp_circular_write(&hci->txCir, input, size);
 }
 
+void mp_hci_send(mp_hci_t *hci, mp_hci_msg_type_t type, uint8_t *input, int size) {
+	if((hci->state | MP_HCI_STATE_CONNECTED) == 0)
+		return;
+
+	uint8_t type8 = type;
+	mp_circular_write(&hci->txCir, &type8, 1);
+	mp_circular_write(&hci->txCir, input, size);
+}
+
+void mp_hci_send_data(mp_hci_t *hci, uint16_t handle, uint8_t *input, int size) {
+	if((hci->state | MP_HCI_STATE_CONNECTED) == 0)
+		return;
+
+	uint8_t hdr[4];
+	hdr[0] = MP_HCI_MSG_DATA;
+	hdr[1] = (handle >> 4) & 0xFF;
+	hdr[2] = (handle & 0x0F) << 4;
+	hdr[3] = size;
+	mp_circular_write(&hci->txCir, hdr, 4);
+	mp_circular_write(&hci->txCir, input, size);
+}
 
 /* UART predefined interfacing */
 static void mp_hci_UART_rxInt(mp_uart_t *uart) {
