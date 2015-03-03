@@ -54,6 +54,8 @@ struct olimex_msp430_s {
 	//mp_drv_TMP006_t tmp006;
 //	mp_drv_MPL3115A2_t bat;
 
+	//mp_drv_ADS1115_t adc;
+
 	mp_uart_t proxyUARTSrc;
 	mp_uart_t proxyUARTDst;
 };
@@ -292,6 +294,27 @@ static void __olimex_state_op_set(void *user) {
 //		mp_drv_MPL3115A2_init(&olimex->kernel, &olimex->bat, options, "Freescale MPL3115A2");
 	}
 
+	/*
+	 * Configuration for ADS1115 example
+	 * gate = USCI_B3
+	 * SDA = 10.1 / ext 1-17
+	 * SCL = 10.2 / ext 1-16
+	 * DRDY = 1.1 / ext 2-5
+	 */
+
+	{
+		/*
+		mp_options_t options[] = {
+			{ "gate", "USCI_B3" },
+			{ "sda", "p10.1" },
+			{ "clk", "p10.2" },
+			{ "drdy", "p1.1" },
+			{ NULL, NULL }
+		};
+
+		mp_drv_ADS1115_init(&olimex->kernel, &olimex->adc, options, "Ti ADS1115");
+		*/
+	}
 
 
 	/* pinout */
