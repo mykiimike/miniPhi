@@ -25,10 +25,10 @@
 
 	#define SUPPORT_DRV_LED
 	#define SUPPORT_DRV_BUTTON
-	//#define SUPPORT_DRV_LSM9DS0
-//	#define SUPPORT_DRV_TMP006
+	#define SUPPORT_DRV_LSM9DS0
+	//#define SUPPORT_DRV_TMP006
 	//#define SUPPORT_DRV_LCD_NOKIA3310
-//	#define SUPPORT_DRV_MPL3115A2
+	//#define SUPPORT_DRV_MPL3115A2
 	//#define SUPPORT_DRV_ADS1115
 
 	#define SUPPORT_COMMON_MEM /* enable tiny-malloc */
@@ -51,7 +51,7 @@
 
 	/* mem configuration */
 	#ifndef MP_MEM_SIZE
-		#define MP_MEM_SIZE  2048 /* total memory allowed for heap */
+		#define MP_MEM_SIZE  4000 /* total memory allowed for heap */
 	#endif
 
 	#ifndef MP_MEM_CHUNK
@@ -59,7 +59,7 @@
 	#endif
 
 	#ifndef MP_COMMON_MEM_USE_MALLOC
-		#define MP_COMMON_MEM_USE_MALLOC
+		//#define MP_COMMON_MEM_USE_MALLOC
 	#endif
 
 	/* task configuration */

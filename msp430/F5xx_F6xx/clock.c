@@ -377,7 +377,7 @@ static void _system_clock(mp_clock_t freq) {
 	while (Counter--)
 		__delay_cycles(30);
 
-
+	mp_printk("MSP430 setting frequency to %d", mp_clock_get_speed());
 	return;
 }
 

@@ -1725,7 +1725,7 @@ LATEX_FOOTER           =
 # list).
 # This tag requires that the tag GENERATE_LATEX is set to YES.
 
-LATEX_EXTRA_STYLESHEET =
+LATEX_EXTRA_STYLESHEET = 
 
 # The LATEX_EXTRA_FILES tag can be used to specify one or more extra images or
 # other source files which should be copied to the LATEX_OUTPUT output
@@ -2061,7 +2061,8 @@ PREDEFINED             = SUPPORT_COMMON_MEM \
                          __MSP430__ \
                          SUPPORT_DRV_MPL3115A2 \
                          SUPPORT_DRV_TMP006 \
-                         SUPPORT_DRV_LSM9DS0
+                         SUPPORT_DRV_LSM9DS0 \
+                         SUPPORT_COMMON_KALMAN
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

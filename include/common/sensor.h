@@ -41,9 +41,9 @@
 	} mp_sensor_temperature_t;
 
 	typedef struct {
-		unsigned int x;
-		unsigned int y;
-		unsigned int z;
+		float x;
+		float y;
+		float z;
 	} mp_sensor_3axis_t;
 
 	typedef struct {
@@ -74,7 +74,7 @@
 			mp_sensor_barometer_t barometer;
 			mp_sensor_altimeter_t altimeter;
 
-			//mp_sensor_3axis_t _3axis;
+			mp_sensor_3axis_t axis3;
 		};
 
 		mp_list_item_t item;

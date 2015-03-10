@@ -108,6 +108,7 @@
 	#include "common/quaternion.h"
 	#include "common/sensor.h"
 	#include "common/regMaster.h"
+	#include "common/kalman.h"
 
 	/* Bluetooth */
 	//#include "bluetooth/internal.h"

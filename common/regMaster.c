@@ -27,7 +27,7 @@ static void _mp_regMaster_i2c_disableRX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_enableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_disableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag);
-MP_TASK(mp_regMaster_asr);
+MP_TASK(mp_regMaster_i2c_asr);
 
 static unsigned char *_registers = NULL;
 static int _register_references = 0;
@@ -181,8 +181,13 @@ mp_ret_t mp_regMaster_init_i2c(
 	cirr->enableRX(cirr);
 	cirr->enableTX(cirr);
 
+	cirr->type = MP_REGMASTER_I2C;
+
+	/* save actual slave address */
+	cirr->slaveAddress = mp_i2c_getSlaveAddress(cirr->i2c);
+
 	/* create task and place it in sleep mode */
-	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_asr, cirr, 100);
+	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_i2c_asr, cirr, 100);
 	if(!cirr->asr)
 		return(FALSE);
 	cirr->asr->signal = MP_TASK_SIG_SLEEP;
@@ -241,6 +246,9 @@ mp_ret_t mp_regMaster_readExt(
 	operand = mp_mem_alloc(cirr->kernel, sizeof(*operand));
 	//operand = malloc(sizeof(*operand));
 
+	if(cirr->type == MP_REGMASTER_I2C)
+		operand->slaveAddress = cirr->slaveAddress;
+
 	operand->state = MP_REGMASTER_STATE_TX;
 
 	operand->reg = reg;
@@ -286,6 +294,9 @@ mp_ret_t mp_regMaster_write(
 
 	/* allocate new operand */
 	operand = mp_mem_alloc(cirr->kernel, sizeof(*operand));
+
+	if(cirr->type == MP_REGMASTER_I2C)
+		operand->slaveAddress = cirr->slaveAddress;
 
 	operand->state = MP_REGMASTER_STATE_TX;
 
@@ -414,7 +425,7 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 	return;
 }
 
-MP_TASK(mp_regMaster_asr) {
+MP_TASK(mp_regMaster_i2c_asr) {
 	mp_regMaster_t *cirr = task->user;
 	mp_regMaster_op_t *cur;
 	mp_regMaster_op_t *next;
@@ -487,8 +498,13 @@ MP_TASK(mp_regMaster_asr) {
 		cur = cirr->pending.first->user;
 
 		if(cur->state == MP_REGMASTER_STATE_TX) {
+			/* send slave address*/
+			mp_i2c_setSlaveAddress(cirr->i2c, cur->slaveAddress);
+
+			/* change mode and here we go */
 			mp_i2c_mode(cirr->i2c, 1);
 			mp_i2c_txStart(cirr->i2c);
+
 			cirr->enableTX(cirr);
 		}
 		else if(cur->state == MP_REGMASTER_STATE_RX) {
@@ -511,4 +527,27 @@ MP_TASK(mp_regMaster_asr) {
 		}
 	}
 }
+
+static void _mp_regMaster_spi_enableRX(mp_regMaster_t *cirr);
+static void _mp_regMaster_spi_disableRX(mp_regMaster_t *cirr);
+static void _mp_regMaster_spi_enableTX(mp_regMaster_t *cirr);
+static void _mp_regMaster_spi_disableTX(mp_regMaster_t *cirr);
+
+
+static void _mp_regMaster_spi_enableRX(mp_regMaster_t *cirr) {
+	mp_spi_enable_rx(cirr->spi);
+}
+
+static void _mp_regMaster_spi_disableRX(mp_regMaster_t *cirr) {
+	mp_spi_disable_rx(cirr->spi);
+}
+
+static void _mp_regMaster_spi_enableTX(mp_regMaster_t *cirr) {
+	mp_spi_enable_tx(cirr->spi);
+}
+
+static void _mp_regMaster_spi_disableTX(mp_regMaster_t *cirr) {
+	mp_spi_disable_tx(cirr->spi);
+}
+
 

@@ -157,6 +157,10 @@
 		_I2C_REG8(i2c->gate, _I2C_SA) = address;
 	}
 
+	static inline unsigned char mp_i2c_getSlaveAddress(mp_i2c_t *i2c) {
+		return(_I2C_REG8(i2c->gate, _I2C_SA));
+	}
+
 	static inline void mp_i2c_setMyAddress(mp_i2c_t *i2c, unsigned short address) {
 		_I2C_REG8(i2c->gate, _I2C_CTL1) |= UCSWRST;
 		_I2C_REG8(i2c->gate, _I2C_OA) = address;

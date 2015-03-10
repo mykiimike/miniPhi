@@ -22,6 +22,8 @@
 #ifndef _HAVE_MP_COMMON_REGMASTER_H
 	#define _HAVE_MP_COMMON_REGMASTER_H
 
+	#define MP_REGMASTER_SPI 1
+	#define MP_REGMASTER_I2C 2
 
 	#define MP_REGMASTER_STATE_TX 1
 	#define MP_REGMASTER_STATE_RX 2
@@ -51,6 +53,8 @@
 		mp_regMaster_cb_t callback;
 		void *user;
 
+		unsigned char slaveAddress;
+
 		/** Activate swap */
 		mp_bool_t swap;
 
@@ -58,6 +62,8 @@
 	};
 
 	struct mp_regMaster_s {
+		char type;
+
 		mp_kernel_t *kernel;
 
 		mp_list_t executing;
@@ -72,12 +78,19 @@
 		/** On bus error */
 		//mp_regMaster_int_t error;
 
-		mp_i2c_t *i2c;
+		/** use by I2C in order to stack different slave addresses */
+		unsigned char slaveAddress;
 
+		union {
+			mp_i2c_t *i2c;
+			mp_spi_t *spi;
+		};
 
 		void *user;
 
 		mp_task_t *asr;
+
+
 
 	};
 
@@ -127,6 +140,20 @@
 			mp_regMaster_cb_t callback, void *user
 		) {
 		return(mp_regMaster_readExt(cirr, reg, regSize, wait, waitSize, callback, user, FALSE));
+	}
+
+	/**
+	 * @brief Set slave address for i2c operation
+	 *
+	 *
+	 * @param[in] cirr Circular context.
+	 * @param[in] address Pushed slave address
+	 */
+	static inline void mp_regMaster_setSlaveAddress(
+			mp_regMaster_t *cirr,
+			unsigned char address
+		) {
+		cirr->slaveAddress = address;
 	}
 
 	/** @} */

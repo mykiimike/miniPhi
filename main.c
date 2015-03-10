@@ -55,9 +55,12 @@ struct olimex_msp430_s {
 //	mp_drv_MPL3115A2_t bat;
 
 	//mp_drv_ADS1115_t adc;
+	mp_drv_LSM9DS0_t axis;
 
 	mp_uart_t proxyUARTSrc;
 	mp_uart_t proxyUARTDst;
+
+	mp_gpio_port_t *power;
 };
 
 static void __olimex_onBoot(void *user);
@@ -112,6 +115,7 @@ static void __olimex_onBoot(void *user) {
 	mp_kernel_state(&olimex->kernel, OLIMEX_OP);
 }
 
+
 MP_TASK(blinkTask) {
 	/* acknowledge task end */
 	if(task->signal == MP_TASK_SIG_STOP) {
@@ -125,6 +129,7 @@ MP_TASK(blinkTask) {
 
 static void __olimex_state_op_set(void *user) {
 	olimex_msp430_t *olimex = user;
+
 
 	mp_clock_high_energy();
 
@@ -171,6 +176,14 @@ static void __olimex_state_op_set(void *user) {
 	olimex->proxyUARTSrc.user = olimex;
 	olimex->proxyUARTSrc.onRead = _mp_uart_forwarder;
 	mp_uart_enable_rx_int(&olimex->proxyUARTSrc);
+
+	/* produce 3.3v output port */
+	olimex->power = mp_gpio_text_handle("p1.7", "Power");
+	if(olimex->power) {
+		mp_gpio_direction(olimex->power, MP_GPIO_OUTPUT);
+		mp_gpio_set(olimex->power);
+		mp_printk("Power up");
+	}
 
 	/* initialize green led */
 	{
@@ -315,6 +328,30 @@ static void __olimex_state_op_set(void *user) {
 		mp_drv_ADS1115_init(&olimex->kernel, &olimex->adc, options, "Ti ADS1115");
 		*/
 	}
+
+	/*
+	 * Configuration for LSM9DS0 using i2C
+	 * gate = USCI_B3
+	 * SDA = 10.1 / ext 1-17
+	 * SCL = 10.2 / ext 1-16
+	 * DRDY = 1.1 / ext 2-5
+	 */
+
+	{
+		mp_options_t options[] = {
+			{ "protocol", "i2c" },
+			{ "gate", "USCI_B3" },
+			{ "sda", "p10.1" },
+			{ "clk", "p10.2" },
+			{ "drdy", "p1.1" },
+			{ "int1", "p2.7" },
+			{ "int2", "p1.0" },
+			{ NULL, NULL }
+		};
+
+		mp_drv_LSM9DS0_init(&olimex->kernel, &olimex->axis, options, "St LSM9DS0");
+	}
+
 
 
 	/* pinout */
