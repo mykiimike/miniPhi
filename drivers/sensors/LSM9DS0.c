@@ -27,20 +27,25 @@
 
 #ifdef SUPPORT_DRV_LSM9DS0
 
+static void _mp_drv_LSM9DS0_onCSGWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_LSM9DS0_onXMWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_LSM9DS0_onWrite(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_LSM9DS0_onGyroRead(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_LSM9DS0_onGyroCalibrationRead(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_LSM9DS0_onMagRead(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_LSM9DS0_onTemperatureRead(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_LSM9DS0_onAccelRead(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_LSM9DS0_onAccelCalibrationRead(mp_regMaster_op_t *operand, mp_bool_t terminate);
+
+static void _mp_drv_LSM9DS0_onDRDY(void *user);
+static void _mp_drv_LSM9DS0_onIntMag(void *user);
+static void _mp_drv_LSM9DS0_onIntAcc(void *user);
+
+MP_TASK(_mp_drv_LSM9DS0_ASR);
+
 static void _mp_drv_LSM9DS0_calcgRes(mp_drv_LSM9DS0_t *LSM9DS0);
 static void _mp_drv_LSM9DS0_calcaRes(mp_drv_LSM9DS0_t *LSM9DS0);
 static void _mp_drv_LSM9DS0_calcmRes(mp_drv_LSM9DS0_t *LSM9DS0);
-
-static _mp_drv_LSM9DS0_spi_writeByte(mp_drv_LSM9DS0_t *LSM9DS0, mp_gpio_port_t *cs,
-		unsigned char subAddress, unsigned char data
-);
-static unsigned char _mp_drv_LSM9DS0_spi_readByte(mp_drv_LSM9DS0_t *LSM9DS0, mp_gpio_port_t *cs,
-		unsigned char subAddress
-);
-static void _mp_drv_LSM9DS0_spi_readBytes(
-	mp_drv_LSM9DS0_t *LSM9DS0, mp_gpio_port_t *cs,
-	unsigned char subAddress, unsigned char * dest, unsigned char count
-);
 
 /**
 @defgroup mpDriverSTLSM9DS0 ST LSM9DS0
@@ -58,7 +63,24 @@ Michael Vergoz <mv@verman.fr>
 
 @{
 */
-
+/**
+ * @brief Initiate LSM9DS0 context
+ *
+ * @param[in] kernel Kernel context
+ * @param[in] LSM9DS0 Context
+ * @param[in] options Special options :
+ *  @li protocol : i2c or spi (case sensitive)
+ *  @li csG : When using SPI the Gyro CS
+ *  @li csXM : When using SPI the Acce/Mag CS
+ *  @li gate : Required on some archs
+ *  @li sda : SDA port when using I2C
+ *  @li clk : Clock port source I2C/SPI
+ *  @li int1 : INT1 port for accelerometer
+ *  @li int2 : INT2 port for magneto
+ *  @li drdy : DRDY port for gyro
+ * @param[in] who Who own the driver session
+ * @return TRUE or FALSE
+ */
 mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_options_t *options, char *who) {
 	char *value;
 	mp_ret_t ret;
@@ -66,32 +88,116 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 	memset(LSM9DS0, 0, sizeof(*LSM9DS0));
 	LSM9DS0->kernel = kernel;
 
-	/* csG */
-	value = mp_options_get(options, "csG");
+	/* protocol type */
+	value = mp_options_get(options, "protocol");
 	if(!value) {
-		mp_printk("LSM9DS0: need csG port");
-		return(FALSE);
+		LSM9DS0->protocol = MP_DRV_LSM9DS0_MODE_SPI;
+		mp_printk("LSM9DS0(%p) using SPI default protocol", LSM9DS0);
 	}
-	LSM9DS0->csG = mp_gpio_text_handle(value, "LSM9DS0 csG");
-    if(!LSM9DS0->csG) {
-    	mp_printk("LSM9DS0: need csG port");
-    	mp_drv_LSM9DS0_fini(LSM9DS0);
-		return(FALSE);
+	else {
+		if(mp_options_cmp(value, "i2c")) {
+			LSM9DS0->protocol = MP_DRV_LSM9DS0_MODE_I2C;
+			mp_printk("LSM9DS0(%p) using i2c protocol", LSM9DS0);
+		}
+		else {
+			LSM9DS0->protocol = MP_DRV_LSM9DS0_MODE_SPI;
+			mp_printk("LSM9DS0(%p) using SPI protocol", LSM9DS0);
+		}
 	}
 
-	/* csXM */
-	value = mp_options_get(options, "csXM");
-	if(!value) {
-		mp_printk("LSM9DS0: need csXM port");
-		return(FALSE);
-	}
-	LSM9DS0->csXM = mp_gpio_text_handle(value, "LSM9DS0 csXM");
-    if(!LSM9DS0->csXM) {
-    	mp_printk("LSM9DS0: need csXM port");
-    	mp_drv_LSM9DS0_fini(LSM9DS0);
-		return(FALSE);
-	}
+	/* using SPI protocol */
+	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_SPI) {
+		/* set csG interrupt */
+		LSM9DS0->csG = mp_gpio_text_handle(value, "LSM9DS0 csG");
+		if(!LSM9DS0->csG) {
+			mp_printk("LSM9DS0: need csG port");
+			mp_drv_LSM9DS0_fini(LSM9DS0);
+			return(FALSE);
+		}
 
+		/* csG */
+		value = mp_options_get(options, "csG");
+		if(!value) {
+			mp_printk("LSM9DS0: need csG port");
+			return(FALSE);
+		}
+		LSM9DS0->csG = mp_gpio_text_handle(value, "LSM9DS0 csG");
+		if(!LSM9DS0->csG) {
+			mp_printk("LSM9DS0: need csG port");
+			mp_drv_LSM9DS0_fini(LSM9DS0);
+			return(FALSE);
+		}
+
+		/* csXM */
+		value = mp_options_get(options, "csXM");
+		if(!value) {
+			mp_printk("LSM9DS0: need csXM port");
+			return(FALSE);
+		}
+		LSM9DS0->csXM = mp_gpio_text_handle(value, "LSM9DS0 csXM");
+		if(!LSM9DS0->csXM) {
+			mp_printk("LSM9DS0: need csXM port");
+			mp_drv_LSM9DS0_fini(LSM9DS0);
+			return(FALSE);
+		}
+
+		/* set CS high */
+		mp_gpio_direction(LSM9DS0->csG, MP_GPIO_OUTPUT);
+		mp_gpio_direction(LSM9DS0->csXM, MP_GPIO_OUTPUT);
+		mp_gpio_set(LSM9DS0->csG);
+		mp_gpio_set(LSM9DS0->csXM);
+
+		/* open spi */
+		ret = mp_spi_open(kernel, &LSM9DS0->spi, options, "LSM9DS0");
+		if(ret == FALSE)
+			return(FALSE);
+
+		mp_options_t setup[] = {
+			{ "frequency", "1000000" },
+			{ "phase", "change" },
+			{ "polarity", "high" },
+			{ "first", "MSB" },
+			{ "role", "master" },
+			{ "bit", "8" },
+			{ NULL, NULL }
+		};
+		ret = mp_spi_setup(&LSM9DS0->spi, setup);
+		if(ret == FALSE) {
+			mp_spi_close(&LSM9DS0->spi);
+			return(FALSE);
+		}
+	}
+	/* using i2c */
+	else {
+		/* open spi */
+		ret = mp_i2c_open(kernel, &LSM9DS0->i2c, options, "LSM9DS0");
+		if(ret == FALSE)
+			return(FALSE);
+
+		mp_options_t setup[] = {
+			{ "frequency", "400000" },
+			{ "role", "master" },
+			{ NULL, NULL }
+		};
+		ret = mp_i2c_setup(&LSM9DS0->i2c, setup);
+		if(ret == FALSE) {
+			mp_i2c_close(&LSM9DS0->i2c);
+			return(FALSE);
+		}
+
+		/* set slave address */
+		mp_i2c_setSlaveAddress(&LSM9DS0->i2c, LSM9DS0_ADDRESS_ACCELMAG);
+
+		/* create regmaster control */
+		ret = mp_regMaster_init_i2c(kernel, &LSM9DS0->regMaster,
+				&LSM9DS0->i2c, LSM9DS0, "LSM9DS0 I2C");
+		if(ret == FALSE) {
+			mp_printk("LSM9DS0 error while creating regMaster context");
+			mp_i2c_close(&LSM9DS0->i2c);
+			return(FALSE);
+		}
+
+	}
 	/* int1 */
 	value = mp_options_get(options, "int1");
 	if(value) {
@@ -102,6 +208,14 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 			return(FALSE);
 		}
 		mp_gpio_direction(LSM9DS0->int1, MP_GPIO_INPUT);
+
+		/* install drdy interrupt high > low */
+		ret = mp_gpio_interrupt_set(LSM9DS0->int1, _mp_drv_LSM9DS0_onIntAcc, LSM9DS0, who);
+		if(ret == FALSE) {
+			mp_gpio_release(LSM9DS0->int1);
+			return(FALSE);
+		}
+		mp_gpio_interrupt_lo2hi(LSM9DS0->int1);
 	}
 
 	/* int2 */
@@ -114,6 +228,15 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 			return(FALSE);
 		}
 		mp_gpio_direction(LSM9DS0->int2, MP_GPIO_INPUT);
+
+		/* install drdy interrupt high > low */
+		ret = mp_gpio_interrupt_set(LSM9DS0->int2, _mp_drv_LSM9DS0_onIntMag, LSM9DS0, who);
+		if(ret == FALSE) {
+			mp_gpio_release(LSM9DS0->int2);
+			return(FALSE);
+		}
+		mp_gpio_interrupt_lo2hi(LSM9DS0->int2);
+
 	}
 
 	/* intG */
@@ -138,66 +261,64 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 			return(FALSE);
 		}
 		mp_gpio_direction(LSM9DS0->drdy, MP_GPIO_INPUT);
+
+		/* install drdy interrupt high > low */
+		ret = mp_gpio_interrupt_set(LSM9DS0->drdy, _mp_drv_LSM9DS0_onDRDY, LSM9DS0, who);
+		if(ret == FALSE) {
+			mp_gpio_release(LSM9DS0->drdy);
+			return(FALSE);
+		}
+		mp_gpio_interrupt_lo2hi(LSM9DS0->drdy);
 	}
 
-	/* set CS high */
-	mp_gpio_direction(LSM9DS0->csG, MP_GPIO_OUTPUT);
-	mp_gpio_direction(LSM9DS0->csXM, MP_GPIO_OUTPUT);
-	mp_gpio_set(LSM9DS0->csG);
-	mp_gpio_set(LSM9DS0->csXM);
-
-	/* open spi */
-	ret = mp_spi_open(kernel, &LSM9DS0->spi, options, "LSM9DS0");
-	if(ret == FALSE)
-		return(FALSE);
-
-	mp_options_t setup[] = {
-		{ "frequency", "1000000" },
-		{ "phase", "change" },
-		{ "polarity", "high" },
-		{ "first", "MSB" },
-		{ "role", "master" },
-		{ "bit", "8" },
-		{ NULL, NULL }
-	};
-	ret = mp_spi_setup(&LSM9DS0->spi, setup);
-	if(ret == FALSE) {
-		mp_spi_close(&LSM9DS0->spi);
+	/* create ASR task */
+	LSM9DS0->task = mp_task_create(&kernel->tasks, who, _mp_drv_LSM9DS0_ASR, LSM9DS0, 100);
+	if(!LSM9DS0->task) {
+		mp_printk("LSM9DS0(%p) FATAL could not create ASR task", LSM9DS0);
 		return(FALSE);
 	}
 
-	// To verify communication, we can read from the WHO_AM_I register of
-	// each device. STore those in a variable so we can return them.
-	unsigned char gTest = mp_drv_LSM9DS0_gReadByte(LSM9DS0, WHO_AM_I_G); // Read the gyro WHO_AM_I
-	unsigned char xmTest = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, WHO_AM_I_XM); // Read the accel/mag WHO_AM_I
+	mp_printk("LSM9DS0(%p) driver initialization in memory structure size of %d bytes", LSM9DS0, sizeof(*LSM9DS0));
 
-	mp_printk("Initialize LSM9DS0 driver using SPI g=%x xm=%x", gTest, xmTest);
+	mp_clock_delay(500);
 
-	/*
+	/* check for device id */
+	mp_drv_LSM9DS0_xmRead(
+		LSM9DS0, WHO_AM_I_XM,
+		(unsigned char *)&LSM9DS0->buffer, 1,
+		_mp_drv_LSM9DS0_onXMWhoIAm
+	);
+
+	mp_drv_LSM9DS0_gRead(
+		LSM9DS0, WHO_AM_I_G,
+		(unsigned char *)&LSM9DS0->buffer, 1,
+		_mp_drv_LSM9DS0_onCSGWhoIAm
+	);
+
 	// Gyro initialization stuff:
 	mp_drv_LSM9DS0_initGyro(LSM9DS0); // This will "turn on" the gyro. Setting up interrupts, etc.
-	mp_drv_LSM9DS0_setGyroODR(LSM9DS0, gODR); // Set the gyro output data rate and bandwidth.
-	mp_drv_LSM9DS0_setGyroScale(LSM9DS0, LSM9DS0->gyro_scale); // Set the gyro range
+	mp_drv_LSM9DS0_setGyroODR(LSM9DS0, G_ODR_95_BW_125); // Set the gyro output data rate and bandwidth.
+	mp_drv_LSM9DS0_setGyroScale(LSM9DS0, G_SCALE_500DPS); // Set the gyro range
 
 	// Accelerometer initialization stuff:
 	mp_drv_LSM9DS0_initAccel(LSM9DS0); // "Turn on" all axes of the accel. Set up interrupts, etc.
-	mp_drv_LSM9DS0_setAccelODR(LSM9DS0, aODR); // Set the accel data rate.
-	mp_drv_LSM9DS0_setAccelScale(LSM9DS0, LSM9DS0->accel_scale); // Set the accel range.
+	mp_drv_LSM9DS0_setAccelODR(LSM9DS0, A_ODR_50); // Set the accel data rate.
+	mp_drv_LSM9DS0_setAccelScale(LSM9DS0, A_SCALE_2G); // Set the accel range.
 
 	// Magnetometer initialization stuff:
-	mp_drv_LSM9DS0_calibrate(LSM9DS0); // "Turn on" all axes of the mag. Set up interrupts, etc.
-	mp_drv_LSM9DS0_setMagODR(LSM9DS0, mODR); // Set the magnetometer output data rate.
-	mp_drv_LSM9DS0_setMagScale(LSM9DS0, LSM9DS0->mag_scale); // Set the magnetometer's range.
+	mp_drv_LSM9DS0_initMag(LSM9DS0); // "Turn on" all axes of the mag. Set up interrupts, etc.
+	mp_drv_LSM9DS0_setMagODR(LSM9DS0, M_ODR_125); // Set the magnetometer output data rate.
+	mp_drv_LSM9DS0_setMagScale(LSM9DS0, M_SCALE_12GS); // Set the magnetometer's range.
 
-	// run calibration
-	//mp_drv_LSM9DS0_calibrate(LSM9DS0);
-
-	mp_drv_LSM9DS0_start(LSM9DS0);
-	*/
 	return(TRUE);
 }
 
-
+/**
+ * @brief Terminate LSM9DS0 context
+ *
+ * @param[in] LSM9DS0 Context
+ * @return TRUE or FALSE
+ */
 mp_ret_t mp_drv_LSM9DS0_fini(mp_drv_LSM9DS0_t *LSM9DS0) {
 
 	if(LSM9DS0->csG)
@@ -220,8 +341,343 @@ mp_ret_t mp_drv_LSM9DS0_fini(mp_drv_LSM9DS0_t *LSM9DS0) {
 
 	mp_spi_close(&LSM9DS0->spi);
 
-	mp_printk("STopping LSM9DS0 SPI binding");
+	mp_task_destroy(LSM9DS0->task);
+
+
+	mp_printk("Stopping LSM9DS0");
 	return(TRUE);
+}
+
+/**
+ * @brief Read on accelerometer / magneto
+ *
+ * This function prepare all the states to read bytes from
+ * accelerometer and magneto.
+ *
+ * @param[in] LSM9DS0 Context
+ * @param[in] reg LSM9DS0 register
+ * @param[in] wait Buffer to fill
+ * @param[in] waitSize Size of buffer to fill
+ * @param[in] callback Executed regMaster callback
+ */
+void mp_drv_LSM9DS0_xmRead(
+		mp_drv_LSM9DS0_t *LSM9DS0,
+		unsigned char reg,
+		unsigned char *wait, int waitSize,
+		mp_regMaster_cb_t callback
+	) {
+	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C)
+		mp_regMaster_setSlaveAddress(&LSM9DS0->regMaster, LSM9DS0_ADDRESS_ACCELMAG);
+
+	mp_regMaster_read(
+		&LSM9DS0->regMaster,
+		mp_regMaster_register(reg), 1,
+		wait, waitSize,
+		callback, LSM9DS0
+	);
+}
+
+/**
+ * @brief Write on accelerometer / magneto
+ *
+ * This function prepare all the states to write bytes from
+ * the accelerometer / magneto
+ *
+ * @param[in] LSM9DS0 Context
+ * @param[in] reg LSM9DS0 register
+ * @param[in] reg Register and data to write
+ * @param[in] regSize Size of the register payload
+ * @param[in] callback Executed regMaster callback
+ */
+void mp_drv_LSM9DS0_xmWrite(
+		mp_drv_LSM9DS0_t *LSM9DS0,
+		unsigned char reg,
+		unsigned char value
+	) {
+	unsigned char *ptr = mp_mem_alloc(LSM9DS0->kernel, 2);
+	unsigned char *src = ptr;
+
+	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C)
+		mp_regMaster_setSlaveAddress(&LSM9DS0->regMaster, LSM9DS0_ADDRESS_ACCELMAG);
+
+	*(ptr++) = reg;
+	*ptr = value;
+
+	mp_regMaster_write(
+		&LSM9DS0->regMaster,
+		src, 2,
+		_mp_drv_LSM9DS0_onWrite, LSM9DS0
+	);
+}
+
+/**
+ * @brief Read on gyroscope
+ *
+ * This function prepare all the states to read bytes from
+ * the gyroscope
+ *
+ * @param[in] LSM9DS0 Context
+ * @param[in] reg LSM9DS0 register
+ * @param[in] wait Buffer to fill
+ * @param[in] waitSize Size of buffer to fill
+ * @param[in] callback Executed regMaster callback
+ */
+void mp_drv_LSM9DS0_gRead(
+		mp_drv_LSM9DS0_t *LSM9DS0,
+		unsigned char reg,
+		unsigned char *wait, int waitSize,
+		mp_regMaster_cb_t callback
+	) {
+	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C)
+		mp_regMaster_setSlaveAddress(&LSM9DS0->regMaster, LSM9DS0_ADDRESS_GYRO);
+
+	mp_regMaster_read(
+		&LSM9DS0->regMaster,
+		mp_regMaster_register(reg), 1,
+		wait, waitSize,
+		callback, LSM9DS0
+	);
+}
+
+/**
+ * @brief Write on gyroscope
+ *
+ * This function prepare all the states to write bytes from
+ * the gyroscope
+ *
+ * @param[in] LSM9DS0 Context
+ * @param[in] reg LSM9DS0 register
+ * @param[in] reg Register and data to write
+ * @param[in] regSize Size of the register payload
+ * @param[in] callback Executed regMaster callback
+ */
+void mp_drv_LSM9DS0_gWrite(
+		mp_drv_LSM9DS0_t *LSM9DS0,
+		unsigned char reg,
+		unsigned char value
+	) {
+	unsigned char *ptr = mp_mem_alloc(LSM9DS0->kernel, 2);
+	unsigned char *src = ptr;
+
+	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C)
+		mp_regMaster_setSlaveAddress(&LSM9DS0->regMaster, LSM9DS0_ADDRESS_GYRO);
+
+	*(ptr++) = reg;
+	*ptr = value;
+
+	mp_regMaster_write(
+		&LSM9DS0->regMaster,
+		src, 2,
+		_mp_drv_LSM9DS0_onWrite, LSM9DS0
+	);
+}
+
+void mp_drv_LSM9DS0_initGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
+
+	/* Register new gyro sensor */
+	LSM9DS0->gyro = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_3AXIS, "LSM9DS0 GYRO");
+
+	/* prepare gyro registers */
+	LSM9DS0->gReg1 = 0x0f;
+	LSM9DS0->gReg4 = 0x00;
+
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG1_G, LSM9DS0->gReg1); // Normal mode, enable all axes
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG2_G, 0x30);
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG3_G, 0x88);
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG4_G, LSM9DS0->gReg4); // Set scale to 245 dps
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG5_G, 0x10);
+}
+
+void mp_drv_LSM9DS0_finiGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG1_G, 0x00);
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG2_G, 0x00);
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG3_G, 0x00);
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG4_G, 0x00);
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG5_G, 0x00);
+
+	if(LSM9DS0->gyro)
+		mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->gyro);
+}
+
+void mp_drv_LSM9DS0_setGyroScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_scale_t gScl) {
+	// Then mask out the gyro scale bits:
+	LSM9DS0->gReg4 &= 0xFF^(0x3 << 4);
+
+	// Then shift in our new scale bits:
+	LSM9DS0->gReg4 |= gScl << 4;
+
+	// And write the new register value back into CTRL_REG4_G:
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG4_G, LSM9DS0->gReg4);
+
+	// We've updated the sensor, but we also need to update our class variables
+	// First update gScale:
+	LSM9DS0->gyro_scale = gScl;
+
+	// Then calculate a new gRes, which relies on gScale being set correctly:
+	_mp_drv_LSM9DS0_calcgRes(LSM9DS0);
+
+	/* run calibration */
+	LSM9DS0->gyroCal = 1;
+}
+
+void mp_drv_LSM9DS0_setGyroODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_odr_t gRate) {
+	// Then mask out the gyro ODR bits:
+	LSM9DS0->gReg1 &= 0xFF^(0xF << 4);
+
+	// Then shift in our new ODR bits:
+	LSM9DS0->gReg1 |= (gRate << 4);
+
+	// And write the new register value back into CTRL_REG1_G:
+	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG1_G, LSM9DS0->gReg1);
+}
+
+void mp_drv_LSM9DS0_initMag(mp_drv_LSM9DS0_t *LSM9DS0) {
+	/* Register new magneto sensor */
+	LSM9DS0->magneto = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_3AXIS, "LSM9DS0 MAGNETO");
+	LSM9DS0->temperature = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_TEMPERATURE, "LSM9DS0 TEMP");
+
+	/* prepare magneto registers */
+	LSM9DS0->xmReg5 = 0x94;
+	LSM9DS0->xmReg6 = 0x00;
+
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG7_XM, 0x00);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG5_XM, LSM9DS0->xmReg5);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG6_XM, LSM9DS0->xmReg6);
+
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG4_XM, 0x04);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, INT_CTRL_REG_M, 0x09);
+}
+
+void mp_drv_LSM9DS0_finiMag(mp_drv_LSM9DS0_t *LSM9DS0) {
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG5_XM, 0x00);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG6_XM, 0x00);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG7_XM, 0x00);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG4_XM, 0x00);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, INT_CTRL_REG_M, 0x00);
+
+	if(LSM9DS0->magneto)
+		mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->magneto);
+	if(LSM9DS0->temperature)
+		mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->temperature);
+}
+
+void mp_drv_LSM9DS0_setMagScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_scale_t mScl) {
+	// We need to preserve the other bytes in CTRL_REG6_XM. So, first read it:
+	unsigned char temp = LSM9DS0->xmReg6;
+
+	// Then mask out the mag scale bits:
+	temp &= 0xFF^(0x3 << 5);
+
+	// Then shift in our new scale bits:
+	temp |= mScl << 5;
+
+	LSM9DS0->xmReg6 = temp;
+
+	// And write the new register value back into CTRL_REG6_XM:
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG6_XM, LSM9DS0->xmReg6);
+
+	// We've updated the sensor, but we also need to update our class variables
+	// First update mScale:
+	LSM9DS0->mag_scale = mScl;
+
+	// Then calculate a new mRes, which relies on mScale being set correctly:
+	_mp_drv_LSM9DS0_calcmRes(LSM9DS0);
+}
+
+void mp_drv_LSM9DS0_setMagODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_odr_t mRate) {
+	// We need to preserve the other bytes in CTRL_REG5_XM. So, first read it:
+	unsigned char temp = LSM9DS0->xmReg5;
+
+	// Then mask out the mag ODR bits:
+	temp &= 0xFF^(0x7 << 2);
+
+	// Then shift in our new ODR bits:
+	temp |= (mRate << 2);
+
+	LSM9DS0->xmReg5 = temp;
+
+	// And write the new register value back into CTRL_REG5_XM:
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG5_XM, LSM9DS0->xmReg5);
+}
+
+void mp_drv_LSM9DS0_initAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
+	/* Register new accelerometer sensor */
+	LSM9DS0->accelero = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_3AXIS, "LSM9DS0 ACCEL");
+
+	/* prepare accelerometer registers */
+	LSM9DS0->xmReg1 = 0x57;
+	LSM9DS0->xmReg2 = 0x00;
+
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG0_XM, 0x02);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG1_XM, LSM9DS0->xmReg1); // 100Hz data rate, x/y/z all enabled
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG2_XM, LSM9DS0->xmReg2); // Set scale to 2g
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG3_XM, 0x04);
+}
+
+void mp_drv_LSM9DS0_finiAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG0_XM, 0x00);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG1_XM, 0x00);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG2_XM, 0x00);
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG3_XM, 0x00);
+
+	if(LSM9DS0->accelero)
+		mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->accelero);
+}
+
+void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_scale_t aScl) {
+	// We need to preserve the other bytes in CTRL_REG2_XM. So, first read it:
+	unsigned char temp = LSM9DS0->xmReg2;
+
+	// Then mask out the accel scale bits:
+	temp &= 0xFF^(0x3 << 3);
+
+	// Then shift in our new scale bits:
+	temp |= aScl << 3;
+	LSM9DS0->xmReg2 = temp;
+
+	// And write the new register value back into CTRL_REG2_XM:
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG2_XM, LSM9DS0->xmReg2);
+
+	// We've updated the sensor, but we also need to update our class variables
+	// First update aScale:
+	LSM9DS0->accel_scale = aScl;
+
+	// Then calculate a new aRes, which relies on aScale being set correctly:
+	_mp_drv_LSM9DS0_calcaRes(LSM9DS0);
+
+	LSM9DS0->accelCal = 1;
+}
+
+void mp_drv_LSM9DS0_setAccelODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_odr_t aRate) {
+	// We need to preserve the other bytes in CTRL_REG1_XM. So, first read it:
+	unsigned char temp = LSM9DS0->xmReg1;
+
+	// Then mask out the accel ODR bits:
+	temp &= 0xFF^(0xF << 4);
+
+	// Then shift in our new ODR bits:
+	temp |= (aRate << 4);
+	LSM9DS0->xmReg1 = temp;
+
+	// And write the new register value back into CTRL_REG1_XM:
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG1_XM, LSM9DS0->xmReg1);
+}
+
+void mp_drv_LSM9DS0_setAccelABW(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_abw_t abwRate) {
+	// We need to preserve the other bytes in CTRL_REG2_XM. So, first read it:
+	unsigned char temp = LSM9DS0->xmReg2;
+
+	// Then mask out the accel ABW bits:
+	temp &= 0xFF^(0x3 << 7);
+
+	// Then shift in our new ODR bits:
+	temp |= (abwRate << 7);
+	LSM9DS0->xmReg2 = temp;
+
+	// And write the new register value back into CTRL_REG2_XM:
+	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG2_XM, LSM9DS0->xmReg2);
+
+	LSM9DS0->accelCal = 1;
 }
 
 /**@}*/
@@ -261,395 +717,270 @@ static void _mp_drv_LSM9DS0_calcmRes(mp_drv_LSM9DS0_t *LSM9DS0) {
 		(float) (LSM9DS0->mag_scale << 2) / 32768.0;
 }
 
-
-void mp_drv_LSM9DS0_readAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
-	unsigned char temp[6]; // We'll read six bytes from the accelerometer into temp
-	mp_drv_LSM9DS0_xmReadBytes(LSM9DS0, OUT_X_L_A, temp, 6); // Read 6 bytes, beginning at OUT_X_L_A
-	LSM9DS0->ax = (temp[1] << 8) | temp[0]; // STore x-axis values into ax
-	LSM9DS0->ay = (temp[3] << 8) | temp[2]; // STore y-axis values into ay
-	LSM9DS0->az = (temp[5] << 8) | temp[4]; // STore z-axis values into az
+static void _mp_drv_LSM9DS0_onCSGWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
+	mp_printk("got on G iam %x", LSM9DS0->buffer[0]);
 }
 
-void mp_drv_LSM9DS0_readMag(mp_drv_LSM9DS0_t *LSM9DS0) {
-	unsigned char temp[6]; // We'll read six bytes from the mag into temp
-	mp_drv_LSM9DS0_xmReadBytes(LSM9DS0, OUT_X_L_M, temp, 6); // Read 6 bytes, beginning at OUT_X_L_M
-	LSM9DS0->mx = (temp[1] << 8) | temp[0]; // STore x-axis values into mx
-	LSM9DS0->my = (temp[3] << 8) | temp[2]; // STore y-axis values into my
-	LSM9DS0->mz = (temp[5] << 8) | temp[4]; // STore z-axis values into mz
+static void _mp_drv_LSM9DS0_onXMWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
+
+	mp_printk("got on XM iam %x", LSM9DS0->buffer[0]);
+
 }
 
-void mp_drv_LSM9DS0_readTemp(mp_drv_LSM9DS0_t *LSM9DS0) {
-	unsigned char temp[2]; // We'll read two bytes from the temperature sensor into temp
-	mp_drv_LSM9DS0_xmReadBytes(LSM9DS0, OUT_TEMP_L_XM, temp, 2); // Read 2 bytes, beginning at OUT_TEMP_L_M
-	LSM9DS0->temperature = (((unsigned short) temp[1] << 12) | temp[0] << 4 ) >> 4; // Temperature is a 12-bit signed integer
-}
-
-void mp_drv_LSM9DS0_readGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
-	unsigned char temp[6]; // We'll read six bytes from the gyro into temp
-	mp_drv_LSM9DS0_gReadBytes(LSM9DS0, OUT_X_L_G, temp, 6); // Read 6 bytes, beginning at OUT_X_L_G
-	LSM9DS0->gx = (temp[1] << 8) | temp[0]; // STore x-axis values into gx
-	LSM9DS0->gy = (temp[3] << 8) | temp[2]; // STore y-axis values into gy
-	LSM9DS0->gz = (temp[5] << 8) | temp[4]; // STore z-axis values into gz
-}
-
-void mp_drv_LSM9DS0_initGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG1_G, 0x0F); // Normal mode, enable all axes
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG2_G, 0x00); // Normal mode, high cutoff frequency
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG3_G, 0x88);
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG4_G, 0x00); // Set scale to 245 dps
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG5_G, 0x00);
-
-	//mp_drv_LSM9DS0_gWriteByte(LSM9DS0, INT1_CFG_G, 0x2a);
-}
-
-void mp_drv_LSM9DS0_initAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG0_XM, 0x00);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG1_XM, 0x57); // 100Hz data rate, x/y/z all enabled
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG2_XM, 0x00); // Set scale to 2g
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG3_XM, 0x04);
-}
-
-void mp_drv_LSM9DS0_initMag(mp_drv_LSM9DS0_t *LSM9DS0) {
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG5_XM, 0x94); // Mag data rate - 100 Hz, enable temperature sensor
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG6_XM, 0x00); // Mag scale to +/- 2GS
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG7_XM, 0x00); // Continuous conversion mode
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG4_XM, 0x04); // Magnetometer data ready on INT2_XM (0x08)
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, INT_CTRL_REG_M, 0x09); // Enable interrupts for mag, active-low, push-pull
-}
-
-void mp_drv_LSM9DS0_finiGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG1_G, 0x00);
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG2_G, 0x00);
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG3_G, 0x00);
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG4_G, 0x00);
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG5_G, 0x00);
-}
-
-void mp_drv_LSM9DS0_finiAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG0_XM, 0x00);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG1_XM, 0x00);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG2_XM, 0x00);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG3_XM, 0x00);
-}
-
-void mp_drv_LSM9DS0_finiMag(mp_drv_LSM9DS0_t *LSM9DS0) {
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG5_XM, 0x00);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG6_XM, 0x00);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG7_XM, 0x00);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG4_XM, 0x00);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, INT_CTRL_REG_M, 0x00);
+static void _mp_drv_LSM9DS0_onWrite(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
+	mp_printk("LSM9DS0(%p) register write 0x%x = 0x%x using address 0x%x", LSM9DS0, operand->reg[0], operand->reg[1], operand->slaveAddress);
+	mp_mem_free(LSM9DS0->kernel, operand->reg);
 }
 
 
-float mp_drv_LSM9DS0_calcGyro(mp_drv_LSM9DS0_t *LSM9DS0, unsigned short gyro) {
-	// Return the gyro raw reading times our pre-calculated DPS / (ADC tick):
-	return LSM9DS0->gRes * gyro;
+//int init = 0;
+static void _mp_drv_LSM9DS0_onGyroRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
+
+	LSM9DS0->gyro->axis3.x = (LSM9DS0->gRes*(double)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->gbias[0];
+	LSM9DS0->gyro->axis3.y = (LSM9DS0->gRes*(double)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->gbias[1];
+	LSM9DS0->gyro->axis3.z = (LSM9DS0->gRes*(double)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->gbias[2];
+
+	//if(init == 5) {
+		//mp_printk("%d", ((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]));
+	//mp_printk("LSM9DS0(%p) Gyro x=%f y=%f z=%f", LSM9DS0, LSM9DS0->gyro->axis3.x, LSM9DS0->gyro->axis3.y, LSM9DS0->gyro->axis3.z);
+	//init=0;
+	//}
+	//init++;
+
 }
 
-float mp_drv_LSM9DS0_calcAccel(mp_drv_LSM9DS0_t *LSM9DS0, unsigned short accel) {
-	// Return the accel raw reading times our pre-calculated g's / (ADC tick):
-	return LSM9DS0->aRes * accel;
-}
+static void _mp_drv_LSM9DS0_onGyroCalibrationRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	signed short ga[3];
+	float tmp[3];
+	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-float mp_drv_LSM9DS0_calcMag(mp_drv_LSM9DS0_t *LSM9DS0, unsigned short mag) {
-	// Return the mag raw reading times our pre-calculated Gs / (ADC tick):
-	return LSM9DS0->mRes * mag;
-}
+	if(LSM9DS0->gyroCal == 1) {
+		LSM9DS0->gbiasCal[3]++;
 
-
-void mp_drv_LSM9DS0_setGyroScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_scale_t gScl) {
-	// We need to preserve the other bytes in CTRL_REG4_G. So, first read it:
-	unsigned char temp = mp_drv_LSM9DS0_gReadByte(LSM9DS0, CTRL_REG4_G);
-
-	// Then mask out the gyro scale bits:
-	temp &= 0xFF^(0x3 << 4);
-
-	// Then shift in our new scale bits:
-	temp |= gScl << 4;
-
-	// And write the new register value back into CTRL_REG4_G:
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG4_G, temp);
-
-	// We've updated the sensor, but we also need to update our class variables
-	// First update gScale:
-	LSM9DS0->gyro_scale = gScl;
-
-	// Then calculate a new gRes, which relies on gScale being set correctly:
-	_mp_drv_LSM9DS0_calcgRes(LSM9DS0);
-}
-
-void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_scale_t aScl) {
-	// We need to preserve the other bytes in CTRL_REG2_XM. So, first read it:
-	unsigned char temp = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, CTRL_REG2_XM);
-
-	// Then mask out the accel scale bits:
-	temp &= 0xFF^(0x3 << 3);
-
-	// Then shift in our new scale bits:
-	temp |= aScl << 3;
-
-	// And write the new register value back into CTRL_REG2_XM:
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG2_XM, temp);
-
-	// We've updated the sensor, but we also need to update our class variables
-	// First update aScale:
-	LSM9DS0->accel_scale = aScl;
-
-	// Then calculate a new aRes, which relies on aScale being set correctly:
-	_mp_drv_LSM9DS0_calcaRes(LSM9DS0);
-}
-
-void mp_drv_LSM9DS0_setMagScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_scale_t mScl) {
-	// We need to preserve the other bytes in CTRL_REG6_XM. So, first read it:
-	unsigned char temp = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, CTRL_REG6_XM);
-
-	// Then mask out the mag scale bits:
-	temp &= 0xFF^(0x3 << 5);
-
-	// Then shift in our new scale bits:
-	temp |= mScl << 5;
-
-	// And write the new register value back into CTRL_REG6_XM:
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG6_XM, temp);
-
-	// We've updated the sensor, but we also need to update our class variables
-	// First update mScale:
-	LSM9DS0->mag_scale = mScl;
-
-	// Then calculate a new mRes, which relies on mScale being set correctly:
-	_mp_drv_LSM9DS0_calcmRes(LSM9DS0);
-}
-
-
-void mp_drv_LSM9DS0_setGyroODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_odr_t gRate) {
-	// We need to preserve the other bytes in CTRL_REG1_G. So, first read it:
-	unsigned char temp = mp_drv_LSM9DS0_gReadByte(LSM9DS0, CTRL_REG1_G);
-
-	// Then mask out the gyro ODR bits:
-	temp &= 0xFF^(0xF << 4);
-
-	// Then shift in our new ODR bits:
-	temp |= (gRate << 4);
-
-	// And write the new register value back into CTRL_REG1_G:
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG1_G, temp);
-}
-
-void mp_drv_LSM9DS0_setAccelODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_odr_t aRate) {
-	// We need to preserve the other bytes in CTRL_REG1_XM. So, first read it:
-	unsigned char temp = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, CTRL_REG1_XM);
-
-	// Then mask out the accel ODR bits:
-	temp &= 0xFF^(0xF << 4);
-
-	// Then shift in our new ODR bits:
-	temp |= (aRate << 4);
-
-	// And write the new register value back into CTRL_REG1_XM:
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG1_XM, temp);
-}
-
-void mp_drv_LSM9DS0_setAccelABW(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_abw_t abwRate) {
-	// We need to preserve the other bytes in CTRL_REG2_XM. So, first read it:
-	unsigned char temp = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, CTRL_REG2_XM);
-
-	// Then mask out the accel ABW bits:
-	temp &= 0xFF^(0x3 << 7);
-
-	// Then shift in our new ODR bits:
-	temp |= (abwRate << 7);
-
-	// And write the new register value back into CTRL_REG2_XM:
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG2_XM, temp);
-}
-
-void mp_drv_LSM9DS0_setMagODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_odr_t mRate) {
-	// We need to preserve the other bytes in CTRL_REG5_XM. So, first read it:
-	unsigned char temp = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, CTRL_REG5_XM);
-
-	// Then mask out the mag ODR bits:
-	temp &= 0xFF^(0x7 << 2);
-
-	// Then shift in our new ODR bits:
-	temp |= (mRate << 2);
-
-	// And write the new register value back into CTRL_REG5_XM:
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG5_XM, temp);
-}
-
-
-
-void mp_drv_LSM9DS0_calibrate(mp_drv_LSM9DS0_t *LSM9DS0) {
-	unsigned char data[6] = {0, 0, 0, 0, 0, 0};
-	unsigned long gyro_bias[3] = {0, 0, 0}, accel_bias[3] = {0, 0, 0};
-	unsigned short samples, ii;
-
-	unsigned char c = mp_drv_LSM9DS0_gReadByte(LSM9DS0, CTRL_REG5_G);
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG5_G, c | 0x40); // Enable gyro FIFO
-	mp_clock_delay(20); // Wait for change to take effect
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, FIFO_CTRL_REG_G, 0x20 | 0x1F); // Enable gyro FIFO stream mode and set watermark at 32 samples
-	mp_clock_delay(1000); // delay 1000 milliseconds to collect FIFO samples
-
-	samples = (mp_drv_LSM9DS0_gReadByte(LSM9DS0, FIFO_SRC_REG_G) & 0x1F); // Read number of stored samples
-	for(ii = 0; ii < samples ; ii++) { // Read the gyro data stored in the FIFO
-		unsigned short gyro_temp[3] = {0, 0, 0};
-		mp_drv_LSM9DS0_gReadBytes(LSM9DS0, OUT_X_L_G, &data[0], 6);
-		gyro_temp[0] = (unsigned short) (((unsigned short)data[1] << 8) | data[0]); // Form signed 16-bit integer for each sample in FIFO
-		gyro_temp[1] = (unsigned short) (((unsigned short)data[3] << 8) | data[2]);
-		gyro_temp[2] = (unsigned short) (((unsigned short)data[5] << 8) | data[4]);
-		gyro_bias[0] += (unsigned long) gyro_temp[0]; // Sum individual signed 16-bit biases to get accumulated signed 32-bit biases
-		gyro_bias[1] += (unsigned long) gyro_temp[1];
-		gyro_bias[2] += (unsigned long) gyro_temp[2];
+		if(LSM9DS0->gbiasCal[3] == LSM9DS0_GYRO_CALIBRATION_DROP) {
+			LSM9DS0->gyroCal = 2;
+			LSM9DS0->gbiasCal[0] = 0;
+			LSM9DS0->gbiasCal[1] = 0;
+			LSM9DS0->gbiasCal[2] = 0;
+			LSM9DS0->gbiasCal[3] = 0;
+		}
+		else
+			return;
 	}
 
-	gyro_bias[0] /= samples; // average the data
-	gyro_bias[1] /= samples;
-	gyro_bias[2] /= samples;
+	LSM9DS0->gbiasCal[0] += (LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0];
+	LSM9DS0->gbiasCal[1] += (LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2];
+	LSM9DS0->gbiasCal[2] += (LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4];
+	LSM9DS0->gbiasCal[3]++;
 
-	// Properly scale the data to get deg/s
-	LSM9DS0->gbias[0] = (float)gyro_bias[0]*LSM9DS0->gRes;
-	LSM9DS0->gbias[1] = (float)gyro_bias[1]*LSM9DS0->gRes;
-	LSM9DS0->gbias[2] = (float)gyro_bias[2]*LSM9DS0->gRes;
+	if(LSM9DS0->gbiasCal[3] == LSM9DS0_GYRO_CALIBRATION_COUNT) {
+		LSM9DS0->gbiasCal[0] /= LSM9DS0_GYRO_CALIBRATION_COUNT;
+		LSM9DS0->gbiasCal[1] /= LSM9DS0_GYRO_CALIBRATION_COUNT;
+		LSM9DS0->gbiasCal[2] /= LSM9DS0_GYRO_CALIBRATION_COUNT;
 
-	mp_printk("LSM9DS0 Gyro calibration bias are x=%f y=%f z=%f using %d samples",
-			LSM9DS0->gbias[0], LSM9DS0->gbias[1], LSM9DS0->gbias[2], samples);
+		ga[0] = LSM9DS0->gbiasCal[0];
+		ga[1] = LSM9DS0->gbiasCal[1];
+		ga[2] = LSM9DS0->gbiasCal[2];
 
-	c = mp_drv_LSM9DS0_gReadByte(LSM9DS0, CTRL_REG5_G);
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, CTRL_REG5_G, c & ~0x40); // Disable gyro FIFO
-	mp_clock_delay(20);
-	mp_drv_LSM9DS0_gWriteByte(LSM9DS0, FIFO_CTRL_REG_G, 0x00); // Enable gyro bypass mode
-	mp_clock_delay(20);
+		tmp[0] = (float)ga[0]*LSM9DS0->gRes;
+		tmp[1] = (float)ga[1]*LSM9DS0->gRes;
+		tmp[2] = (float)ga[2]*LSM9DS0->gRes;
 
-	// Now get the accelerometer biases
-	c = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, CTRL_REG0_XM);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG0_XM, c | 0x40); // Enable accelerometer FIFO
-	mp_clock_delay(20); // Wait for change to take effect
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, FIFO_CTRL_REG, 0x20 | 0x1F); // Enable accelerometer FIFO stream mode and set watermark at 32 samples
-	mp_clock_delay(1000);
+		memcpy(&LSM9DS0->gbias, &tmp, sizeof(LSM9DS0->gbias));
 
+		mp_printk("LSM9DS0 gyro calibration bias are x=%f y=%f z=%f res=%f using %d samples",
+				LSM9DS0->gbias[0], LSM9DS0->gbias[1], LSM9DS0->gbias[2], LSM9DS0->gRes, LSM9DS0_GYRO_CALIBRATION_COUNT);
 
-	samples = (mp_drv_LSM9DS0_xmReadByte(LSM9DS0, FIFO_SRC_REG) & 0x1F); // Read number of stored accelerometer samples
-	for(ii = 0; ii < samples ; ii++) { // Read the accelerometer data stored in the FIFO
-		unsigned short accel_temp[3] = {0, 0, 0};
+		LSM9DS0->gyroCal = 0;
+	}
+}
 
-		mp_drv_LSM9DS0_xmReadBytes(LSM9DS0, OUT_X_L_A, &data[0], 6);
-		accel_temp[0] = (unsigned short) (((unsigned short)data[1] << 8) | data[0]);// Form signed 16-bit integer for each sample in FIFO
-		accel_temp[1] = (unsigned short) (((unsigned short)data[3] << 8) | data[2]);
-		accel_temp[2] = (unsigned short) (((unsigned short)data[5] << 8) | data[4]);
-		accel_bias[0] += (unsigned long) accel_temp[0]; // Sum individual signed 16-bit biases to get accumulated signed 32-bit biases
-		accel_bias[1] += (unsigned long) accel_temp[1];
-		accel_bias[2] += (unsigned long) accel_temp[2];
+//int init = 0;
+static void _mp_drv_LSM9DS0_onMagRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
+
+	LSM9DS0->magneto->axis3.x = LSM9DS0->mRes*(double)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]);
+	LSM9DS0->magneto->axis3.y = LSM9DS0->mRes*(double)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]);
+	LSM9DS0->magneto->axis3.z = LSM9DS0->mRes*(double)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]);
+
+	//if(init == 10) {
+		//mp_printk("%d", ((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]));
+	//mp_printk("LSM9DS0(%p) Magneto x=%f y=%f z=%f res=%f", LSM9DS0, LSM9DS0->magneto->axis3.x, LSM9DS0->magneto->axis3.y, LSM9DS0->magneto->axis3.z, LSM9DS0->mRes);
+	//init=0;
+	//}
+	//init++;
+}
+
+static void _mp_drv_LSM9DS0_onTemperatureRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
+	LSM9DS0->temperature->temperature.result = ((LSM9DS0->buffer[1] << 12) | LSM9DS0->buffer[0] << 4 ) >> 4;
+
+	//mp_printk("LSM9DS0(%p) Temperature %f C", LSM9DS0, LSM9DS0->temperature->temperature.result);
+}
+
+//int initAccel = 0;
+static void _mp_drv_LSM9DS0_onAccelRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
+
+	LSM9DS0->accelero->axis3.x = (LSM9DS0->aRes*(double)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->abias[0];
+	LSM9DS0->accelero->axis3.y = (LSM9DS0->aRes*(double)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->abias[1];
+	LSM9DS0->accelero->axis3.z = (LSM9DS0->aRes*(double)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->abias[2];
+
+	//if(initAccel == 10) {
+		//mp_printk("%d", ((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]));
+	//mp_printk("LSM9DS0(%p) Accel x=%f y=%f z=%f", LSM9DS0, LSM9DS0->accelero->axis3.x, LSM9DS0->accelero->axis3.y, LSM9DS0->accelero->axis3.z);
+	//initAccel=0;
+	//}
+	//initAccel++;
+}
+
+static void _mp_drv_LSM9DS0_onAccelCalibrationRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	signed short ga[3];
+	float tmp[3];
+	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
+
+	if(LSM9DS0->accelCal == 1) {
+		LSM9DS0->abiasCal[3]++;
+
+		if(LSM9DS0->abiasCal[3] == LSM9DS0_ACCELERO_CALIBRATION_DROP) {
+			LSM9DS0->accelCal = 2;
+			LSM9DS0->abiasCal[0] = 0;
+			LSM9DS0->abiasCal[1] = 0;
+			LSM9DS0->abiasCal[2] = 0;
+			LSM9DS0->abiasCal[3] = 0;
+		}
+		else
+			return;
 	}
 
-	accel_bias[0] /= samples; // average the data
-	accel_bias[1] /= samples;
-	accel_bias[2] /= samples;
+	LSM9DS0->abiasCal[0] += (LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0];
+	LSM9DS0->abiasCal[1] += (LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2];
+	LSM9DS0->abiasCal[2] += (LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4];
+	LSM9DS0->abiasCal[3]++;
 
-	// Remove gravity from the z-axis accelerometer bias calculation
-	if(accel_bias[2] > 0L)
-		accel_bias[2] -= (unsigned long) (1.0/LSM9DS0->aRes);
-	else
-		accel_bias[2] += (unsigned long) (1.0/LSM9DS0->aRes);
+	if(LSM9DS0->abiasCal[3] == LSM9DS0_ACCELERO_CALIBRATION_COUNT) {
+		LSM9DS0->abiasCal[0] /= LSM9DS0_ACCELERO_CALIBRATION_COUNT;
+		LSM9DS0->abiasCal[1] /= LSM9DS0_ACCELERO_CALIBRATION_COUNT;
+		LSM9DS0->abiasCal[2] /= LSM9DS0_ACCELERO_CALIBRATION_COUNT;
 
-	LSM9DS0->abias[0] = (float)accel_bias[0]*LSM9DS0->aRes; // Properly scale data to get gs
-	LSM9DS0->abias[1] = (float)accel_bias[1]*LSM9DS0->aRes;
-	LSM9DS0->abias[2] = (float)accel_bias[2]*LSM9DS0->aRes;
+		ga[0] = LSM9DS0->abiasCal[0];
+		ga[1] = LSM9DS0->abiasCal[1];
+		ga[2] = LSM9DS0->abiasCal[2];
 
-	mp_printk("LSM9DS0 accelerometer calibration bias are x=%f y=%f z=%f using %d samples",
-			LSM9DS0->abias[0], LSM9DS0->abias[1], LSM9DS0->abias[2], samples);
+		tmp[0] = (float)ga[0]*LSM9DS0->aRes;
+		tmp[1] = (float)ga[1]*LSM9DS0->aRes;
+		tmp[2] = (float)ga[2]*LSM9DS0->aRes;
 
-	c = mp_drv_LSM9DS0_xmReadByte(LSM9DS0, CTRL_REG0_XM);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, CTRL_REG0_XM, c & ~0x40); // Disable accelerometer FIFO
-	mp_clock_delay(20);
-	mp_drv_LSM9DS0_xmWriteByte(LSM9DS0, FIFO_CTRL_REG, 0x00); // Enable accelerometer bypass mode
+		memcpy(&LSM9DS0->abias, &tmp, sizeof(LSM9DS0->abias));
 
+		mp_printk("LSM9DS0 accelero calibration bias are x=%f y=%f z=%f res=%f using %d samples",
+				LSM9DS0->abias[0], LSM9DS0->abias[1], LSM9DS0->abias[2], LSM9DS0->aRes, LSM9DS0_ACCELERO_CALIBRATION_COUNT);
+
+		LSM9DS0->accelCal = 0;
+	}
 }
 
-
-
-
-static _mp_drv_LSM9DS0_spi_writeByte(mp_drv_LSM9DS0_t *LSM9DS0, mp_gpio_port_t *cs, unsigned char subAddress, unsigned char data) {
-	/* Initiate communication */
-	if(cs)
-		mp_gpio_unset(cs);
-
-	/* send address */
-	mp_spi_tx(&LSM9DS0->spi, subAddress & 0x3F);
-	mp_spi_rx(&LSM9DS0->spi);
-
-	/* send data */
-	mp_spi_tx(&LSM9DS0->spi, data);
-	mp_spi_rx(&LSM9DS0->spi);
-
-	/* close communication */
-	if(cs)
-		mp_gpio_set(cs);
+static void _mp_drv_LSM9DS0_onDRDY(void *user) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = user;
+	LSM9DS0->intSrc |= 0x1;
+	LSM9DS0->task->signal = MP_TASK_SIG_PENDING;
 }
 
-
-static unsigned char _mp_drv_LSM9DS0_spi_readByte(mp_drv_LSM9DS0_t *LSM9DS0, mp_gpio_port_t *cs, unsigned char subAddress) {
-	unsigned char temp;
-	// Use the multiple read function to read 1 byte.
-	// Value is returned to `temp`.
-	_mp_drv_LSM9DS0_spi_readBytes(LSM9DS0, cs, subAddress, &temp, 1);
-	return temp;
+static void _mp_drv_LSM9DS0_onIntMag(void *user) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = user;
+	LSM9DS0->intSrc |= 0x2;
+	LSM9DS0->task->signal = MP_TASK_SIG_PENDING;
 }
 
+static void _mp_drv_LSM9DS0_onIntAcc(void *user) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = user;
+	LSM9DS0->intSrc |= 0x4;
+	LSM9DS0->task->signal = MP_TASK_SIG_PENDING;
+}
 
-static void _mp_drv_LSM9DS0_spi_readBytes(
-		mp_drv_LSM9DS0_t *LSM9DS0, mp_gpio_port_t *cs,
-		unsigned char subAddress, unsigned char * dest, unsigned char count
-	) {
-	int i;
+MP_TASK(_mp_drv_LSM9DS0_ASR) {
+	mp_drv_LSM9DS0_t *LSM9DS0 = task->user;
 
-	/* Initiate communication */
-	if(cs)
-		mp_gpio_unset(cs);
+	/* receive regMaster shutdown */
+	if(task->signal == MP_TASK_SIG_STOP) {
+		if(LSM9DS0->gyro)
+			mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->gyro);
 
-	// To indicate a read, set bit 0 (msb) to 1
-	// If we're reading multiple bytes, set bit 1 to 1
-	// The remaining six bytes are the address to be read
-	if (count > 1)
-		mp_spi_tx(&LSM9DS0->spi, 0xC0 | (subAddress & 0x3F));
-	else
-		mp_spi_tx(&LSM9DS0->spi, 0x80 | (subAddress & 0x3F));
+		if(LSM9DS0->magneto)
+			mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->magneto);
 
-	mp_spi_rx(&LSM9DS0->spi);
+		if(LSM9DS0->temperature)
+			mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->temperature);
 
-	for(i=0; i<count; i++) {
-		mp_spi_tx(&LSM9DS0->spi, 0);
-		dest[i] = mp_spi_rx(&LSM9DS0->spi);
+		if(LSM9DS0->accelero)
+			mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->accelero);
+
+		/* acknowledging */
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
 	}
 
-	/* close communication */
-	if(cs)
-		mp_gpio_set(cs);
+	/* Gyro atomic read */
+	if(LSM9DS0->intSrc & 0x1) {
+		if(LSM9DS0->gyroCal == 0) {
+			mp_drv_LSM9DS0_gRead(
+				LSM9DS0, OUT_X_L_G | 0x80,
+				(unsigned char *)&LSM9DS0->buffer, 6,
+				_mp_drv_LSM9DS0_onGyroRead
+			);
+		}
+		else {
+			mp_drv_LSM9DS0_gRead(
+				LSM9DS0, OUT_X_L_G | 0x80,
+				(unsigned char *)&LSM9DS0->buffer, 6,
+				_mp_drv_LSM9DS0_onGyroCalibrationRead
+			);
+		}
+		LSM9DS0->intSrc &= ~0x1;
+	}
 
-}
+	/* Magneto atomic read */
+	if(LSM9DS0->intSrc & 0x2) {
+		mp_drv_LSM9DS0_xmRead(
+			LSM9DS0, OUT_X_L_M | 0x80,
+			(unsigned char *)&LSM9DS0->buffer, 6,
+			_mp_drv_LSM9DS0_onMagRead
+		);
 
+		/* check if temperature sensor is on */
+		if(LSM9DS0->xmReg5 & 0x80)
+			mp_drv_LSM9DS0_xmRead(
+				LSM9DS0, OUT_TEMP_L_XM | 0x80,
+				(unsigned char *)&LSM9DS0->buffer, 2,
+				_mp_drv_LSM9DS0_onTemperatureRead
+			);
+		LSM9DS0->intSrc &= ~0x2;
+	}
 
-void mp_drv_LSM9DS0_gWriteByte(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress, unsigned char data) {
-	_mp_drv_LSM9DS0_spi_writeByte(LSM9DS0, LSM9DS0->csG, subAddress, data);
-}
+	/* Accelero atomic read */
+	if(LSM9DS0->intSrc & 0x4) {
+		if(LSM9DS0->accelCal == 0) {
+			mp_drv_LSM9DS0_xmRead(
+				LSM9DS0, OUT_X_L_A | 0x80,
+				(unsigned char *)&LSM9DS0->buffer, 6,
+				_mp_drv_LSM9DS0_onAccelRead
+			);
+		}
+		else {
+			mp_drv_LSM9DS0_xmRead(
+				LSM9DS0, OUT_X_L_A | 0x80,
+				(unsigned char *)&LSM9DS0->buffer, 6,
+				_mp_drv_LSM9DS0_onAccelCalibrationRead
+			);
+		}
+		LSM9DS0->intSrc &= ~0x4;
+	}
 
-void mp_drv_LSM9DS0_xmWriteByte(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress, unsigned char data) {
-	_mp_drv_LSM9DS0_spi_writeByte(LSM9DS0, LSM9DS0->csXM, subAddress, data);
-}
-
-unsigned char mp_drv_LSM9DS0_gReadByte(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress) {
-	return _mp_drv_LSM9DS0_spi_readByte(LSM9DS0, LSM9DS0->csG, subAddress);
-}
-
-void mp_drv_LSM9DS0_gReadBytes(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress, unsigned char * dest, unsigned char count) {
-	_mp_drv_LSM9DS0_spi_readBytes(LSM9DS0, LSM9DS0->csG, subAddress, dest, count);
-}
-
-unsigned char mp_drv_LSM9DS0_xmReadByte(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress) {
-	return _mp_drv_LSM9DS0_spi_readByte(LSM9DS0, LSM9DS0->csXM, subAddress);
-}
-
-void mp_drv_LSM9DS0_xmReadBytes(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress, unsigned char * dest, unsigned char count) {
-	_mp_drv_LSM9DS0_spi_readBytes(LSM9DS0, LSM9DS0->csXM, subAddress, dest, count);
+	task->signal = MP_TASK_SIG_SLEEP;
 }
 
 

@@ -31,6 +31,20 @@
 	#define MP_DRV_LSM9DS0_MODE_I2C 1
 	#define MP_DRV_LSM9DS0_MODE_SPI 2
 
+	#define LSM9DS0_ADDRESS_ACCELMAG           (0x1D)         // 3B >> 1 = 7bit default
+	#define LSM9DS0_ADDRESS_GYRO               (0x6B)         // D6 >> 1 = 7bit default
+
+	/**
+	 * @defgroup mpDriverSTLSM9DS0
+	 * @{
+	 */
+
+	#define LSM9DS0_GYRO_CALIBRATION_COUNT 100
+	#define LSM9DS0_GYRO_CALIBRATION_DROP 10
+
+	#define LSM9DS0_ACCELERO_CALIBRATION_COUNT 100
+	#define LSM9DS0_ACCELERO_CALIBRATION_DROP 10
+
 	typedef struct mp_drv_LSM9DS0_s mp_drv_LSM9DS0_t;
 
 	/* gyro_scale defines the possible full-scale ranges of the gyroscope */
@@ -113,6 +127,19 @@
 	struct mp_drv_LSM9DS0_s {
 		mp_kernel_t *kernel;
 
+		/**
+		 * Internal interrupt source
+		 * - 0x1 : Gyro pending
+		 * - 0x2 : Magneto pending
+		 * - 0x4 : Accelero pending
+		 * */
+		unsigned char intSrc:4;
+
+		char protocol:2;
+		char drdyCount:2;
+		char gyroCal:2;
+		char accelCal:2;
+
 		mp_drv_LSM9DS0_gyro_scale_t gyro_scale;
 		mp_drv_LSM9DS0_accel_scale_t accel_scale;
 		mp_drv_LSM9DS0_mag_scale_t mag_scale;
@@ -123,29 +150,80 @@
 		mp_gpio_port_t *int2;
 		mp_gpio_port_t *intG;
 		mp_gpio_port_t *drdy;
+
+		mp_task_t *task;
+
 		union {
+			mp_i2c_t i2c;
 			mp_spi_t spi;
 		};
 
+		mp_regMaster_t regMaster;
+
+		unsigned char buffer[6];
 
 		// gRes, aRes, and mRes store the current resolution for each sensor.
 		// Units of these values would be DPS (or g's or Gs's) per ADC tick.
 		// This value is calculated as (sensor scale) / (2^15).
 		float gRes, aRes, mRes;
-		signed short gx, gy, gz; // x, y, and z axis readings of the gyroscope
-		signed short ax, ay, az; // x, y, and z axis readings of the accelerometer
-		signed short mx, my, mz; // x, y, and z axis readings of the magnetometer
-		signed short temperature;
-		float abias[3];
-		float gbias[3];
+
+		union {
+			/** use to store tmp data. the last int is use to control calibration counter */
+			signed long abiasCal[4];
+
+			/** final result of the bias */
+			float abias[3];
+		};
+
+		union {
+			/** use to store tmp data. the last int is use to control calibration counter */
+			signed long gbiasCal[4];
+
+			/** final result of the bias */
+			float gbias[3];
+		};
+
+		mp_sensor_t *gyro;
+		mp_sensor_t *magneto;
+		mp_sensor_t *temperature;
+		mp_sensor_t *accelero;
+
+		/** used to configure gyro register w/o reads */
+		unsigned char gReg1, gReg4;
+
+		/** used to configure accelero/magneto register w/o reads */
+		unsigned char xmReg1, xmReg2, xmReg5, xmReg6;
 
 	};
+
+	/** @} */
 
 	mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_options_t *options, char *who);
 	mp_ret_t mp_drv_LSM9DS0_fini(mp_drv_LSM9DS0_t *LSM9DS0);
 
-	mp_ret_t mp_drv_LSM9DS0_start(mp_drv_LSM9DS0_t *LSM9DS0);
-	mp_ret_t mp_drv_LSM9DS0_stop(mp_drv_LSM9DS0_t *LSM9DS0);
+	void mp_drv_LSM9DS0_xmRead(
+		mp_drv_LSM9DS0_t *LSM9DS0,
+		unsigned char reg,
+		unsigned char *wait, int waitSize,
+		mp_regMaster_cb_t callback
+	);
+	void mp_drv_LSM9DS0_xmWrite(
+		mp_drv_LSM9DS0_t *LSM9DS0,
+		unsigned char reg,
+		unsigned char value
+	);
+
+	void mp_drv_LSM9DS0_gRead(
+		mp_drv_LSM9DS0_t *LSM9DS0,
+		unsigned char reg,
+		unsigned char *wait, int waitSize,
+		mp_regMaster_cb_t callback
+	);
+	void mp_drv_LSM9DS0_gWrite(
+		mp_drv_LSM9DS0_t *LSM9DS0,
+		unsigned char reg,
+		unsigned char value
+	);
 
 	void mp_drv_LSM9DS0_initGyro(mp_drv_LSM9DS0_t *LSM9DS0);
 	void mp_drv_LSM9DS0_initAccel(mp_drv_LSM9DS0_t *LSM9DS0);
@@ -166,18 +244,6 @@
 	float mp_drv_LSM9DS0_calcGyro(mp_drv_LSM9DS0_t *LSM9DS0, unsigned short gyro);
 	float mp_drv_LSM9DS0_calcAccel(mp_drv_LSM9DS0_t *LSM9DS0, unsigned short accel);
 	float mp_drv_LSM9DS0_calcMag(mp_drv_LSM9DS0_t *LSM9DS0, unsigned short mag);
-
-	void mp_drv_LSM9DS0_readTemp(mp_drv_LSM9DS0_t *LSM9DS0);
-	void mp_drv_LSM9DS0_readGyro(mp_drv_LSM9DS0_t *LSM9DS0);
-	void mp_drv_LSM9DS0_readAccel(mp_drv_LSM9DS0_t *LSM9DS0);
-	void mp_drv_LSM9DS0_readMag(mp_drv_LSM9DS0_t *LSM9DS0);
-
-	void mp_drv_LSM9DS0_gWriteByte(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress, unsigned char data);
-	void mp_drv_LSM9DS0_xmWriteByte(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress, unsigned char data);
-	unsigned char mp_drv_LSM9DS0_gReadByte(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress);
-	void mp_drv_LSM9DS0_gReadBytes(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress, unsigned char * dest, unsigned char count);
-	unsigned char mp_drv_LSM9DS0_xmReadByte(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress);
-	void mp_drv_LSM9DS0_xmReadBytes(mp_drv_LSM9DS0_t *LSM9DS0, unsigned char subAddress, unsigned char * dest, unsigned char count);
 
 	/* LSM9DS0 Gyro Registers */
 	#define WHO_AM_I_G		0x0F
