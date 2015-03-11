@@ -33,6 +33,7 @@ static void _mp_regMaster_spi_enableRX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_disableRX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_enableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_disableTX(mp_regMaster_t *cirr);
+static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag);
 
 
 static unsigned char *_registers = NULL;
@@ -458,28 +459,20 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 				mp_i2c_txStop(i2c);
 		}
 
-		if(rest == 0) {
-			if(!operand->swap)
-				operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
-			else {
-				operand->wait[rest] = mp_i2c_rx(i2c);
-				operand->waitPos++;
-			}
+		if(!operand->swap)
+			operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
+		else {
+			operand->wait[rest] = mp_i2c_rx(i2c);
+			operand->waitPos++;
+		}
 
+		if(rest == 0) {
 			/* switch buffer into ASR space */
 			mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
 			cirr->asr->signal = MP_TASK_SIG_PENDING;
 
 			cirr->disableRX(cirr);
 			cirr->disableTX(cirr);
-		}
-		else {
-			if(!operand->swap)
-				operand->wait[operand->waitPos++] = mp_i2c_rx(i2c);
-			else {
-				operand->wait[rest] = mp_i2c_rx(i2c);
-				operand->waitPos++;
-			}
 		}
 
 	}
@@ -609,4 +602,64 @@ static void _mp_regMaster_spi_disableTX(mp_regMaster_t *cirr) {
 	mp_spi_disable_tx(cirr->spi);
 }
 
+static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
+	mp_regMaster_t *cirr = spi->user;
+	mp_regMaster_op_t *operand;
+	int rest;
 
+	/* get first operand */
+	operand = cirr->pending.first ? cirr->pending.first->user : NULL;
+	if(!operand)
+		return;
+
+	/* send registers */
+	if(operand->state == MP_REGMASTER_STATE_TX && flag == MP_SPI_FL_TX) {
+
+		/* check for end of register */
+		if(operand->regPos == operand->regSize) {
+
+			/* need to read data */
+			if(operand->waitSize > 0) {
+				operand->state = MP_REGMASTER_STATE_RX;
+				cirr->asr->signal = MP_TASK_SIG_PENDING;
+				cirr->disableTX(cirr);
+			}
+			/* no need to read */
+			else {
+				/* switch buffer into ASR space */
+				mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
+				cirr->asr->signal = MP_TASK_SIG_PENDING;
+
+				cirr->disableTX(cirr);
+			}
+		}
+		else
+			mp_spi_tx(spi, operand->reg[operand->regPos++]);
+
+	}
+
+	/* read data, CTR and start has already been sent */
+	else if(operand->state == MP_REGMASTER_STATE_RX && flag == MP_SPI_FL_RX) {
+
+		rest = operand->waitSize-operand->waitPos-1;
+
+		if(!operand->swap)
+			operand->wait[operand->waitPos++] = mp_spi_rx(spi);
+		else {
+			operand->wait[rest] = mp_spi_rx(spi);
+			operand->waitPos++;
+		}
+
+		if(rest == 0) {
+			/* switch buffer into ASR space */
+			mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
+			cirr->asr->signal = MP_TASK_SIG_PENDING;
+
+			cirr->disableRX(cirr);
+			cirr->disableTX(cirr);
+		}
+
+	}
+
+	return;
+}
