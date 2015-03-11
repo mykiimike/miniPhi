@@ -61,6 +61,9 @@ struct olimex_msp430_s {
 	mp_uart_t proxyUARTDst;
 
 	mp_gpio_port_t *power;
+
+	mp_drv_led_t systemRed;
+	mp_drv_led_t systemGreen;
 };
 
 static void __olimex_onBoot(void *user);
@@ -200,6 +203,28 @@ static void __olimex_state_op_set(void *user) {
 		};
 		mp_drv_led_init(&olimex->kernel, &olimex->green_led, options, "Green LED");
 	}
+
+	{
+		mp_options_t options[] = {
+				{ "port", "p2.6" },
+				{ NULL, NULL }
+		};
+		mp_drv_led_init(&olimex->kernel, &olimex->systemRed, options, "System RED");
+	}
+
+	/* need a port */
+	P2DS |= 0x40;
+
+	{
+		mp_options_t options[] = {
+				{ "port", "p2.5" },
+				{ NULL, NULL }
+		};
+		mp_drv_led_init(&olimex->kernel, &olimex->systemGreen, options, "System GREEN");
+	}
+
+	/* need a port */
+	P2DS |= 0x20;
 
 
 	/* create buttons */
@@ -356,7 +381,8 @@ static void __olimex_state_op_set(void *user) {
 
 	/* pinout */
 	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 1010, 0, "Blinking green - Power ON");
-
+	mp_pinout_onoff(&olimex->kernel, olimex->systemRed.gpio, ON, 100, 1000, 0, "Test");
+	mp_pinout_onoff(&olimex->kernel, olimex->systemGreen.gpio, ON, 20, 500, 0, "Test");
 
 	mp_printk("miniPhi - version %s", olimex->kernel.version);
 

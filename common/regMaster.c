@@ -29,6 +29,12 @@ static void _mp_regMaster_i2c_disableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag);
 MP_TASK(mp_regMaster_i2c_asr);
 
+static void _mp_regMaster_spi_enableRX(mp_regMaster_t *cirr);
+static void _mp_regMaster_spi_disableRX(mp_regMaster_t *cirr);
+static void _mp_regMaster_spi_enableTX(mp_regMaster_t *cirr);
+static void _mp_regMaster_spi_disableTX(mp_regMaster_t *cirr);
+
+
 static unsigned char *_registers = NULL;
 static int _register_references = 0;
 
@@ -176,6 +182,7 @@ mp_ret_t mp_regMaster_init_i2c(
 
 	cirr->i2c = i2c;
 	cirr->i2c->user = cirr;
+
 	mp_i2c_setInterruption(i2c, _mp_regMaster_i2c_interrupt);
 
 	cirr->enableRX(cirr);
@@ -185,6 +192,61 @@ mp_ret_t mp_regMaster_init_i2c(
 
 	/* save actual slave address */
 	cirr->slaveAddress = mp_i2c_getSlaveAddress(cirr->i2c);
+
+	/* create task and place it in sleep mode */
+	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_i2c_asr, cirr, 100);
+	if(!cirr->asr)
+		return(FALSE);
+	cirr->asr->signal = MP_TASK_SIG_SLEEP;
+
+	return(TRUE);
+}
+
+/**
+ * @brief Initiate circular register context
+ *
+ * This initiates a circular register context
+ *
+ * @param[in] kernel Kernel handler
+ * @param[in] cirr Circular context.
+ * @param[in] user User pointer embedded
+ */
+mp_ret_t mp_regMaster_init_spi(
+		mp_kernel_t *kernel, mp_regMaster_t *cirr,
+		mp_spi_t *spi,
+		void *user,
+		char *who
+	) {
+	memset(cirr, 0, sizeof(*cirr));
+
+	/* run ginit */
+	_mp_regMaster_ginit(kernel);
+
+	cirr->kernel = kernel;
+
+	mp_list_init(&cirr->pending);
+	mp_list_init(&cirr->executing);
+
+	cirr->enableRX = _mp_regMaster_spi_enableRX;
+	cirr->disableRX = _mp_regMaster_spi_disableRX;
+
+	cirr->enableTX = _mp_regMaster_spi_enableTX;
+	cirr->disableTX = _mp_regMaster_spi_disableTX;
+
+	cirr->user = user;
+
+	cirr->spi = spi;
+	cirr->spi->user = cirr;
+
+	//mp_i2c_setInterruption(i2c, _mp_regMaster_i2c_interrupt);
+
+	cirr->enableRX(cirr);
+	cirr->enableTX(cirr);
+
+	cirr->type = MP_REGMASTER_SPI;
+
+	/* save actual slave address */
+	//cirr->slaveAddress = mp_i2c_getSlaveAddress(cirr->i2c);
 
 	/* create task and place it in sleep mode */
 	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_i2c_asr, cirr, 100);
@@ -528,10 +590,7 @@ MP_TASK(mp_regMaster_i2c_asr) {
 	}
 }
 
-static void _mp_regMaster_spi_enableRX(mp_regMaster_t *cirr);
-static void _mp_regMaster_spi_disableRX(mp_regMaster_t *cirr);
-static void _mp_regMaster_spi_enableTX(mp_regMaster_t *cirr);
-static void _mp_regMaster_spi_disableTX(mp_regMaster_t *cirr);
+
 
 
 static void _mp_regMaster_spi_enableRX(mp_regMaster_t *cirr) {

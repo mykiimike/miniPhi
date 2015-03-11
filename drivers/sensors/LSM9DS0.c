@@ -52,7 +52,7 @@ static void _mp_drv_LSM9DS0_calcmRes(mp_drv_LSM9DS0_t *LSM9DS0);
 
 @ingroup mpDriver
 
-@brief ST LSM9DS0 3-axis Accelerometer / Gyroscope / Magneto
+@brief ST LSM9DS0 3-axis Accelerometer / Gyroscope / Magneto with temperature bonus
 
 @version 1.0.0
 

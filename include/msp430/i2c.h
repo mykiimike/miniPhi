@@ -167,7 +167,6 @@
 		_I2C_REG8(i2c->gate, _I2C_CTL1) &= ~(UCSWRST);
 	}
 
-
 	static inline void mp_i2c_setInterruption(mp_i2c_t *i2c, mp_i2c_interrupt_t cb) {
 		i2c->intDispatch = cb;
 	}
