@@ -120,8 +120,6 @@
 	}
 
 	static inline void mp_i2c_mode(mp_i2c_t *i2c, char mode)  {
-
-
 		/* Receiver */
 		if(mode == 0) {
 			//_I2C_REG8(i2c->gate, _I2C_IFG) &= ~(UCRXIFG);

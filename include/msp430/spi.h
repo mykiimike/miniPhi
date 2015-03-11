@@ -23,29 +23,17 @@
 
 	typedef struct mp_spi_s mp_spi_t;
 
-	typedef void (*mp_spi_callback_t)(mp_spi_t *);
+	typedef enum {
+		MP_SPI_FL_TX = USCI_UCTXIFG,
+		MP_SPI_FL_RX = USCI_UCRXIFG,
+	} mp_spi_flag_t;
+
+	typedef void (*mp_spi_interrupt_t)(mp_spi_t *spi, mp_spi_flag_t flag);
 
 	struct mp_spi_s {
 
 		/** SPI frequency */
 		unsigned long frequency;
-
-#define MP_SPI_TX_BUFFER 20
-#define MP_SPI_RX_BUFFER 20
-
-		unsigned char tx_buffer[MP_SPI_TX_BUFFER];
-		unsigned int tx_size;
-		unsigned int tx_pos;
-		unsigned int tx_reference;
-
-		unsigned char rx_buffer[MP_SPI_RX_BUFFER];
-		unsigned int rx_size;
-
-		mp_spi_callback_t onRead;
-		mp_spi_callback_t onWriteEnd;
-		mp_spi_callback_t onReadInterrupt;
-		mp_spi_callback_t onWriteInterrupt;
-		void *user;
 
 		/** internal: gate */
 		mp_gate_t *gate;
@@ -53,6 +41,9 @@
 		mp_gpio_port_t *somi;
 		mp_gpio_port_t *clk;
 		mp_list_item_t item;
+
+		mp_spi_interrupt_t intDispatch;
+		void *user;
 
 		mp_task_t *task;
 	};
@@ -68,7 +59,6 @@
 	mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options);
 	mp_ret_t mp_spi_close(mp_spi_t *spi);
 	void mp_spi_write(mp_spi_t *spi, unsigned char *input, int size);
-
 
 	#define _SPI_CTLW0   0x00
 	#define _SPI_CTL0    0x01
@@ -110,14 +100,15 @@
 	}
 
 	static inline unsigned char mp_spi_rx(mp_spi_t *spi) {
-		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCRXIFG));
 		return(_SPI_REG8(spi->gate, _SPI_RXBUF));
 	}
 
 	static inline void mp_spi_tx(mp_spi_t *spi, unsigned char data) {
 		_SPI_REG8(spi->gate, _SPI_TXBUF) = data;
-		while (!(_SPI_REG8(spi->gate, _SPI_IFG) & UCTXIFG));
 	}
 
+	static inline void mp_spi_setInterruption(mp_spi_t *spi, mp_spi_interrupt_t cb) {
+		spi->intDispatch = cb;
+	}
 
 #endif

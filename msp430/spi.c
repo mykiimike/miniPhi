@@ -25,9 +25,10 @@
 static mp_list_t __spi;
 static unsigned int __spi_count;
 
+static void mp_spi_interruptDispatch(void *user);
+
 static unsigned char mp_spi_rx(mp_spi_t *spi);
 static void mp_spi_tx(mp_spi_t *spi, unsigned char data);
-
 
 void mp_spi_init() {
 	mp_list_init(&__spi);
@@ -40,8 +41,6 @@ void mp_spi_fini() {
 
 mp_ret_t mp_spi_open(mp_kernel_t *kernel, mp_spi_t *spi, mp_options_t *options, char *who) {
 	char *value;
-
-	spi->tx_reference = 0;
 
 	/* get gate Id*/
 	value = mp_options_get(options, "gate");
@@ -94,16 +93,6 @@ mp_ret_t mp_spi_open(mp_kernel_t *kernel, mp_spi_t *spi, mp_options_t *options, 
 		mp_spi_close(spi);
 		return(FALSE);
 	}
-
-	/* create the task */
-    /*
-	spi->task = mp_task_create(&kernel->tasks, who, __mp_spi_asr, spi, 0);
-	if(spi->task == NULL) {
-		mp_printk("SPI - Can not create task for %s", who);
-		mp_spi_close(spi);
-		return(FALSE);
-	}
-	*/
 
 	return(TRUE);
 }
@@ -179,15 +168,13 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 
 	/* write finished */
 	_SPI_REG8(spi->gate, _SPI_CTL1) &= ~(UCSWRST);
-	//_SPI_REG8(spi->gate, _SPI_IFG) &= ~(UCRXIFG);
-//	_SPI_REG8(spi->gate, _SPI_IFG) &= ~(UCTXIFG);
 
 	/* disable interrupts */
 	mp_spi_disable_tx(spi);
 	mp_spi_disable_rx(spi);
 
 	/* place interrupt */
-	//mp_interrupt_set(spi->gate->_ISRVector, __mp_spi_interrupt, spi, spi->gate->portDevice);
+	mp_interrupt_set(spi->gate->_ISRVector, mp_spi_interruptDispatch, spi, spi->gate->portDevice);
 
 	/* safe non interruptible block */
 	MP_INTERRUPT_SAFE_END
@@ -210,9 +197,9 @@ mp_ret_t mp_spi_close(mp_spi_t *spi) {
 
 	/* disble interrupts */
 	if(spi->gate) {
-		//mp_spi_disable_rx(spi);
-		//mp_spi_disable_tx(spi);
-		//mp_interrupt_unset(spi->gate->_ISRVector);
+		mp_spi_disable_rx(spi);
+		mp_spi_disable_tx(spi);
+		mp_interrupt_unset(spi->gate->_ISRVector);
 	}
 
 	if(spi->simo) {
@@ -238,40 +225,11 @@ mp_ret_t mp_spi_close(mp_spi_t *spi) {
 	return(TRUE);
 }
 
-void mp_spi_write(mp_spi_t *spi, unsigned char *input, int size) {
-	int rest;
-
-	/* disable TX interrupt */
-	mp_spi_disable_tx(spi);
-
-	rest = sizeof(spi->tx_buffer)-spi->tx_size;
-
-	/* no more space flush output now */
-	if(rest < size) {
-
-		/* flush now */
-		for(; spi->tx_pos<spi->tx_size; spi->tx_pos++) {
-			if(spi->onWriteInterrupt)
-				spi->onWriteInterrupt(spi);
-			else
-				mp_spi_tx(spi, spi->tx_buffer[spi->tx_pos]);
-		}
-
-		spi->tx_size = 0;
-		spi->tx_pos = 0;
-
-		/* always place */
-		memcpy(spi->tx_buffer, input, size);
-		spi->tx_size += size;
-	}
-	/* space available */
-	else {
-		memcpy(spi->tx_buffer+spi->tx_pos, input, size);
-		spi->tx_size += size;
-	}
-
-	/* enable TX interrupt */
-	mp_spi_enable_tx(spi);
+static void mp_spi_interruptDispatch(void *user) {
+	mp_spi_t *spi = user;
+	mp_spi_flag_t iv = (mp_spi_flag_t)_SPI_REG16(spi->gate, _SPI_IV);
+	if(spi->intDispatch)
+		spi->intDispatch(spi, iv);
 }
 
 #ifdef __UNUSED_FOR_THE_MOMENT
