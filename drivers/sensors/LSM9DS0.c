@@ -75,6 +75,8 @@ Michael Vergoz <mv@verman.fr>
  *  @li gate : Required on some archs
  *  @li sda : SDA port when using I2C
  *  @li clk : Clock port source I2C/SPI
+ *  @li simo : SPI Slave In Master Out
+ *  @li somi : SPI Slave Out Master In
  *  @li int1 : INT1 port for accelerometer
  *  @li int2 : INT2 port for magneto
  *  @li drdy : DRDY port for gyro
