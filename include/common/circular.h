@@ -19,8 +19,11 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+
 #ifndef _HAVE_MP_COMMON_CIRCULAR_H
 	#define _HAVE_MP_COMMON_CIRCULAR_H
+
+	#ifdef SUPPORT_COMMON_CIRCULAR
 
 	#define MP_CIRCULAR_BUFFER_SIZE \
 		(MP_MEM_CHUNK-MP_MEM_SPACING-(sizeof(unsigned short)*2)-sizeof(mp_circular_buffer_t *)-4)
@@ -67,4 +70,5 @@
 	unsigned char mp_circular_txInterrupt(mp_circular_t *cir, mp_bool_t *done);
 	int mp_circular_bufferSize();
 
+	#endif
 #endif

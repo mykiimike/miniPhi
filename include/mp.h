@@ -142,7 +142,7 @@
 		mp_task_handler_t tasks;
 
 		/** Sensors handler */
-		mp_sensor_handler_t sensors;
+		//mp_sensor_handler_t sensors;
 
 		/** Kernel on boot state */
 		mp_kernel_onBoot_t onBoot;
@@ -152,7 +152,7 @@
 
 #ifdef __MSP430__
 		mp_adc_t internalTemp;
-		mp_sensor_t *sensorMCU;
+		//mp_sensor_t *sensorMCU;
 #endif
 
 	};

@@ -55,7 +55,6 @@ struct olimex_msp430_s {
 //	mp_drv_MPL3115A2_t bat;
 
 	//mp_drv_ADS1115_t adc;
-	mp_drv_LSM9DS0_t axis;
 
 	mp_uart_t proxyUARTSrc;
 	mp_uart_t proxyUARTDst;
@@ -361,7 +360,7 @@ static void __olimex_state_op_set(void *user) {
 	 * SCL = 10.2 / ext 1-16
 	 * DRDY = 1.1 / ext 2-5
 	 */
-
+/*
 	{
 		mp_options_t options[] = {
 			{ "protocol", "i2c" },
@@ -376,7 +375,7 @@ static void __olimex_state_op_set(void *user) {
 
 		mp_drv_LSM9DS0_init(&olimex->kernel, &olimex->axis, options, "St LSM9DS0");
 	}
-
+*/
 
 
 	/* pinout */

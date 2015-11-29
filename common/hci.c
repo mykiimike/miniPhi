@@ -20,6 +20,8 @@
 
 #include <mp.h>
 
+#ifdef SUPPORT_COMMON_HCI
+
 static void mp_hci_UART_rxInt(mp_uart_t *uart);
 static void mp_hci_UART_txInt(mp_uart_t *uart);
 
@@ -171,3 +173,5 @@ static void mp_hci_UART_txIntEnable(mp_circular_t *cir) {
 	mp_uart_enable_tx_int(hci->uart);
 
 }
+
+#endif

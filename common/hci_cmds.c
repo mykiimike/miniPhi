@@ -20,6 +20,8 @@
 
 #include <mp.h>
 
+#ifdef SUPPORT_COMMON_HCI
+
 /**
  * construct HCI Command based on template
  *
@@ -146,3 +148,5 @@ void mp_hci_send_cmd(mp_hci_t *hci, mp_hci_cmd_t *cmd, ...) {
 
     mp_hci_send(hci, MP_HCI_MSG_COMMAND, hci_cmd_buffer, len);
 }
+
+#endif

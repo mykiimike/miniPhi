@@ -21,6 +21,8 @@
 
 #include <mp.h>
 
+#ifdef SUPPORT_COMMON_CIRCULAR
+
 static void _mp_circular_dummyInt(mp_circular_t *cir);
 
 /**
@@ -298,4 +300,4 @@ int mp_circular_bufferSize() {
 
 static void _mp_circular_dummyInt(mp_circular_t *cir) { }
 
-
+#endif
