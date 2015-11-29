@@ -341,6 +341,10 @@ mp_ret_t mp_drv_LSM9DS0_fini(mp_drv_LSM9DS0_t *LSM9DS0) {
 	if(LSM9DS0->drdy)
 		mp_gpio_release(LSM9DS0->drdy);
 
+	/** \todo check init state */
+
+	mp_regMaster_fini(LSM9DS0->regMaster);
+
 	mp_spi_close(&LSM9DS0->spi);
 
 	mp_task_destroy(LSM9DS0->task);

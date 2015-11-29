@@ -36,7 +36,7 @@
 	//#define SUPPORT_COMMON_HCI /* HCI interface */
 	#define SUPPORT_COMMON_PINOUT /* enable pinout feature, need mem support */
 	//#define SUPPORT_COMMON_QUATERNION /* enable quaternion feature */
-	//#define SUPPORT_COMMON_SENSOR /* enable sensor feature */
+	#define SUPPORT_COMMON_SENSOR /* enable sensor feature */
 	#define SUPPORT_COMMON_CIRCULAR /* enable circular buffering */
 
 	/* clock manager */
