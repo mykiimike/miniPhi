@@ -18,60 +18,48 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef _HAVE_CONFIG_H
-	#define _HAVE_CONFIG_H
+/*
+ * Some parts of this source has been ported from Kris Winer code's.
+ * https://github.com/kriswiner/NRF8001
+ */
 
-	#define _DEBUG
+#ifdef SUPPORT_DRV_NRF8001
 
-	#define SUPPORT_DRV_LED
-	#define SUPPORT_DRV_BUTTON
-	//#define SUPPORT_DRV_LSM9DS0
-	//#define SUPPORT_DRV_TMP006
-	//#define SUPPORT_DRV_LCD_NOKIA3310
-	//#define SUPPORT_DRV_MPL3115A2
-	//#define SUPPORT_DRV_ADS1115
-	#define SUPPORT_DRV_NRF8001
+#ifndef _HAVE_MP_DRV_nRF8001_H
+	#define _HAVE_MP_DRV_nRF8001_H
 
-	#define SUPPORT_COMMON_MEM /* enable tiny-malloc */
-	#define SUPPORT_COMMON_SERIAL /* serial interface */
-	//#define SUPPORT_COMMON_HCI /* HCI interface */
-	#define SUPPORT_COMMON_PINOUT /* enable pinout feature, need mem support */
-	//#define SUPPORT_COMMON_QUATERNION /* enable quaternion feature */
-	#define SUPPORT_COMMON_SENSOR /* enable sensor feature */
-	#define SUPPORT_COMMON_CIRCULAR /* enable circular buffering */
+	/**
+	 * @defgroup mpDriverNRF8001
+	 * @{
+	 */
 
-	/* clock manager */
-	#ifndef MP_CLOCK_LE_FREQ
-		#define MP_CLOCK_LE_FREQ MHZ1_t
-	#endif
+	typedef struct mp_drv_nRF8001_s mp_drv_nRF8001_t;
 
-	#ifndef MP_CLOCK_HE_FREQ
-		#define MP_CLOCK_HE_FREQ MHZ25_t
-	#endif
 
-	/* sensor configuration */
+	struct mp_drv_nRF8001_s {
+		unsigned char init;
 
-	/* mem configuration */
-	#ifndef MP_MEM_SIZE
-		#define MP_MEM_SIZE  1024 /* total memory allowed for heap */
-	#endif
+		mp_kernel_t *kernel;
 
-	#ifndef MP_MEM_CHUNK
-		#define MP_MEM_CHUNK 50    /* fixed size of a chunck */
-	#endif
+		mp_task_t *task;
 
-	#ifndef MP_COMMON_MEM_USE_MALLOC
-		//#define MP_COMMON_MEM_USE_MALLOC
-	#endif
+		mp_gpio_port_t *reqn;
+		mp_gpio_port_t *rdyn;
+		mp_gpio_port_t *active;
+		mp_gpio_port_t *reset;
 
-	/* task configuration */
-	#ifndef MP_TASK_MAX
-		#define MP_TASK_MAX 10 /* number of maximum task per instance */
-	#endif
+		mp_spi_t spi;
 
-	/* state configuration */
-	#ifndef MP_STATE_MAX
-		#define MP_STATE_MAX 5 /* maximum number of machine states */
-	#endif
+		mp_regMaster_t regMaster;
+	};
+
+	/** @} */
+
+	mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *NRF8001, mp_options_t *options, char *who);
+	mp_ret_t mp_drv_nRF8001_fini(mp_drv_nRF8001_t *NRF8001);
+
+
+
+#endif
 
 #endif
