@@ -97,7 +97,7 @@ void *mp_mem_alloc(mp_kernel_t *kernel, int size) {
 		return(NULL);
 	}
 
-	if(__line_size >= MP_MEM_SIZE) {
+	if(__line_size+size >= MP_MEM_SIZE) {
 		mp_kernel_panic(kernel, KPANIC_MEM_OOM);
 		mp_printk("chunk has no reach the limit at %p increase MP_MEM_SIZE", __allocated_heap);
 		return(NULL);

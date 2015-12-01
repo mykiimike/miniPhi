@@ -27,14 +27,16 @@ static void _mp_regMaster_i2c_disableRX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_enableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_disableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag);
-MP_TASK(mp_regMaster_i2c_asr);
+static void _mp_regMaster_i2c_asr(mp_regMaster_t *cirr, mp_regMaster_op_t *cur);
 
 static void _mp_regMaster_spi_enableRX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_disableRX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_enableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_disableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag);
+static void _mp_regMaster_spi_asr(mp_regMaster_t *cirr, mp_regMaster_op_t *cur);
 
+MP_TASK(mp_regMaster_asr);
 
 static unsigned char *_registers = NULL;
 static int _register_references = 0;
@@ -179,15 +181,17 @@ mp_ret_t mp_regMaster_init_i2c(
 	cirr->enableTX = _mp_regMaster_i2c_enableTX;
 	cirr->disableTX = _mp_regMaster_i2c_disableTX;
 
+	cirr->asrCallback = _mp_regMaster_i2c_asr;
+
 	cirr->user = user;
 
 	cirr->i2c = i2c;
 	cirr->i2c->user = cirr;
 
-	mp_i2c_setInterruption(i2c, _mp_regMaster_i2c_interrupt);
+	cirr->disableRX(cirr);
+	cirr->disableRX(cirr);
 
-	cirr->enableRX(cirr);
-	cirr->enableTX(cirr);
+	mp_i2c_setInterruption(i2c, _mp_regMaster_i2c_interrupt);
 
 	cirr->type = MP_REGMASTER_I2C;
 
@@ -195,7 +199,7 @@ mp_ret_t mp_regMaster_init_i2c(
 	cirr->slaveAddress = mp_i2c_getSlaveAddress(cirr->i2c);
 
 	/* create task and place it in sleep mode */
-	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_i2c_asr, cirr, 100);
+	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_asr, cirr, 100);
 	if(!cirr->asr)
 		return(FALSE);
 	cirr->asr->signal = MP_TASK_SIG_SLEEP;
@@ -234,23 +238,22 @@ mp_ret_t mp_regMaster_init_spi(
 	cirr->enableTX = _mp_regMaster_spi_enableTX;
 	cirr->disableTX = _mp_regMaster_spi_disableTX;
 
+	cirr->asrCallback = _mp_regMaster_spi_asr;
+
 	cirr->user = user;
 
 	cirr->spi = spi;
 	cirr->spi->user = cirr;
 
-	//mp_i2c_setInterruption(i2c, _mp_regMaster_i2c_interrupt);
+	cirr->disableRX(cirr);
+	cirr->disableRX(cirr);
 
-	cirr->enableRX(cirr);
-	cirr->enableTX(cirr);
+	mp_spi_setInterruption(spi, _mp_regMaster_spi_interrupt);
 
 	cirr->type = MP_REGMASTER_SPI;
 
-	/* save actual slave address */
-	//cirr->slaveAddress = mp_i2c_getSlaveAddress(cirr->i2c);
-
 	/* create task and place it in sleep mode */
-	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_i2c_asr, cirr, 100);
+	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_asr, cirr, 100);
 	if(!cirr->asr)
 		return(FALSE);
 	cirr->asr->signal = MP_TASK_SIG_SLEEP;
@@ -267,12 +270,14 @@ mp_ret_t mp_regMaster_init_spi(
  */
 void mp_regMaster_fini(mp_regMaster_t *cirr) {
 
-
 	/* regMaster is destructed using ASR task then
 	 * we just send stop signal and disable interrupts */
-	mp_task_destroy(cirr->asr);
-	cirr->disableRX(cirr);
-	cirr->disableTX(cirr);
+	if(cirr->asr)
+		mp_task_destroy(cirr->asr);
+	if(cirr->disableRX)
+		cirr->disableRX(cirr);
+	if(cirr->disableTX)
+		cirr->disableTX(cirr);
 }
 
 
@@ -311,6 +316,8 @@ mp_ret_t mp_regMaster_readExt(
 
 	if(cirr->type == MP_REGMASTER_I2C)
 		operand->slaveAddress = cirr->slaveAddress;
+	else
+		operand->chipSelect = cirr->chipSelect;
 
 	operand->state = MP_REGMASTER_STATE_TX;
 
@@ -357,9 +364,12 @@ mp_ret_t mp_regMaster_write(
 
 	/* allocate new operand */
 	operand = mp_mem_alloc(cirr->kernel, sizeof(*operand));
+	//operand = malloc(sizeof(*operand));
 
 	if(cirr->type == MP_REGMASTER_I2C)
 		operand->slaveAddress = cirr->slaveAddress;
+	else
+		operand->chipSelect = cirr->chipSelect;
 
 	operand->state = MP_REGMASTER_STATE_TX;
 
@@ -392,6 +402,7 @@ mp_ret_t mp_regMaster_write(
 unsigned char *mp_regMaster_register(unsigned char reg) {
 	return(&_registers[reg]);
 }
+
 
 /**@}*/
 
@@ -480,7 +491,39 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 	return;
 }
 
-MP_TASK(mp_regMaster_i2c_asr) {
+
+static void _mp_regMaster_i2c_asr(mp_regMaster_t *cirr, mp_regMaster_op_t *cur) {
+	if(cur->state == MP_REGMASTER_STATE_TX) {
+		/* send slave address*/
+		mp_i2c_setSlaveAddress(cirr->i2c, cur->slaveAddress);
+
+		/* change mode and here we go */
+		mp_i2c_mode(cirr->i2c, 1);
+		mp_i2c_txStart(cirr->i2c);
+
+		cirr->enableTX(cirr);
+	}
+	else if(cur->state == MP_REGMASTER_STATE_RX) {
+		if(cur->waitSize == 1) {
+			mp_i2c_waitStop(cirr->i2c);
+			mp_i2c_mode(cirr->i2c, 0);
+			mp_i2c_txStart(cirr->i2c);
+			mp_i2c_waitStart(cirr->i2c);
+			mp_i2c_txStop(cirr->i2c);
+
+			cirr->enableRX(cirr);
+		}
+		else {
+			/* receiver mode */
+			mp_i2c_mode(cirr->i2c, 0);
+			mp_i2c_txStart(cirr->i2c);
+
+			cirr->enableRX(cirr);
+		}
+	}
+}
+
+MP_TASK(mp_regMaster_asr) {
 	mp_regMaster_t *cirr = task->user;
 	mp_regMaster_op_t *cur;
 	mp_regMaster_op_t *next;
@@ -521,9 +564,6 @@ MP_TASK(mp_regMaster_i2c_asr) {
 			}
 		}
 
-		/* close i2c interface */
-		mp_i2c_close(cirr->i2c);
-
 		/* run ginit */
 		_mp_regMaster_gfini(cirr->kernel);
 
@@ -552,34 +592,8 @@ MP_TASK(mp_regMaster_i2c_asr) {
 	if(cirr->pending.first) {
 		cur = cirr->pending.first->user;
 
-		if(cur->state == MP_REGMASTER_STATE_TX) {
-			/* send slave address*/
-			mp_i2c_setSlaveAddress(cirr->i2c, cur->slaveAddress);
-
-			/* change mode and here we go */
-			mp_i2c_mode(cirr->i2c, 1);
-			mp_i2c_txStart(cirr->i2c);
-
-			cirr->enableTX(cirr);
-		}
-		else if(cur->state == MP_REGMASTER_STATE_RX) {
-			if(cur->waitSize == 1) {
-				mp_i2c_waitStop(cirr->i2c);
-				mp_i2c_mode(cirr->i2c, 0);
-				mp_i2c_txStart(cirr->i2c);
-				mp_i2c_waitStart(cirr->i2c);
-				mp_i2c_txStop(cirr->i2c);
-
-				cirr->enableRX(cirr);
-			}
-			else {
-				/* receiver mode */
-				mp_i2c_mode(cirr->i2c, 0);
-				mp_i2c_txStart(cirr->i2c);
-
-				cirr->enableRX(cirr);
-			}
-		}
+		/* protocol asr */
+		cirr->asrCallback(cirr, cur);
 	}
 }
 
@@ -614,15 +628,17 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 
 	/* send registers */
 	if(operand->state == MP_REGMASTER_STATE_TX && flag == MP_SPI_FL_TX) {
-
 		/* check for end of register */
+		mp_spi_tx(spi, operand->reg[operand->regPos++]);
+
 		if(operand->regPos == operand->regSize) {
 
 			/* need to read data */
 			if(operand->waitSize > 0) {
-				operand->state = MP_REGMASTER_STATE_RX;
-				cirr->asr->signal = MP_TASK_SIG_PENDING;
+				operand->state = MP_REGMASTER_STATE_NULLRX;
+
 				cirr->disableTX(cirr);
+				cirr->enableRX(cirr);
 			}
 			/* no need to read */
 			else {
@@ -630,16 +646,21 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 				mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
 				cirr->asr->signal = MP_TASK_SIG_PENDING;
 
+				cirr->disableRX(cirr);
 				cirr->disableTX(cirr);
+				mp_gpio_set(operand->chipSelect);
 			}
 		}
-		else
-			mp_spi_tx(spi, operand->reg[operand->regPos++]);
-
+		else if(operand->regPos == 2 && operand->waitSize == 0) {
+			operand->state = MP_REGMASTER_STATE_NULLTX;
+			cirr->enableRX(cirr);
+			cirr->disableTX(cirr);
+		}
 	}
 
 	/* read data, CTR and start has already been sent */
 	else if(operand->state == MP_REGMASTER_STATE_RX && flag == MP_SPI_FL_RX) {
+		mp_spi_tx(spi, 0);
 
 		rest = operand->waitSize-operand->waitPos-1;
 
@@ -657,9 +678,37 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 
 			cirr->disableRX(cirr);
 			cirr->disableTX(cirr);
+			mp_gpio_set(operand->chipSelect);
 		}
+	}
+	else if(operand->state == MP_REGMASTER_STATE_NULLRX && flag == MP_SPI_FL_RX) {
+		/* just ignore */
+		operand->state = MP_REGMASTER_STATE_RX;
+		mp_spi_tx(spi, 0);
+		mp_spi_rx(spi);
+	}
+	else if(operand->state == MP_REGMASTER_STATE_NULLTX && flag == MP_SPI_FL_RX) {
+		/* just ignore */
+		operand->state = MP_REGMASTER_STATE_TX;
+		mp_spi_rx(spi);
 
+		cirr->enableTX(cirr);
+		cirr->disableRX(cirr);
 	}
 
 	return;
+}
+
+static void _mp_regMaster_spi_asr(mp_regMaster_t *cirr, mp_regMaster_op_t *cur) {
+	mp_gpio_unset(cur->chipSelect);
+
+	if(cur->state == MP_REGMASTER_STATE_TX) {
+		cirr->enableTX(cirr);
+	}
+	else if(cur->state == MP_REGMASTER_STATE_RX) {
+		cirr->enableRX(cirr);
+
+	}
+
+
 }

@@ -83,20 +83,20 @@
 
 	static inline void mp_spi_enable_rx(mp_spi_t *spi) {
 		/* check CTS */
-		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCRXIE;
+		_SPI_REG8(spi->gate, _SPI_IE) |= UCRXIE;
 	}
 
 	static inline void mp_spi_disable_rx(mp_spi_t *spi) {
-		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~UCRXIE;
+		_SPI_REG8(spi->gate, _SPI_IE) &= ~UCRXIE;
 	}
 
 	static inline void mp_spi_enable_tx(mp_spi_t *spi) {
 		/* check CTS */
-		_SPI_REG8(spi->gate, _SPI_CTL0) |= UCTXIE;
+		_SPI_REG8(spi->gate, _SPI_IE) |= UCTXIE;
 	}
 
 	static inline void mp_spi_disable_tx(mp_spi_t *spi) {
-		_SPI_REG8(spi->gate, _SPI_CTL0) &= ~UCTXIE;
+		_SPI_REG8(spi->gate, _SPI_IE) &= ~UCTXIE;
 	}
 
 	static inline unsigned char mp_spi_rx(mp_spi_t *spi) {

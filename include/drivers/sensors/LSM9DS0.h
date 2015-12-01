@@ -39,13 +39,15 @@
 	 * @{
 	 */
 
-	#define LSM9DS0_GYRO_CALIBRATION_COUNT 100
-	#define LSM9DS0_GYRO_CALIBRATION_DROP 10
+	#define LSM9DS0_GYRO_CALIBRATION_COUNT 10
+	#define LSM9DS0_GYRO_CALIBRATION_DROP 5
 
-	#define LSM9DS0_ACCELERO_CALIBRATION_COUNT 100
-	#define LSM9DS0_ACCELERO_CALIBRATION_DROP 10
+	#define LSM9DS0_ACCELERO_CALIBRATION_COUNT 10
+	#define LSM9DS0_ACCELERO_CALIBRATION_DROP 5
 
 	typedef struct mp_drv_LSM9DS0_s mp_drv_LSM9DS0_t;
+
+	typedef void (*mp_drv_LSM9DS0_onData_t)(mp_drv_LSM9DS0_t *LSM9DS0);
 
 	/* gyro_scale defines the possible full-scale ranges of the gyroscope */
 	typedef enum mp_drv_LSM9DS0_gyro_scale_s {
@@ -125,6 +127,8 @@
 
 
 	struct mp_drv_LSM9DS0_s {
+		unsigned char init;
+
 		mp_kernel_t *kernel;
 
 		/**
@@ -188,6 +192,21 @@
 		mp_sensor_t *temperature;
 		mp_sensor_t *accelero;
 
+		/** User callback: Gyro on data */
+		mp_drv_LSM9DS0_onData_t onGyroData;
+
+		/** User callback: Accelerometer on data */
+		mp_drv_LSM9DS0_onData_t onAccelData;
+
+		/** User callback: Magneto on data */
+		mp_drv_LSM9DS0_onData_t onMagData;
+
+		/** User callback: Temperature on data */
+		mp_drv_LSM9DS0_onData_t onTempData;
+
+		/** User pointer */
+		void *onUser;
+
 		/** used to configure gyro register w/o reads */
 		unsigned char gReg1, gReg4;
 
@@ -234,7 +253,7 @@
 	void mp_drv_LSM9DS0_finiMag(mp_drv_LSM9DS0_t *LSM9DS0);
 
 	void mp_drv_LSM9DS0_setGyroScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_scale_t gScl);
-	void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_scale_t aScl);
+	void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_scale_t aScl, mp_bool_t calibrate);
 	void mp_drv_LSM9DS0_setMagScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_scale_t mScl);
 	void mp_drv_LSM9DS0_setGyroODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_odr_t gRate);
 	void mp_drv_LSM9DS0_setAccelODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_odr_t aRate);

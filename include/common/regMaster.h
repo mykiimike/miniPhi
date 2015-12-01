@@ -25,9 +25,10 @@
 	#define MP_REGMASTER_SPI 1
 	#define MP_REGMASTER_I2C 2
 
-	#define MP_REGMASTER_STATE_TX 1
-	#define MP_REGMASTER_STATE_RX 2
-
+	#define MP_REGMASTER_STATE_TX     1
+	#define MP_REGMASTER_STATE_RX     2
+	#define MP_REGMASTER_STATE_NULLRX 3
+	#define MP_REGMASTER_STATE_NULLTX 4
 	/**
 	 * @defgroup mpCommonRegMaster
 	 * @{
@@ -37,6 +38,7 @@
 
 	typedef void (*mp_regMaster_cb_t)(mp_regMaster_op_t *operand, mp_bool_t terminate);
 	typedef void (*mp_regMaster_int_t)(mp_regMaster_t *cirr);
+	typedef void (*mp_regMaster_asr_t)(mp_regMaster_t *cirr, mp_regMaster_op_t *cur);
 
 
 	struct mp_regMaster_op_s {
@@ -53,7 +55,10 @@
 		mp_regMaster_cb_t callback;
 		void *user;
 
-		unsigned char slaveAddress;
+		union {
+			mp_gpio_port_t *chipSelect;
+			unsigned char slaveAddress;
+		};
 
 		/** Activate swap */
 		mp_bool_t swap;
@@ -78,13 +83,18 @@
 		/** On bus error */
 		//mp_regMaster_int_t error;
 
-		/** use by I2C in order to stack different slave addresses */
-		unsigned char slaveAddress;
+		union {
+			mp_gpio_port_t *chipSelect;
+			unsigned char slaveAddress;
+		};
 
 		union {
 			mp_i2c_t *i2c;
 			mp_spi_t *spi;
 		};
+
+		/* Protocol ASR */
+		mp_regMaster_asr_t asrCallback;
 
 		void *user;
 
@@ -97,6 +107,12 @@
 	mp_ret_t mp_regMaster_init_i2c(
 		mp_kernel_t *kernel, mp_regMaster_t *cirr,
 		mp_i2c_t *i2c,
+		void *user,
+		char *who
+	);
+	mp_ret_t mp_regMaster_init_spi(
+		mp_kernel_t *kernel, mp_regMaster_t *cirr,
+		mp_spi_t *spi,
 		void *user,
 		char *who
 	);
@@ -154,6 +170,20 @@
 			unsigned char address
 		) {
 		cirr->slaveAddress = address;
+	}
+
+	/**
+	 * @brief Set chip select for SPI operation
+	 *
+	 *
+	 * @param[in] cirr Circular context.
+	 * @param[in] port miniPhi GPIO handler
+	 */
+	static inline void mp_regMaster_setChipSelect(
+			mp_regMaster_t *cirr,
+			mp_gpio_port_t *port
+		) {
+		cirr->chipSelect = port;
 	}
 
 	/** @} */

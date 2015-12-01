@@ -182,7 +182,7 @@ void mp_clock_delay(int delay) {
 
 unsigned long mp_clock_get_speed() {
 	const mp_clock_freq_settings_t *cpu_settings;
-	cpu_settings = &_mp_clock_freq_settings[__frequency - MHZ8_t];
+	cpu_settings = &_mp_clock_freq_settings[__frequency - MHZ1_t];
 	return(cpu_settings->DCO*32768L);
 }
 
@@ -377,7 +377,7 @@ static void _system_clock(mp_clock_t freq) {
 	while (Counter--)
 		__delay_cycles(30);
 
-	mp_printk("MSP430 setting frequency to %d", mp_clock_get_speed());
+	mp_printk("MSP430 setting frequency to %ld", mp_clock_get_speed());
 	return;
 }
 

@@ -109,18 +109,12 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 
 	/* using SPI protocol */
 	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_SPI) {
-		/* set csG interrupt */
-		LSM9DS0->csG = mp_gpio_text_handle(value, "LSM9DS0 csG");
-		if(!LSM9DS0->csG) {
-			mp_printk("LSM9DS0: need csG port");
-			mp_drv_LSM9DS0_fini(LSM9DS0);
-			return(FALSE);
-		}
 
 		/* csG */
 		value = mp_options_get(options, "csG");
 		if(!value) {
 			mp_printk("LSM9DS0: need csG port");
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
 		}
 		LSM9DS0->csG = mp_gpio_text_handle(value, "LSM9DS0 csG");
@@ -134,6 +128,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 		value = mp_options_get(options, "csXM");
 		if(!value) {
 			mp_printk("LSM9DS0: need csXM port");
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
 		}
 		LSM9DS0->csXM = mp_gpio_text_handle(value, "LSM9DS0 csXM");
@@ -151,8 +146,11 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 
 		/* open spi */
 		ret = mp_spi_open(kernel, &LSM9DS0->spi, options, "LSM9DS0");
-		if(ret == FALSE)
+		if(ret == FALSE) {
+			mp_printk("Error openning SPI interface");
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
+		}
 
 		mp_options_t setup[] = {
 			{ "frequency", "1000000" },
@@ -165,16 +163,33 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 		};
 		ret = mp_spi_setup(&LSM9DS0->spi, setup);
 		if(ret == FALSE) {
-			mp_spi_close(&LSM9DS0->spi);
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
 		}
+
+		LSM9DS0->init = 1;
+
+		/* create regmaster control */
+		ret = mp_regMaster_init_spi(kernel, &LSM9DS0->regMaster,
+				&LSM9DS0->spi, LSM9DS0, "LSM9DS0 SPI");
+		if(ret == FALSE) {
+			mp_printk("LSM9DS0 error while creating regMaster context");
+			mp_drv_LSM9DS0_fini(LSM9DS0);
+
+			return(FALSE);
+		}
+
+		LSM9DS0->init = 2;
 	}
 	/* using i2c */
 	else {
 		/* open spi */
 		ret = mp_i2c_open(kernel, &LSM9DS0->i2c, options, "LSM9DS0");
-		if(ret == FALSE)
+		if(ret == FALSE) {
+			mp_printk("Error openning i2c interface");
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
+		}
 
 		mp_options_t setup[] = {
 			{ "frequency", "400000" },
@@ -183,9 +198,11 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 		};
 		ret = mp_i2c_setup(&LSM9DS0->i2c, setup);
 		if(ret == FALSE) {
-			mp_i2c_close(&LSM9DS0->i2c);
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
 		}
+
+		LSM9DS0->init = 1;
 
 		/* set slave address */
 		mp_i2c_setSlaveAddress(&LSM9DS0->i2c, LSM9DS0_ADDRESS_ACCELMAG);
@@ -195,9 +212,11 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 				&LSM9DS0->i2c, LSM9DS0, "LSM9DS0 I2C");
 		if(ret == FALSE) {
 			mp_printk("LSM9DS0 error while creating regMaster context");
-			mp_i2c_close(&LSM9DS0->i2c);
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
 		}
+
+		LSM9DS0->init = 2;
 
 	}
 	/* int1 */
@@ -214,7 +233,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 		/* install drdy interrupt high > low */
 		ret = mp_gpio_interrupt_set(LSM9DS0->int1, _mp_drv_LSM9DS0_onIntAcc, LSM9DS0, who);
 		if(ret == FALSE) {
-			mp_gpio_release(LSM9DS0->int1);
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
 		}
 		mp_gpio_interrupt_lo2hi(LSM9DS0->int1);
@@ -234,7 +253,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 		/* install drdy interrupt high > low */
 		ret = mp_gpio_interrupt_set(LSM9DS0->int2, _mp_drv_LSM9DS0_onIntMag, LSM9DS0, who);
 		if(ret == FALSE) {
-			mp_gpio_release(LSM9DS0->int2);
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
 		}
 		mp_gpio_interrupt_lo2hi(LSM9DS0->int2);
@@ -267,36 +286,38 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 		/* install drdy interrupt high > low */
 		ret = mp_gpio_interrupt_set(LSM9DS0->drdy, _mp_drv_LSM9DS0_onDRDY, LSM9DS0, who);
 		if(ret == FALSE) {
-			mp_gpio_release(LSM9DS0->drdy);
+			mp_drv_LSM9DS0_fini(LSM9DS0);
 			return(FALSE);
 		}
 		mp_gpio_interrupt_lo2hi(LSM9DS0->drdy);
 	}
 
+
 	/* create ASR task */
 	LSM9DS0->task = mp_task_create(&kernel->tasks, who, _mp_drv_LSM9DS0_ASR, LSM9DS0, 100);
 	if(!LSM9DS0->task) {
 		mp_printk("LSM9DS0(%p) FATAL could not create ASR task", LSM9DS0);
+		mp_drv_LSM9DS0_fini(LSM9DS0);
 		return(FALSE);
 	}
 
 	mp_printk("LSM9DS0(%p) driver initialization in memory structure size of %d bytes", LSM9DS0, sizeof(*LSM9DS0));
 
-	mp_clock_delay(500);
+	mp_clock_delay(1000);
 
 	/* check for device id */
+
 	mp_drv_LSM9DS0_xmRead(
 		LSM9DS0, WHO_AM_I_XM,
 		(unsigned char *)&LSM9DS0->buffer, 1,
 		_mp_drv_LSM9DS0_onXMWhoIAm
 	);
-
 	mp_drv_LSM9DS0_gRead(
 		LSM9DS0, WHO_AM_I_G,
 		(unsigned char *)&LSM9DS0->buffer, 1,
 		_mp_drv_LSM9DS0_onCSGWhoIAm
 	);
-
+	/*
 	// Gyro initialization stuff:
 	mp_drv_LSM9DS0_initGyro(LSM9DS0); // This will "turn on" the gyro. Setting up interrupts, etc.
 	mp_drv_LSM9DS0_setGyroODR(LSM9DS0, G_ODR_95_BW_125); // Set the gyro output data rate and bandwidth.
@@ -311,6 +332,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 	mp_drv_LSM9DS0_initMag(LSM9DS0); // "Turn on" all axes of the mag. Set up interrupts, etc.
 	mp_drv_LSM9DS0_setMagODR(LSM9DS0, M_ODR_125); // Set the magnetometer output data rate.
 	mp_drv_LSM9DS0_setMagScale(LSM9DS0, M_SCALE_12GS); // Set the magnetometer's range.
+	*/
 
 	return(TRUE);
 }
@@ -342,13 +364,18 @@ mp_ret_t mp_drv_LSM9DS0_fini(mp_drv_LSM9DS0_t *LSM9DS0) {
 		mp_gpio_release(LSM9DS0->drdy);
 
 	/** \todo check init state */
+	if(LSM9DS0->task)
+		mp_task_destroy(LSM9DS0->task);
 
-	mp_regMaster_fini(&LSM9DS0->regMaster);
+	if(LSM9DS0->init > 2)
+		mp_regMaster_fini(&LSM9DS0->regMaster);
 
-	mp_spi_close(&LSM9DS0->spi);
-
-	mp_task_destroy(LSM9DS0->task);
-
+	if(LSM9DS0->init > 1) {
+		if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_SPI)
+			mp_spi_close(&LSM9DS0->spi);
+		else
+			mp_i2c_close(&LSM9DS0->i2c);
+	}
 
 	mp_printk("Stopping LSM9DS0");
 	return(TRUE);
@@ -372,12 +399,24 @@ void mp_drv_LSM9DS0_xmRead(
 		unsigned char *wait, int waitSize,
 		mp_regMaster_cb_t callback
 	) {
-	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C)
+	unsigned char *subReg = NULL;
+
+	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C) {
 		mp_regMaster_setSlaveAddress(&LSM9DS0->regMaster, LSM9DS0_ADDRESS_ACCELMAG);
+		subReg = mp_regMaster_register(reg);
+	}
+	else {
+		mp_regMaster_setChipSelect(&LSM9DS0->regMaster, LSM9DS0->csXM);
+
+		if(waitSize > 1)
+			subReg = mp_regMaster_register(0xc0 | (reg & 0x3f)); /* one byte operation */
+		else
+			subReg = mp_regMaster_register(0x80 | (reg & 0x3f)); /* multi bytes operation */
+	}
 
 	mp_regMaster_read(
 		&LSM9DS0->regMaster,
-		mp_regMaster_register(reg), 1,
+		subReg, 1,
 		wait, waitSize,
 		callback, LSM9DS0
 	);
@@ -400,13 +439,20 @@ void mp_drv_LSM9DS0_xmWrite(
 		unsigned char reg,
 		unsigned char value
 	) {
+	unsigned char *subReg = NULL;
 	unsigned char *ptr = mp_mem_alloc(LSM9DS0->kernel, 2);
 	unsigned char *src = ptr;
 
-	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C)
+	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C) {
 		mp_regMaster_setSlaveAddress(&LSM9DS0->regMaster, LSM9DS0_ADDRESS_ACCELMAG);
+		subReg = mp_regMaster_register(reg);
+	}
+	else {
+		mp_regMaster_setChipSelect(&LSM9DS0->regMaster, LSM9DS0->csXM);
+		subReg = mp_regMaster_register(reg & 0x3f);
+	}
 
-	*(ptr++) = reg;
+	*(ptr++) = *subReg;
 	*ptr = value;
 
 	mp_regMaster_write(
@@ -434,12 +480,24 @@ void mp_drv_LSM9DS0_gRead(
 		unsigned char *wait, int waitSize,
 		mp_regMaster_cb_t callback
 	) {
-	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C)
+	unsigned char *subReg = NULL;
+
+	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C) {
 		mp_regMaster_setSlaveAddress(&LSM9DS0->regMaster, LSM9DS0_ADDRESS_GYRO);
+		subReg = mp_regMaster_register(reg);
+	}
+	else {
+		mp_regMaster_setChipSelect(&LSM9DS0->regMaster, LSM9DS0->csG);
+
+		if(waitSize > 1)
+			subReg = mp_regMaster_register(0xc0 | (reg & 0x3f)); /* one byte operation */
+		else
+			subReg = mp_regMaster_register(0x80 | (reg & 0x3f)); /* multi bytes operation */
+	}
 
 	mp_regMaster_read(
 		&LSM9DS0->regMaster,
-		mp_regMaster_register(reg), 1,
+		subReg, 1,
 		wait, waitSize,
 		callback, LSM9DS0
 	);
@@ -462,13 +520,20 @@ void mp_drv_LSM9DS0_gWrite(
 		unsigned char reg,
 		unsigned char value
 	) {
+	unsigned char *subReg = NULL;
 	unsigned char *ptr = mp_mem_alloc(LSM9DS0->kernel, 2);
 	unsigned char *src = ptr;
 
-	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C)
+	if(LSM9DS0->protocol == MP_DRV_LSM9DS0_MODE_I2C) {
 		mp_regMaster_setSlaveAddress(&LSM9DS0->regMaster, LSM9DS0_ADDRESS_GYRO);
+		subReg = mp_regMaster_register(reg);
+	}
+	else {
+		mp_regMaster_setChipSelect(&LSM9DS0->regMaster, LSM9DS0->csG);
+		subReg = mp_regMaster_register(reg & 0x3f);
+	}
 
-	*(ptr++) = reg;
+	*(ptr++) = *subReg;
 	*ptr = value;
 
 	mp_regMaster_write(
@@ -628,9 +693,10 @@ void mp_drv_LSM9DS0_finiAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
 
 	if(LSM9DS0->accelero)
 		mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->accelero);
+	LSM9DS0->accelero = NULL;
 }
 
-void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_scale_t aScl) {
+void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_scale_t aScl, mp_bool_t calibrate) {
 	// We need to preserve the other bytes in CTRL_REG2_XM. So, first read it:
 	unsigned char temp = LSM9DS0->xmReg2;
 
@@ -651,7 +717,10 @@ void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_acce
 	// Then calculate a new aRes, which relies on aScale being set correctly:
 	_mp_drv_LSM9DS0_calcaRes(LSM9DS0);
 
-	LSM9DS0->accelCal = 1;
+	if(calibrate == TRUE)
+		LSM9DS0->accelCal = 1;
+	else
+		LSM9DS0->accelCal = 0;
 }
 
 void mp_drv_LSM9DS0_setAccelODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_odr_t aRate) {
@@ -725,13 +794,19 @@ static void _mp_drv_LSM9DS0_calcmRes(mp_drv_LSM9DS0_t *LSM9DS0) {
 
 static void _mp_drv_LSM9DS0_onCSGWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
-	mp_printk("got on G iam %x", LSM9DS0->buffer[0]);
+
+	if(LSM9DS0->buffer[0] == 0xd4)
+		mp_printk("LSM9DS0(%p) Got a valid Gyro iam %x", LSM9DS0, LSM9DS0->buffer[0]);
+	else
+		mp_printk("LSM9DS0(%p) WARNING Got a invalid Gyro iam %x", LSM9DS0, LSM9DS0->buffer[0]);
 }
 
 static void _mp_drv_LSM9DS0_onXMWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
-
-	mp_printk("got on XM iam %x", LSM9DS0->buffer[0]);
+	if(LSM9DS0->buffer[0] == 0x49)
+		mp_printk("LSM9DS0(%p) Got a valid XM iam %x", LSM9DS0, LSM9DS0->buffer[0]);
+	else
+		mp_printk("LSM9DS0(%p) WARNING Got a invalid XM iam %x", LSM9DS0, LSM9DS0->buffer[0]);
 
 }
 
@@ -749,6 +824,9 @@ static void _mp_drv_LSM9DS0_onGyroRead(mp_regMaster_op_t *operand, mp_bool_t ter
 	LSM9DS0->gyro->axis3.x = (LSM9DS0->gRes*(double)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->gbias[0];
 	LSM9DS0->gyro->axis3.y = (LSM9DS0->gRes*(double)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->gbias[1];
 	LSM9DS0->gyro->axis3.z = (LSM9DS0->gRes*(double)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->gbias[2];
+
+	if(LSM9DS0->onGyroData)
+		LSM9DS0->onGyroData(LSM9DS0);
 
 	//if(init == 5) {
 		//mp_printk("%d", ((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]));
@@ -813,6 +891,9 @@ static void _mp_drv_LSM9DS0_onMagRead(mp_regMaster_op_t *operand, mp_bool_t term
 	LSM9DS0->magneto->axis3.y = LSM9DS0->mRes*(double)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]);
 	LSM9DS0->magneto->axis3.z = LSM9DS0->mRes*(double)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]);
 
+	if(LSM9DS0->onMagData)
+		LSM9DS0->onMagData(LSM9DS0);
+
 	//if(init == 10) {
 		//mp_printk("%d", ((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]));
 	//mp_printk("LSM9DS0(%p) Magneto x=%f y=%f z=%f res=%f", LSM9DS0, LSM9DS0->magneto->axis3.x, LSM9DS0->magneto->axis3.y, LSM9DS0->magneto->axis3.z, LSM9DS0->mRes);
@@ -825,6 +906,9 @@ static void _mp_drv_LSM9DS0_onTemperatureRead(mp_regMaster_op_t *operand, mp_boo
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 	LSM9DS0->temperature->temperature.result = ((LSM9DS0->buffer[1] << 12) | LSM9DS0->buffer[0] << 4 ) >> 4;
 
+	if(LSM9DS0->onTempData)
+		LSM9DS0->onTempData(LSM9DS0);
+
 	//mp_printk("LSM9DS0(%p) Temperature %f C", LSM9DS0, LSM9DS0->temperature->temperature.result);
 }
 
@@ -835,6 +919,11 @@ static void _mp_drv_LSM9DS0_onAccelRead(mp_regMaster_op_t *operand, mp_bool_t te
 	LSM9DS0->accelero->axis3.x = (LSM9DS0->aRes*(double)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->abias[0];
 	LSM9DS0->accelero->axis3.y = (LSM9DS0->aRes*(double)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->abias[1];
 	LSM9DS0->accelero->axis3.z = (LSM9DS0->aRes*(double)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->abias[2];
+
+	if(LSM9DS0->onAccelData)
+		LSM9DS0->onAccelData(LSM9DS0);
+
+	//mp_printk("Operand %p", operand);
 
 	//if(initAccel == 10) {
 		//mp_printk("%d", ((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]));
@@ -969,6 +1058,7 @@ MP_TASK(_mp_drv_LSM9DS0_ASR) {
 
 	/* Accelero atomic read */
 	if(LSM9DS0->intSrc & 0x4) {
+
 		if(LSM9DS0->accelCal == 0) {
 			mp_drv_LSM9DS0_xmRead(
 				LSM9DS0, OUT_X_L_A | 0x80,
