@@ -56,6 +56,8 @@ struct olimex_msp430_s {
 
 	//mp_drv_ADS1115_t adc;
 
+	mp_drv_nRF8001_t drvnRF8001;
+
 	mp_uart_t proxyUARTSrc;
 	mp_uart_t proxyUARTDst;
 
@@ -282,8 +284,6 @@ static void __olimex_state_op_set(void *user) {
 
 
 
-
-
 	/* create a button event based on center button in order to turn a led on/off */
 	mp_drv_button_event_create(
 		&olimex->bCenter, &olimex->bPower,
@@ -377,6 +377,33 @@ static void __olimex_state_op_set(void *user) {
 	}
 */
 
+
+	/*
+	 * Configuration for nRF8001 example
+	 * gate = USCI_B0
+	 * CLK = p3.3
+	 * MISO = p3.2
+	 * MOSI = p3.1
+	 * REQN = 4 / p1.1
+	 * RDYN = 5 / p1.0
+	 * ACTIVE = 6 / p2.7
+	 * RESET = 7 / p2.6
+	 */
+	{
+		mp_options_t options[] = {
+			{ "gate", "USCI_B0" },
+			{ "simo", "p3.1" },
+			{ "somi", "p3.2" },
+			{ "clk", "p3.3" },
+			{ "reqn", "p1.1" },
+			{ "rdyn", "p1.0" },
+			{ "active", "p2.7" },
+			{ "reset", "p2.6" },
+			{ NULL, NULL }
+		};
+		mp_drv_nRF8001_init(&olimex->kernel, &olimex->drvnRF8001, options, "nRF8001");
+
+	}
 
 	/* pinout */
 	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 1010, 0, "Blinking green - Power ON");

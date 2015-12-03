@@ -387,7 +387,7 @@ static void _system_clock(mp_clock_t freq) {
 static void __start_crystal(void) {
 
 	/* Set up XT1 Pins to analog function, and to lowest drive           */
-	P7SEL   |= (BIT1 | BIT0);
+	P7SEL |= (BIT1 | BIT0);
 
 	/* Set internal cap values.                                          */
 	UCSCTL6 |= XCAP_3;

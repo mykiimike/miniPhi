@@ -20,6 +20,11 @@
 
 #include <mp.h>
 
+static void _mp_drv_nRF8001_onIntActive(void *user);
+static void _mp_drv_nRF8001_onIntRdyn(void *user);
+
+MP_TASK(_mp_drv_nRF8001_ASR);
+
 /**
 @defgroup mpDriverNRF8001 N NRF8001
 
@@ -93,6 +98,14 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 		return(FALSE);
 	}
 
+	/* install Active interrupt high > low */
+	ret = mp_gpio_interrupt_set(nRF8001->active, _mp_drv_nRF8001_onIntActive, nRF8001, who);
+	if(ret == FALSE) {
+		mp_drv_nRF8001_fini(nRF8001);
+		return(FALSE);
+	}
+	mp_gpio_interrupt_hi2lo(nRF8001->active);
+
 	/* reqn IO */
 	value = mp_options_get(options, "reqn");
 	if(!value) {
@@ -120,6 +133,14 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 		mp_drv_nRF8001_fini(nRF8001);
 		return(FALSE);
 	}
+
+	/* install Rdyn interrupt high > low */
+	ret = mp_gpio_interrupt_set(nRF8001->rdyn, _mp_drv_nRF8001_onIntRdyn, nRF8001, who);
+	if(ret == FALSE) {
+		mp_drv_nRF8001_fini(nRF8001);
+		return(FALSE);
+	}
+	mp_gpio_interrupt_hi2lo(nRF8001->rdyn);
 
 	/* open spi */
 	ret = mp_spi_open(kernel, &nRF8001->spi, options, "nRF8001");
@@ -159,6 +180,20 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 
 	nRF8001->init = 2;
 
+	/* create ASR task */
+	nRF8001->task = mp_task_create(&kernel->tasks, who, _mp_drv_nRF8001_ASR, nRF8001, 100);
+	if(!nRF8001->task) {
+		mp_printk("nRF8001(%p) FATAL could not create ASR task", nRF8001);
+		mp_drv_nRF8001_fini(nRF8001);
+		return(FALSE);
+	}
+
+	nRF8001->init = 3;
+
+	mp_printk("nRF8001(%p) driver initialization in memory structure size of %d bytes", nRF8001, sizeof(*nRF8001));
+	mp_clock_delay(50);
+
+	return(TRUE);
 }
 
 /**
@@ -196,3 +231,50 @@ mp_ret_t mp_drv_nRF8001_fini(mp_drv_nRF8001_t *nRF8001) {
 
 
 /**@}*/
+
+static void _mp_drv_nRF8001_onIntActive(void *user) {
+	//mp_drv_nRF8001_t *nRF8001 = user;
+	//nRF8001->intSrc |= 0x2;
+	//nRF8001->task->signal = MP_TASK_SIG_PENDING;
+}
+
+static void _mp_drv_nRF8001_onIntRdyn(void *user) {
+	//mp_drv_nRF8001_t *nRF8001 = user;
+	//nRF8001->intSrc |= 0x4;
+	//nRF8001->task->signal = MP_TASK_SIG_PENDING;
+}
+
+MP_TASK(_mp_drv_nRF8001_ASR) {
+	mp_drv_nRF8001_t *nRF8001 = task->user;
+
+	/* receive regMaster shutdown */
+	if(task->signal == MP_TASK_SIG_STOP) {
+		/* acknowledging */
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+
+/*
+	if(nRF8001->intSrc & 0x4) {
+
+		if(nRF8001->accelCal == 0) {
+			mp_drv_nRF8001_xmRead(
+				nRF8001, OUT_X_L_A | 0x80,
+				(unsigned char *)&nRF8001->buffer, 6,
+				_mp_drv_nRF8001_onAccelRead
+			);
+		}
+		else {
+			mp_drv_nRF8001_xmRead(
+				nRF8001, OUT_X_L_A | 0x80,
+				(unsigned char *)&nRF8001->buffer, 6,
+				_mp_drv_nRF8001_onAccelCalibrationRead
+			);
+		}
+		nRF8001->intSrc &= ~0x4;
+	}
+*/
+
+	task->signal = MP_TASK_SIG_SLEEP;
+}
+
