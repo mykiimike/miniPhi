@@ -402,6 +402,7 @@ static void __olimex_state_op_set(void *user) {
 			{ NULL, NULL }
 		};
 		mp_drv_nRF8001_init(&olimex->kernel, &olimex->drvnRF8001, options, "nRF8001");
+		mp_drv_nRF8001_start(&olimex->drvnRF8001);
 
 	}
 

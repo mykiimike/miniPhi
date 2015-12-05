@@ -56,6 +56,8 @@ Michael Vergoz <mv@verman.fr>
 	typedef unsigned long uint32_t;
 	typedef signed long int32_t;
 
+	typedef unsigned char bool;
+
 	mp_ret_t mp_machine_init(mp_kernel_t *kernel);
 	mp_ret_t mp_machine_fini(mp_kernel_t *kernel);
 	mp_ret_t mp_machine_loop(mp_kernel_t *kernel);

@@ -24,8 +24,8 @@
 	typedef struct mp_spi_s mp_spi_t;
 
 	typedef enum {
-		MP_SPI_FL_TX = USCI_UCTXIFG,
-		MP_SPI_FL_RX = USCI_UCRXIFG,
+		MP_SPI_FL_TX = UCTXIFG,
+		MP_SPI_FL_RX = UCRXIFG,
 	} mp_spi_flag_t;
 
 	typedef void (*mp_spi_interrupt_t)(mp_spi_t *spi, mp_spi_flag_t flag);

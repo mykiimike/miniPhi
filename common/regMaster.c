@@ -550,15 +550,15 @@ MP_TASK(mp_regMaster_asr) {
 		}
 
 		/* free executing list */
-		if(cirr->pending.first) {
-			cur = cirr->pending.first->user;
+		if(cirr->executing.first) {
+			cur = cirr->executing.first->user;
 			while(cur) {
 				next = cur->item.next != NULL ? cur->item.next->user : NULL;
 
 				if(cur->callback)
 					cur->callback(cur, TRUE);
 
-				mp_list_remove(&cirr->pending, &cur->item);
+				mp_list_remove(&cirr->executing, &cur->item);
 				mp_mem_free(cirr->kernel, cur);
 				cur = next;
 			}
@@ -627,7 +627,7 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 		return;
 
 	/* send registers */
-	if(operand->state == MP_REGMASTER_STATE_TX && flag == MP_SPI_FL_TX) {
+	if(operand->state == MP_REGMASTER_STATE_TX && flag & MP_SPI_FL_TX) {
 		/* check for end of register */
 		mp_spi_tx(spi, operand->reg[operand->regPos++]);
 
@@ -659,7 +659,7 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 	}
 
 	/* read data, CTR and start has already been sent */
-	else if(operand->state == MP_REGMASTER_STATE_RX && flag == MP_SPI_FL_RX) {
+	else if(operand->state == MP_REGMASTER_STATE_RX && flag & MP_SPI_FL_RX) {
 		mp_spi_tx(spi, 0);
 
 		rest = operand->waitSize-operand->waitPos-1;
@@ -681,13 +681,13 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 			mp_gpio_set(operand->chipSelect);
 		}
 	}
-	else if(operand->state == MP_REGMASTER_STATE_NULLRX && flag == MP_SPI_FL_RX) {
+	else if(operand->state == MP_REGMASTER_STATE_NULLRX && flag & MP_SPI_FL_RX) {
 		/* just ignore */
 		operand->state = MP_REGMASTER_STATE_RX;
 		mp_spi_tx(spi, 0);
 		mp_spi_rx(spi);
 	}
-	else if(operand->state == MP_REGMASTER_STATE_NULLTX && flag == MP_SPI_FL_RX) {
+	else if(operand->state == MP_REGMASTER_STATE_NULLTX && flag & MP_SPI_FL_RX) {
 		/* just ignore */
 		operand->state = MP_REGMASTER_STATE_TX;
 		mp_spi_rx(spi);
