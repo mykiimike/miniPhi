@@ -28,7 +28,12 @@
 		MP_SPI_FL_RX = UCRXIFG,
 	} mp_spi_flag_t;
 
-	typedef void (*mp_spi_interrupt_t)(mp_spi_t *spi, mp_spi_flag_t flag);
+	typedef enum {
+		MP_SPI_IV_TX = USCI_UCTXIFG,
+		MP_SPI_IV_RX = USCI_UCRXIFG,
+	} mp_spi_iv_t;
+
+	typedef void (*mp_spi_interrupt_t)(mp_spi_t *spi, mp_spi_iv_t iv);
 
 	struct mp_spi_s {
 
@@ -105,6 +110,14 @@
 
 	static inline void mp_spi_tx(mp_spi_t *spi, unsigned char data) {
 		_SPI_REG8(spi->gate, _SPI_TXBUF) = data;
+	}
+
+	static inline mp_spi_flag_t mp_spi_flag_get(mp_spi_t *spi) {
+		return((mp_spi_flag_t)_SPI_REG16(spi->gate, _SPI_IFG));
+	}
+
+	static inline void mp_spi_flag_set(mp_spi_t *spi, unsigned short data) {
+		_SPI_REG16(spi->gate, _SPI_IFG) = data;
 	}
 
 	static inline void mp_spi_setInterruption(mp_spi_t *spi, mp_spi_interrupt_t cb) {

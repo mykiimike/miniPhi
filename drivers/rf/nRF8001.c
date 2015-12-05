@@ -25,7 +25,7 @@
 static void _mp_drv_nRF8001_onIntActive(void *user);
 static void _mp_drv_nRF8001_onIntRdyn(void *user);
 
-static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag);
+static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv);
 
 MP_TASK(_mp_drv_nRF8001_ASR);
 
@@ -344,10 +344,11 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 	task->signal = MP_TASK_SIG_SLEEP;
 }
 
-static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
+static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 	mp_drv_nRF8001_t *nRF8001 = spi->user;
 	mp_drv_nRF8001_aci_queue_t *queue;
 	int rest;
+	mp_spi_flag_t flags;
 
 	/* get first queue */
 	queue = nRF8001->current;
@@ -355,24 +356,24 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 	P10OUT ^= 0x40;
 
 	/* send registers */
-	if(flag == MP_SPI_FL_TX) {
+	if(flags == MP_SPI_FL_TX) {
 		mp_spi_tx(spi, 0x0);
 	}
 
-	if(queue->state == MP_NRF8001_STATE_RX_DEBUG && flag == MP_SPI_FL_TX) {
+	if(queue->state == MP_NRF8001_STATE_RX_DEBUG && flags == MP_SPI_FL_TX) {
 		mp_spi_rx(spi);
 	}
-	if(queue->state == MP_NRF8001_STATE_RX_DEBUG && flag == MP_SPI_FL_RX) {
+	if(queue->state == MP_NRF8001_STATE_RX_DEBUG && flags == MP_SPI_FL_RX) {
 		mp_spi_rx(spi);
 		queue->state = MP_NRF8001_STATE_RX_LENGTH;
 		queue->rest++;
 	}
-	else if(queue->state == MP_NRF8001_STATE_RX_LENGTH && flag == MP_SPI_FL_RX) {
+	else if(queue->state == MP_NRF8001_STATE_RX_LENGTH && flags == MP_SPI_FL_RX) {
 		queue->packet.length = mp_spi_rx(spi);
 		queue->state = MP_NRF8001_STATE_RX;
 		queue->rest++;
 	}
-	else if(queue->state == MP_NRF8001_STATE_RX && flag == MP_SPI_FL_RX) {
+	else if(queue->state == MP_NRF8001_STATE_RX && flags == MP_SPI_FL_RX) {
 		queue->packet.payload[queue->rest-2] = mp_spi_rx(spi);
 
 		queue->rest++;

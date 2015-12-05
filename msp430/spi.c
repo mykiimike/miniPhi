@@ -227,7 +227,7 @@ mp_ret_t mp_spi_close(mp_spi_t *spi) {
 
 static void mp_spi_interruptDispatch(void *user) {
 	mp_spi_t *spi = user;
-	mp_spi_flag_t iv = (mp_spi_flag_t)_SPI_REG16(spi->gate, _SPI_IFG);
+	mp_spi_flag_t iv = (mp_spi_flag_t)_SPI_REG16(spi->gate, _SPI_IV);
 	if(spi->intDispatch)
 		spi->intDispatch(spi, iv);
 }

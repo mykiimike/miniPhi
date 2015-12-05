@@ -33,7 +33,7 @@ static void _mp_regMaster_spi_enableRX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_disableRX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_enableTX(mp_regMaster_t *cirr);
 static void _mp_regMaster_spi_disableTX(mp_regMaster_t *cirr);
-static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag);
+static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv);
 static void _mp_regMaster_spi_asr(mp_regMaster_t *cirr, mp_regMaster_op_t *cur);
 
 MP_TASK(mp_regMaster_asr);
@@ -616,7 +616,7 @@ static void _mp_regMaster_spi_disableTX(mp_regMaster_t *cirr) {
 	mp_spi_disable_tx(cirr->spi);
 }
 
-static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
+static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 	mp_regMaster_t *cirr = spi->user;
 	mp_regMaster_op_t *operand;
 	int rest;
@@ -627,7 +627,7 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 		return;
 
 	/* send registers */
-	if(operand->state == MP_REGMASTER_STATE_TX && flag & MP_SPI_FL_TX) {
+	if(operand->state == MP_REGMASTER_STATE_TX && iv == MP_SPI_IV_TX) {
 		/* check for end of register */
 		mp_spi_tx(spi, operand->reg[operand->regPos++]);
 
@@ -659,7 +659,7 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 	}
 
 	/* read data, CTR and start has already been sent */
-	else if(operand->state == MP_REGMASTER_STATE_RX && flag & MP_SPI_FL_RX) {
+	else if(operand->state == MP_REGMASTER_STATE_RX && iv == MP_SPI_IV_RX) {
 		mp_spi_tx(spi, 0);
 
 		rest = operand->waitSize-operand->waitPos-1;
@@ -681,13 +681,13 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_flag_t flag) {
 			mp_gpio_set(operand->chipSelect);
 		}
 	}
-	else if(operand->state == MP_REGMASTER_STATE_NULLRX && flag & MP_SPI_FL_RX) {
+	else if(operand->state == MP_REGMASTER_STATE_NULLRX && iv == MP_SPI_IV_RX) {
 		/* just ignore */
 		operand->state = MP_REGMASTER_STATE_RX;
 		mp_spi_tx(spi, 0);
 		mp_spi_rx(spi);
 	}
-	else if(operand->state == MP_REGMASTER_STATE_NULLTX && flag & MP_SPI_FL_RX) {
+	else if(operand->state == MP_REGMASTER_STATE_NULLTX && iv == MP_SPI_IV_RX) {
 		/* just ignore */
 		operand->state = MP_REGMASTER_STATE_TX;
 		mp_spi_rx(spi);
