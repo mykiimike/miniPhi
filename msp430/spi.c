@@ -27,9 +27,6 @@ static unsigned int __spi_count;
 
 static void mp_spi_interruptDispatch(void *user);
 
-static unsigned char mp_spi_rx(mp_spi_t *spi);
-static void mp_spi_tx(mp_spi_t *spi, unsigned char data);
-
 void mp_spi_init() {
 	mp_list_init(&__spi);
 	__spi_count = 0;
@@ -175,6 +172,7 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 
 	/* place interrupt */
 	mp_interrupt_set(spi->gate->_ISRVector, mp_spi_interruptDispatch, spi, spi->gate->portDevice);
+	spi->ie = _SPI_REG8(spi->gate, _SPI_IE);
 
 	/* safe non interruptible block */
 	MP_INTERRUPT_SAFE_END
@@ -225,9 +223,25 @@ mp_ret_t mp_spi_close(mp_spi_t *spi) {
 	return(TRUE);
 }
 
+unsigned char mp_spi_rx(mp_spi_t *spi) {
+	return(_SPI_REG8(spi->gate, _SPI_RXBUF));
+}
+
+void mp_spi_tx(mp_spi_t *spi, unsigned char data) {
+	_SPI_REG8(spi->gate, _SPI_TXBUF) = data;
+}
+
+mp_spi_flag_t mp_spi_flags_get(mp_spi_t *spi) {
+	return((mp_spi_flag_t)_SPI_REG8(spi->gate, _SPI_IFG));
+}
+
+void mp_spi_flags_set(mp_spi_t *spi, unsigned short data) {
+	_SPI_REG8(spi->gate, _SPI_IFG) = data;
+}
+
 static void mp_spi_interruptDispatch(void *user) {
 	mp_spi_t *spi = user;
-	mp_spi_flag_t iv = (mp_spi_flag_t)_SPI_REG16(spi->gate, _SPI_IV);
+	mp_spi_iv_t iv = (mp_spi_iv_t)_SPI_REG16(spi->gate, _SPI_IV);
 	if(spi->intDispatch)
 		spi->intDispatch(spi, iv);
 }

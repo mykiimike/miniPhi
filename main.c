@@ -81,13 +81,20 @@ void __olimex_on_button_up(void *user);
 void __olimex_on_button_down(void *user);
 void __olimex_on_button_power(void *user);
 
+olimex_msp430_t _olimex;
+
 
 int main(void) {
-	olimex_msp430_t *olimex;
 
-	olimex = malloc(sizeof(*olimex));
+	//static
+
+	olimex_msp430_t *olimex = &_olimex;
+
+
+	//olimex = malloc(sizeof(*olimex));
 
 	memset(olimex, 0, sizeof(*olimex));
+
 
 	/* initialize kernel */
 	mp_kernel_init(&olimex->kernel, __olimex_onBoot, olimex);
@@ -476,7 +483,7 @@ static void _mp_uart_forwarder(mp_uart_t *uart) {
 	mp_uart_tx(&olimex->proxyUARTDst, source);
 
 
-	P10OUT ^= 0x40;
+	//P10OUT ^= 0x40;
 }
 
 void __olimex_on_button_left(void *user) {

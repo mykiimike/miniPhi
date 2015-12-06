@@ -51,6 +51,8 @@
 		void *user;
 
 		mp_task_t *task;
+
+		unsigned char ie;
 	};
 
 	void mp_spi_init();
@@ -89,36 +91,49 @@
 	static inline void mp_spi_enable_rx(mp_spi_t *spi) {
 		/* check CTS */
 		_SPI_REG8(spi->gate, _SPI_IE) |= UCRXIE;
+		spi->ie |= UCRXIE;
 	}
 
 	static inline void mp_spi_disable_rx(mp_spi_t *spi) {
 		_SPI_REG8(spi->gate, _SPI_IE) &= ~UCRXIE;
+		spi->ie &= ~UCRXIE;
 	}
 
 	static inline void mp_spi_enable_tx(mp_spi_t *spi) {
 		/* check CTS */
 		_SPI_REG8(spi->gate, _SPI_IE) |= UCTXIE;
+		spi->ie |= UCTXIE;
 	}
 
 	static inline void mp_spi_disable_tx(mp_spi_t *spi) {
 		_SPI_REG8(spi->gate, _SPI_IE) &= ~UCTXIE;
+		spi->ie &= ~UCTXIE;
 	}
 
-	static inline unsigned char mp_spi_rx(mp_spi_t *spi) {
-		return(_SPI_REG8(spi->gate, _SPI_RXBUF));
+	static inline void mp_spi_enable_both(mp_spi_t *spi) {
+		/* check CTS */
+		_SPI_REG8(spi->gate, _SPI_IE) |= UCTXIE + UCRXIE;
+		spi->ie |= UCTXIE | UCRXIE;
 	}
 
-	static inline void mp_spi_tx(mp_spi_t *spi, unsigned char data) {
-		_SPI_REG8(spi->gate, _SPI_TXBUF) = data;
+	static inline void mp_spi_disable_both(mp_spi_t *spi) {
+		_SPI_REG8(spi->gate, _SPI_IE) &= ~(UCTXIE + UCRXIE);
+		spi->ie &= ~(UCTXIE | UCRXIE);
 	}
 
-	static inline mp_spi_flag_t mp_spi_flag_get(mp_spi_t *spi) {
-		return((mp_spi_flag_t)_SPI_REG16(spi->gate, _SPI_IFG));
+	static inline void mp_spi_disable_store(mp_spi_t *spi) {
+		_SPI_REG8(spi->gate, _SPI_IE) &= ~(UCTXIE + UCRXIE);
 	}
 
-	static inline void mp_spi_flag_set(mp_spi_t *spi, unsigned short data) {
-		_SPI_REG16(spi->gate, _SPI_IFG) = data;
+	static inline void mp_spi_disable_restore(mp_spi_t *spi) {
+		_SPI_REG8(spi->gate, _SPI_IE) = spi->ie;
 	}
+
+	unsigned char mp_spi_rx(mp_spi_t *spi);
+	void mp_spi_tx(mp_spi_t *spi, unsigned char data);
+
+	mp_spi_flag_t mp_spi_flags_get(mp_spi_t *spi);
+	void mp_spi_flags_set(mp_spi_t *spi, unsigned short data);
 
 	static inline void mp_spi_setInterruption(mp_spi_t *spi, mp_spi_interrupt_t cb) {
 		spi->intDispatch = cb;
