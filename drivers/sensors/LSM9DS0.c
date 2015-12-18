@@ -237,6 +237,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 			return(FALSE);
 		}
 		mp_gpio_interrupt_lo2hi(LSM9DS0->int1);
+		mp_gpio_interrupt_enable(LSM9DS0->int1);
 	}
 
 	/* int2 */
@@ -257,6 +258,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 			return(FALSE);
 		}
 		mp_gpio_interrupt_lo2hi(LSM9DS0->int2);
+		mp_gpio_interrupt_enable(LSM9DS0->int2);
 
 	}
 
@@ -290,6 +292,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 			return(FALSE);
 		}
 		mp_gpio_interrupt_lo2hi(LSM9DS0->drdy);
+		mp_gpio_interrupt_enable(LSM9DS0->drdy);
 	}
 
 

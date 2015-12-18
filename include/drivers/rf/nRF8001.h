@@ -39,12 +39,6 @@
 	#include "nRF8001/aci.h"
 	#include "nRF8001/aci_cmds.h"
 	#include "nRF8001/aci_evts.h"
-	//#include "nRF8001/aci_protocol_defines.h"
-
-	//#include "nRF8001/acilib_defs.h"
-	//#include "nRF8001/acilib_if.h"
-	//#include "nRF8001/acilib_types.h"
-	//#include "nRF8001/acilib.h"
 
 	#define MP_NRF8001_STATE_TX_LENGTH 1
 	#define MP_NRF8001_STATE_TX 	   2
