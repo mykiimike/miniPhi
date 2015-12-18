@@ -29,9 +29,6 @@ static void _mp_drv_nRF8001_evt_null(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_a
 	mp_printk("nRF8001-EVT(%p) Warning NULL event executed opcode=%x", nRF8001, queue->evt.evt_opcode);
 }
 
-int echoTest = 0;
-
-int test = 0;
 static void _mp_drv_nRF8001_evt_deviceStarted(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_aci_queue_t *queue) {
 	mp_drv_nRF8001_aci_queue_t *q;
 
@@ -48,21 +45,16 @@ static void _mp_drv_nRF8001_evt_deviceStarted(mp_drv_nRF8001_t *nRF8001, mp_drv_
 			break;
 
 		case ACI_DEVICE_SETUP:
-			if(test == 0) {
+			if(!(nRF8001->intSrc & MP_NRF8001_INTSRC_ECHO)) {
 
 				q = mp_drv_nRF8001_cmd_test(nRF8001, ACI_TEST_MODE_DTM_ACI);
 				mp_drv_nRF8001_send_queue(nRF8001, q);
 
-				test++;
+				nRF8001->intSrc |= MP_NRF8001_INTSRC_ECHO;
 			}
-			else if(test == 1) {
+			else {
 				q = mp_drv_nRF8001_cmd_get_device_version(nRF8001);
 				mp_drv_nRF8001_send_queue(nRF8001, q);
-				/*
-				q = mp_drv_nRF8001_cmd_get_device_version(nRF8001);
-				mp_drv_nRF8001_send_queue(nRF8001, q);
-*/
-				test++;
 			}
 
 			break;
@@ -108,18 +100,18 @@ static void _mp_drv_nRF8001_evt_echo(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_a
 	//mp_printk("nRF8001(%p) receiving echo DTM %s", nRF8001, queue->evt.params.echo.echo_data);
 
 	if(strncmp((const char *)queue->evt.params.echo.echo_data, "ABCDEFGH", 8) != 0) {
-		mp_printk("nRF8001(%p) ECHO test error at packet %d", nRF8001, echoTest);
+		mp_printk("nRF8001(%p) ECHO test error at packet %d", nRF8001, nRF8001->echoTest);
 	}
 
-	if(echoTest >= 2) {
-		mp_printk("nRF8001(%p) ECHO test done with %d messages", nRF8001, echoTest);
+	if(nRF8001->echoTest >= 2) {
+		mp_printk("nRF8001(%p) ECHO test done with %d messages", nRF8001, nRF8001->echoTest);
 		q = mp_drv_nRF8001_cmd_test(nRF8001, ACI_TEST_MODE_EXIT);
 		mp_drv_nRF8001_send_queue(nRF8001, q);
 	}
 	else {
 		q = mp_drv_nRF8001_cmd_echo(nRF8001, "ABCDEFGH", 8);
 		mp_drv_nRF8001_send_queue(nRF8001, q);
-		echoTest++;
+		nRF8001->echoTest++;
 	}
 
 }
@@ -147,8 +139,6 @@ static void _mp_drv_nRF8001_evt_cmdResponse(mp_drv_nRF8001_t *nRF8001, mp_drv_nR
 			break;
 
 		case ACI_CMD_GET_DEVICE_ADDRESS:
-
-
 			gda = &res->params.get_device_address;
 			mp_printk(
 					"nRF8001(%p) Device BLE address %02x%02x%02x%02x%02x%02x type %x", nRF8001,
@@ -171,20 +161,9 @@ static void _mp_drv_nRF8001_evt_cmdResponse(mp_drv_nRF8001_t *nRF8001, mp_drv_nR
 				q = mp_drv_nRF8001_cmd_setup(nRF8001);
 				mp_drv_nRF8001_send_queue(nRF8001, q);
 				//mp_printk("nRF8001(%p) Setup continues message #%d", nRF8001, nRF8001->setup_idx);
-				//mp_printk("%d", nRF8001->setup_idx);
-
-
 			}
 			else if(res->cmd_status == ACI_STATUS_TRANSACTION_COMPLETE) {
 				mp_printk("nRF8001(%p) Setup completed with %d messages", nRF8001, nRF8001->setup_size);
-
-/*
-
-*/
-
-
-
-
 			}
 			else
 				mp_printk("nRF8001(%p) setup %x", nRF8001, res->cmd_status);
@@ -199,7 +178,7 @@ static void _mp_drv_nRF8001_evt_cmdResponse(mp_drv_nRF8001_t *nRF8001, mp_drv_nR
 			break;
 
 		default:
-			mp_printk("nRF8001(%p) Unknown response event command opcode %x w/ status %x", nRF8001, res->cmd_opcode, res->cmd_status);
+			mp_printk("nRF8001(%p) Response event command opcode %x w/ status %x", nRF8001, res->cmd_opcode, res->cmd_status);
 			break;
 	}
 }

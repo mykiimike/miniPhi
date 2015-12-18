@@ -209,6 +209,7 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
  */
 mp_ret_t mp_drv_nRF8001_fini(mp_drv_nRF8001_t *nRF8001) {
 
+	mp_drv_nRF8001_stop(nRF8001);
 
 	if(nRF8001->reset)
 		mp_gpio_release(nRF8001->reset);
@@ -228,9 +229,6 @@ mp_ret_t mp_drv_nRF8001_fini(mp_drv_nRF8001_t *nRF8001) {
 	mp_printk("Stopping nRF8001");
 	return(TRUE);
 }
-
-
-
 
 mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_send_alloc(mp_drv_nRF8001_t *nRF8001) {
 	mp_drv_nRF8001_aci_queue_t *queue = nRF8001->tx_pkts.first->user;
@@ -264,12 +262,6 @@ mp_ret_t mp_drv_nRF8001_start(mp_drv_nRF8001_t *nRF8001) {
 	return(TRUE);
 }
 
-mp_ret_t mp_drv_nRF8001_onReady(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_onReady_t onReady, void *user) {
-	nRF8001->onReady = onReady;
-	nRF8001->user = user;
-
-	return(TRUE);
-}
 
 mp_ret_t mp_drv_nRF8001_go(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_setup_t *setup, int messages, aci_services_pipe_type_mapping_t *pipe, int pipe_size) {
 	mp_printk("nRF8001(%p) Receiving %d nRF Go packets", nRF8001, messages);
@@ -288,7 +280,7 @@ mp_ret_t mp_drv_nRF8001_stop(mp_drv_nRF8001_t *nRF8001) {
 	mp_gpio_interrupt_disable(nRF8001->rdyn);
 
 	mp_gpio_unset(nRF8001->reset);
-	mp_printk("nRF8001 a lot to do there");
+
 	return(TRUE);
 }
 

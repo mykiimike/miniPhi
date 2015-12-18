@@ -412,12 +412,12 @@ static void __olimex_state_op_set(void *user) {
 			{ "clk", "p3.3" },
 			{ "reqn", "p1.1" },
 			{ "rdyn", "p1.0" },
-			{ "active", "p2.7" },
 			{ "reset", "p2.6" },
 			{ NULL, NULL }
 		};
 		mp_drv_nRF8001_init(&olimex->kernel, &olimex->drvnRF8001, options, "nRF8001");
-		mp_drv_nRF8001_onReady(&olimex->drvnRF8001, __olimex_on_nrf8001_onready, olimex);
+		mp_drv_nRF8001_setUser(&olimex->drvnRF8001, olimex);
+		mp_drv_nRF8001_onReady(&olimex->drvnRF8001, __olimex_on_nrf8001_onready);
 		mp_drv_nRF8001_go(&olimex->drvnRF8001, nRFGoSetup, nRFGoSetupCount, nRFGoPipe, nRFGoPipeCount);
 		mp_drv_nRF8001_start(&olimex->drvnRF8001);
 
