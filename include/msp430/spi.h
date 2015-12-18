@@ -22,12 +22,12 @@
 	#define _HAVE_MSP430_SPI_H
 
 	typedef struct mp_spi_s mp_spi_t;
-
+/*
 	typedef enum {
 		MP_SPI_FL_TX = UCTXIFG,
 		MP_SPI_FL_RX = UCRXIFG,
 	} mp_spi_flag_t;
-
+*/
 	typedef enum {
 		MP_SPI_IV_TX = USCI_UCTXIFG,
 		MP_SPI_IV_RX = USCI_UCRXIFG,
@@ -132,8 +132,10 @@
 	unsigned char mp_spi_rx(mp_spi_t *spi);
 	void mp_spi_tx(mp_spi_t *spi, unsigned char data);
 
+	/*
 	mp_spi_flag_t mp_spi_flags_get(mp_spi_t *spi);
 	void mp_spi_flags_set(mp_spi_t *spi, mp_spi_flag_t data);
+	*/
 
 	static inline void mp_spi_setInterruption(mp_spi_t *spi, mp_spi_interrupt_t cb) {
 		spi->intDispatch = cb;

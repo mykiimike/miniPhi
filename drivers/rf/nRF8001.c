@@ -376,11 +376,8 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 	mp_drv_nRF8001_aci_queue_t *queueRx = nRF8001->current_rx_pkts;
 	mp_drv_nRF8001_aci_queue_t *queueTx = nRF8001->current_tx_pkts;
 
-	mp_spi_flag_t flags = mp_spi_flags_get(spi);
 
-	if(flags & MP_SPI_FL_RX) {
-
-
+	if(iv == USCI_UCRXIFG) {
 		if(nRF8001->statusByte == 0) {
 			mp_spi_rx(spi);
 			nRF8001->statusByte = 1;
@@ -441,7 +438,7 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 		}
 	}
 
-	if(flags & MP_SPI_FL_TX) {
+	if(iv == USCI_UCTXIFG) {
 
 
 		queueTx = nRF8001->current_tx_pkts;
