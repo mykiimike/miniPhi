@@ -133,7 +133,7 @@
 	void mp_spi_tx(mp_spi_t *spi, unsigned char data);
 
 	mp_spi_flag_t mp_spi_flags_get(mp_spi_t *spi);
-	void mp_spi_flags_set(mp_spi_t *spi, unsigned short data);
+	void mp_spi_flags_set(mp_spi_t *spi, mp_spi_flag_t data);
 
 	static inline void mp_spi_setInterruption(mp_spi_t *spi, mp_spi_interrupt_t cb) {
 		spi->intDispatch = cb;

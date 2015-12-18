@@ -235,14 +235,14 @@ mp_spi_flag_t mp_spi_flags_get(mp_spi_t *spi) {
 	return((mp_spi_flag_t)_SPI_REG8(spi->gate, _SPI_IFG));
 }
 
-void mp_spi_flags_set(mp_spi_t *spi, unsigned short data) {
+void mp_spi_flags_set(mp_spi_t *spi, mp_spi_flag_t data) {
 	_SPI_REG8(spi->gate, _SPI_IFG) = data;
 }
 
 static void mp_spi_interruptDispatch(void *user) {
 	mp_spi_t *spi = user;
 
-#if defined(__msp430x54xA)
+#if defined(__msp430x54xAA)
 	/*
 	 * On MSP430F5438A reading the IV reset the Interrupt Flag XD,
 	 * on non-A version it isn't the case.
