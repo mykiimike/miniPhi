@@ -68,12 +68,17 @@ static void _mp_drv_nRF8001_evt_deviceStarted(mp_drv_nRF8001_t *nRF8001, mp_drv_
 			break;
 
 		case ACI_DEVICE_STANDBY:
+			if(nRF8001->onReady)
+				nRF8001->onReady(nRF8001);
+
 			//q = mp_drv_nRF8001_cmd_connect(nRF8001, 180, 0x50);
 			//mp_drv_nRF8001_send_queue(nRF8001, q);
 			/*
 			q = mp_drv_nRF8001_cmd_open_adv_pipes(nRF8001);
 			mp_drv_nRF8001_send_queue(nRF8001, q);
 */
+
+			/*
 #define devicename "Baby Gigl"
 
 			q = mp_drv_nRF8001_cmd_set_local_data(nRF8001, PIPE_GAP_DEVICE_NAME_SET, devicename, sizeof(devicename));
@@ -82,7 +87,7 @@ static void _mp_drv_nRF8001_evt_deviceStarted(mp_drv_nRF8001_t *nRF8001, mp_drv_
 
 			q = mp_drv_nRF8001_cmd_connect(nRF8001, 180, 0x30);
 			mp_drv_nRF8001_send_queue(nRF8001, q);
-
+	*/
 			//q = mp_drv_nRF8001_cmd_bond(nRF8001, 100, 0x500);
 			//mp_drv_nRF8001_send_queue(nRF8001, q);
 			break;

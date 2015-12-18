@@ -252,7 +252,6 @@ mp_bool_t mp_drv_nRF8001_send_queue(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_ac
 }
 
 mp_ret_t mp_drv_nRF8001_start(mp_drv_nRF8001_t *nRF8001) {
-	mp_drv_nRF8001_aci_queue_t *q;
 
 	/* reset the nrf */
 	mp_gpio_unset(nRF8001->reset);
@@ -261,6 +260,13 @@ mp_ret_t mp_drv_nRF8001_start(mp_drv_nRF8001_t *nRF8001) {
 	mp_clock_delay(62);
 
 	mp_gpio_interrupt_enable(nRF8001->rdyn);
+
+	return(TRUE);
+}
+
+mp_ret_t mp_drv_nRF8001_onReady(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_onReady_t onReady, void *user) {
+	nRF8001->onReady = onReady;
+	nRF8001->user = user;
 
 	return(TRUE);
 }
@@ -371,20 +377,14 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 	if(canRequestOff == 2) {
 		task->signal = MP_TASK_SIG_SLEEP;
 	}
-
-	//mp_printk("yop");
-	//P10OUT ^= 0x40;
 }
 
 static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 	mp_drv_nRF8001_t *nRF8001 = spi->user;
 	mp_drv_nRF8001_aci_queue_t *queueRx = nRF8001->current_rx_pkts;
 	mp_drv_nRF8001_aci_queue_t *queueTx = nRF8001->current_tx_pkts;
-	int rest;
 
 	mp_spi_flag_t flags = mp_spi_flags_get(spi);
-
-	P10OUT ^= 0x40;
 
 	if(flags & MP_SPI_FL_RX) {
 

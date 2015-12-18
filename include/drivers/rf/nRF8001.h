@@ -36,6 +36,8 @@
 
 	typedef void (*mp_drv_nRF8001_evts_t)(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_aci_queue_t *queue);
 
+	typedef void (*mp_drv_nRF8001_onReady_t)(mp_drv_nRF8001_t *nRF8001);
+
 	#include "nRF8001/aci.h"
 	#include "nRF8001/aci_cmds.h"
 	#include "nRF8001/aci_evts.h"
@@ -118,6 +120,10 @@
 
 		aci_services_pipe_type_mapping_t *pipe_map;
 		unsigned char pipe_map_size;
+
+		mp_drv_nRF8001_onReady_t onReady;
+		void *user;
+
 	};
 
 	/** @} */
@@ -125,6 +131,7 @@
 	mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *NRF8001, mp_options_t *options, char *who);
 	mp_ret_t mp_drv_nRF8001_fini(mp_drv_nRF8001_t *NRF8001);
 
+	mp_ret_t mp_drv_nRF8001_onReady(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_onReady_t onReady, void *user);
 	mp_ret_t mp_drv_nRF8001_go(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_setup_t *setup, int messages, aci_services_pipe_type_mapping_t *pipe, int pipe_size);
 
 	mp_ret_t mp_drv_nRF8001_start(mp_drv_nRF8001_t *nRF8001);
