@@ -102,7 +102,7 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 		return(FALSE);
 	}
 	mp_gpio_direction(nRF8001->reqn, MP_GPIO_OUTPUT);
-	mp_gpio_unset(nRF8001->reqn);
+	mp_gpio_set(nRF8001->reqn);
 
 	/* Rdyn IO */
 	value = mp_options_get(options, "rdyn");
