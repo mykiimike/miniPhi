@@ -241,7 +241,21 @@ void mp_spi_flags_set(mp_spi_t *spi, unsigned short data) {
 
 static void mp_spi_interruptDispatch(void *user) {
 	mp_spi_t *spi = user;
+
+#if defined(__msp430x54xA)
+	/*
+	 * On MSP430F5438A reading the IV reset the Interrupt Flag XD,
+	 * on non-A version it isn't the case.
+	 * I didn't find any erratum concercing this issue.
+	 * So, i added a way to store the flag before reading interrupt vector.
+	 */
+	mp_spi_flag_t f = mp_spi_flags_get(spi);
 	mp_spi_iv_t iv = (mp_spi_iv_t)_SPI_REG16(spi->gate, _SPI_IV);
+	mp_spi_flags_get(spi, f);
+#else
+	mp_spi_iv_t iv = (mp_spi_iv_t)_SPI_REG16(spi->gate, _SPI_IV);
+#endif
+
 	if(spi->intDispatch)
 		spi->intDispatch(spi, iv);
 }
