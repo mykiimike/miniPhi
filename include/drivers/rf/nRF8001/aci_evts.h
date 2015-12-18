@@ -132,6 +132,7 @@
 	  uint8_t  evt_lsb;
 	} __attribute__((packed)) aci_evt_cmd_rsp_params_dtm_cmd_t;
 
+
 	/**
 	 * @struct aci_evt_cmd_rsp_read_dynamic_data_t
 	 * @brief Structure for the ACI_EVT_CMD_RSP event with opcode=ACI_CMD_READ_DYNAMIC_DATA event return parameters
@@ -195,7 +196,6 @@
 	  union
 	  {
 		aci_evt_cmd_rsp_params_dtm_cmd_t dtm_cmd;
-		aci_evt_cmd_rsp_read_dynamic_data_t read_dynamic_data;
 		aci_evt_cmd_rsp_params_get_device_version_t get_device_version;
 		aci_evt_cmd_rsp_params_get_device_address_t get_device_address;
 		aci_evt_cmd_rsp_params_get_battery_level_t  get_battery_level;

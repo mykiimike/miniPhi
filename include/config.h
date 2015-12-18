@@ -21,6 +21,8 @@
 #ifndef _HAVE_CONFIG_H
 	#define _HAVE_CONFIG_H
 
+	#include "../services.h"
+
 	#define _DEBUG
 
 	#define SUPPORT_DRV_LED

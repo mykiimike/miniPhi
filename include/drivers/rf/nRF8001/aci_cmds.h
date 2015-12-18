@@ -226,8 +226,8 @@
 	 */
 	typedef struct
 	{
-	  uint16_t        timeout;  /**< 0x0000 (no timeout) to 0x3FFF */
-	  uint16_t        adv_interval;     /**< 16 bits of advertising interval for general discovery */
+		aci_uint16_t        timeout;  /**< 0x0000 (no timeout) to 0x3FFF */
+		aci_uint16_t        adv_interval;     /**< 16 bits of advertising interval for general discovery */
 	} aci_cmd_params_connect_t;
 
 	/**
@@ -236,8 +236,8 @@
 	 */
 	typedef struct
 	{
-	  uint16_t        timeout;  /**< 0x0000 (no timeout) to 0x3FFF */
-	  uint16_t        adv_interval;     /**< 16 bits of advertising interval for general discovery */
+		aci_uint16_t        timeout;  /**< 0x0000 (no timeout) to 0x3FFF */
+		aci_uint16_t        adv_interval;     /**< 16 bits of advertising interval for general discovery */
 	} aci_cmd_params_bond_t;
 
 	/**
@@ -352,8 +352,8 @@
 	 */
 	typedef struct
 	{
-	  uint16_t        timeout;  /**< 0x0000 (no timeout) to 0x3FFF */
-	  uint16_t        adv_interval;     /**< 16 bits of advertising interval for general discovery */
+		aci_uint16_t        timeout;  /**< 0x0000 (no timeout) to 0x3FFF */
+		aci_uint16_t        adv_interval;     /**< 16 bits of advertising interval for general discovery */
 	} aci_cmd_params_broadcast_t;
 
 	/**
@@ -401,5 +401,17 @@
 	} aci_cmd_t;
 
 	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_get_device_version(mp_drv_nRF8001_t *nRF8001);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_get_device_address(mp_drv_nRF8001_t *nRF8001);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_echo(mp_drv_nRF8001_t *nRF8001, char *data, int size);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_setup(mp_drv_nRF8001_t *nRF8001);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_bond(mp_drv_nRF8001_t *nRF8001, uint16_t timeout, uint16_t adv_interval);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_broadcast(mp_drv_nRF8001_t *nRF8001, uint16_t timeout, uint16_t adv_interval);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_connect(mp_drv_nRF8001_t *nRF8001, uint16_t timeout, uint16_t adv_interval);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_set_local_data(mp_drv_nRF8001_t *nRF8001, uint8_t pipe, char *name, int size);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_test(mp_drv_nRF8001_t *nRF8001, aci_test_mode_change_t mode);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_wakeup(mp_drv_nRF8001_t *nRF8001);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_open_adv_pipes(mp_drv_nRF8001_t *nRF8001);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_open_remote_pipe(mp_drv_nRF8001_t *nRF8001, uint8_t pipe);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_close_remote_pipe(mp_drv_nRF8001_t *nRF8001, uint8_t pipe);
 #endif // ACI_CMDS_H__
 

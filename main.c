@@ -29,6 +29,18 @@
 
 #include <mp.h>
 
+/* nRF GO stuffs */
+static mp_drv_nRF8001_setup_t nRFGoSetup[NB_SETUP_MESSAGES] = SETUP_MESSAGES_CONTENT;
+static int nRFGoSetupCount = NB_SETUP_MESSAGES;
+
+/*
+#define NUMBER_OF_PIPES 0
+#define SERVICES_PIPE_TYPE_MAPPING_CONTENT {}
+*/
+
+static aci_services_pipe_type_mapping_t nRFGoPipe[NUMBER_OF_PIPES] = SERVICES_PIPE_TYPE_MAPPING_CONTENT;
+static int nRFGoPipeCount = NUMBER_OF_PIPES;
+
 /* use reserver number 1 to define OLIMEX state machine  */
 #define OLIMEX_OP MP_KERNEL_RES01
 
@@ -212,13 +224,7 @@ static void __olimex_state_op_set(void *user) {
 		mp_drv_led_init(&olimex->kernel, &olimex->green_led, options, "Green LED");
 	}
 
-	{
-		mp_options_t options[] = {
-				{ "port", "p2.6" },
-				{ NULL, NULL }
-		};
-		mp_drv_led_init(&olimex->kernel, &olimex->systemRed, options, "System RED");
-	}
+
 
 	/* need a port */
 	P2DS |= 0x40;
@@ -409,13 +415,13 @@ static void __olimex_state_op_set(void *user) {
 			{ NULL, NULL }
 		};
 		mp_drv_nRF8001_init(&olimex->kernel, &olimex->drvnRF8001, options, "nRF8001");
+		mp_drv_nRF8001_go(&olimex->drvnRF8001, nRFGoSetup, nRFGoSetupCount, nRFGoPipe, nRFGoPipeCount);
 		mp_drv_nRF8001_start(&olimex->drvnRF8001);
 
 	}
 
 	/* pinout */
 	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 1010, 0, "Blinking green - Power ON");
-	mp_pinout_onoff(&olimex->kernel, olimex->systemRed.gpio, ON, 100, 1000, 0, "Test");
 	mp_pinout_onoff(&olimex->kernel, olimex->systemGreen.gpio, ON, 20, 500, 0, "Test");
 
 	mp_printk("miniPhi - version %s", olimex->kernel.version);

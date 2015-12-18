@@ -22,7 +22,6 @@
 
 #ifdef SUPPORT_DRV_NRF8001
 
-static void _mp_drv_nRF8001_onIntActive(void *user);
 static void _mp_drv_nRF8001_onIntRdyn(void *user);
 
 static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv);
@@ -54,7 +53,6 @@ Michael Vergoz <mv@verman.fr>
  * @param[in] options Special options :
  *  @li reqn : Request wire
  *  @li rdyn : Ready wire (int)
- *  @li active : Active wire (int)
  *  @li reset : Reset wire
  *  @li gate : SPI Gate (if required)
  *  @li mosi : Master Out Slave In
@@ -90,29 +88,6 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 	mp_gpio_direction(nRF8001->reset, MP_GPIO_OUTPUT);
 	mp_gpio_unset(nRF8001->reset);
 
-	/* Active IO */
-	value = mp_options_get(options, "active");
-	if(!value) {
-		mp_printk("nRF8001: need active port");
-		mp_drv_nRF8001_fini(nRF8001);
-		return(FALSE);
-	}
-	nRF8001->active = mp_gpio_text_handle(value, "nRF8001 active");
-	if(!nRF8001->active) {
-		mp_printk("nRF8001: need active port");
-		mp_drv_nRF8001_fini(nRF8001);
-		return(FALSE);
-	}
-	mp_gpio_direction(nRF8001->active, MP_GPIO_INPUT);
-
-	/* install Active interrupt high > low */
-	ret = mp_gpio_interrupt_set(nRF8001->active, _mp_drv_nRF8001_onIntActive, nRF8001, who);
-	if(ret == FALSE) {
-		mp_drv_nRF8001_fini(nRF8001);
-		return(FALSE);
-	}
-	mp_gpio_interrupt_hi2lo(nRF8001->active);
-
 	/* reqn IO */
 	value = mp_options_get(options, "reqn");
 	if(!value) {
@@ -145,14 +120,14 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 	mp_gpio_direction(nRF8001->rdyn, MP_GPIO_INPUT);
 
 	/* install Rdyn interrupt high > low */
-
+	mp_gpio_interrupt_disable(nRF8001->rdyn);
 	ret = mp_gpio_interrupt_set(nRF8001->rdyn, _mp_drv_nRF8001_onIntRdyn, nRF8001, who);
 	if(ret == FALSE) {
 		mp_drv_nRF8001_fini(nRF8001);
 		return(FALSE);
 	}
-	mp_gpio_interrupt_disable(nRF8001->rdyn);
 	mp_gpio_interrupt_hi2lo(nRF8001->rdyn);
+
 
 	/* open spi */
 	ret = mp_spi_open(kernel, &nRF8001->spi, options, "nRF8001");
@@ -163,9 +138,9 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 	}
 
 	mp_options_t setup[] = {
-		{ "frequency", "1000000" },
+		{ "frequency", "2000000" },
 		//{ "phase", "change" },
-		//{ "polarity", "high" },
+		{ "polarity", "low" },
 		{ "first", "lsb" },
 		{ "role", "master" },
 		{ "bit", "8" },
@@ -178,6 +153,7 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 		return(FALSE);
 	}
 	nRF8001->spi.user = nRF8001;
+	mp_spi_disable_both(&nRF8001->spi);
 	mp_spi_setInterruption(&nRF8001->spi, _mp_drv_nRF8001_spi_interrupt);
 
 	nRF8001->init = 1;
@@ -201,13 +177,13 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 	int a;
 
 	mp_drv_nRF8001_aci_queue_t *queue;
-	for(a=0; a<MP_NRF8001_ACI_QUEUE_SIZE; a++) {
+	for(a=0; a<(MP_NRF8001_ACI_QUEUE_SIZE/2)-1; a++) {
 		queue = &nRF8001->inline_pkts[a];
 		mp_list_add_last(&nRF8001->tx_pkts, &queue->item, queue);
 		nRF8001->inline_pkts_alloc++;
 	}
 
-	for(a=0; a<MP_NRF8001_ACI_QUEUE_SIZE; a++) {
+	for(a=0; a<(MP_NRF8001_ACI_QUEUE_SIZE/2)-1; a++) {
 		queue = &nRF8001->inline_pkts[a+nRF8001->inline_pkts_alloc];
 		mp_list_add_last(&nRF8001->rx_pkts, &queue->item, queue);
 		nRF8001->inline_pkts_alloc++;
@@ -233,8 +209,6 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
  */
 mp_ret_t mp_drv_nRF8001_fini(mp_drv_nRF8001_t *nRF8001) {
 
-	if(nRF8001->active)
-		mp_gpio_release(nRF8001->active);
 
 	if(nRF8001->reset)
 		mp_gpio_release(nRF8001->reset);
@@ -256,18 +230,14 @@ mp_ret_t mp_drv_nRF8001_fini(mp_drv_nRF8001_t *nRF8001) {
 }
 
 
-mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_get_device_version(mp_drv_nRF8001_t *nRF8001) {
-	mp_drv_nRF8001_aci_queue_t *queue = mp_drv_nRF8001_send_alloc(nRF8001);
-	unsigned char *buffer = (unsigned char *)&queue->packet;
-	*(buffer + OFFSET_ACI_CMD_T_LEN) = 1;
-	*(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_GET_DEVICE_VERSION;
 
-	return(queue);
-}
 
 mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_send_alloc(mp_drv_nRF8001_t *nRF8001) {
 	mp_drv_nRF8001_aci_queue_t *queue = nRF8001->tx_pkts.first->user;
-	mp_list_remove(&nRF8001->tx_pkts, &nRF8001->current_tx_pkts->item);
+	if(!queue)
+		mp_printk("FATAL NO MORE QUEUE");
+
+	mp_list_remove(&nRF8001->tx_pkts, &queue->item);
 
 	return(queue);
 }
@@ -282,17 +252,33 @@ mp_bool_t mp_drv_nRF8001_send_queue(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_ac
 }
 
 mp_ret_t mp_drv_nRF8001_start(mp_drv_nRF8001_t *nRF8001) {
+	mp_drv_nRF8001_aci_queue_t *q;
 
+	/* reset the nrf */
+	mp_gpio_unset(nRF8001->reset);
+	mp_clock_delay(1);
 	mp_gpio_set(nRF8001->reset);
-	mp_clock_delay(100);
-	mp_gpio_interrupt_enable(nRF8001->active);
+	mp_clock_delay(62);
+
 	mp_gpio_interrupt_enable(nRF8001->rdyn);
 
 	return(TRUE);
 }
 
+mp_ret_t mp_drv_nRF8001_go(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_setup_t *setup, int messages, aci_services_pipe_type_mapping_t *pipe, int pipe_size) {
+	mp_printk("nRF8001(%p) Receiving %d nRF Go packets", nRF8001, messages);
+
+	nRF8001->setup = setup;
+	nRF8001->setup_size = messages;
+	nRF8001->setup_idx = 0;
+
+	nRF8001->pipe_map = pipe;
+	nRF8001->pipe_map_size = pipe_size;
+
+	return(TRUE);
+}
+
 mp_ret_t mp_drv_nRF8001_stop(mp_drv_nRF8001_t *nRF8001) {
-	mp_gpio_interrupt_disable(nRF8001->active);
 	mp_gpio_interrupt_disable(nRF8001->rdyn);
 
 	mp_gpio_unset(nRF8001->reset);
@@ -303,45 +289,27 @@ mp_ret_t mp_drv_nRF8001_stop(mp_drv_nRF8001_t *nRF8001) {
 
 /**@}*/
 
-static void _mp_drv_nRF8001_onIntActive(void *user) {
-	mp_drv_nRF8001_t *nRF8001 = user;
-	nRF8001->intSrc |= 0x2;
-	//nRF8001->task->signal = MP_TASK_SIG_PENDING;
-	mp_printk("nRF8001(%p) Radio is active", user);
-}
-
 static void _mp_drv_nRF8001_onIntRdyn(void *user) {
 	mp_drv_nRF8001_t *nRF8001 = user;
-/*
-	if(nRF8001->intSrc & 0x4) {
+
+	if(nRF8001->intSrc & MP_NRF8001_INTSRC_RDYN) {
+
+		mp_spi_disable_both(&nRF8001->spi);
 		mp_gpio_interrupt_hi2lo(nRF8001->rdyn);
-
-		nRF8001->intSrc &= ~0x4;
-
-		mp_printk("nRF8001(%p) RDYn rises HIGH", nRF8001);
-		//mp_spi_disable_both(&nRF8001->spi);
-
+		nRF8001->intSrc &= ~MP_NRF8001_INTSRC_RDYN;
 	}
 	else {
-		*/
-		//mp_gpio_interrupt_lo2hi(nRF8001->rdyn);
-		mp_interrupt_disable(nRF8001->rdyn);
+		mp_gpio_interrupt_lo2hi(nRF8001->rdyn);
 
-		nRF8001->intSrc |= 0x4;
+		nRF8001->intSrc |= MP_NRF8001_INTSRC_RDYN;
 
-		mp_printk("nRF8001(%p) RDYn rises LOW", nRF8001);
-
-		if(!(nRF8001->intSrc & 0x8)) {
-			mp_printk("no rdy reqn");
+		if(!(nRF8001->intSrc & MP_NRF8001_INTSRC_REQN)) {
 			mp_gpio_unset(nRF8001->reqn);
-
-			nRF8001->intSrc |= 0x8;
+			nRF8001->intSrc |= MP_NRF8001_INTSRC_REQN;
 		}
 
 		mp_spi_enable_both(&nRF8001->spi);
-
-
-	//}
+	}
 }
 
 MP_TASK(_mp_drv_nRF8001_ASR) {
@@ -362,10 +330,10 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 			queue = nRF8001->pending_rx_pkts.first->user;
 			unsigned char opcode = queue->packet.payload[0];
 
+			//mp_printk("pkt size=%d opcode=%x", queue->packet.length, opcode);
+
 			/* execute user callback */
 			nRF8001->evts[opcode](nRF8001, queue);
-
-			mp_printk("pkt size=%d opcode=%x %x %x %x", queue->packet.length, opcode, queue->packet.payload[1], queue->packet.payload[2], queue->packet.payload[3]);
 
 			/* remove from pending */
 			mp_list_remove(&nRF8001->pending_rx_pkts, &queue->item);
@@ -389,21 +357,18 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 		nRF8001->current_tx_pkts = nRF8001->pending_tx_pkts.first->user;
 		mp_list_remove(&nRF8001->pending_tx_pkts, &nRF8001->current_tx_pkts->item);
 
-		mp_printk("potencial tx %d", nRF8001->intSrc);
-		if(!(nRF8001->intSrc & 0x8)) {
-
-			mp_printk("no reqn");
-			nRF8001->intSrc |= 0x8;
-			mp_interrupt_enable(nRF8001->rdyn);
+		if(!(nRF8001->intSrc & MP_NRF8001_INTSRC_REQN)) {
+			nRF8001->intSrc |= MP_NRF8001_INTSRC_REQN;
 			mp_gpio_unset(nRF8001->reqn);
 		}
-		task->signal = MP_TASK_SIG_SLEEP;
 	}
+	else
+		canRequestOff++;
+
 
 
 	/* disable all ? */
-	if(canRequestOff == 1) {
-
+	if(canRequestOff == 2) {
 		task->signal = MP_TASK_SIG_SLEEP;
 	}
 
@@ -419,10 +384,10 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 
 	mp_spi_flag_t flags = mp_spi_flags_get(spi);
 
-	P10OUT ^= (0x40+0x80);
+	P10OUT ^= 0x40;
 
 	if(flags & MP_SPI_FL_RX) {
-		P10OUT ^= 0x40;
+
 
 		if(nRF8001->statusByte == 0) {
 			mp_spi_rx(spi);
@@ -448,11 +413,10 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 
 					nRF8001->task->signal = MP_TASK_SIG_PENDING;
 
-					if(!(nRF8001->duplexStatus & MP_NRF8001_DUPLEX_TX)) {
+					if(!nRF8001->current_tx_pkts) {
 						mp_spi_disable_both(&nRF8001->spi);
-						nRF8001->intSrc &= ~0x8;
+						nRF8001->intSrc &= ~MP_NRF8001_INTSRC_REQN;
 						mp_gpio_set(nRF8001->reqn);
-						mp_interrupt_enable(nRF8001->rdyn);
 						return;
 					}
 				}
@@ -474,22 +438,19 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 
 					nRF8001->statusByte = 0;
 
-					if(!(nRF8001->duplexStatus & MP_NRF8001_DUPLEX_TX)) {
+					if(!nRF8001->current_tx_pkts) {
 						mp_spi_disable_both(&nRF8001->spi);
-						nRF8001->intSrc &= ~0x8;
+						nRF8001->intSrc &= ~MP_NRF8001_INTSRC_REQN;
 						mp_gpio_set(nRF8001->reqn);
-						mp_interrupt_enable(nRF8001->rdyn);
 						return;
 					}
-
 				}
-
 			}
 		}
 	}
 
 	if(flags & MP_SPI_FL_TX) {
-		P10OUT ^= 0x80;
+
 
 		queueTx = nRF8001->current_tx_pkts;
 
@@ -509,14 +470,17 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 
 					nRF8001->duplexStatus &= ~MP_NRF8001_DUPLEX_TX;
 
-
+					nRF8001->task->signal = MP_TASK_SIG_PENDING;
+/*
 					if(!(nRF8001->duplexStatus & MP_NRF8001_DUPLEX_RX) && nRF8001->statusByte == 0) {
-						//mp_spi_disable_both(&nRF8001->spi);
-						nRF8001->intSrc &= ~0x8;
+						mp_spi_rx(spi);
+						mp_spi_disable_both(&nRF8001->spi);
+						nRF8001->intSrc &= ~MP_NRF8001_INTSRC_REQN;
 						mp_gpio_set(nRF8001->reqn);
-						mp_interrupt_enable(nRF8001->rdyn);
+
 						return;
 					}
+*/
 
 				}
 			}

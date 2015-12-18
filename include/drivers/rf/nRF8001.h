@@ -30,6 +30,7 @@
 
 	typedef struct mp_drv_nRF8001_s mp_drv_nRF8001_t;
 
+	typedef struct mp_drv_nRF8001_setup_s mp_drv_nRF8001_setup_t;
 	typedef struct mp_drv_nRF8001_aci_pkt_s mp_drv_nRF8001_aci_pkt_t;
 	typedef struct mp_drv_nRF8001_aci_queue_s mp_drv_nRF8001_aci_queue_t;
 
@@ -38,17 +39,22 @@
 	#include "nRF8001/aci.h"
 	#include "nRF8001/aci_cmds.h"
 	#include "nRF8001/aci_evts.h"
-	#include "nRF8001/aci_protocol_defines.h"
+	//#include "nRF8001/aci_protocol_defines.h"
 
-	#include "nRF8001/acilib_defs.h"
-	#include "nRF8001/acilib_if.h"
-	#include "nRF8001/acilib_types.h"
-	#include "nRF8001/acilib.h"
+	//#include "nRF8001/acilib_defs.h"
+	//#include "nRF8001/acilib_if.h"
+	//#include "nRF8001/acilib_types.h"
+	//#include "nRF8001/acilib.h"
 
 	#define MP_NRF8001_STATE_TX_LENGTH 1
 	#define MP_NRF8001_STATE_TX 	   2
 	#define MP_NRF8001_STATE_RX_LENGTH 10
 	#define MP_NRF8001_STATE_RX        11
+
+	struct mp_drv_nRF8001_setup_s {
+		unsigned char nullize;
+		unsigned char payload[32];
+	} __attribute__((packed));
 
 	struct mp_drv_nRF8001_aci_pkt_s {
 		unsigned char length;
@@ -57,7 +63,8 @@
 
 	struct mp_drv_nRF8001_aci_queue_s {
 		union {
-			aci_cmd_t aci;
+			aci_evt_t evt;
+			aci_cmd_t cmd;
 			mp_drv_nRF8001_aci_pkt_t packet;
 		};
 		unsigned char rest;
@@ -72,6 +79,10 @@
 
 	struct mp_drv_nRF8001_s {
 		unsigned char init;
+
+		#define MP_NRF8001_INTSRC_RADIO 0x2
+		#define MP_NRF8001_INTSRC_RDYN  0x4
+		#define MP_NRF8001_INTSRC_REQN  0x8
 		unsigned char intSrc;
 
 		#define MP_NRF8001_DUPLEX_TX         0x1
@@ -102,11 +113,17 @@
 		mp_list_t tx_pkts;
 		mp_list_t rx_pkts;
 
-		mp_drv_nRF8001_aci_queue_t inline_pkts[MP_NRF8001_ACI_QUEUE_SIZE*2+1];
+		mp_drv_nRF8001_aci_queue_t inline_pkts[MP_NRF8001_ACI_QUEUE_SIZE+2];
 		unsigned char inline_pkts_alloc;
 
 		mp_drv_nRF8001_evts_t *evts;
 
+		mp_drv_nRF8001_setup_t *setup;
+		unsigned char setup_size;
+		unsigned char setup_idx;
+
+		aci_services_pipe_type_mapping_t *pipe_map;
+		unsigned char pipe_map_size;
 	};
 
 	/** @} */
@@ -114,11 +131,15 @@
 	mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *NRF8001, mp_options_t *options, char *who);
 	mp_ret_t mp_drv_nRF8001_fini(mp_drv_nRF8001_t *NRF8001);
 
+	mp_ret_t mp_drv_nRF8001_go(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_setup_t *setup, int messages, aci_services_pipe_type_mapping_t *pipe, int pipe_size);
+
 	mp_ret_t mp_drv_nRF8001_start(mp_drv_nRF8001_t *nRF8001);
 	mp_ret_t mp_drv_nRF8001_stop(mp_drv_nRF8001_t *nRF8001);
 
 	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_send_alloc(mp_drv_nRF8001_t *nRF8001);
 	mp_bool_t mp_drv_nRF8001_send_queue(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_aci_queue_t *queue);
+
+
 #endif
 
 #endif

@@ -286,6 +286,21 @@
 	 */
 	#define ACI_CUSTOM_AD_TYPE_MAX_DATA_LENGTH 20
 
+	typedef struct {
+		union {
+			uint16_t tt; /* total */
+			struct {
+				uint8_t lsb;
+				uint8_t msb;
+			} sb; /* byte align */
+		};
+	} aci_uint16_t;
+
+	typedef struct {
+		uint8_t location; /**< enum aci_pipe_store_t */
+		aci_pipe_type_t pipe_type;
+	} aci_services_pipe_type_mapping_t;
+
 	/**
 	 * @struct aci_tx_data_t
 	 * @brief Generic ACI transmit data structure

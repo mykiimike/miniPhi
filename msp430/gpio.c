@@ -275,7 +275,7 @@ mp_ret_t mp_gpio_interrupt_set(mp_gpio_port_t *port, mp_interrupt_cb_t in, void 
 	mp_gpio_direction(port, MP_GPIO_INPUT);
 
 	/* interrupt enabled */
-	_GPIO_REG8(port, _GPIO_IE) |= 1<<port->pin;
+	//_GPIO_REG8(port, _GPIO_IE) |= 1<<port->pin;
 
 	/* IFG cleared */
 	_GPIO_REG8(port, _GPIO_IFG) &= ~(1<<port->pin);
