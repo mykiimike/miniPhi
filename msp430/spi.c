@@ -251,7 +251,7 @@ static void mp_spi_interruptDispatch(void *user) {
 	 */
 	mp_spi_flag_t f = mp_spi_flags_get(spi);
 	mp_spi_iv_t iv = (mp_spi_iv_t)_SPI_REG16(spi->gate, _SPI_IV);
-	mp_spi_flags_get(spi, f);
+	mp_spi_flags_set(spi, f);
 #else
 	mp_spi_iv_t iv = (mp_spi_iv_t)_SPI_REG16(spi->gate, _SPI_IV);
 #endif
