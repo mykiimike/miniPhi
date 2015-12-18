@@ -116,9 +116,9 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 	_GPIO_REG8(spi->somi, _GPIO_SEL) |= 1<<spi->somi->pin;
 	_GPIO_REG8(spi->clk, _GPIO_SEL) |= 1<<spi->clk->pin;
 
-	_GPIO_REG8(spi->simo, _GPIO_DIR) &= ~(1<<spi->simo->pin);
+	_GPIO_REG8(spi->simo, _GPIO_DIR) |= 1<<spi->simo->pin;
 	_GPIO_REG8(spi->somi, _GPIO_DIR) &= ~(1<<spi->somi->pin);
-	_GPIO_REG8(spi->clk, _GPIO_DIR) &= ~(1<<spi->clk->pin);
+	_GPIO_REG8(spi->clk, _GPIO_DIR) |= 1<<spi->clk->pin;
 
 	/* open for write */
 	_SPI_REG8(spi->gate, _SPI_CTL1) |= UCSWRST;
