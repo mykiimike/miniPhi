@@ -39,23 +39,6 @@
 	typedef void (*mp_drv_nRF8001_aci_int_t)(mp_drv_nRF8001_aci_t *aci);
 	typedef void (*mp_drv_nRF8001_aci_read_t)(mp_drv_nRF8001_aci_t *aci, mp_drv_nRF8001_aci_queue_t *queue);
 
-	typedef struct mp_drv_nRF8001_aci_pkt_s mp_drv_nRF8001_aci_pkt_t;
-	typedef struct mp_drv_nRF8001_aci_queue_s mp_drv_nRF8001_aci_queue_t;
-
-	struct mp_drv_nRF8001_aci_pkt_s {
-		unsigned char length;
-		unsigned char opcode;
-		unsigned char payload[30];
-	};
-
-	struct mp_drv_nRF8001_aci_queue_s {
-		mp_drv_nRF8001_aci_pkt_t packet;
-
-		mp_drv_nRF8001_aci_cb_t callback;
-		void *user;
-
-		mp_list_item_t item;
-	};
 
 	struct mp_drv_nRF8001_aci_s {
 		mp_kernel_t *kernel;

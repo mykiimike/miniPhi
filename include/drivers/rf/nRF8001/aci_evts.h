@@ -210,7 +210,7 @@
 	 */
 	typedef struct
 	{
-	  aci_bd_addr_type_t dev_addr_type;
+	  uint8_t dev_addr_type;
 	  uint8_t  dev_addr[BTLE_DEVICE_ADDRESS_SIZE];
 	  uint16_t conn_rf_interval;  /**< rf_interval = conn_rf_interval * 1.25 ms Range:0x0006 to 0x0C80 */
 	  uint16_t conn_slave_rf_latency; /**< Number of RF events the slave can skip */

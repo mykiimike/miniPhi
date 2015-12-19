@@ -117,8 +117,6 @@ mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_broadcast(mp_drv_nRF8001_t *nRF80
 	queue->cmd.params.broadcast.adv_interval.sb.msb = (uint8_t)(adv_interval >> 8);
 	queue->cmd.params.broadcast.adv_interval.sb.lsb = (uint8_t)(adv_interval);
 
-	mp_printk("queue->cmd.params.broadcast.adv_interval: %d / %d %d", sizeof(queue->cmd.params.broadcast.adv_interval), queue->cmd.params.broadcast.timeout.tt, queue->cmd.params.broadcast.adv_interval.tt);
-
 	return(queue);
 }
 
@@ -134,8 +132,6 @@ mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_connect(mp_drv_nRF8001_t *nRF8001
 
 	queue->cmd.params.connect.adv_interval.sb.msb = (uint8_t)(adv_interval >> 8);
 	queue->cmd.params.connect.adv_interval.sb.lsb = (uint8_t)(adv_interval);
-
-	mp_printk("queue->cmd.params.connect.adv_interval: %d / %d %d", sizeof(queue->cmd.params.connect.adv_interval), queue->cmd.params.connect.timeout.tt, queue->cmd.params.connect.adv_interval.tt);
 
 	return(queue);
 }
@@ -153,7 +149,6 @@ mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_set_local_data(mp_drv_nRF8001_t *
 
 	return(queue);
 }
-
 
 
 mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_open_adv_pipes(mp_drv_nRF8001_t *nRF8001) {
@@ -203,5 +198,28 @@ mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_close_remote_pipe(mp_drv_nRF8001_
 	return(queue);
 }
 
+mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_send_data(mp_drv_nRF8001_t *nRF8001, uint8_t pipe, uint8_t *data, int dataSize) {
+
+	if(nRF8001->dataCredits == -1) {
+		mp_printk("nRF8001(%p) No more data credits", nRF8001);
+		return(NULL);
+	}
+
+	nRF8001->dataCredits--;
+
+	mp_drv_nRF8001_aci_queue_t *queue = mp_drv_nRF8001_send_alloc(nRF8001);
+	int rsize = dataSize > ACI_PIPE_TX_DATA_MAX_LEN ? ACI_PIPE_TX_DATA_MAX_LEN : dataSize;
+
+	if(pipe>62)
+		mp_printk("nRF8001(%p) Invalid pipe number in send data");
+
+	queue->packet.length = dataSize+2;
+	queue->packet.payload[0] = ACI_CMD_SEND_DATA;
+
+	queue->cmd.params.send_data.tx_data.pipe_number = pipe;
+	memcpy(&queue->cmd.params.send_data.tx_data.aci_data, data, rsize);
+
+	return(queue);
+}
 
 #endif

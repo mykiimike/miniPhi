@@ -128,7 +128,6 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 	}
 	mp_gpio_interrupt_hi2lo(nRF8001->rdyn);
 
-
 	/* open spi */
 	ret = mp_spi_open(kernel, &nRF8001->spi, options, "nRF8001");
 	if(ret == FALSE) {
@@ -189,9 +188,6 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 		nRF8001->inline_pkts_alloc++;
 	}
 
-	/* intialize events */
-	mp_drv_nRF8001_evt_init(nRF8001);
-
 	/* set task sleeping */
 	nRF8001->task->signal = MP_TASK_SIG_SLEEP;
 
@@ -251,6 +247,9 @@ mp_bool_t mp_drv_nRF8001_send_queue(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_ac
 
 mp_ret_t mp_drv_nRF8001_start(mp_drv_nRF8001_t *nRF8001) {
 
+	/* intialize events */
+	mp_drv_nRF8001_evt_init(nRF8001);
+
 	/* reset the nrf */
 	mp_gpio_unset(nRF8001->reset);
 	mp_clock_delay(1);
@@ -284,6 +283,31 @@ mp_ret_t mp_drv_nRF8001_stop(mp_drv_nRF8001_t *nRF8001) {
 	return(TRUE);
 }
 
+mp_ret_t mp_drv_nRF8001_is_pipe_available(mp_drv_nRF8001_t *nRF8001, uint8_t pipe) {
+	uint8_t byte_idx;
+	byte_idx = pipe / 8;
+	if (nRF8001->pipeStatus.pipes_open_bitmap[byte_idx] & (1 << (pipe % 8)))
+		return(TRUE);
+	return(FALSE);
+}
+
+
+mp_ret_t mp_drv_nRF8001_is_pipe_closed(mp_drv_nRF8001_t *nRF8001, uint8_t pipe) {
+	uint8_t byte_idx;
+	byte_idx = pipe / 8;
+	if (nRF8001->pipeStatus.pipes_closed_bitmap[byte_idx] & (1 << (pipe % 8)))
+		return(TRUE);
+	return(FALSE);
+}
+
+mp_ret_t mp_drv_nRF8001_pipe_receive(mp_drv_nRF8001_t *nRF8001, uint8_t pipe, mp_drv_nRF8001_evts_t callback) {
+	if(pipe >= 64)
+		return(FALSE);
+
+	nRF8001->pipeRxHandler[pipe] = callback;
+
+	return(TRUE);
+}
 
 /**@}*/
 
@@ -322,13 +346,14 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 		return;
 	}
 
-	/* */
+	/* protect linked-list */
+	mp_spi_disable_store(&nRF8001->spi);
+
+	/* RX packet pending */
 	if(nRF8001->duplexStatus & MP_NRF8001_DUPLEX_RX_PENDING) {
 		if(nRF8001->pending_rx_pkts.first) {
 			queue = nRF8001->pending_rx_pkts.first->user;
 			unsigned char opcode = queue->packet.payload[0];
-
-			//mp_printk("pkt size=%d opcode=%x", queue->packet.length, opcode);
 
 			/* execute user callback */
 			nRF8001->evts[opcode](nRF8001, queue);
@@ -349,9 +374,8 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 	else
 		canRequestOff++;
 
-
+	/* execute TX packets */
 	if(!nRF8001->current_tx_pkts && nRF8001->pending_tx_pkts.first) {
-
 		nRF8001->current_tx_pkts = nRF8001->pending_tx_pkts.first->user;
 		mp_list_remove(&nRF8001->pending_tx_pkts, &nRF8001->current_tx_pkts->item);
 
@@ -363,7 +387,8 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 	else
 		canRequestOff++;
 
-
+	/* protect linked-list */
+	mp_spi_disable_restore(&nRF8001->spi);
 
 	/* disable all ? */
 	if(canRequestOff == 2) {
@@ -487,7 +512,6 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 
 	return;
 }
-
 
 
 #endif

@@ -413,5 +413,6 @@
 	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_open_adv_pipes(mp_drv_nRF8001_t *nRF8001);
 	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_open_remote_pipe(mp_drv_nRF8001_t *nRF8001, uint8_t pipe);
 	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_close_remote_pipe(mp_drv_nRF8001_t *nRF8001, uint8_t pipe);
+	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_cmd_send_data(mp_drv_nRF8001_t *nRF8001, uint8_t pipe, uint8_t *data, int dataSize);
 #endif // ACI_CMDS_H__
 

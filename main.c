@@ -27,7 +27,13 @@
 
 #ifdef __OLIMEX_PROTOBOARD__
 
+
+
 #include <mp.h>
+
+
+void __olimex_on_nrf8001_onready(mp_drv_nRF8001_t *nRF8001);
+
 
 /* nRF GO stuffs */
 static mp_drv_nRF8001_setup_t nRFGoSetup[NB_SETUP_MESSAGES] = SETUP_MESSAGES_CONTENT;
@@ -46,7 +52,7 @@ static int nRFGoPipeCount = NUMBER_OF_PIPES;
 
 typedef struct olimex_msp430_s olimex_msp430_t;
 
-void __olimex_on_nrf8001_onready(mp_drv_nRF8001_t *nRF8001);
+
 
 struct olimex_msp430_s {
 	mp_kernel_t kernel;
@@ -416,11 +422,16 @@ static void __olimex_state_op_set(void *user) {
 			{ NULL, NULL }
 		};
 		mp_drv_nRF8001_init(&olimex->kernel, &olimex->drvnRF8001, options, "nRF8001");
-		mp_drv_nRF8001_setUser(&olimex->drvnRF8001, olimex);
-		mp_drv_nRF8001_onReady(&olimex->drvnRF8001, __olimex_on_nrf8001_onready);
+
+		olimex->drvnRF8001.user = olimex;
+		olimex->drvnRF8001.onReady = __olimex_on_nrf8001_onready;
+		/*
+		olimex->drvnRF8001.onConnect = __olimex_on_nrf8001_onConn;
+		olimex->drvnRF8001.onDisconnect = __olimex_on_nrf8001_onDisconn;
+	*/
+
 		mp_drv_nRF8001_go(&olimex->drvnRF8001, nRFGoSetup, nRFGoSetupCount, nRFGoPipe, nRFGoPipeCount);
 		mp_drv_nRF8001_start(&olimex->drvnRF8001);
-
 	}
 
 	/* pinout */
@@ -513,9 +524,11 @@ void __olimex_on_button_up(void *user) {
 }
 
 void __olimex_on_button_down(void *user) {
-	//olimex_msp430_t *olimex = user;
+	olimex_msp430_t *olimex = user;
 	//mp_drv_led_turn(&olimex->red_led);
 
+
+	return;
 }
 
 void __olimex_on_button_power(void *user) {
@@ -526,11 +539,9 @@ void __olimex_on_button_power(void *user) {
 void __olimex_on_nrf8001_onready(mp_drv_nRF8001_t *nRF8001) {
 	mp_drv_nRF8001_aci_queue_t *q;
 
-#define devicename "Baby Gigl"
-
+	#define devicename "miniPhi"
 	q = mp_drv_nRF8001_cmd_set_local_data(nRF8001, PIPE_GAP_DEVICE_NAME_SET, devicename, sizeof(devicename));
 	mp_drv_nRF8001_send_queue(nRF8001, q);
-
 
 	q = mp_drv_nRF8001_cmd_connect(nRF8001, 180, 0x30);
 	mp_drv_nRF8001_send_queue(nRF8001, q);

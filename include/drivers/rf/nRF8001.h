@@ -74,24 +74,38 @@
 	#define MP_NRF8001_ACI_QUEUE_SIZE 10
 
 	struct mp_drv_nRF8001_s {
+		mp_kernel_t *kernel;
+
+		/** Initialisation status */
 		unsigned char init;
 
-		#define MP_NRF8001_INTSRC_ECHO  0x2
-		#define MP_NRF8001_INTSRC_RDYN  0x4
-		#define MP_NRF8001_INTSRC_REQN  0x8
+		#define MP_NRF8001_INTSRC_ECHO     0x2
+		#define MP_NRF8001_INTSRC_RDYN     0x4
+		#define MP_NRF8001_INTSRC_REQN     0x8
+		#define MP_NRF8001_INTSRC_BOND     0x10
+		#define MP_NRF8001_INTSRC_CONNECT  0x20
+		#define MP_NRF8001_INTSRC_BCAST    0x30
+		/** Lines status */
 		unsigned char intSrc;
 
+		/** This define the number echo test processed */
 		unsigned char echoTest;
 
 		#define MP_NRF8001_DUPLEX_TX         0x1
 		#define MP_NRF8001_DUPLEX_RX         0x2
 		#define MP_NRF8001_DUPLEX_TX_PENDING 0x4
 		#define MP_NRF8001_DUPLEX_RX_PENDING 0x8
+		/** Duplex status */
 		unsigned char duplexStatus;
 
+		/** Dummy internal status byte from RX packet */
 		unsigned char statusByte;
 
-		mp_kernel_t *kernel;
+		/** Last pipe status received */
+		aci_evt_params_pipe_status_t pipeStatus;
+
+		/** Data credits available */
+		signed char dataCredits;
 
 		mp_task_t *task;
 
@@ -114,8 +128,13 @@
 		mp_drv_nRF8001_aci_queue_t inline_pkts[MP_NRF8001_ACI_QUEUE_SIZE+2];
 		unsigned char inline_pkts_alloc;
 
-		mp_drv_nRF8001_evts_t *evts;
+		/* List of internal events handler */
+		mp_drv_nRF8001_evts_t evts[256];
 
+		/* List of external pipe RX handler */
+		mp_drv_nRF8001_evts_t pipeRxHandler[64];
+
+		/** nRF Go Setup message */
 		mp_drv_nRF8001_setup_t *setup;
 		unsigned char setup_size;
 		unsigned char setup_idx;
@@ -123,7 +142,18 @@
 		aci_services_pipe_type_mapping_t *pipe_map;
 		unsigned char pipe_map_size;
 
+		/*- user definition -*/
+
+		/** On board is ready to use */
 		mp_drv_nRF8001_event_t onReady;
+
+		/** New connection */
+		mp_drv_nRF8001_event_t onConnect;
+
+		/** User disconnected or end of discovery */
+		mp_drv_nRF8001_event_t onDisconnect;
+
+		/** Embedded user pointer */
 		void *user;
 
 	};
@@ -141,19 +171,10 @@
 	mp_drv_nRF8001_aci_queue_t *mp_drv_nRF8001_send_alloc(mp_drv_nRF8001_t *nRF8001);
 	mp_bool_t mp_drv_nRF8001_send_queue(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_aci_queue_t *queue);
 
+	mp_ret_t mp_drv_nRF8001_is_pipe_available(mp_drv_nRF8001_t *nRF8001, uint8_t pipe);
+	mp_ret_t mp_drv_nRF8001_is_pipe_closed(mp_drv_nRF8001_t *nRF8001, uint8_t pipe);
+	mp_ret_t mp_drv_nRF8001_pipe_receive(mp_drv_nRF8001_t *nRF8001, uint8_t pipe, mp_drv_nRF8001_evts_t callback);
 
-
-	static inline void mp_drv_nRF8001_setUser(mp_drv_nRF8001_t *nRF8001, void *user) {
-		nRF8001->user = user;
-	}
-
-	static inline void mp_drv_nRF8001_onReady(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_event_t onReady) {
-		nRF8001->onReady = onReady;
-	}
-
-	static inline void mp_drv_nRF8001_onError(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_event_t onError) {
-
-	}
 
 #endif
 
