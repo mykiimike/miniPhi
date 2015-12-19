@@ -280,8 +280,21 @@ static void _system_clock(mp_clock_t freq) {
 
 	/* Verify that the CPU freq enumerated type is valid, if it is */
 	/* not then we will force it to a default. */
-	if((freq != MHZ8_t) && (freq != MHZ16_t) && (freq != MHZ20_t) && (freq != MHZ25_t))
-		freq = MHZ16_t;
+	switch(freq) {
+		case MHZ1_t:
+		case MHZ4_t:
+		case MHZ8_t:
+		case MHZ12_t:
+		case MHZ16_t:
+		case MHZ20_t:
+		case MHZ25_t:
+			break;
+
+		default:
+			freq = MHZ16_t;
+			break;
+	}
+
 
 	/* Do not allow improper settings (MSP430F5438 cannot run at 20MHz or*/
 	/* 25 MHz). */
