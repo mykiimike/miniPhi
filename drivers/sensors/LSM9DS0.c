@@ -306,7 +306,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 
 	mp_printk("LSM9DS0(%p) driver initialization in memory structure size of %d bytes", LSM9DS0, sizeof(*LSM9DS0));
 
-	mp_clock_delay(10);
+	mp_clock_delay(50);
 
 	/* check for device id */
 
