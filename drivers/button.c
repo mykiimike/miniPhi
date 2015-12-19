@@ -53,6 +53,7 @@ mp_ret_t mp_drv_button_init(mp_kernel_t *kernel, mp_drv_button_t *button, mp_opt
 
 	/* set hi to low */
 	mp_gpio_interrupt_hi2lo(button->gpio);
+	mp_gpio_interrupt_enable(button->gpio);
 
 	mp_printk("Creating button driver on GPIO %s used by %s", port, who);
 
@@ -64,6 +65,7 @@ mp_ret_t mp_drv_button_fini(mp_drv_button_t *button) {
 	mp_printk("Removing button driver on GPIO used by %s", button->gpio->who);
 
 	/* unset interrupt */
+	mp_gpio_interrupt_disable(button->gpio);
 	mp_gpio_interrupt_unset(button->gpio);
 
 	/* remove gpio button */
