@@ -276,6 +276,8 @@ mp_ret_t mp_drv_nRF8001_go(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_setup_t *se
 }
 
 mp_ret_t mp_drv_nRF8001_stop(mp_drv_nRF8001_t *nRF8001) {
+	mp_spi_disable_both(&nRF8001->spi);
+
 	mp_gpio_interrupt_disable(nRF8001->rdyn);
 
 	mp_gpio_unset(nRF8001->reset);
