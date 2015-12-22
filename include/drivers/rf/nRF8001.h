@@ -144,6 +144,9 @@
 
 		/*- user definition -*/
 
+		/** When a set local data is acknowledged */
+		mp_drv_nRF8001_event_t onLocalData;
+
 		/** On board is ready to use */
 		mp_drv_nRF8001_event_t onReady;
 

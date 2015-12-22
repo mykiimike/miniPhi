@@ -41,6 +41,7 @@ Michael Vergoz <mv@verman.fr>
 	#include "gate.h"
 	#include "interrupt.h"
 	#include "gpio.h"
+	#include "timer.h"
 	#include "clock.h"
 	#include "i2c.h"
 	#include "uart.h"

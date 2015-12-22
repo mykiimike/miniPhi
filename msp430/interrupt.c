@@ -99,6 +99,13 @@ static void __dummy_int() { }
 		__i->callback(__i->user); \
 	}
 
+#define _INSIDE_ISR_LPM(V) \
+	__interrupt void V##_isr(void) { \
+		mp_interrupt_t *__i = &__interrupts[V-_FACTOR]; \
+		__i->callback(__i->user); \
+		LPM3_EXIT; \
+	}
+
 #ifdef USCI_B0_BASE
 #pragma vector=USCI_B0_VECTOR
 _INSIDE_ISR(USCI_B0_VECTOR);
@@ -147,5 +154,20 @@ _INSIDE_ISR(PORT1_VECTOR);
 #ifdef PORT2_VECTOR
 #pragma vector=PORT2_VECTOR
 _INSIDE_ISR(PORT2_VECTOR);
+#endif
+
+#ifdef TIMER1_A0_VECTOR
+#pragma vector=TIMER1_A0_VECTOR
+_INSIDE_ISR_LPM(TIMER1_A0_VECTOR);
+#endif
+
+#ifdef TIMER1_A1_VECTOR
+#pragma vector=TIMER1_A1_VECTOR
+_INSIDE_ISR_LPM(TIMER1_A1_VECTOR);
+#endif
+
+#ifdef TIMER0_B0_VECTOR
+#pragma vector=TIMER0_B0_VECTOR
+_INSIDE_ISR_LPM(TIMER0_B0_VECTOR);
 #endif
 

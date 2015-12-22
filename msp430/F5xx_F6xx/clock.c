@@ -27,7 +27,7 @@ static void _conf_VCORE(unsigned char level);
 static mp_bool_t _processor_type(void);
 static void _system_clock(mp_clock_t freq);
 static void __start_crystal(void);
-static void _set_timer(void);
+static void _set_timer(mp_kernel_t *kernel);
 
 /* erratum FLASH28 */
 #ifdef __msp430x54x
@@ -148,7 +148,7 @@ mp_ret_t mp_clock_init(mp_kernel_t *kernel) {
 	_system_clock(MP_CLOCK_LE_FREQ);
 
 	/* tick timer */
-	_set_timer();
+	_set_timer(kernel);
 
 	return(TRUE);
 }
@@ -416,33 +416,25 @@ static void __start_crystal(void) {
 		/* Reduce the drive strength.                                      */
 		UCSCTL6 &= ~(XT1DRIVE1_L + XT1DRIVE0);
 	}
-
 }
 
 
+void mp_clock_ticker(mp_timer_t *timer) {
+	__ticks++;
+}
+
 /* This function is called to configure the System Timer, i.e TA1. */
 /* This timer is used for all system time scheduling. */
-static void _set_timer(void) {
-	/* Ensure the timer is stopped. */
-	TA1CTL = 0;
-
-	/* Run the timer off of the ACLK. */
-	TA1CTL = TASSEL_1 | ID_0;
-
-	/* Clear everything to start with. */
-	TA1CTL |= TACLR;
-
-	/* Set the compare match value according to the tick rate we want. */
-	TA1CCR0 = ( ACLK_FREQ_HZ / MSP430_TICK_RATE_HZ ) + 1;
-
-	/* Enable the interrupts. */
-	TA1CCTL0 = CCIE;
-
-	/* Start up clean. */
-	TA1CTL |= TACLR;
-
-	/* Up mode. */
-	TA1CTL |= TASSEL_1 | MC_1 | ID_0;
+static void _set_timer(mp_kernel_t *kernel) {
+	mp_options_t options[] = {
+		{ "gate", "TIMER_A1" },
+		{ "frequency", "1000" },
+		{ NULL, NULL }
+	};
+	__ticks = 0;
+	mp_timer_create(kernel, &kernel->tickTimer, options, "MSP430 Timer");
+	mp_timer_set_interrupt(&kernel->tickTimer, mp_clock_ticker);
+	mp_timer_enable_interrupt(&kernel->tickTimer);
 }
 
 /* disable Watchdog at pre init in order to use correctly eabi */
@@ -450,11 +442,4 @@ int _system_pre_init(void) {
 	WDTCTL = WDTPW + WDTHOLD;
 	return(1);
 }
-
-#pragma vector=TIMER1_A0_VECTOR
-__interrupt void TIMER1_A0(void) {
-	__ticks++;
-	LPM3_EXIT;
-}
-
 

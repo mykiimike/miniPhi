@@ -149,6 +149,9 @@
 		/** Sensors handler */
 		mp_sensor_handler_t sensors;
 
+		/** Internal tick timer */
+		mp_timer_t tickTimer;
+
 		/** Kernel on boot state */
 		mp_kernel_onBoot_t onBoot;
 

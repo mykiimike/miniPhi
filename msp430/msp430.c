@@ -68,6 +68,9 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	/* initialize GPIO */
 	mp_gpio_init();
 
+	/* initialize timer */
+	mp_timer_init(kernel);
+
 	/* intialize clock */
 	mp_clock_init(kernel);
 
@@ -80,6 +83,7 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	/* initialize SPI */
 	mp_spi_init();
 
+	/* enter in interruptible mode */
 	mp_interrupt_enable();
 
 	/* initialize temp processor sensor */
@@ -98,6 +102,9 @@ mp_ret_t mp_machine_fini(mp_kernel_t *kernel) {
 
 	/* terminate clock */
 	mp_clock_fini(kernel);
+
+	/* initialize timer */
+	mp_timer_fini(kernel);
 
 	/* terminate GPIO */
 	mp_gpio_fini();

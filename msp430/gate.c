@@ -24,7 +24,7 @@
 
 #include <mp.h>
 
-static mp_gate_t __gate[8];
+static mp_gate_t __gate[11];
 static unsigned char __gate_count = 0;
 
 void mp_gate_init(mp_kernel_t *kernel) {
@@ -111,6 +111,36 @@ void mp_gate_init(mp_kernel_t *kernel) {
 	gate->_ISRVector = USCI_B3_VECTOR;
 	gate->isBusy = NO;
 	gate->_registersB = YES;
+	__gate_count++;
+#endif
+
+#ifdef __MSP430_HAS_T0A5__
+	gate = &__gate[__gate_count];
+	gate->portDevice = "TIMER_A0";
+	gate->_baseAddress = TIMER_A0_BASE;
+	gate->_ISRVector = TIMER0_A0_VECTOR;
+	gate->isBusy = NO;
+	gate->_registersB = 5;
+	__gate_count++;
+#endif
+
+#ifdef __MSP430_HAS_T1A3__
+	gate = &__gate[__gate_count];
+	gate->portDevice = "TIMER_A1";
+	gate->_baseAddress = TIMER_A1_BASE;
+	gate->_ISRVector = TIMER1_A0_VECTOR;
+	gate->isBusy = NO;
+	gate->_registersB = 3;
+	__gate_count++;
+#endif
+
+#ifdef __MSP430_HAS_T0B7__
+	gate = &__gate[__gate_count];
+	gate->portDevice = "TIMER_B0";
+	gate->_baseAddress = TIMER_B0_BASE;
+	gate->_ISRVector = TIMER0_B0_VECTOR;
+	gate->isBusy = NO;
+	gate->_registersB = 7;
 	__gate_count++;
 #endif
 
