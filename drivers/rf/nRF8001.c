@@ -341,7 +341,7 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 	mp_drv_nRF8001_aci_queue_t *queue;
 	char canRequestOff = 0;
 
-	/* receive regMaster shutdown */
+	/* receive nRF8001 shutdown */
 	if(task->signal == MP_TASK_SIG_STOP) {
 		/* acknowledging */
 		task->signal = MP_TASK_SIG_DEAD;

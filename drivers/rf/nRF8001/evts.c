@@ -167,6 +167,11 @@ static void _mp_drv_nRF8001_evt_cmdResponse(mp_drv_nRF8001_t *nRF8001, mp_drv_nR
 			mp_printk("nRF8001(%p) Connect mode status %x", nRF8001, res->cmd_status);
 			break;
 
+		case ACI_CMD_SET_LOCAL_DATA:
+			if(nRF8001->onLocalData)
+				nRF8001->onLocalData(nRF8001);
+			break;
+
 		default:
 			mp_printk("nRF8001(%p) Response event command opcode %x w/ status %x", nRF8001, res->cmd_opcode, res->cmd_status);
 			break;
