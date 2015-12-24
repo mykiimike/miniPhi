@@ -41,6 +41,9 @@
 			/** how many time it was pressed */
 			unsigned long pressDelay;
 
+			/** ASR task */
+			mp_task_t *task;
+
 			/** GPIO port */
 			mp_gpio_port_t *gpio;
 

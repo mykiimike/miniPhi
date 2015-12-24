@@ -24,10 +24,13 @@
 #ifdef SUPPORT_DRV_BUTTON
 
 static void ___on_button(void *user);
+MP_TASK(_mp_drv_button_asr);
 
 mp_ret_t mp_drv_button_init(mp_kernel_t *kernel, mp_drv_button_t *button, mp_options_t *options, char *who) {
 	mp_ret_t ret;
 	char *value, *port;
+
+	memset(button, 0, sizeof(*button));
 
 	button->pressed = NO;
 
@@ -48,6 +51,15 @@ mp_ret_t mp_drv_button_init(mp_kernel_t *kernel, mp_drv_button_t *button, mp_opt
 		return(FALSE);
 	}
 
+	/* create ASR task */
+	button->task = mp_task_create(&kernel->tasks, "BUTTON DRV", _mp_drv_button_asr, button, 1000);
+	if(!button->task) {
+		mp_printk("BUTTON(%p) FATA could not create task", button);
+		mp_gpio_release(button->gpio);
+		return(FALSE);
+	}
+	mp_task_signal(button->task, MP_TASK_SIG_SLEEP);
+
 	/* setup list on events */
 	mp_list_init(&button->events);
 
@@ -63,6 +75,9 @@ mp_ret_t mp_drv_button_init(mp_kernel_t *kernel, mp_drv_button_t *button, mp_opt
 mp_ret_t mp_drv_button_fini(mp_drv_button_t *button) {
 
 	mp_printk("Removing button driver on GPIO used by %s", button->gpio->who);
+
+	if(button->task)
+		mp_task_destroy(button->task);
 
 	/* unset interrupt */
 	mp_gpio_interrupt_disable(button->gpio);
@@ -102,24 +117,21 @@ mp_ret_t mp_drv_button_event_destroy(mp_drv_button_t *button, mp_drv_button_even
 	return(TRUE);
 }
 
-static void ___on_button(void *user) {
-	volatile unsigned long now;
-	volatile mp_drv_button_event_t *next;
-	volatile mp_drv_button_event_t *seek;
-	volatile mp_drv_button_t *button = user;
+MP_TASK(_mp_drv_button_asr) {
+	unsigned long now;
+	mp_drv_button_event_t *next;
+	mp_drv_button_event_t *seek;
+	mp_drv_button_t *button = task->user;
+
+	/* receive shutdown */
+	if(task->signal == MP_TASK_SIG_STOP) {
+		/* acknowledging */
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
 
 	/* get now */
 	now = mp_clock_ticks();
-
-	/* switch interrupt direction */
-	mp_gpio_interrupt_hilo_switch(button->gpio);
-
-	/* button state */
-	button->pressed = button->pressed == NO ? YES : NO;
-	if(button->pressed == YES)
-		button->pressDelay = now;
-	else
-		button->pressDelay = now-button->pressDelay;
 
 	/* follow events */
 	if(button->events.first != NULL) {
@@ -171,10 +183,33 @@ static void ___on_button(void *user) {
 		}
 	}
 
-
 	/* execute callback */
 	if(button->onSwitch)
 		button->onSwitch(button->user);
+
+	mp_task_signal(button->task, MP_TASK_SIG_SLEEP);
+
+}
+
+static void ___on_button(void *user) {
+	volatile unsigned long now;
+	volatile mp_drv_button_t *button = user;
+
+	/* get now */
+	now = mp_clock_ticks();
+
+	/* switch interrupt direction */
+	mp_gpio_interrupt_hilo_switch(button->gpio);
+
+	/* button state */
+	button->pressed = button->pressed == NO ? YES : NO;
+	if(button->pressed == YES)
+		button->pressDelay = now;
+	else {
+		mp_task_signal(button->task, MP_TASK_SIG_PENDING);
+		button->pressDelay = now-button->pressDelay;
+	}
+
 
 }
 
