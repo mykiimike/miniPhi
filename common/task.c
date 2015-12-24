@@ -37,10 +37,11 @@ Michael Vergoz <mv@verman.fr>
 @{
 */
 
-
-void mp_task_init(mp_task_handler_t *hdl) {
+void mp_task_init(mp_kernel_t *kernel, mp_task_handler_t *hdl) {
 	mp_task_t *task;
 	memset(hdl, 0, sizeof(*hdl));
+
+	hdl->kernel = kernel;
 
 	int a;
 	for(a=0; a<MP_TASK_MAX; a++) {
@@ -63,37 +64,32 @@ void mp_task_fini(mp_task_handler_t *hdl) {
 	/* set global end */
 	hdl->signal = MP_TASK_SIG_STOP;
 
-	/* just send the message to all tasks */
-	mp_task_flush(hdl);
+	/* assert */
+	while(mp_task_tick(hdl) != MP_TASK_STOPPED);
 }
 
 void mp_task_flush(mp_task_handler_t *hdl) {
-	mp_task_t *next;
-	mp_task_t *seek;
-
 	/* assert */
 	if(hdl->usedList.first == NULL)
 		return;
 
-	/* just send the message to all tasks */
-	seek = hdl->usedList.first->user;
-	while(seek != NULL) {
-		next = seek->item.next != NULL ? seek->item.next->user : NULL;
+	hdl->signal = MP_TASK_SIG_STOP;
 
-		/* force to shutdown tasks */
-		seek->signal = MP_TASK_SIG_STOP;
+	/* assert */
+	while(mp_task_tick(hdl) != MP_TASK_STOPPED);
 
-		seek = next;
-	}
-
+	mp_task_init(hdl->kernel, hdl);
 }
 
-mp_task_t *mp_task_create(mp_task_handler_t *hdl, void *name, mp_task_wakeup_t wakeup, void *user, unsigned long delay) {
+mp_task_t *mp_task_create(mp_task_handler_t *hdl, char *name, mp_task_wakeup_t wakeup, void *user, unsigned long delay) {
 	mp_task_t *task;
 
 	/* assert */
 	if(hdl->freeList.first == NULL)
 		return(NULL);
+
+	//if(delay == 0)
+	mp_printk("%s %ld", name, delay);
 
 	/* allocate task */
 	task = hdl->freeList.last->user;
@@ -102,6 +98,8 @@ mp_task_t *mp_task_create(mp_task_handler_t *hdl, void *name, mp_task_wakeup_t w
 	mp_list_remove(&hdl->freeList, &task->item);
 
 	/* prepare task */
+
+	task->handler = hdl;
 	task->check = mp_clock_ticks();
 	task->delay = delay;
 	task->name = name;
@@ -110,17 +108,33 @@ mp_task_t *mp_task_create(mp_task_handler_t *hdl, void *name, mp_task_wakeup_t w
 
 	hdl->usedNumber++;
 
-	task->signal = MP_TASK_SIG_OK;
-
 	/* add to usedList */
 	mp_list_add_last(&hdl->usedList, &task->item, task);
+
+	task->signal = MP_TASK_SIG_OK;
+	mp_task_signal(task, MP_TASK_SIG_OK);
 
 	return(task);
 }
 
 mp_ret_t mp_task_destroy(mp_task_t *task) {
-	task->signal = MP_TASK_SIG_STOP;
+	mp_task_signal(task, MP_TASK_SIG_STOP);
 	return(TRUE);
+}
+
+void mp_task_signal(mp_task_t *task, mp_task_signal_t signal) {
+	if(task->signal != MP_TASK_SIG_SLEEP && signal == MP_TASK_SIG_SLEEP)
+		task->handler->sleepNumber++;
+	else if(task->signal == MP_TASK_SIG_SLEEP && signal != MP_TASK_SIG_SLEEP)
+		task->handler->sleepNumber--;
+
+	if(task->signal != MP_TASK_SIG_PENDING && signal == MP_TASK_SIG_PENDING)
+		task->handler->pendingNumber++;
+	else if(task->signal == MP_TASK_SIG_PENDING && signal != MP_TASK_SIG_PENDING)
+		task->handler->pendingNumber--;
+
+	task->signal = signal;
+	mp_clock_task_change(task);
 }
 
 mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
@@ -146,7 +160,7 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 
 		/* check the task status : a stop has been sent */
 		if(hdl->signal == MP_TASK_SIG_STOP) {
-			seek->signal = MP_TASK_SIG_STOP;
+			mp_task_signal(seek, MP_TASK_SIG_STOP);
 			pass = YES;
 		}
 		else if(seek->signal == MP_TASK_SIG_PENDING)
@@ -163,8 +177,8 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 			seek->wakeup(seek);
 
 			/* signal was pending restore OK state */
-			if(seek->signal == MP_TASK_SIG_PENDING)
-				seek->signal = MP_TASK_SIG_OK;
+			//if(seek->signal == MP_TASK_SIG_PENDING)
+				//mp_task_signal(seek, MP_TASK_SIG_OK);
 
 			/* acknowledge stop dead message */
 			if(seek->signal == MP_TASK_SIG_DEAD) {
