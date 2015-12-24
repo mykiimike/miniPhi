@@ -189,10 +189,6 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 
 mp_ret_t mp_spi_close(mp_spi_t *spi) {
 
-	/* kill the task */
-	if(spi->task)
-		mp_task_destroy(spi->task);
-
 	/* disble interrupts */
 	if(spi->gate) {
 		mp_spi_disable_rx(spi);
