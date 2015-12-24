@@ -297,7 +297,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 
 
 	/* create ASR task */
-	LSM9DS0->task = mp_task_create(&kernel->tasks, who, _mp_drv_LSM9DS0_ASR, LSM9DS0, 100);
+	LSM9DS0->task = mp_task_create(&kernel->tasks, who, _mp_drv_LSM9DS0_ASR, LSM9DS0, 1000);
 	if(!LSM9DS0->task) {
 		mp_printk("LSM9DS0(%p) FATAL could not create ASR task", LSM9DS0);
 		mp_drv_LSM9DS0_fini(LSM9DS0);
@@ -984,19 +984,22 @@ static void _mp_drv_LSM9DS0_onAccelCalibrationRead(mp_regMaster_op_t *operand, m
 static void _mp_drv_LSM9DS0_onDRDY(void *user) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = user;
 	LSM9DS0->intSrc |= 0x1;
-	LSM9DS0->task->signal = MP_TASK_SIG_PENDING;
+
+	mp_task_signal(LSM9DS0->task, MP_TASK_SIG_PENDING);
 }
 
 static void _mp_drv_LSM9DS0_onIntMag(void *user) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = user;
 	LSM9DS0->intSrc |= 0x2;
-	LSM9DS0->task->signal = MP_TASK_SIG_PENDING;
+
+	mp_task_signal(LSM9DS0->task, MP_TASK_SIG_PENDING);
 }
 
 static void _mp_drv_LSM9DS0_onIntAcc(void *user) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = user;
 	LSM9DS0->intSrc |= 0x4;
-	LSM9DS0->task->signal = MP_TASK_SIG_PENDING;
+
+	mp_task_signal(LSM9DS0->task, MP_TASK_SIG_PENDING);
 }
 
 MP_TASK(_mp_drv_LSM9DS0_ASR) {
@@ -1017,7 +1020,7 @@ MP_TASK(_mp_drv_LSM9DS0_ASR) {
 			mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->accelero);
 
 		/* acknowledging */
-		task->signal = MP_TASK_SIG_DEAD;
+		mp_task_signal(LSM9DS0->task, MP_TASK_SIG_DEAD);
 		return;
 	}
 
@@ -1078,7 +1081,7 @@ MP_TASK(_mp_drv_LSM9DS0_ASR) {
 		LSM9DS0->intSrc &= ~0x4;
 	}
 
-	task->signal = MP_TASK_SIG_SLEEP;
+	mp_task_signal(LSM9DS0->task, MP_TASK_SIG_SLEEP);
 }
 
 
