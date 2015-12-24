@@ -88,9 +88,6 @@ mp_task_t *mp_task_create(mp_task_handler_t *hdl, char *name, mp_task_wakeup_t w
 	if(hdl->freeList.first == NULL)
 		return(NULL);
 
-	//if(delay == 0)
-	mp_printk("%s %ld", name, delay);
-
 	/* allocate task */
 	task = hdl->freeList.last->user;
 
