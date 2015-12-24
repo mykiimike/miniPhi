@@ -83,9 +83,9 @@ mp_state_switch(&kernel->states, 1);
   * @brief Initialise state machine context
   * @param[in] hdl Context
   */
-void mp_state_init(mp_state_handler_t *hdl) {
+void mp_state_init(mp_kernel_t *kernel, mp_state_handler_t *hdl) {
 	memset(&hdl->states, 0, sizeof(hdl->states));
-
+	hdl->kernel = kernel;
 }
 
 
@@ -122,6 +122,8 @@ void mp_state_tick(mp_state_handler_t *hdl) {
 
 	/* check for state change */
 	if(hdl->currentState != save_state) {
+		mp_clock_reset(hdl->kernel);
+
 		/* unset the actual state */
 		hdl->states[hdl->currentState].unset(user);
 
