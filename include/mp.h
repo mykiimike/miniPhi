@@ -62,9 +62,6 @@
 	typedef signed char mp_ret_t;
 	typedef signed char mp_bool_t;
 
-	#include "common/list.h"
-	#include "common/task.h"
-
 	typedef struct mp_kernel_s mp_kernel_t;
 	typedef void (*mp_kernel_onBoot_t)(void *user);
 
@@ -74,6 +71,9 @@
 		char *key;
 		char *value;
 	};
+
+	#include "common/list.h"
+	#include "common/task.h"
 
 	#ifdef __MSP430__
 		#include <msp430.h>
@@ -161,6 +161,8 @@
 #ifdef __MSP430__
 		mp_adc_t internalTemp;
 		mp_sensor_t *sensorMCU;
+
+		mp_arch_msp430_t msp430;
 #endif
 
 	};

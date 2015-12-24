@@ -172,12 +172,12 @@ static void __auto_init(mp_kernel_t *kernel) {
 	__selected_channel = NULL;
 
 	/* create controler task */
-	__controler = mp_task_create(&kernel->tasks, "ADC controler", adcControler, NULL, 0);
+	__controler = mp_task_create(&kernel->tasks, "ADC controler", adcControler, NULL, 1000);
 	if(!__controler)
 		return;
 
 	/* task sleeping */
-	__controler->signal = MP_TASK_SIG_SLEEP;
+	mp_task_signal(__controler, MP_TASK_SIG_SLEEP);
 
 #if defined(__msp430x54xA)
 	  REFCTL0 |= REFMSTR + REFVSEL_0 + REFON;   // Enable internal 1.5V reference
@@ -226,7 +226,8 @@ MP_TASK(adcControler) {
 
 	/* acknowledge task end */
 	if(task->signal == MP_TASK_SIG_STOP) {
-		task->signal = MP_TASK_SIG_DEAD;
+
+		mp_task_signal(task, MP_TASK_SIG_DEAD);
 		return;
 	}
 
@@ -256,14 +257,14 @@ MP_TASK(adcControler) {
 			ADC12CTL0 |= ADC12SC;
 
 			/* and wait */
-			task->signal = MP_TASK_SIG_SLEEP;
+			mp_task_signal(task, MP_TASK_SIG_SLEEP);
 			return;
 		}
 
 		seek = next;
 	}
 
-	task->signal = MP_TASK_SIG_OK;
+	mp_task_signal(task, MP_TASK_SIG_OK);
 	return;
 
 
@@ -274,17 +275,18 @@ MP_TASK(adcChannel) {
 
 	/* acknowledge task end */
 	if(task->signal == MP_TASK_SIG_STOP) {
-		task->signal = MP_TASK_SIG_DEAD;
+
+		mp_task_signal(task, MP_TASK_SIG_DEAD);
 		return;
 	}
 
 	/* need to run a capture */
 	if(adc->state == 0) {
 		/* wakeup controler */
-		__controler->signal = MP_TASK_SIG_PENDING;
+		mp_task_signal(__controler, MP_TASK_SIG_PENDING);
 
 		/* sleep my state */
-		task->signal = MP_TASK_SIG_SLEEP;
+		mp_task_signal(task, MP_TASK_SIG_SLEEP);
 
 		/* wait controler to send request */
 		adc->state = 1;
@@ -295,7 +297,8 @@ MP_TASK(adcChannel) {
 			adc->callback(adc);
 
 		adc->state = 0;
-		task->signal = MP_TASK_SIG_OK;
+
+		mp_task_signal(task, MP_TASK_SIG_OK);
 		__selected_channel = NULL;
 
 		mp_adc_enable(adc);
@@ -325,7 +328,9 @@ void __attribute__ ((interrupt(ADC12_VECTOR))) ADC12ISR (void)
 			if(!adc)
 				break;
 			adc->result = ADC12MEM0;
-			adc->task->signal = MP_TASK_SIG_PENDING;
+
+			mp_task_signal(adc->task, MP_TASK_SIG_PENDING);
+
 			adc->state = 2;
 			ADC12IFG = 0;
 			break;

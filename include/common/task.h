@@ -46,8 +46,11 @@
 	typedef void (*mp_task_wakeup_t)(mp_task_t *task);
 
 	struct mp_task_s {
+		/** Connected to handler */
+		mp_task_handler_t *handler;
+
 		/** task name */
-		unsigned char *name;
+		char *name;
 
 		/** user pointer */
 		void *user;
@@ -69,6 +72,9 @@
 	};
 
 	struct mp_task_handler_s {
+		/** Kernel connection */
+		mp_kernel_t *kernel;
+
 		/** inline tasks */
 		mp_task_t tasks[MP_TASK_MAX];
 
@@ -77,6 +83,12 @@
 
 		/** number of items into used list */
 		unsigned int usedNumber;
+
+		/** Number of sleeping tasks */
+		unsigned int sleepNumber;
+
+		/** Number of pending tasks */
+		unsigned int pendingNumber;
 
 		/** free organized list */
 		mp_list_t freeList;
@@ -87,11 +99,15 @@
 
 	/** @} */
 
-	void mp_task_init(mp_task_handler_t *hdl);
+	void mp_task_init(mp_kernel_t *kernel, mp_task_handler_t *hdl);
 	void mp_task_fini(mp_task_handler_t *hdl);
 	void mp_task_flush(mp_task_handler_t *hdl);
-	mp_task_t *mp_task_create(mp_task_handler_t *hdl, void *name, mp_task_wakeup_t wakeup, void *user, unsigned long delay);
+
+	mp_task_t *mp_task_create(mp_task_handler_t *hdl, char *name, mp_task_wakeup_t wakeup, void *user, unsigned long delay);
 	mp_ret_t mp_task_destroy(mp_task_t *task);
+
+	void mp_task_signal(mp_task_t *task, mp_task_signal_t signal);
+
 	mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl);
 
 	#define MP_TASK(name) void name(mp_task_t *task)

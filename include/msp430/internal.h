@@ -48,6 +48,12 @@ Michael Vergoz <mv@verman.fr>
 	#include "spi.h"
 	#include "adc.h"
 
+	typedef struct mp_arch_msp430_s mp_arch_msp430_t;
+
+	struct mp_arch_msp430_s {
+		mp_clock_sched_t scheduler;
+	};
+
 	typedef unsigned char uint8_t;
 	typedef signed char int8_t;
 

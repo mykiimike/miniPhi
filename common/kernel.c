@@ -72,10 +72,10 @@ void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) 
 #endif
 
 	/* initialize tasks */
-	mp_task_init(&kernel->tasks);
+	mp_task_init(kernel, &kernel->tasks);
 
 	/* initialize logical machine state */
-	mp_state_init(&kernel->states);
+	mp_state_init(kernel, &kernel->states);
 
 	/* define KPANIC machine state */
 	mp_state_define(
@@ -104,7 +104,7 @@ void mp_kernel_fini(mp_kernel_t *kernel) {
 	mp_state_fini(&kernel->states);
 
 	/* initialize tasks */
-	mp_task_init(&kernel->tasks);
+	mp_task_fini(&kernel->tasks);
 
 	/* terminate the machine */
 	mp_machine_fini(kernel);
@@ -118,6 +118,9 @@ void mp_kernel_state(mp_kernel_t *kernel, char number) {
 void mp_kernel_loop(mp_kernel_t *kernel) {
 	mp_task_tick_t taskRet;
 	while(1) {
+		/* let the clock schedules */
+		mp_clock_schedule(kernel);
+
 		/* execute tasks */
 		taskRet = mp_task_tick(&kernel->tasks);
 		if(taskRet == MP_TASK_WORKING) {

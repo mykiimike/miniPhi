@@ -21,11 +21,20 @@
 
 #include <mp.h>
 
+/* PWM on led CPU using */
+#ifdef _LED_DEBUG
+	#define DEBUG_LED_SWITCH P4OUT ^= BIT2
+	#define DEBUG_LED_OFF P4OUT |= BIT2
+#else
+	#define DEBUG_LED_SWITCH
+	#define DEBUG_LED_OFF
+#endif
+
 static unsigned char _inc_VCORE(unsigned char level);
 static unsigned char _dec_VCORE(unsigned char level);
 static void _conf_VCORE(unsigned char level);
 static mp_bool_t _processor_type(void);
-static void _system_clock(mp_clock_t freq);
+static void _system_clock(mp_clock_freq_t freq);
 static void __start_crystal(void);
 static void _set_timer(mp_kernel_t *kernel);
 
@@ -77,7 +86,7 @@ static const char *_mp_clock_freq_name[] = {
 };
 
 
-static mp_clock_t __frequency;
+static mp_clock_freq_t __frequency;
 
 /**
 @defgroup mpArchTiMSP430F5xx6xxClock The clock system
@@ -141,6 +150,8 @@ You can specify the frequency of each oscillator by setting MP_CLOCK_XT1_FREQ an
 
 */
 mp_ret_t mp_clock_init(mp_kernel_t *kernel) {
+	memset(&kernel->msp430.scheduler, 0, sizeof(kernel->msp430.scheduler));
+
 	/* start crystal oscillo */
 	__start_crystal();
 
@@ -158,17 +169,88 @@ mp_ret_t mp_clock_fini(mp_kernel_t *kernel) {
 	return(TRUE);
 }
 
-mp_ret_t mp_clock_low_energy() {
+void mp_clock_reset(mp_kernel_t *kernel) {
+	memset(&kernel->msp430.scheduler, 0, sizeof(kernel->msp430.scheduler));
+
+}
+
+mp_ret_t mp_clock_low_energy(mp_kernel_t *kernel) {
+	kernel->msp430.scheduler.clockState = LPM4_bits;
 	_system_clock(MP_CLOCK_LE_FREQ);
-	_BIS_SR(LPM3_bits + GIE);
+	kernel->msp430.scheduler.schedulerOff = FALSE;
+	_BIS_SR(kernel->msp430.scheduler.clockState + GIE);
 	return(TRUE);
 }
 
-mp_ret_t mp_clock_high_energy() {
+mp_ret_t mp_clock_high_energy(mp_kernel_t *kernel) {
+	kernel->msp430.scheduler.clockState = LPM0_bits;
 	_system_clock(MP_CLOCK_HE_FREQ);
-	_BIS_SR(LPM0_bits + GIE);
+	kernel->msp430.scheduler.schedulerOff = FALSE;
+	_BIS_SR(kernel->msp430.scheduler.clockState + GIE);
 	return(TRUE);
 }
+
+void mp_clock_schedule(mp_kernel_t *kernel) {
+	mp_clock_sched_t *sched = &kernel->msp430.scheduler;
+
+	if(sched->longestDelay > 0 || kernel->tasks.usedNumber == kernel->tasks.sleepNumber) {
+		if(kernel->tasks.pendingNumber == 0) {
+
+			DEBUG_LED_OFF;
+
+			sched->currentWait = sched->shortestDelay;
+
+			if(sched->longestDelay == 0)
+				sched->currentWait = mp_clock_get_speed()/MSP430_TICK_RATE_HZ/100;
+
+			sched->schedulerOff = TRUE;
+
+			/* enter in low power mode */
+			_BIS_SR(LPM3_bits + GIE);
+
+			while(sched->currentWait-1 > 0 && kernel->tasks.pendingNumber == 0)
+				__delay_cycles(1);
+
+			/* reset scheduler */
+			sched->longestDelay = 0;
+			sched->shortestDelay = ~(sched->longestDelay)-1;
+
+			return;
+		}
+	}
+
+	/* reset scheduler */
+	sched->longestDelay = 0;
+	sched->shortestDelay = ~(sched->longestDelay)-1;
+
+	DEBUG_LED_SWITCH;
+}
+
+void mp_clock_task_change(mp_task_t *task) {
+	mp_kernel_t *kernel = task->handler->kernel;
+	mp_clock_sched_t *sched = &kernel->msp430.scheduler;
+
+	switch(task->signal) {
+		case MP_TASK_SIG_SLEEP:
+		case MP_TASK_SIG_OK:
+			if(task->delay > sched->longestDelay)
+				sched->longestDelay = task->delay;
+			if(task->delay < sched->shortestDelay)
+				sched->shortestDelay = task->delay;
+			break;
+
+		case MP_TASK_SIG_STOP:
+		case MP_TASK_SIG_PENDING:
+			/* turn on scheduler */
+			if(sched->schedulerOff == TRUE)
+				sched->currentWait = 0;
+			sched->shortestDelay = 0;
+			sched->longestDelay = 0;
+			break;
+
+	}
+}
+
 
 unsigned long mp_clock_ticks() {
 	return(__ticks);
@@ -180,13 +262,18 @@ void mp_clock_delay(int delay) {
 	while(__ticks < local);
 }
 
+void mp_clock_nanoDelay(unsigned long delay) {
+	unsigned long local;
+	for(local=0; local<delay; local++) __delay_cycles(1);
+}
+
 unsigned long mp_clock_get_speed() {
 	const mp_clock_freq_settings_t *cpu_settings;
 	cpu_settings = &_mp_clock_freq_settings[__frequency - MHZ1_t];
 	return(cpu_settings->DCO*32768L);
 }
 
-const char *mp_clock_name(mp_clock_t clock) {
+const char *mp_clock_name(mp_clock_freq_t clock) {
 	return(_mp_clock_freq_name[clock]);
 }
 
@@ -270,7 +357,7 @@ static mp_bool_t _processor_type(void) {
 
 /* The following function is responsible for setting up the system */
 /* clock at a specified freq. */
-static void _system_clock(mp_clock_t freq) {
+static void _system_clock(mp_clock_freq_t freq) {
 	int UseDCO;
 	unsigned int Ratio;
 	unsigned int DCODivBits;
@@ -419,7 +506,21 @@ static void __start_crystal(void) {
 }
 
 
-void mp_clock_ticker(mp_timer_t *timer) {
+void _mp_clock_system_timer(mp_timer_t *timer) {
+	mp_clock_sched_t *sched = &timer->kernel->msp430.scheduler;
+
+	if(sched->schedulerOff == TRUE) {
+		if(sched->currentWait == 0) {
+			sched->schedulerOff = FALSE;
+
+			/* turn on general interrupt */
+			_BIS_SR(timer->kernel->msp430.scheduler.clockState + GIE);
+		}
+		else {
+			sched->currentWait--;
+		}
+	}
+
 	__ticks++;
 }
 
@@ -433,7 +534,7 @@ static void _set_timer(mp_kernel_t *kernel) {
 	};
 	__ticks = 0;
 	mp_timer_create(kernel, &kernel->tickTimer, options, "MSP430 Timer");
-	mp_timer_set_interrupt(&kernel->tickTimer, mp_clock_ticker);
+	mp_timer_set_interrupt(&kernel->tickTimer, _mp_clock_system_timer);
 	mp_timer_enable_interrupt(&kernel->tickTimer);
 }
 

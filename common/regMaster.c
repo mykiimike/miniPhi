@@ -199,11 +199,11 @@ mp_ret_t mp_regMaster_init_i2c(
 	cirr->slaveAddress = mp_i2c_getSlaveAddress(cirr->i2c);
 
 	/* create task and place it in sleep mode */
-	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_asr, cirr, 100);
+	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_asr, cirr, 1000);
 	if(!cirr->asr)
 		return(FALSE);
-	cirr->asr->signal = MP_TASK_SIG_SLEEP;
 
+	mp_task_signal(cirr->asr, MP_TASK_SIG_SLEEP);
 	return(TRUE);
 }
 
@@ -253,11 +253,11 @@ mp_ret_t mp_regMaster_init_spi(
 	cirr->type = MP_REGMASTER_SPI;
 
 	/* create task and place it in sleep mode */
-	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_asr, cirr, 100);
+	cirr->asr = mp_task_create(&kernel->tasks, who, mp_regMaster_asr, cirr, 1000);
 	if(!cirr->asr)
 		return(FALSE);
-	cirr->asr->signal = MP_TASK_SIG_SLEEP;
 
+	mp_task_signal(cirr->asr, MP_TASK_SIG_SLEEP);
 	return(TRUE);
 }
 
@@ -338,8 +338,7 @@ mp_ret_t mp_regMaster_readExt(
 	mp_list_add_last(&cirr->pending, &operand->item, operand);
 
 	/* tell to the scheduler task pending */
-	if(cirr->asr->signal == MP_TASK_SIG_SLEEP)
-		cirr->asr->signal = MP_TASK_SIG_PENDING;
+	mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
 
 	return(TRUE);
 }
@@ -384,8 +383,8 @@ mp_ret_t mp_regMaster_write(
 	mp_list_add_last(&cirr->pending, &operand->item, operand);
 
 	/* tell to the scheduler task pending */
-	if(cirr->asr->signal == MP_TASK_SIG_SLEEP)
-		cirr->asr->signal = MP_TASK_SIG_PENDING;
+	mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
+
 	return(TRUE);
 }
 
@@ -441,7 +440,8 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 			/* need to read data */
 			if(operand->waitSize > 0) {
 				operand->state = MP_REGMASTER_STATE_RX;
-				cirr->asr->signal = MP_TASK_SIG_PENDING;
+
+				mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
 				cirr->disableTX(cirr);
 			}
 			/* no need to read */
@@ -450,7 +450,8 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 
 				/* switch buffer into ASR space */
 				mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
-				cirr->asr->signal = MP_TASK_SIG_PENDING;
+
+				mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
 
 				cirr->disableTX(cirr);
 			}
@@ -480,7 +481,8 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 		if(rest == 0) {
 			/* switch buffer into ASR space */
 			mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
-			cirr->asr->signal = MP_TASK_SIG_PENDING;
+
+			mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
 
 			cirr->disableRX(cirr);
 			cirr->disableTX(cirr);
@@ -527,7 +529,7 @@ MP_TASK(mp_regMaster_asr) {
 	mp_regMaster_t *cirr = task->user;
 	mp_regMaster_op_t *cur;
 	mp_regMaster_op_t *next;
-
+	int canSleep = 0;
 
 	/* receive regMaster shutdown */
 	if(task->signal == MP_TASK_SIG_STOP) {
@@ -568,7 +570,7 @@ MP_TASK(mp_regMaster_asr) {
 		_mp_regMaster_gfini(cirr->kernel);
 
 		/* acknowledging */
-		task->signal = MP_TASK_SIG_DEAD;
+		mp_task_signal(cirr->asr, MP_TASK_SIG_DEAD);
 		return;
 	}
 
@@ -583,18 +585,24 @@ MP_TASK(mp_regMaster_asr) {
 		/* remove completely the buffer */
 		mp_list_remove(&cirr->executing, &cur->item);
 		mp_mem_free(cirr->kernel, cur);
-	}
 
-	task->signal = MP_TASK_SIG_SLEEP;
+		/* more element */
+	}
+	else
+		canSleep++;
 
 	/* pending request activate interruption */
-
 	if(cirr->pending.first) {
 		cur = cirr->pending.first->user;
 
 		/* protocol asr */
 		cirr->asrCallback(cirr, cur);
 	}
+	else
+		canSleep++;
+
+	if(canSleep == 2)
+		mp_task_signal(cirr->asr, MP_TASK_SIG_SLEEP);
 }
 
 
@@ -644,7 +652,8 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 			else {
 				/* switch buffer into ASR space */
 				mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
-				cirr->asr->signal = MP_TASK_SIG_PENDING;
+
+				mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
 
 				cirr->disableRX(cirr);
 				cirr->disableTX(cirr);
@@ -674,7 +683,8 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 		if(rest == 0) {
 			/* switch buffer into ASR space */
 			mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
-			cirr->asr->signal = MP_TASK_SIG_PENDING;
+
+			mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
 
 			cirr->disableRX(cirr);
 			cirr->disableTX(cirr);

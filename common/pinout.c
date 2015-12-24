@@ -13,7 +13,7 @@ MP_TASK(onoffLive) {
 	if(task->signal == MP_TASK_SIG_STOP) {
 		mp_gpio_unset(pinout->gpio);
 		mp_mem_free(pinout->kernel, pinout);
-		task->signal = MP_TASK_SIG_DEAD;
+		mp_task_signal(task, MP_TASK_SIG_DEAD);
 		return;
 	}
 
@@ -31,7 +31,7 @@ MP_TASK(onoffLive) {
 		return;
 	}
 
-	task->signal = MP_TASK_SIG_STOP;
+	mp_task_signal(task, MP_TASK_SIG_STOP);
 }
 
 
@@ -42,7 +42,7 @@ MP_TASK(onoffStep) {
 	if(task->signal == MP_TASK_SIG_STOP) {
 		mp_gpio_unset(pinout->gpio);
 		mp_mem_free(pinout->kernel, pinout);
-		task->signal = MP_TASK_SIG_DEAD;
+		mp_task_signal(task, MP_TASK_SIG_DEAD);
 		return;
 	}
 
@@ -61,7 +61,7 @@ MP_TASK(onoffStep) {
 		return;
 	}
 
-	task->signal = MP_TASK_SIG_STOP;
+	mp_task_signal(task, MP_TASK_SIG_STOP);
 }
 
 /**

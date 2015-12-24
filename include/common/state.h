@@ -22,6 +22,8 @@
 	};
 
 	struct mp_state_handler_s {
+		mp_kernel_t *kernel;
+
 		mp_state_t states[MP_STATE_MAX];
 
 		char currentState;
@@ -31,7 +33,7 @@
 
 	/** @} */
 
-	void mp_state_init(mp_state_handler_t *hdl);
+	void mp_state_init(mp_kernel_t *kernel, mp_state_handler_t *hdl);
 	void mp_state_fini(mp_state_handler_t *hdl);
 	mp_ret_t mp_state_switch(mp_state_handler_t *hdl, char number);
 	void mp_state_tick(mp_state_handler_t *hdl);

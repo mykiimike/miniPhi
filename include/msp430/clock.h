@@ -41,16 +41,39 @@
 		MHZ16_t,
 		MHZ20_t,
 		MHZ25_t
-	} mp_clock_t;
+	} mp_clock_freq_t;
+
+	typedef struct mp_clock_sched_s mp_clock_sched_t;
+
+	struct mp_clock_sched_s {
+		/** low or high clock frequency */
+		char clockState;
+
+		/** is scheduler off ? */
+		char schedulerOff;
+
+		unsigned long longestDelay;
+		unsigned long shortestDelay;
+		unsigned long currentWait;
+
+	};
 
 	mp_ret_t mp_clock_init(mp_kernel_t *kernel);
 	mp_ret_t mp_clock_fini(mp_kernel_t *kernel);
-	mp_ret_t mp_clock_low_energy();
-	mp_ret_t mp_clock_high_energy();
+	void mp_clock_reset(mp_kernel_t *kernel);
+
+	mp_ret_t mp_clock_low_energy(mp_kernel_t *kernel);
+	mp_ret_t mp_clock_high_energy(mp_kernel_t *kernel);
+
+	void mp_clock_schedule(mp_kernel_t *kernel);
+	void mp_clock_task_change(mp_task_t *task);
+	void mp_clock_wakeup(mp_kernel_t *kernel);
+
 	unsigned long mp_clock_ticks();
 	unsigned long mp_clock_get_speed();
-	const char *mp_clock_name(mp_clock_t clock);
+	const char *mp_clock_name(mp_clock_freq_t clock);
 
 	void mp_clock_delay(int delay);
+	void mp_clock_nanoDelay(unsigned long delay);
 
 #endif
