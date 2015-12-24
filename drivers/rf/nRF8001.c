@@ -189,7 +189,7 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 	}
 
 	/* set task sleeping */
-	nRF8001->task->signal = MP_TASK_SIG_SLEEP;
+	mp_task_signal(nRF8001->task, MP_TASK_SIG_SLEEP);
 
 	mp_printk("nRF8001(%p) driver initialization in memory structure size of %d bytes", nRF8001, sizeof(*nRF8001));
 
@@ -240,7 +240,7 @@ mp_bool_t mp_drv_nRF8001_send_queue(mp_drv_nRF8001_t *nRF8001, mp_drv_nRF8001_ac
 	/* add queue at last pending */
 
 	mp_list_add_last(&nRF8001->pending_tx_pkts, &queue->item, queue);
-	nRF8001->task->signal = MP_TASK_SIG_PENDING;
+	mp_task_signal(nRF8001->task, MP_TASK_SIG_PENDING);
 
 	return(TRUE);
 }
@@ -343,6 +343,9 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 
 	/* receive nRF8001 shutdown */
 	if(task->signal == MP_TASK_SIG_STOP) {
+		/* protect linked-list */
+		mp_spi_disable_store(&nRF8001->spi);
+
 		/* acknowledging */
 		task->signal = MP_TASK_SIG_DEAD;
 		return;
@@ -365,12 +368,9 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 
 			/* switch to free rx pkts */
 			mp_list_add_first(&nRF8001->rx_pkts, &queue->item, queue);
-
-			task->signal = MP_TASK_SIG_PENDING;
 		}
 		else {
 			nRF8001->duplexStatus &= ~MP_NRF8001_DUPLEX_RX_PENDING;
-			canRequestOff++;
 		}
 	}
 	else
@@ -382,6 +382,7 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 		mp_list_remove(&nRF8001->pending_tx_pkts, &nRF8001->current_tx_pkts->item);
 
 		if(!(nRF8001->intSrc & MP_NRF8001_INTSRC_REQN)) {
+			mp_clock_nanoDelay(250);
 			nRF8001->intSrc |= MP_NRF8001_INTSRC_REQN;
 			mp_gpio_unset(nRF8001->reqn);
 		}
@@ -394,7 +395,7 @@ MP_TASK(_mp_drv_nRF8001_ASR) {
 
 	/* disable all ? */
 	if(canRequestOff == 2) {
-		task->signal = MP_TASK_SIG_SLEEP;
+		mp_task_signal(task, MP_TASK_SIG_SLEEP);
 	}
 }
 
@@ -427,12 +428,13 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 
 					nRF8001->statusByte = 0;
 
-					nRF8001->task->signal = MP_TASK_SIG_PENDING;
+					mp_task_signal(nRF8001->task, MP_TASK_SIG_PENDING);
 
 					if(!nRF8001->current_tx_pkts) {
 						mp_spi_disable_both(&nRF8001->spi);
 						nRF8001->intSrc &= ~MP_NRF8001_INTSRC_REQN;
 						mp_gpio_set(nRF8001->reqn);
+
 						return;
 					}
 				}
@@ -458,6 +460,7 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 						mp_spi_disable_both(&nRF8001->spi);
 						nRF8001->intSrc &= ~MP_NRF8001_INTSRC_REQN;
 						mp_gpio_set(nRF8001->reqn);
+
 						return;
 					}
 				}
@@ -486,7 +489,7 @@ static void _mp_drv_nRF8001_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 
 					nRF8001->duplexStatus &= ~MP_NRF8001_DUPLEX_TX;
 
-					nRF8001->task->signal = MP_TASK_SIG_PENDING;
+					mp_task_signal(nRF8001->task, MP_TASK_SIG_PENDING);
 /*
 					if(!(nRF8001->duplexStatus & MP_NRF8001_DUPLEX_RX) && nRF8001->statusByte == 0) {
 						mp_spi_rx(spi);
