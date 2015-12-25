@@ -128,7 +128,7 @@
 	#include "drivers/sensors/MPL3115A2.h"
 	#include "drivers/sensors/ADS1115.h"
 
-	#define MP_KERNEL_VERSION "1.0.4"
+	#define MP_KERNEL_VERSION "1.0.5"
 
 	struct mp_kernel_s {
 		/** Vendor name  */
