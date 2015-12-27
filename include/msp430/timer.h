@@ -112,7 +112,7 @@
 	}
 
 	static inline int mp_timer_pwm_get(mp_pwm_t *pwm) {
-		return(*(pwm->timer->regCCTL0+pwm->gpio->pin));
+		return(*(pwm->timer->regCCR0+pwm->gpio->pin));
 	}
 
 	static inline void mp_timer_enable_interrupt(mp_timer_t *timer) {
