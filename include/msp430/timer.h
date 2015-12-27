@@ -107,8 +107,8 @@
 	void mp_timer_pwm_set(mp_pwm_t *pwm, unsigned int dutyCycle);
 	void mp_timer_pwm_set_percentil(mp_pwm_t *pwm, unsigned int dutyCycle);
 
-	static inline int mp_timer_get_precision(mp_pwm_t *pwm) {
-		return(*pwm->timer->regCCR0);
+	static inline int mp_timer_get_precision(mp_timer_t *timer) {
+		return(*timer->regCCR0);
 	}
 
 	static inline int mp_timer_pwm_get(mp_pwm_t *pwm) {
