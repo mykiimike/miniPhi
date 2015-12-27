@@ -104,7 +104,7 @@ mp_ret_t mp_drv_button_event_create(
 	bac->howManyDown = 0;
 
 	/* add the event */
-	mp_list_add_first(&button->events, &bac->item, bac);
+	mp_list_add_last(&button->events, &bac->item, bac);
 
 	mp_printk("Creating button event on %s delay=%d time=%d cb=%p", button->gpio->who, delay, time, cb);
 
