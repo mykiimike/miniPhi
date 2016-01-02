@@ -162,7 +162,7 @@ static void __olimex_state_op_set(void *user) {
 	olimex_msp430_t *olimex = user;
 
 
-	mp_clock_high_energy();
+	mp_clock_high_energy(&olimex->kernel);
 
 	mp_ret_t ret;
 
@@ -538,11 +538,11 @@ void __olimex_on_button_power(void *user) {
 
 void __olimex_on_nrf8001_onready(mp_drv_nRF8001_t *nRF8001) {
 	mp_drv_nRF8001_aci_queue_t *q;
-
+/*
 	#define devicename "miniPhi"
 	q = mp_drv_nRF8001_cmd_set_local_data(nRF8001, PIPE_GAP_DEVICE_NAME_SET, devicename, sizeof(devicename));
 	mp_drv_nRF8001_send_queue(nRF8001, q);
-
+*/
 	q = mp_drv_nRF8001_cmd_connect(nRF8001, 180, 0x30);
 	mp_drv_nRF8001_send_queue(nRF8001, q);
 }

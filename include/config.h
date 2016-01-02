@@ -33,6 +33,7 @@
 	//#define SUPPORT_DRV_MPL3115A2
 	//#define SUPPORT_DRV_ADS1115
 	#define SUPPORT_DRV_NRF8001
+	#define SUPPORT_DRV_INA219
 
 	#define SUPPORT_COMMON_MEM /* enable tiny-malloc */
 	#define SUPPORT_COMMON_SERIAL /* serial interface */

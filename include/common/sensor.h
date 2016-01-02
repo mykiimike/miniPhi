@@ -33,12 +33,21 @@
 		MP_SENSOR_BAROMETER,
 		MP_SENSOR_ALTIMETER,
 		MP_SENSOR_3AXIS,
-
+		MP_SENSOR_VOLTAGE,
+		MP_SENSOR_CURRENT,
 	} mp_sensor_type_t;
 
 	typedef struct {
 		float result;
 	} mp_sensor_temperature_t;
+
+	typedef struct {
+		float result;
+	} mp_sensor_voltage_t;
+
+	typedef struct {
+		float result;
+	} mp_sensor_current_t;
 
 	typedef struct {
 		float x;
@@ -73,7 +82,8 @@
 			mp_sensor_temperature_t temperature;
 			mp_sensor_barometer_t barometer;
 			mp_sensor_altimeter_t altimeter;
-
+			mp_sensor_voltage_t voltage;
+			mp_sensor_current_t current;
 			mp_sensor_3axis_t axis3;
 		};
 
