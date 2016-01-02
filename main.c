@@ -34,7 +34,7 @@
 
 void __olimex_on_nrf8001_onready(mp_drv_nRF8001_t *nRF8001);
 
-
+#ifdef _FLUCJB
 /* nRF GO stuffs */
 static mp_drv_nRF8001_setup_t nRFGoSetup[NB_SETUP_MESSAGES] = SETUP_MESSAGES_CONTENT;
 static int nRFGoSetupCount = NB_SETUP_MESSAGES;
@@ -46,6 +46,7 @@ static int nRFGoSetupCount = NB_SETUP_MESSAGES;
 
 static aci_services_pipe_type_mapping_t nRFGoPipe[NUMBER_OF_PIPES] = SERVICES_PIPE_TYPE_MAPPING_CONTENT;
 static int nRFGoPipeCount = NUMBER_OF_PIPES;
+#endif
 
 /* use reserver number 1 to define OLIMEX state machine  */
 #define OLIMEX_OP MP_KERNEL_RES01
@@ -76,7 +77,9 @@ struct olimex_msp430_s {
 
 	//mp_drv_ADS1115_t adc;
 
-	mp_drv_nRF8001_t drvnRF8001;
+	mp_drv_INA219_t ina219;
+
+	//mp_drv_nRF8001_t drvnRF8001;
 
 	mp_uart_t proxyUARTSrc;
 	mp_uart_t proxyUARTDst;
@@ -101,8 +104,8 @@ void __olimex_on_button_up(void *user);
 void __olimex_on_button_down(void *user);
 void __olimex_on_button_power(void *user);
 
-olimex_msp430_t _olimex;
 
+olimex_msp430_t _olimex;
 
 int main(void) {
 
@@ -398,6 +401,18 @@ static void __olimex_state_op_set(void *user) {
 	}
 */
 
+	/* INA219 test */
+	{
+		mp_options_t options[] = {
+			{ "gate", "USCI_B3" },
+			{ "sda", "p10.1" },
+			{ "clk", "p10.2" },
+			{ NULL, NULL }
+		};
+
+		mp_drv_INA219_init(&olimex->kernel, &olimex->ina219, options, "Ti INA219");
+		mp_drv_INA219_setCalibration_32V_1A(&olimex->ina219);
+	}
 
 	/*
 	 * Configuration for nRF8001 example
@@ -410,6 +425,7 @@ static void __olimex_state_op_set(void *user) {
 	 * ACTIVE = 6 / p2.7
 	 * RESET = 7 / p2.6
 	 */
+	/*
 	{
 		mp_options_t options[] = {
 			{ "gate", "USCI_B0" },
@@ -425,15 +441,14 @@ static void __olimex_state_op_set(void *user) {
 
 		olimex->drvnRF8001.user = olimex;
 		olimex->drvnRF8001.onReady = __olimex_on_nrf8001_onready;
-		/*
+
 		olimex->drvnRF8001.onConnect = __olimex_on_nrf8001_onConn;
 		olimex->drvnRF8001.onDisconnect = __olimex_on_nrf8001_onDisconn;
-	*/
 
 		mp_drv_nRF8001_go(&olimex->drvnRF8001, nRFGoSetup, nRFGoSetupCount, nRFGoPipe, nRFGoPipeCount);
 		mp_drv_nRF8001_start(&olimex->drvnRF8001);
 	}
-
+*/
 	/* pinout */
 	mp_pinout_onoff(&olimex->kernel, olimex->green_led.gpio, ON, 10, 1010, 0, "Blinking green - Power ON");
 	mp_pinout_onoff(&olimex->kernel, olimex->systemGreen.gpio, ON, 20, 500, 0, "Test");
@@ -536,6 +551,7 @@ void __olimex_on_button_power(void *user) {
 	mp_drv_led_turn(&olimex->red_led);
 }
 
+#ifdef __FLUSBX
 void __olimex_on_nrf8001_onready(mp_drv_nRF8001_t *nRF8001) {
 	mp_drv_nRF8001_aci_queue_t *q;
 /*
@@ -546,6 +562,7 @@ void __olimex_on_nrf8001_onready(mp_drv_nRF8001_t *nRF8001) {
 	q = mp_drv_nRF8001_cmd_connect(nRF8001, 180, 0x30);
 	mp_drv_nRF8001_send_queue(nRF8001, q);
 }
+#endif
 
 #endif
 

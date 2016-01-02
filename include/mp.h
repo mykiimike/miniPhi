@@ -127,6 +127,7 @@
 	#include "drivers/sensors/TMP006.h"
 	#include "drivers/sensors/MPL3115A2.h"
 	#include "drivers/sensors/ADS1115.h"
+	#include "drivers/sensors/INA219.h"
 
 	#define MP_KERNEL_VERSION "1.0.5"
 

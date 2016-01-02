@@ -441,7 +441,6 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 			if(operand->waitSize > 0) {
 				operand->state = MP_REGMASTER_STATE_RX;
 
-				mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
 				cirr->disableTX(cirr);
 			}
 			/* no need to read */
