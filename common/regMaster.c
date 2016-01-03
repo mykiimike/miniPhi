@@ -441,6 +441,9 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 			if(operand->waitSize > 0) {
 				operand->state = MP_REGMASTER_STATE_RX;
 
+				mp_i2c_mode(i2c, 0);
+
+				cirr->enableRX(cirr);
 				cirr->disableTX(cirr);
 			}
 			/* no need to read */
@@ -573,6 +576,8 @@ MP_TASK(mp_regMaster_asr) {
 		return;
 	}
 
+	mp_interrupt_disable();
+
 	/* FIFO pop */
 	if(cirr->executing.first) {
 		cur = cirr->executing.first->user;
@@ -602,6 +607,8 @@ MP_TASK(mp_regMaster_asr) {
 
 	if(canSleep == 2)
 		mp_task_signal(cirr->asr, MP_TASK_SIG_SLEEP);
+
+	mp_interrupt_enable();
 }
 
 

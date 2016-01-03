@@ -411,7 +411,7 @@ static void __olimex_state_op_set(void *user) {
 		};
 
 		mp_drv_INA219_init(&olimex->kernel, &olimex->ina219, options, "Ti INA219");
-		mp_drv_INA219_setCalibration_32V_1A(&olimex->ina219);
+		//mp_drv_INA219_setCalibration_32V_1A(&olimex->ina219);
 	}
 
 	/*

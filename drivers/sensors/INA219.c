@@ -93,7 +93,7 @@ mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_opt
 		return(FALSE);
 
 	mp_options_t setup[] = {
-		{ "frequency", "1000000" },
+		{ "frequency", "400000" },
 		{ "role", "master" },
 		{ NULL, NULL }
 	};
@@ -138,6 +138,17 @@ mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_opt
 		TRUE
 	);
 
+	mp_regMaster_readExt(
+		&INA219->regMaster,
+		mp_regMaster_register(0), 1,
+		(unsigned char *)&INA219->configuration, 2,
+		_mp_drv_INA219_onConfiguration, INA219,
+		TRUE
+	);
+
+	//mp_drv_INA219_update_busVoltage(INA219);
+	//mp_drv_INA219_update_shuntVoltage(INA219);
+	//mp_drv_INA219_update_current(INA219);
 	return(TRUE);
 }
 
@@ -322,7 +333,7 @@ static void _mp_drv_INA219_busVoltage(mp_regMaster_op_t *operand, mp_bool_t term
 
 	INA219->rawBusVoltage = ((INA219->rawBusVoltage >> 3) * 4);
 	INA219->busVoltage->voltage.result = INA219->rawBusVoltage;
-	mp_printk("_mp_drv_INA219_busVoltage %d", INA219->rawBusVoltage);
+	mp_printk("_mp_drv_INA219_busVoltage %f", INA219->busVoltage->voltage.result);
 
 }
 
@@ -358,7 +369,7 @@ MP_TASK(_mp_drv_INA219_ASR) {
 		return;
 	}
 
-/*
+
 	mp_regMaster_readExt(
 		&INA219->regMaster,
 		mp_regMaster_register(0), 1,
@@ -367,11 +378,12 @@ MP_TASK(_mp_drv_INA219_ASR) {
 		TRUE
 	);
 
-	mp_drv_INA219_update_busVoltage(INA219);
-	mp_drv_INA219_update_shuntVoltage(INA219);
-	mp_drv_INA219_update_current(INA219);
+
+	//mp_drv_INA219_update_busVoltage(INA219);
+	//mp_drv_INA219_update_shuntVoltage(INA219);
+	//mp_drv_INA219_update_current(INA219);
 	mp_printk("pouf");
-*/
+
 }
 
 
