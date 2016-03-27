@@ -253,6 +253,7 @@ mp_ret_t mp_drv_ADS124X_sleep(mp_drv_ADS124X_t *ADS124X) {
 
 static void _mp_drv_ADS124X_onRegdump(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_ADS124X_t *ADS124X = operand->user;
+	mp_mem_free(ADS124X->kernel, operand->reg);
 
 	if(terminate == YES)
 		return;
@@ -269,15 +270,32 @@ static void _mp_drv_ADS124X_onWakeup(mp_regMaster_op_t *operand, mp_bool_t termi
 		return;
 
 	/* read configurtion register  */
-	/*
-	mp_regMaster_readExt(
-		&ADS124X->regMaster,
-		mp_regMaster_register(ADS124X_SPI_RREG), 1,
-		(unsigned char *)&ADS124X->config, 2,
-		_mp_drv_ADS124X_checkConfig, ADS124X,
-		TRUE // on the fly swap
-	);
-	*/
+	unsigned char *ptr = mp_mem_alloc(ADS124X->kernel, 3);
+	unsigned char *src = ptr;
+
+	*(ptr++) = ADS124X_SPI_RREG;
+
+	if(ADS124X->version == _TI_ADS1246) {
+		*ptr = 0x0b;
+		mp_regMaster_readExt(
+			&ADS124X->regMaster,
+			src, 2,
+			(unsigned char *)&ADS124X->registerMap, *ptr,
+			_mp_drv_ADS124X_onRegdump, ADS124X,
+			TRUE
+		);
+	}
+	else {
+		*ptr = 0x0f;
+		mp_regMaster_readExt(
+			&ADS124X->regMaster,
+			src, 2,
+			(unsigned char *)&ADS124X->registerMap, *ptr,
+			_mp_drv_ADS124X_onRegdump, ADS124X,
+			TRUE
+		);
+	}
+
 
 }
 
