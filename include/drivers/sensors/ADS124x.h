@@ -19,7 +19,7 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#define SUPPORT_DRV_ADS124X
+
 
 #ifdef SUPPORT_DRV_ADS124X
 
@@ -28,6 +28,10 @@
 
 	#define _ADS124X_REGCOUNT 0x0f
 
+	#define _TI_ADS1246 (0)
+	#define _TI_ADS1247 (1)
+	#define _TI_ADS1248 (2)
+
 	/**
 	 * @defgroup mpDriverTiADS124X
 	 * @{
@@ -35,10 +39,14 @@
 
 	typedef struct mp_drv_ADS124X_s mp_drv_ADS124X_t;
 
+
 	struct mp_drv_ADS124X_s {
 
 		/** kernel handler */
 		mp_kernel_t *kernel;
+
+		/* Version */
+		char version:2;
 
 		/* SPI context */
 		mp_spi_t spi;
@@ -49,8 +57,14 @@
 		/* DRDY GPIO */
 		mp_gpio_port_t *drdy;
 
-		/* reg master read controler */
-		mp_regMaster_cb_t readerControl;
+		/* CS GPIO */
+		mp_gpio_port_t *cs;
+
+		/* Reset GPIO */
+		mp_gpio_port_t *reset;
+
+		/* Start GPIO */
+		mp_gpio_port_t *start;
 
 		/* internal register map */
 		unsigned char registerMap[_ADS124X_REGCOUNT];

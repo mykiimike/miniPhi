@@ -63,6 +63,7 @@ Michael Vergoz <mv@verman.fr>
 
 @{
 */
+
 /**
  * @brief Initiate LSM9DS0 context
  *
