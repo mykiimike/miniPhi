@@ -117,7 +117,7 @@
 
 	static inline void mp_timer_enable_interrupt(mp_timer_t *timer) {
 		*timer->regCCTL0 |= CCIE;
-		*timer->regCTL |= TACLR;
+		//*timer->regCTL |= TACLR;
 	}
 
 	static inline void mp_timer_disable_interrupt(mp_timer_t *timer) {

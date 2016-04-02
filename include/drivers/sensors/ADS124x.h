@@ -51,7 +51,7 @@
 		/* SPI context */
 		mp_spi_t spi;
 
-		/* reg master handker */
+		/* reg master handler */
 		mp_regMaster_t regMaster;
 
 		/* DRDY GPIO */
