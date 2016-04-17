@@ -22,8 +22,6 @@
 
 #ifdef SUPPORT_COMMON_MEM
 
-#define _MP_HEAP_CKSIZE MP_MEM_SIZE/sizeof(mp_mem_chunk_t)
-
 #ifndef MP_COMMON_MEM_USE_MALLOC
 	/** linear allocation tab */
 	static unsigned char __line[MP_MEM_SIZE];
@@ -31,17 +29,7 @@
 	static unsigned char *__line = NULL;
 #endif
 
-/** linear allocation index */
-static int __line_size = 0;
-
-/** structured allocation tab */
-static mp_mem_chunk_t *__allocated_heap = NULL;
-
-/** linear allocation index */
-static unsigned int __allocated_heap_idx = 0;
-
-/** last free __allocated_heap */
-static mp_mem_chunk_t *__allocated_heap_last = NULL;
+static mp_list_t __mem_free_root;
 
 /**
 @defgroup mpCommonMem Memory allocator
@@ -87,27 +75,31 @@ You can overwrite those values by defining your own config.h file.
   * @return Point to a free space
   */
 void *mp_mem_alloc(mp_kernel_t *kernel, int size) {
+	mp_list_item_t *item;
 	mp_mem_chunk_t *chunk;
-	mp_mem_chunk_t **prev;
 
 	/* sanatize */
-	if(size >= MP_MEM_CHUNK-MP_MEM_SPACING) {
+	if(size >= MP_MEM_CHUNK) {
 		mp_kernel_panic(kernel, KPANIC_MEM_SIZE);
-		mp_printk("chunk is too low %d you are asking for %d", MP_MEM_CHUNK-MP_MEM_SPACING, size);
+		mp_printk("chunk is too low %d you are asking for %d", MP_MEM_CHUNK, size);
 		return(NULL);
 	}
 
-	if(__line_size+size >= MP_MEM_SIZE) {
+	/* pop chunk */
+	item = __mem_free_root.first;
+	if(!item) {
 		mp_kernel_panic(kernel, KPANIC_MEM_OOM);
-		mp_printk("chunk has no reach the limit at %p increase MP_MEM_SIZE", __allocated_heap);
+		mp_printk("chunk has no reach the limit increase MP_MEM_SIZE");
 		return(NULL);
 	}
-	chunk = (mp_mem_chunk_t *)__allocated_heap_last;
-	prev = (mp_mem_chunk_t **)chunk+1;
-	if(*prev)
-		__allocated_heap_last = *prev;
-	__allocated_heap_idx++;
-	memset(chunk, 0, sizeof(*chunk));
+
+	/* get chunk */
+	chunk = item->user;
+
+	/* remove chunk from free and push it into used list */
+	mp_list_remove(&__mem_free_root, item);
+	memset(chunk->data, 0, sizeof(chunk->data));
+
 	return((void *)chunk);
 }
 
@@ -119,13 +111,16 @@ void *mp_mem_alloc(mp_kernel_t *kernel, int size) {
   */
 void mp_mem_free(mp_kernel_t *kernel, void *ptr) {
 	mp_mem_chunk_t *chunk = ptr;
-	mp_mem_chunk_t **prev;
-	prev = (mp_mem_chunk_t **)chunk+1;
-	if(__allocated_heap_last)
-		*prev = __allocated_heap_last;
-	__allocated_heap_last = chunk;
-	__allocated_heap_idx--;
+	if(chunk->canary != MEM_CANARY) {
+		mp_kernel_panic(kernel, KPANIC_MEM_OOM);
+		mp_printk("Memory currupted");
+		return;
+	}
+	memset(&chunk->item, 0, sizeof(chunk->item));
+	mp_list_add_first(&__mem_free_root, &chunk->item, chunk);
 }
+
+
 
 /**
   * erase HEAP memory
@@ -133,49 +128,39 @@ void mp_mem_free(mp_kernel_t *kernel, void *ptr) {
   * @return TRUE or FALSE
   */
 mp_ret_t mp_mem_erase(mp_kernel_t *kernel) {
-
 	mp_mem_chunk_t *chunk;
-	mp_mem_chunk_t **prev;
+	int a;
 
-	/* control modulo */
-	if(_MP_HEAP_CKSIZE % sizeof(unsigned int)) {
-		mp_kernel_panic(kernel, KPANIC_MEM_SIZE);
-		return(FALSE);
-	}
+	/* erase list */
+	memset(&__mem_free_root, 0, sizeof(__mem_free_root));
+	mp_list_init(&__mem_free_root);
 
 #ifdef MP_COMMON_MEM_USE_MALLOC
-	if(__line)
-		free(__line);
 	__line = malloc(MP_MEM_SIZE);
 	if(!__line) {
 		mp_printk("Can not allocate %d using malloc()", MP_MEM_SIZE);
 		mp_kernel_panic(kernel, KPANIC_MEM_OOM);
 		return(FALSE);
 	}
-#endif
 
 	/* erase memory */
-	unsigned char *ptr = __line;
-	int a;
-	for(a=0; a<MP_MEM_SIZE; a++, ptr++)
-		*ptr = 0;
+	memset(__line, 0, MP_MEM_SIZE);
 
-	/* move heap allocation address */
-	__allocated_heap = (mp_mem_chunk_t *)__line;
-	__allocated_heap_last = NULL;
-	__allocated_heap_idx = 0;
+	/* initialize free chunks */
+	chunk = (mp_mem_chunk_t *)__line;
+#else
+	/* erase memory */
+	memset(&__line, 0, MP_MEM_SIZE);
+
+	/* initialize free chunks */
+	chunk = (mp_mem_chunk_t *)&__line;
+#endif
 
 	/* prepare linked list */
-	for(a=0; a<MP_MEM_SIZE-sizeof(mp_mem_chunk_t)-sizeof(mp_mem_chunk_t *);) {
-		chunk = (mp_mem_chunk_t *)&__line[a];
-		a += sizeof(mp_mem_chunk_t);
+	for(a=0; a<MP_MEM_SIZE/sizeof(mp_mem_chunk_t); chunk++, a++) {
+		chunk->canary = MEM_CANARY;
+		mp_list_add_last(&__mem_free_root, &chunk->item, chunk);
 
-		prev = (mp_mem_chunk_t **)chunk+1;
-		a += sizeof(*prev);
-
-		if(__allocated_heap_last)
-			*prev = __allocated_heap_last;
-		__allocated_heap_last = chunk;
 	}
 
 	return(TRUE);

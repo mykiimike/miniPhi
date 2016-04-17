@@ -23,12 +23,14 @@
 
 	#ifdef SUPPORT_COMMON_MEM
 
-		#define MP_MEM_SPACING 4
-
 		typedef struct mp_mem_chunk_s mp_mem_chunk_t;
+
+		#define MEM_CANARY 0xdeadbeef
 
 		struct mp_mem_chunk_s {
 			unsigned char data[MP_MEM_CHUNK];
+			unsigned long canary;
+			mp_list_item_t item;
 		};
 
 		mp_ret_t mp_mem_erase(mp_kernel_t *kernel);
