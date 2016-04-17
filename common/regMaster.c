@@ -312,7 +312,7 @@ mp_ret_t mp_regMaster_readExt(
 
 	/* allocate new operand */
 	operand = mp_mem_alloc(cirr->kernel, sizeof(*operand));
-	//operand = malloc(sizeof(*operand));
+	memset(operand, 0, sizeof(*operand));
 
 	if(cirr->type == MP_REGMASTER_I2C)
 		operand->slaveAddress = cirr->slaveAddress;
@@ -363,7 +363,7 @@ mp_ret_t mp_regMaster_write(
 
 	/* allocate new operand */
 	operand = mp_mem_alloc(cirr->kernel, sizeof(*operand));
-	//operand = malloc(sizeof(*operand));
+	memset(operand, 0, sizeof(*operand));
 
 	if(cirr->type == MP_REGMASTER_I2C)
 		operand->slaveAddress = cirr->slaveAddress;
@@ -675,7 +675,7 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 
 	/* read data, CTR and start has already been sent */
 	else if(operand->state == MP_REGMASTER_STATE_RX && iv == MP_SPI_IV_RX) {
-		mp_spi_tx(spi, 0);
+		mp_spi_tx(spi, cirr->nop);
 
 		rest = operand->waitSize-operand->waitPos-1;
 
@@ -700,7 +700,7 @@ static void _mp_regMaster_spi_interrupt(mp_spi_t *spi, mp_spi_iv_t iv) {
 	else if(operand->state == MP_REGMASTER_STATE_NULLRX && iv == MP_SPI_IV_RX) {
 		/* just ignore */
 		operand->state = MP_REGMASTER_STATE_RX;
-		mp_spi_tx(spi, 0);
+		mp_spi_tx(spi, cirr->nop);
 		mp_spi_rx(spi);
 	}
 	else if(operand->state == MP_REGMASTER_STATE_NULLTX && iv == MP_SPI_IV_RX) {

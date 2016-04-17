@@ -205,13 +205,12 @@ void mp_clock_schedule(mp_kernel_t *kernel) {
 
 			sched->schedulerOff = TRUE;
 
-			/* enter in low power mode */
 			_BIS_SR(LPM3_bits + GIE);
 
 			while(sched->currentWait-1 > 0 && kernel->tasks.pendingNumber == 0)
 				__delay_cycles(1);
 
-			/* reset scheduler */
+
 			sched->longestDelay = 0;
 			sched->shortestDelay = ~(sched->longestDelay)-1;
 
@@ -414,7 +413,7 @@ static void _system_clock(mp_clock_freq_t freq) {
 
 	/* If the requested frequency is above 16MHz we will use DCO as the  */
 	/* source of the system clocks, otherwise we will use DCOCLKDIV.     */
-	if(SystemFrequency > 16000) {
+	if(SystemFrequency > 15000) {
 		Ratio >>= 1;
 		UseDCO = TRUE;
 	}

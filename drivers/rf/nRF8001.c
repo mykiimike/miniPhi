@@ -137,7 +137,7 @@ mp_ret_t mp_drv_nRF8001_init(mp_kernel_t *kernel, mp_drv_nRF8001_t *nRF8001, mp_
 	}
 
 	mp_options_t setup[] = {
-		{ "frequency", "2000000" },
+		{ "frequency", "3000000" },
 		//{ "phase", "change" },
 		{ "polarity", "low" },
 		{ "first", "lsb" },

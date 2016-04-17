@@ -63,6 +63,7 @@
 		/** Activate swap */
 		mp_bool_t swap;
 
+		/** Linked items */
 		mp_list_item_t item;
 	};
 
@@ -97,6 +98,9 @@
 		mp_regMaster_asr_t asrCallback;
 
 		void *user;
+
+		/** Padding NOP */
+		unsigned char nop;
 
 		mp_task_t *asr;
 
@@ -156,6 +160,20 @@
 			mp_regMaster_cb_t callback, void *user
 		) {
 		return(mp_regMaster_readExt(cirr, reg, regSize, wait, waitSize, callback, user, FALSE));
+	}
+
+	/**
+	 * @brief Set NOP padding
+	 *
+	 *
+	 * @param[in] cirr Circular context.
+	 * @param[in] nop Nop char
+	 */
+	static inline void mp_regMaster_setNOP(
+			mp_regMaster_t *cirr,
+			unsigned char nop
+		) {
+		cirr->nop = nop;
 	}
 
 	/**

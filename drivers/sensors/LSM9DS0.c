@@ -154,7 +154,7 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 		}
 
 		mp_options_t setup[] = {
-			{ "frequency", "1000000" },
+			{ "frequency", "3000000" },
 			{ "phase", "change" },
 			{ "polarity", "high" },
 			{ "first", "MSB" },

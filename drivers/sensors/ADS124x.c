@@ -26,6 +26,8 @@
 static void _mp_drv_ADS124X_onDRDY(void *user);
 
 static void _mp_drv_ADS124X_onRegdump(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_ADS124X_onRegWrite(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_ADS124X_onReset(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _mp_drv_ADS124X_onWakeup(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _mp_drv_ADS124X_onSleep(mp_regMaster_op_t *operand, mp_bool_t terminate);
 
@@ -69,7 +71,7 @@ Links :
  *  @li cs : Chip select
  *  @li simo : SPI Slave In Master Out
  *  @li somi : SPI Slave Out Master In
- *  @li drdy : DRDY port data read/data read
+ *  @li drdy : DRDY port data read/data ready
  *  @li reset : Reset port
  *  @li Start : Start port
  * @param[in] who Who own the driver session
@@ -118,7 +120,7 @@ mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_
 			mp_drv_ADS124X_fini(ADS124X);
 			return(FALSE);
 		}
-		mp_gpio_interrupt_lo2hi(ADS124X->drdy);
+		mp_gpio_interrupt_hi2lo(ADS124X->drdy);
 		mp_gpio_interrupt_disable(ADS124X->drdy);
 	}
 	else {
@@ -141,6 +143,7 @@ mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_
 		return(FALSE);
 	}
 	mp_gpio_direction(ADS124X->cs, MP_GPIO_OUTPUT);
+	mp_gpio_set(ADS124X->cs);
 
 	/* configure reset port */
 	value = mp_options_get(options, "reset");
@@ -183,11 +186,14 @@ mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_
 	}
 
 	mp_options_t setup[] = {
-		{ "frequency", "400000" },
-		{ "phase", "change" },
-		{ "polarity", "high" },
-		{ "first", "MSB" },
+		{ "frequency", "1000000" },
+
+		//{ "phase", "change" },
+		//{ "polarity", "low" },
+		//{ "first", "lsb" },
+
 		{ "role", "master" },
+
 		{ "bit", "8" },
 		{ NULL, NULL }
 	};
@@ -208,6 +214,21 @@ mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_
 		return(FALSE);
 	}
 
+	/* change nop operation */
+	mp_regMaster_setNOP(&ADS124X->regMaster, ADS124X_SPI_NOP);
+
+	/* turn on the device */
+	mp_gpio_unset(ADS124X->reset);
+	mp_gpio_interrupt_enable(ADS124X->drdy);
+	mp_gpio_set(ADS124X->reset);
+	mp_gpio_set(ADS124X->start);
+	mp_clock_delay(500);
+
+	mp_regMaster_write(
+		&ADS124X->regMaster,
+		mp_regMaster_register(ADS124X_SPI_RESET), 1,
+		_mp_drv_ADS124X_onReset, ADS124X
+	);
 
 	/*
 	mp_regMaster_readExt(
@@ -230,6 +251,7 @@ void mp_drv_ADS124X_fini(mp_drv_ADS124X_t *ADS124X) {
 mp_ret_t mp_drv_ADS124X_wakeup(mp_drv_ADS124X_t *ADS124X) {
 	mp_printk("ADS124X(%p) Ask to wakeup", ADS124X);
 
+	mp_regMaster_setChipSelect(&ADS124X->regMaster, ADS124X->cs);
 	mp_regMaster_write(
 		&ADS124X->regMaster,
 		mp_regMaster_register(ADS124X_SPI_WAKEUP), 1,
@@ -239,12 +261,38 @@ mp_ret_t mp_drv_ADS124X_wakeup(mp_drv_ADS124X_t *ADS124X) {
 	return(TRUE);
 }
 
+mp_ret_t mp_drv_ADS124X_WREG(mp_drv_ADS124X_t *ADS124X, unsigned char from, unsigned char *regs, int size) {
+	mp_printk("ADS124X(%p) Ask to wakeup", ADS124X);
+
+	unsigned char *ptr = mp_mem_alloc(ADS124X->kernel, size+2);
+	unsigned char *src = ptr;
+	int a;
+
+	*(ptr++) = ADS124X_SPI_WREG | from;
+	*(ptr++) = size-1;
+	for(a=0; a<size; a++)
+		*(ptr++) = regs[0];
+
+	for(a=0; a<size+2; a++)
+		mp_printk(">> %x", src[a]);
+
+	mp_regMaster_setChipSelect(&ADS124X->regMaster, ADS124X->cs);
+	mp_regMaster_write(
+		&ADS124X->regMaster,
+		src, size+2,
+		_mp_drv_ADS124X_onRegWrite, ADS124X
+	);
+
+	return(TRUE);
+}
+
+
 mp_ret_t mp_drv_ADS124X_sleep(mp_drv_ADS124X_t *ADS124X) {
 	mp_printk("ADS124X(%p) Entering in sleep", ADS124X);
 	mp_regMaster_write(
 		&ADS124X->regMaster,
 		mp_regMaster_register(ADS124X_SPI_SLEEP), 1,
-		_mp_drv_ADS124X_onWakeup, ADS124X
+		_mp_drv_ADS124X_onRegWrite, ADS124X
 	);
 
 	return(TRUE);
@@ -260,6 +308,66 @@ static void _mp_drv_ADS124X_onRegdump(mp_regMaster_op_t *operand, mp_bool_t term
 
 	mp_printk("ADS124X(%p) Configuration registers dumped", ADS124X);
 
+	int a;
+
+	for(a=0; a<_ADS124X_REGCOUNT; a++)
+		mp_printk("ADS124X(%p) RREG #%d = %x", ADS124X, a, ADS124X->registerMap[a]);
+
+}
+
+static void _mp_drv_ADS124X_onRegWrite(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_ADS124X_t *ADS124X = operand->user;
+	mp_mem_free(ADS124X->kernel, operand->reg);
+
+	if(terminate == YES)
+		return;
+
+	mp_printk("ADS124X(%p) Configuration registers writed", ADS124X);
+
+
+	{
+		mp_regMaster_setChipSelect(&ADS124X->regMaster, ADS124X->cs);
+		unsigned char *ptr = mp_mem_alloc(ADS124X->kernel, 3);
+		unsigned char *src = ptr;
+
+		*(ptr++) = ADS124X_SPI_RREG;
+
+		if(ADS124X->version == _TI_ADS1246) {
+			*ptr = 0x0b;
+			mp_regMaster_readExt(
+				&ADS124X->regMaster,
+				src, 2,
+				(unsigned char *)&ADS124X->registerMap, *ptr,
+				_mp_drv_ADS124X_onRegdump, ADS124X,
+				FALSE
+			);
+		}
+		else {
+			*ptr = 15-1;
+			mp_printk(">>>>>>>>>>> %x %x", *src, *(src+1));
+			mp_regMaster_readExt(
+				&ADS124X->regMaster,
+				src, 2,
+				(unsigned char *)&ADS124X->registerMap, *ptr,
+				_mp_drv_ADS124X_onRegdump, ADS124X,
+				FALSE
+			);
+
+		}
+	}
+
+
+}
+
+
+static void _mp_drv_ADS124X_onReset(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_ADS124X_t *ADS124X = operand->user;
+	mp_printk("_mp_drv_ADS124X_onReset %p", ADS124X);
+
+	if(terminate == YES)
+		return;
+
+	mp_drv_ADS124X_wakeup(ADS124X);
 }
 
 static void _mp_drv_ADS124X_onWakeup(mp_regMaster_op_t *operand, mp_bool_t terminate) {
@@ -269,33 +377,42 @@ static void _mp_drv_ADS124X_onWakeup(mp_regMaster_op_t *operand, mp_bool_t termi
 	if(terminate == YES)
 		return;
 
-	/* read configurtion register  */
-	unsigned char *ptr = mp_mem_alloc(ADS124X->kernel, 3);
-	unsigned char *src = ptr;
 
-	*(ptr++) = ADS124X_SPI_RREG;
 
-	if(ADS124X->version == _TI_ADS1246) {
-		*ptr = 0x0b;
-		mp_regMaster_readExt(
-			&ADS124X->regMaster,
-			src, 2,
-			(unsigned char *)&ADS124X->registerMap, *ptr,
-			_mp_drv_ADS124X_onRegdump, ADS124X,
-			TRUE
-		);
+
+
+	{
+		mp_regMaster_setChipSelect(&ADS124X->regMaster, ADS124X->cs);
+		unsigned char *ptr = mp_mem_alloc(ADS124X->kernel, 3);
+		unsigned char *src = ptr;
+
+		*(ptr++) = ADS124X_SPI_RREG;
+
+		if(ADS124X->version == _TI_ADS1246) {
+			*ptr = 0x0b;
+			mp_regMaster_readExt(
+				&ADS124X->regMaster,
+				src, 2,
+				(unsigned char *)&ADS124X->registerMap, *ptr,
+				_mp_drv_ADS124X_onRegdump, ADS124X,
+				FALSE
+			);
+		}
+		else {
+			*ptr = 15-1;
+			mp_printk(">>>>>>>>>>> %x %x", *src, *(src+1));
+			mp_regMaster_readExt(
+				&ADS124X->regMaster,
+				src, 2,
+				(unsigned char *)&ADS124X->registerMap, *ptr,
+				_mp_drv_ADS124X_onRegdump, ADS124X,
+				FALSE
+			);
+
+		}
 	}
-	else {
-		*ptr = 0x0f;
-		mp_regMaster_readExt(
-			&ADS124X->regMaster,
-			src, 2,
-			(unsigned char *)&ADS124X->registerMap, *ptr,
-			_mp_drv_ADS124X_onRegdump, ADS124X,
-			TRUE
-		);
-	}
-
+	unsigned char cmd[] = { ADS12478_REG_SYS0_PGA_4 | ADS12478_REG_SYS0_DOR_10SPS };
+	mp_drv_ADS124X_WREG(ADS124X, ADS1246_REG_SYS0, cmd, 1);
 
 }
 
@@ -325,10 +442,14 @@ static void _mp_drv_ADS124X_onSleep(mp_regMaster_op_t *operand, mp_bool_t termin
 
 
 static void _mp_drv_ADS124X_onDRDY(void *user) {
-	//mp_drv_LSM9DS0_t *LSM9DS0 = user;
-
+	mp_drv_ADS124X_t *ADS124X = user;
 
 	//mp_task_signal(LSM9DS0->task, MP_TASK_SIG_PENDING);
+	//mp_printk("DRDY!!!!!!!!!!!");
+
+
+
+
 }
 
 

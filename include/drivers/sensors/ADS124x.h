@@ -46,7 +46,7 @@
 		mp_kernel_t *kernel;
 
 		/* Version */
-		char version:2;
+		char version;
 
 		/* SPI context */
 		mp_spi_t spi;
@@ -67,13 +67,14 @@
 		mp_gpio_port_t *start;
 
 		/* internal register map */
-		unsigned char registerMap[_ADS124X_REGCOUNT];
+		unsigned char registerMap[_ADS124X_REGCOUNT+1];
 	};
 
 	/**@}*/
 
 	mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_options_t *options, char *who);
 	void mp_drv_ADS124X_fini(mp_drv_ADS124X_t *ADS124X);
+	mp_ret_t mp_drv_ADS124X_WREG(mp_drv_ADS124X_t *ADS124X, unsigned char from, unsigned char *regs, int size);
 
 	/*! \name ADS1246/7/8 SPI command definitions
 	 * @{

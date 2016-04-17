@@ -126,9 +126,9 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 	/* clock source - SMCLK */
 	_SPI_REG8(spi->gate, _SPI_CTL1) |= UCSSEL_2;
 
-	prescaler = mp_clock_get_speed() / frequency;
-	_SPI_REG8(spi->gate, _SPI_BR0) = prescaler % 256;
-	_SPI_REG8(spi->gate, _SPI_BR1) = prescaler / 256;
+	prescaler = (mp_clock_get_speed() / frequency) + (mp_clock_get_speed() % frequency == 0 ? 0:1);
+	_SPI_REG8(spi->gate, _SPI_BR0) = prescaler;
+	_SPI_REG8(spi->gate, _SPI_BR1) = prescaler >> 8;
 
 	/* user options */
 	value = mp_options_get(options, "phase");
