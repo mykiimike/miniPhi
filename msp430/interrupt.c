@@ -18,6 +18,8 @@ static mp_bool_t __state = NO;
 mp_ret_t mp_interrupt_init() {
 	mp_interrupt_t *inter;
 	int a;
+	memset(__interrupts, 0, sizeof(__interrupts));
+
 	for(a=0; a<_MAX_INTERRUPTS; a++) {
 		inter = &__interrupts[a];
 		inter->callback = __dummy_int;
