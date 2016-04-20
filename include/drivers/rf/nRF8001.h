@@ -71,7 +71,7 @@
 		mp_list_item_t item;
 	};
 
-	#define MP_NRF8001_ACI_QUEUE_SIZE 10
+	#define MP_NRF8001_ACI_QUEUE_SIZE 15
 
 	struct mp_drv_nRF8001_s {
 		mp_kernel_t *kernel;
