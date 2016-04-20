@@ -39,6 +39,7 @@
 
 	typedef struct mp_drv_ADS124X_s mp_drv_ADS124X_t;
 
+	typedef void (*mp_drv_ADS124X_cb_t)(mp_drv_ADS124X_t *ADS124X, long value);
 
 	struct mp_drv_ADS124X_s {
 
@@ -66,15 +67,38 @@
 		/* Start GPIO */
 		mp_gpio_port_t *start;
 
+		/** Release callback on data */
+		mp_drv_ADS124X_cb_t onData;
+
+		/** User pointer */
+		void *user;
+
+		char onDrdy;
+
 		/* internal register map */
-		unsigned char registerMap[_ADS124X_REGCOUNT+1];
+		//unsigned char registerMap[_ADS124X_REGCOUNT+1];
+
+		/** DRDY ASR */
+		mp_task_t *task;
+
 	};
 
 	/**@}*/
 
 	mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_options_t *options, char *who);
 	void mp_drv_ADS124X_fini(mp_drv_ADS124X_t *ADS124X);
-	mp_ret_t mp_drv_ADS124X_WREG(mp_drv_ADS124X_t *ADS124X, unsigned char from, unsigned char *regs, int size);
+
+	void mp_drv_ADS124X_start(mp_drv_ADS124X_t *ADS124X);
+	void mp_drv_ADS124X_stop(mp_drv_ADS124X_t *ADS124X);
+
+	void mp_drv_ADS124X_startRead(mp_drv_ADS124X_t *ADS124X);
+	void mp_drv_ADS124X_stopRead(mp_drv_ADS124X_t *ADS124X);
+
+	mp_ret_t mp_drv_ADS124X_wakeup(mp_drv_ADS124X_t *ADS124X, mp_regMaster_cb_t callback);
+	mp_ret_t mp_drv_ADS124X_sleep(mp_drv_ADS124X_t *ADS124X, mp_regMaster_cb_t callback);
+
+	mp_ret_t mp_drv_ADS124X_writeRegister(mp_drv_ADS124X_t *ADS124X, mp_regMaster_cb_t callback, unsigned char from, unsigned char *regs, int size);
+	mp_ret_t mp_drv_ADS124X_readRegister(mp_drv_ADS124X_t *ADS124X, mp_regMaster_cb_t callback, unsigned char from, int size);
 
 	/*! \name ADS1246/7/8 SPI command definitions
 	 * @{
@@ -108,7 +132,8 @@
 	#define ADS1246_REG_FSC0  (0x07)
 	#define ADS1246_REG_FSC1  (0x08)
 	#define ADS1246_REG_FSC2  (0x09)
-	#define ADS1246_REG_ID    (0x0A)
+	#define ADS1246_REG_IDAC1 (0x0A)
+	#define ADS1246_REG_IDAC2 (0x0B)
 	/*! @} */
 
 	/*! \name ADS1246 Burnout Current Source Register

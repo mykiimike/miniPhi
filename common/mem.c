@@ -30,6 +30,7 @@
 #endif
 
 static mp_list_t __mem_free_root;
+static long __mem_allocated = 0;
 
 /**
 @defgroup mpCommonMem Memory allocator
@@ -98,7 +99,9 @@ void *mp_mem_alloc(mp_kernel_t *kernel, int size) {
 
 	/* remove chunk from free and push it into used list */
 	mp_list_remove(&__mem_free_root, item);
-	memset(chunk->data, 0, sizeof(chunk->data));
+	memset(&chunk->data, 0, sizeof(chunk->data));
+
+	__mem_allocated++;
 
 	return((void *)chunk);
 }
@@ -118,6 +121,7 @@ void mp_mem_free(mp_kernel_t *kernel, void *ptr) {
 	}
 	memset(&chunk->item, 0, sizeof(chunk->item));
 	mp_list_add_first(&__mem_free_root, &chunk->item, chunk);
+	__mem_allocated--;
 }
 
 
@@ -157,8 +161,10 @@ mp_ret_t mp_mem_erase(mp_kernel_t *kernel) {
 #endif
 
 	/* prepare linked list */
-	for(a=0; a<MP_MEM_SIZE/sizeof(mp_mem_chunk_t); chunk++, a++) {
+	for(a=0; a<(MP_MEM_SIZE/sizeof(mp_mem_chunk_t))-1; chunk++, a++) {
+		memset(&chunk->item, 0, sizeof(chunk->item));
 		chunk->canary = MEM_CANARY;
+		chunk->id = a;
 		mp_list_add_last(&__mem_free_root, &chunk->item, chunk);
 
 	}

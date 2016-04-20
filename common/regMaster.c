@@ -38,16 +38,12 @@ static void _mp_regMaster_spi_asr(mp_regMaster_t *cirr, mp_regMaster_op_t *cur);
 
 MP_TASK(mp_regMaster_asr);
 
-static unsigned char *_registers = NULL;
+static unsigned char _registers[256];
 static int _register_references = 0;
 
 static void _mp_regMaster_ginit(mp_kernel_t *kernel) {
 	int a;
 
-	if(_registers)
-		return;
-
-	_registers = malloc(256);
 	for(a=0; a<256; a++)
 		_registers[a] = a;
 
@@ -56,8 +52,6 @@ static void _mp_regMaster_ginit(mp_kernel_t *kernel) {
 
 static void _mp_regMaster_gfini(mp_kernel_t *kernel) {
 	_register_references--;
-	if(_register_references == 0)
-		free(_registers);
 
 }
 

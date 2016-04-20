@@ -30,6 +30,7 @@
 		struct mp_mem_chunk_s {
 			unsigned char data[MP_MEM_CHUNK];
 			unsigned long canary;
+			unsigned int id;
 			mp_list_item_t item;
 		};
 
