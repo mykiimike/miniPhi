@@ -240,6 +240,7 @@ mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_
 	);
 
 	mp_printk("ADS124X(%p): Initializing", ADS124X);
+
 	/*
 	mp_regMaster_readExt(
 		&ADS124X->regMaster,
@@ -440,7 +441,7 @@ static void _mp_drv_ADS124X_onRegWrite(mp_regMaster_op_t *operand, mp_bool_t ter
 	if(terminate == YES)
 		return;
 
-	mp_printk("ADS124X(%p) Configuration registers writed", ADS124X);
+	//mp_printk("ADS124X(%p) Configuration registers writed", ADS124X);
 }
 
 
