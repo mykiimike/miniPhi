@@ -19,33 +19,42 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * System info: prints who is running on the console UART, then reports
+ * System info: prints who is running on the console, then reports
  * uptime, tasks and sensors every SYSINFO_PERIOD ms.
+ * Delays are milliseconds and follow mp_clock_tick_hz().
  */
 
 #include <mp.h>
 #include <pinout.h>
 
-#define SYSINFO_OP MP_KERNEL_RES01
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
 
-#ifdef MSP430_TICK_RATE_HZ
-	#define SYSINFO_TICK_HZ MSP430_TICK_RATE_HZ
-#else
-	#define SYSINFO_TICK_HZ 1000
-#endif
+#define SYSINFO_OP MP_KERNEL_RES01
 
 typedef struct sysinfo_s sysinfo_t;
 
 struct sysinfo_s {
 	mp_kernel_t kernel;
 
-	mp_uart_t uart;
 	mp_serial_t serial;
 	mp_bool_t console;
 
 	mp_task_t *task;
 	int line;
 };
+
+static unsigned long _sysinfo_ticks(unsigned long ms) {
+	unsigned long hz = mp_clock_tick_hz();
+	unsigned long ticks;
+
+	if(hz == 0 || ms == 0)
+		return(1);
+
+	ticks = (ms / 1000) * hz + ((ms % 1000) * hz) / 1000;
+	return(ticks ? ticks : 1);
+}
 
 static void _sysinfo_onBoot(void *user);
 static void _sysinfo_op_set(void *user);
@@ -103,23 +112,21 @@ static void _sysinfo_op_set(void *user) {
 	sysinfo_t *sysinfo = user;
 	mp_options_t console[] = PHI_CONSOLE;
 
-	if(mp_uart_open(&sysinfo->kernel, &sysinfo->uart, console, "Console") == FALSE)
+	if(mp_serial_open(&sysinfo->kernel, &sysinfo->serial, console, "Console") == FALSE)
 		return;
-
-	if(mp_serial_initUART(&sysinfo->kernel, &sysinfo->serial, &sysinfo->uart, "Console") == FALSE) {
-		mp_uart_close(&sysinfo->uart);
-		return;
-	}
 
 	sysinfo->console = YES;
 	mp_printk_set(_sysinfo_printk, sysinfo);
 
-	/* registers the MCU temperature sensor */
+	/* lets the arch publish its own sensors, such as the die temperature */
 	mp_machine_state_set(&sysinfo->kernel);
 
 	/* one line per wake up: each write takes chunks from the memory pool */
 	sysinfo->line = 0;
-	sysinfo->task = mp_task_create(&sysinfo->kernel.tasks, "Sysinfo", _sysinfo_task, sysinfo, SYSINFO_LINE_DELAY);
+	sysinfo->task = mp_task_create(
+		&sysinfo->kernel.tasks, "Sysinfo", _sysinfo_task, sysinfo,
+		_sysinfo_ticks(SYSINFO_LINE_DELAY)
+	);
 }
 
 static void _sysinfo_op_unset(void *user) {
@@ -136,7 +143,6 @@ static void _sysinfo_op_unset(void *user) {
 	mp_machine_state_unset(&sysinfo->kernel);
 	mp_printk_unset();
 	mp_serial_fini(&sysinfo->serial);
-	mp_uart_close(&sysinfo->uart);
 	sysinfo->console = NO;
 }
 
@@ -159,7 +165,7 @@ static MP_TASK(_sysinfo_task) {
 			return;
 		}
 		sysinfo->line = -1;
-		task->delay = SYSINFO_PERIOD;
+		task->delay = _sysinfo_ticks(SYSINFO_PERIOD);
 	}
 
 	_sysinfo_report(sysinfo);
@@ -257,7 +263,8 @@ static mp_bool_t _sysinfo_line(sysinfo_t *sysinfo, int line) {
 
 static void _sysinfo_report(sysinfo_t *sysinfo) {
 	mp_kernel_t *kernel = &sysinfo->kernel;
-	unsigned long seconds = mp_clock_ticks() / SYSINFO_TICK_HZ;
+	unsigned long hz = mp_clock_tick_hz();
+	unsigned long seconds = hz ? mp_clock_ticks() / hz : 0;
 
 	mp_printk("up %lu:%02lu:%02lu, %u/%u tasks",
 		seconds / 3600, (seconds / 60) % 60, seconds % 60,

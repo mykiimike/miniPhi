@@ -52,10 +52,15 @@
 			mp_circular_t txCir;
 			mp_circular_t rxCir;
 
+			/* port opened by mp_serial_open, closed by mp_serial_fini */
+			mp_uart_t port;
+			mp_bool_t owned;
+
 			char opened;
 		};
 
 		mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who);
+		mp_ret_t mp_serial_open(mp_kernel_t *kernel, mp_serial_t *serial, mp_options_t *options, char *who);
 		mp_ret_t mp_serial_fini(mp_serial_t *serial);
 
 

@@ -255,6 +255,10 @@ unsigned long mp_clock_ticks() {
 	return(__ticks);
 }
 
+unsigned long mp_clock_tick_hz() {
+	return(MSP430_TICK_RATE_HZ);
+}
+
 
 void mp_clock_delay(int delay) {
 	unsigned long local = __ticks+delay;

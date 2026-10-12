@@ -153,6 +153,8 @@ export const phi = {
 
 A board names it with `app: "sysinfo"`. `sources` on a board or in the window adds files next to the app, or provides `main()` when no app is picked. `autoconf.h` tells the firmware what it was built from: `PHI_BUILD_BOARD`, `PHI_BUILD_APP`, `PHI_BUILD_ARCH`, `PHI_BUILD_SERIES`, `PHI_BUILD_MCU`, `PHI_BUILD_TOOLCHAIN`, `PHI_BUILD_MODULES`, `PHI_BUILD_DRIVERS`, `PHI_BUILD_FLASH` and `PHI_BUILD_RAM`.
 
+An app stays free of the architecture. It reads the CPU from `kernel->mcuVendor` and `kernel->mcuName`, the clock from `mp_clock_get_speed()`, and the tick rate from `mp_clock_tick_hz()`, which the arch implements. Delays in the app are milliseconds and get converted with that rate. `mp_serial_open()` takes the `PHI_CONSOLE` options and lets the arch own the port. `mp_machine_state_set()` is where the arch publishes the sensors that belong to the chip.
+
 `prepare(ctx)` checks the machine. `ctx.requireTool(cmd, hint)`, `ctx.requireFile(path, hint)` (paths may use the toolchain variables, `$(CG_TOOL_ROOT)/bin/cl430`), `ctx.info`, `ctx.warn`, `ctx.error`. It also gets `ctx.selection`, `ctx.mcu`, `ctx.toolchain`, `ctx.vars`, and `ctx.setting(name)`.
 
 ## Checks

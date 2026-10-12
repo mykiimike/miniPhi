@@ -70,6 +70,7 @@
 	void mp_clock_wakeup(mp_kernel_t *kernel);
 
 	unsigned long mp_clock_ticks();
+	unsigned long mp_clock_tick_hz();
 	unsigned long mp_clock_get_speed();
 	const char *mp_clock_name(mp_clock_freq_t clock);
 

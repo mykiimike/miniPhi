@@ -32,10 +32,8 @@ static void mp_serial_UART_rxIntEnable(mp_circular_t *cir);
 static void mp_serial_UART_txIntDisable(mp_circular_t *cir);
 static void mp_serial_UART_txIntEnable(mp_circular_t *cir);
 
-mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who) {
+static mp_ret_t _mp_serial_attach(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who) {
 	mp_ret_t ret;
-
-	memset(serial, 0, sizeof(*serial));
 
 	serial->kernel = kernel;
 	serial->uart = uart;
@@ -74,7 +72,31 @@ mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t 
 	return(TRUE);
 }
 
+mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who) {
+	memset(serial, 0, sizeof(*serial));
+	return(_mp_serial_attach(kernel, serial, uart, who));
+}
+
+mp_ret_t mp_serial_open(mp_kernel_t *kernel, mp_serial_t *serial, mp_options_t *options, char *who) {
+	memset(serial, 0, sizeof(*serial));
+
+	if(mp_uart_open(kernel, &serial->port, options, who) == FALSE)
+		return(FALSE);
+
+	if(_mp_serial_attach(kernel, serial, &serial->port, who) == FALSE) {
+		mp_uart_close(&serial->port);
+		return(FALSE);
+	}
+
+	serial->owned = YES;
+	return(TRUE);
+}
+
 mp_ret_t mp_serial_fini(mp_serial_t *serial) {
+	mp_uart_t *uart;
+
+	if(serial->opened != _MP_SERIAL_IS_OPEN)
+		return(FALSE);
 
 	serial->uart->onRead = NULL;
 	serial->uart->onWrite = NULL;
@@ -82,6 +104,13 @@ mp_ret_t mp_serial_fini(mp_serial_t *serial) {
 
 	mp_circular_fini(&serial->rxCir);
 	mp_circular_fini(&serial->txCir);
+
+	uart = serial->uart;
+	serial->opened = 0;
+	serial->uart = NULL;
+
+	if(serial->owned == YES)
+		mp_uart_close(uart);
 
 	return(TRUE);
 }

@@ -87,6 +87,13 @@
 		#define PI (355.0 / 113.0)
 	#endif
 
+	/* Every arch implements these. The headers above may declare them too. */
+	unsigned long mp_clock_ticks();
+	unsigned long mp_clock_tick_hz();
+	unsigned long mp_clock_get_speed();
+	void mp_machine_state_set(mp_kernel_t *kernel);
+	void mp_machine_state_unset(mp_kernel_t *kernel);
+
 	#define MP_KERNEL_KPANIC 0
 	#define MP_KERNEL_BOOT   1
 	#define MP_KERNEL_RES01  2
