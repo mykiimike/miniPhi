@@ -82,7 +82,7 @@
 		#include <stdio.h>
 		#include <stdlib.h>
 		#include <stdarg.h>
-		#include <msp430/internal.h>
+		#include "../arch/msp430/include/internal.h"
 
 		#define PI (355.0 / 113.0)
 	#endif
