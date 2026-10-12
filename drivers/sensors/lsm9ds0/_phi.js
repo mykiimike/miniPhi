@@ -1,0 +1,20 @@
+export const phi = {
+	kind: "driver",
+	name: "LSM9DS0",
+	label: "LSM9DS0",
+	description: "ST 9-axis IMU: accelerometer, gyroscope, magnetometer. SPI or I2C.",
+	define: "SUPPORT_DRV_LSM9DS0",
+	sources: ["LSM9DS0.c"],
+	headers: ["LSM9DS0.h"],
+	buses: ["spi", "i2c"],
+	busOption: "protocol",
+	requires: ["SENSOR", "REGMASTER"],
+	options: [
+		{ name: "csG", label: "Gyro chip select", type: "pin", required: true, when: { protocol: "spi" } },
+		{ name: "csXM", label: "Accel/mag chip select", type: "pin", required: true, when: { protocol: "spi" } },
+		{ name: "int1", label: "INT1", type: "pin", irq: true },
+		{ name: "int2", label: "INT2", type: "pin", irq: true },
+		{ name: "intG", label: "Gyro INT", type: "pin" },
+		{ name: "drdy", label: "Data ready", type: "pin", irq: true },
+	],
+}

@@ -1,3 +1,17 @@
+.PHONY: all clean config doc
+
+all: build/Makefile
+	$(MAKE) -C build
+
+clean:
+	@if [ -f build/Makefile ]; then $(MAKE) -C build clean; fi
+
+build/Makefile:
+	@echo "No build/Makefile. Run make config and press Write build/." >&2; exit 1
+
+config:
+	cd config && npm ci && npm start
+
 doc:
 	doxygen > docs/doxylog.log; \
 	cp ./docs/conf/Makefile ./docs/latex/; \
