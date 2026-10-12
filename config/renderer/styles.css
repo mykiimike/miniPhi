@@ -56,6 +56,8 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .side-label.dark { color: var(--faint); margin: 14px 0 4px; }
 .side select { width: 100%; background: var(--side-2); border: 1px solid #2c313b; color: #e7e9ed; border-radius: 8px; padding: 7px 9px; }
 .nav { display: flex; flex-direction: column; gap: 2px; }
+.side-legal { display: flex; flex-direction: column; gap: 4px; padding: 10px 6px 0; border-top: 1px solid #242832; font-size: 10.5px; line-height: 1.45; color: #6f7581; }
+.side-legal span:first-child { color: #9aa0ab; }
 .nav button { display: flex; align-items: center; gap: 11px; background: none; border: 0; color: var(--side-text); padding: 8px 10px; border-radius: 8px; cursor: pointer; text-align: left; font-weight: 500; }
 .nav button:hover { background: var(--side-2); color: #fff; }
 .nav button.active { background: #262b35; color: #fff; box-shadow: inset 3px 0 0 var(--accent); }

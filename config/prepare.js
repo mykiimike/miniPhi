@@ -36,6 +36,7 @@ export async function runPrepare(root, catalog, analysis, selection) {
 		...catalog.drivers.filter((record) => analysis.drivers.some((item) => item.name === record.name && item.state !== "off")),
 		catalog.apps.find((record) => analysis.app && record.name === analysis.app.name),
 		catalog.boards.find((record) => record.name === selection.board),
+		...catalog.probes.filter((record) => analysis.probes.some((item) => item.name === record.name)),
 	].filter((record) => record && record.prepare)
 
 	for (const record of records) {

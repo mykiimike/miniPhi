@@ -1,7 +1,10 @@
-.PHONY: all clean config doc
+.PHONY: all clean config doc flash
 
 all: build/Makefile
 	$(MAKE) -C build
+
+flash: build/Makefile
+	$(MAKE) -C build flash
 
 clean:
 	@if [ -f build/Makefile ]; then $(MAKE) -C build clean; fi

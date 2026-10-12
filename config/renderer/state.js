@@ -7,8 +7,15 @@ export function useConfig() {
 }
 
 export function parsePin(pin) {
-	const match = /^p(\d+)\.(\d)$/.exec(pin || "")
-	return match ? { port: Number(match[1]), bit: Number(match[2]) } : null
+	const numbered = /^p(\d+)\.(\d)$/.exec(pin || "")
+	if (numbered)
+		return { port: Number(numbered[1]), bit: Number(numbered[2]) }
+	const lettered = /^p([a-k])(\d{1,2})$/.exec(pin || "")
+	return lettered ? { port: lettered[1].toUpperCase(), bit: Number(lettered[2]) } : null
+}
+
+export function portHasIrq(mcu, port) {
+	return !!mcu.irqLines || (mcu.irqPorts || []).includes(port)
 }
 
 export function bytes(value) {

@@ -1,7 +1,8 @@
 export const phi = {
 	kind: "board",
-	name: "olimex",
-	label: "Olimex MSP430F5438",
+	name: "msp430-5438-stk",
+	vendor: "Olimex",
+	label: "Olimex MSP430-5438-STK",
 	description: "The Olimex prototype board miniPhi was developed on.",
 	arch: "msp430",
 	series: "f5xx_f6xx",

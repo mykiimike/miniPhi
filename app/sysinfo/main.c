@@ -22,6 +22,7 @@
  * System info: prints who is running on the console, then reports
  * uptime, tasks and sensors every SYSINFO_PERIOD ms.
  * Delays are milliseconds and follow mp_clock_tick_hz().
+ * When the board has LEDs, the first one blinks SOS in Morse, the second HELP.
  */
 
 #include <mp.h>
@@ -43,6 +44,16 @@ struct sysinfo_s {
 
 	mp_task_t *task;
 	int line;
+
+#if defined(SUPPORT_DRV_LED) && defined(PHI_LED_FIRST)
+	struct {
+		mp_drv_led_t led;
+		mp_bool_t ready;
+		const char *pattern;
+		int step;
+	} leds[2];
+	mp_task_t *morse;
+#endif
 };
 
 static unsigned long _sysinfo_ticks(unsigned long ms) {
@@ -74,6 +85,27 @@ static const char *_banner[] = {
 };
 
 #define SYSINFO_BANNER_LINES ((int)(sizeof(_banner) / sizeof(_banner[0])))
+
+#if defined(SUPPORT_DRV_LED) && defined(PHI_LED_FIRST)
+#define SYSINFO_MORSE
+
+/* one char per Morse unit, '1' lit: dot 1, dash 3, gaps 1 / 3 (letter) / 7 (word) */
+static const char _sos[] =
+	"10101" "000"
+	"11101110111" "000"
+	"10101" "0000000";
+
+static const char _help[] =
+	"1010101" "000"
+	"1" "000"
+	"101110101" "000"
+	"10111011101" "0000000";
+
+#define SYSINFO_LEDS ((int)(sizeof(((sysinfo_t *)0)->leds) / sizeof(((sysinfo_t *)0)->leds[0])))
+
+static void _sysinfo_morse_led(sysinfo_t *sysinfo, int index, mp_options_t *options, const char *pattern, char *who);
+static MP_TASK(_sysinfo_morse);
+#endif
 
 static sysinfo_t _sysinfo;
 
@@ -111,6 +143,23 @@ static void _sysinfo_onBoot(void *user) {
 static void _sysinfo_op_set(void *user) {
 	sysinfo_t *sysinfo = user;
 	mp_options_t console[] = PHI_CONSOLE;
+#ifdef SYSINFO_MORSE
+	mp_options_t sos[] = PHI_LED_FIRST;
+#ifdef PHI_LED_SECOND
+	mp_options_t help[] = PHI_LED_SECOND;
+#endif
+
+	/* the LEDs do not need the console */
+	_sysinfo_morse_led(sysinfo, 0, sos, _sos, "SOS");
+#ifdef PHI_LED_SECOND
+	_sysinfo_morse_led(sysinfo, 1, help, _help, "HELP");
+#endif
+	if(sysinfo->leds[0].ready == YES || sysinfo->leds[1].ready == YES)
+		sysinfo->morse = mp_task_create(
+			&sysinfo->kernel.tasks, "Morse", _sysinfo_morse, sysinfo,
+			_sysinfo_ticks(SYSINFO_MORSE_UNIT)
+		);
+#endif
 
 	if(mp_serial_open(&sysinfo->kernel, &sysinfo->serial, console, "Console") == FALSE)
 		return;
@@ -136,6 +185,24 @@ static void _sysinfo_op_unset(void *user) {
 		mp_task_destroy(sysinfo->task);
 		sysinfo->task = NULL;
 	}
+
+#ifdef SYSINFO_MORSE
+	if(sysinfo->morse) {
+		mp_task_destroy(sysinfo->morse);
+		sysinfo->morse = NULL;
+	}
+	{
+		int index;
+
+		for(index = 0; index < SYSINFO_LEDS; index++) {
+			if(sysinfo->leds[index].ready == NO)
+				continue;
+			mp_drv_led_turnOff(&sysinfo->leds[index].led);
+			mp_drv_led_fini(&sysinfo->leds[index].led);
+			sysinfo->leds[index].ready = NO;
+		}
+	}
+#endif
 
 	if(sysinfo->console == NO)
 		return;
@@ -170,6 +237,40 @@ static MP_TASK(_sysinfo_task) {
 
 	_sysinfo_report(sysinfo);
 }
+
+#ifdef SYSINFO_MORSE
+static void _sysinfo_morse_led(sysinfo_t *sysinfo, int index, mp_options_t *options, const char *pattern, char *who) {
+	if(mp_drv_led_init(&sysinfo->kernel, &sysinfo->leds[index].led, options, who) == FALSE)
+		return;
+	sysinfo->leds[index].ready = YES;
+	sysinfo->leds[index].pattern = pattern;
+	sysinfo->leds[index].step = 0;
+}
+
+/* each LED loops over its own message, one Morse unit per wake up */
+static MP_TASK(_sysinfo_morse) {
+	sysinfo_t *sysinfo = task->user;
+	int index;
+
+	if(task->signal == MP_TASK_SIG_STOP) {
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+
+	for(index = 0; index < SYSINFO_LEDS; index++) {
+		if(sysinfo->leds[index].ready == NO)
+			continue;
+
+		if(sysinfo->leds[index].pattern[sysinfo->leds[index].step] == '1')
+			mp_drv_led_turnOn(&sysinfo->leds[index].led);
+		else
+			mp_drv_led_turnOff(&sysinfo->leds[index].led);
+
+		if(sysinfo->leds[index].pattern[++sysinfo->leds[index].step] == '\0')
+			sysinfo->leds[index].step = 0;
+	}
+}
+#endif
 
 static mp_bool_t _sysinfo_line(sysinfo_t *sysinfo, int line) {
 	mp_kernel_t *kernel = &sysinfo->kernel;

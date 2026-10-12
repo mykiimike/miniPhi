@@ -139,11 +139,11 @@ static void _set_machine_temperature(mp_kernel_t *kernel) {
 				{ "delay", "500" },
 				{ NULL, NULL }
 		};
-		mp_adc_create(kernel, &kernel->internalTemp, options, "MCU temperature");
+		mp_adc_create(kernel, &kernel->arch.internalTemp, options, "MCU temperature");
 
-		kernel->sensorMCU = mp_sensor_register(kernel, MP_SENSOR_TEMPERATURE, "MSP430 Internal");
+		kernel->arch.sensorMCU = mp_sensor_register(kernel, MP_SENSOR_TEMPERATURE, "MSP430 Internal");
 
-		kernel->internalTemp.callback = _processor_temp;
+		kernel->arch.internalTemp.callback = _processor_temp;
 	}
 #endif
 #endif
@@ -153,8 +153,8 @@ static void _set_machine_temperature(mp_kernel_t *kernel) {
 static void _unset_machine_temperature(mp_kernel_t *kernel) {
 #ifdef SUPPORT_COMMON_SENSOR
 #if defined(__msp430x54x) || defined(__msp430x54xA)
-	mp_sensor_unregister(kernel, kernel->sensorMCU);
-	mp_adc_remove(&kernel->internalTemp);
+	mp_sensor_unregister(kernel, kernel->arch.sensorMCU);
+	mp_adc_remove(&kernel->arch.internalTemp);
 #endif
 #endif
 }
@@ -172,7 +172,7 @@ static void _unset_machine_temperature(mp_kernel_t *kernel) {
 #if defined(__msp430x54x) || defined(__msp430x54xA)
 
 static void _processor_temp(mp_adc_t *adc) {
-    adc->kernel->sensorMCU->temperature.result = (float)(((long)adc->result - _CALADC12_15V_30C) * (85 - 30)) /
+    adc->kernel->arch.sensorMCU->temperature.result = (float)(((long)adc->result - _CALADC12_15V_30C) * (85 - 30)) /
 		(_CALADC12_15V_85C - _CALADC12_15V_30C) + 30.0f;
 }
 

@@ -75,17 +75,16 @@
 	#include <list.h>
 	#include <task/task.h>
 
-	#ifdef __MSP430__
-		#include <msp430.h>
-		#include <math.h>
-		#include <string.h>
-		#include <stdio.h>
-		#include <stdlib.h>
-		#include <stdarg.h>
-		#include <arch/internal.h>
+	#include <math.h>
+	#include <string.h>
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <stdarg.h>
 
-		#define PI (355.0 / 113.0)
-	#endif
+	/* the selected arch, linked as build/include/arch/ */
+	#include <arch/internal.h>
+
+	#define PI (355.0 / 113.0)
 
 	/* Every arch implements these. The headers above may declare them too. */
 	unsigned long mp_clock_ticks();
@@ -200,13 +199,8 @@
 		/** User pointer for onBoot */
 		void *onBootUser;
 
-#ifdef __MSP430__
-		mp_adc_t internalTemp;
-		mp_sensor_t *sensorMCU;
-
-		mp_arch_msp430_t msp430;
-#endif
-
+		/** Arch state, mp_arch_t comes from arch/internal.h */
+		mp_arch_t arch;
 	};
 
 	char *mp_options_get(mp_options_t *options, char *key);

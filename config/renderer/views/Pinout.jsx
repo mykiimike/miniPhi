@@ -1,4 +1,4 @@
-import { hue, nextName, parsePin, useConfig } from "../state.js"
+import { hue, nextName, parsePin, portHasIrq, useConfig } from "../state.js"
 import { Badge, DeviceCard, Empty, Section } from "../components/ui.jsx"
 
 const appHue = 212
@@ -66,14 +66,15 @@ function Detail({ functions }) {
 	const pin = ui.pin
 	const { port } = parsePin(pin)
 	const owners = analysis.pins[pin] || []
-	const irq = (mcu.irqPorts || []).includes(port)
+	const irq = portHasIrq(mcu, port)
+	const irqText = mcu.irqLines ? "Yes, on line " + parsePin(pin).bit + " (one port per line)" : "Yes, port " + port + " has a vector"
 
 	return (
 		<div className="card pin-detail">
 			<h3>{pin.toUpperCase()}</h3>
 			<dl className="kv">
 				<dt>Interrupt</dt>
-				<dd>{irq ? "Yes, port " + port + " has a vector" : "No"}</dd>
+				<dd>{irq ? irqText : "No"}</dd>
 				<dt>Functions</dt>
 				<dd>{functions[pin] ? functions[pin].join(", ") : "GPIO only"}</dd>
 			</dl>
@@ -161,6 +162,8 @@ export function Pinout() {
 			ports.set(port, new Map())
 		ports.get(port).set(bit, pin)
 	}
+	const width = Math.max(8, ...mcu.pins.map((pin) => parsePin(pin).bit + 1))
+	const bitList = [...Array(width).keys()]
 
 	const arch = catalog.archs.find((record) => record.name === selection.arch)
 	const buses = arch ? arch.data.buses || {} : {}
@@ -180,15 +183,15 @@ export function Pinout() {
 			<Section title="Pins" subtitle={used + " of " + mcu.pins.length + " pins claimed"}>
 				<div className="pinout">
 					<div className="card">
-						<div className="pins">
+						<div className="pins" style={{ gridTemplateColumns: "58px repeat(" + width + ", minmax(0, 1fr))" }}>
 							<div />
-							{[0, 1, 2, 3, 4, 5, 6, 7].map((bit) => <div className="head" key={bit}>bit {bit}</div>)}
+							{bitList.map((bit) => <div className="head" key={bit}>{width > 8 ? bit : "bit " + bit}</div>)}
 							{[...ports].map(([port, bits]) => [
 								<div className="port" key={"p" + port}>
 									P{port}
-									{(mcu.irqPorts || []).includes(port) ? <span className="irq">IRQ</span> : null}
+									{portHasIrq(mcu, port) ? <span className="irq">IRQ</span> : null}
 								</div>,
-								...[0, 1, 2, 3, 4, 5, 6, 7].map((bit) => bits.has(bit)
+								...bitList.map((bit) => bits.has(bit)
 									? <Cell key={port + "." + bit} pin={bits.get(bit)} functions={functions} />
 									: <div key={port + "." + bit} className="pin none" />),
 							])}

@@ -60,6 +60,8 @@ static mp_ret_t _mp_serial_attach(mp_kernel_t *kernel, mp_serial_t *serial, mp_u
 
 	serial->txCir.user = serial;
 	serial->rxCir.user = serial;
+	mp_serial_UART_txIntDisable(&serial->txCir);
+	mp_serial_UART_rxIntDisable(&serial->rxCir);
 
 	/* setup interruption vectors */
 	serial->uart->user = serial;

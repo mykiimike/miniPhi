@@ -100,16 +100,20 @@ ipcMain.handle("phi:make", (_event, target) => new Promise((resolve) => {
 	running.on("close", finish)
 }))
 
-ipcMain.handle("phi:save-board", async (_event, { name, label, selection, overwrite }) => {
-	if (!/^[a-z0-9_-]+$/.test(name || ""))
-		throw new Error("Board names use a-z, 0-9, - and _.")
-	const dir = path.join(root, "boards", name)
-	const file = path.join(dir, "_phi.js")
+ipcMain.handle("phi:save-board", async (_event, { dir, label, selection, overwrite }) => {
+	const match = /^([a-z0-9_-]+)\/([a-z0-9_-]+)$/.exec(dir || "")
+	if (!match)
+		throw new Error("Boards live in <vendor>/<board>, both in a-z, 0-9, - and _.")
+	const [, vendorDir, name] = match
+	const rel = "boards/" + vendorDir + "/" + name
+	const sibling = [...catalog.boards, ...catalog.probes].find((record) => record.dir.startsWith("boards/" + vendorDir + "/") && record.data.vendor)
+	const vendor = sibling ? sibling.data.vendor : vendorDir
+	const file = path.join(root, rel, "_phi.js")
 	if (fs.existsSync(file) && !overwrite)
 		return { exists: true }
-	fs.mkdirSync(dir, { recursive: true })
-	fs.writeFileSync(file, boardSource(name, label, selection))
-	return { path: "boards/" + name + "/_phi.js", catalog: await reload() }
+	fs.mkdirSync(path.dirname(file), { recursive: true })
+	fs.writeFileSync(file, boardSource(rel, vendor, label, selection))
+	return { path: rel + "/_phi.js", board: name, catalog: await reload() }
 })
 
 ipcMain.handle("phi:browse", async (_event, current) => {

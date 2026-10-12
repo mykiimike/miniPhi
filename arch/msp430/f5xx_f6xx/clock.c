@@ -150,7 +150,7 @@ You can specify the frequency of each oscillator by setting MP_CLOCK_XT1_FREQ an
 
 */
 mp_ret_t mp_clock_init(mp_kernel_t *kernel) {
-	memset(&kernel->msp430.scheduler, 0, sizeof(kernel->msp430.scheduler));
+	memset(&kernel->arch.scheduler, 0, sizeof(kernel->arch.scheduler));
 
 	/* start crystal oscillo */
 	__start_crystal();
@@ -170,28 +170,28 @@ mp_ret_t mp_clock_fini(mp_kernel_t *kernel) {
 }
 
 void mp_clock_reset(mp_kernel_t *kernel) {
-	memset(&kernel->msp430.scheduler, 0, sizeof(kernel->msp430.scheduler));
+	memset(&kernel->arch.scheduler, 0, sizeof(kernel->arch.scheduler));
 
 }
 
 mp_ret_t mp_clock_low_energy(mp_kernel_t *kernel) {
-	kernel->msp430.scheduler.clockState = LPM4_bits;
+	kernel->arch.scheduler.clockState = LPM4_bits;
 	_system_clock(MP_CLOCK_LE_FREQ);
-	kernel->msp430.scheduler.schedulerOff = FALSE;
-	_BIS_SR(kernel->msp430.scheduler.clockState + GIE);
+	kernel->arch.scheduler.schedulerOff = FALSE;
+	_BIS_SR(kernel->arch.scheduler.clockState + GIE);
 	return(TRUE);
 }
 
 mp_ret_t mp_clock_high_energy(mp_kernel_t *kernel) {
-	kernel->msp430.scheduler.clockState = LPM0_bits;
+	kernel->arch.scheduler.clockState = LPM0_bits;
 	_system_clock(MP_CLOCK_HE_FREQ);
-	kernel->msp430.scheduler.schedulerOff = FALSE;
-	_BIS_SR(kernel->msp430.scheduler.clockState + GIE);
+	kernel->arch.scheduler.schedulerOff = FALSE;
+	_BIS_SR(kernel->arch.scheduler.clockState + GIE);
 	return(TRUE);
 }
 
 void mp_clock_schedule(mp_kernel_t *kernel) {
-	mp_clock_sched_t *sched = &kernel->msp430.scheduler;
+	mp_clock_sched_t *sched = &kernel->arch.scheduler;
 
 	if(sched->longestDelay > 0 || kernel->tasks.usedNumber == kernel->tasks.sleepNumber) {
 		if(kernel->tasks.pendingNumber == 0) {
@@ -227,7 +227,7 @@ void mp_clock_schedule(mp_kernel_t *kernel) {
 
 void mp_clock_task_change(mp_task_t *task) {
 	mp_kernel_t *kernel = task->handler->kernel;
-	mp_clock_sched_t *sched = &kernel->msp430.scheduler;
+	mp_clock_sched_t *sched = &kernel->arch.scheduler;
 
 	switch(task->signal) {
 		case MP_TASK_SIG_SLEEP:
@@ -510,14 +510,14 @@ static void __start_crystal(void) {
 
 
 void _mp_clock_system_timer(mp_timer_t *timer) {
-	mp_clock_sched_t *sched = &timer->kernel->msp430.scheduler;
+	mp_clock_sched_t *sched = &timer->kernel->arch.scheduler;
 
 	if(sched->schedulerOff == TRUE) {
 		if(sched->currentWait == 0) {
 			sched->schedulerOff = FALSE;
 
 			/* turn on general interrupt */
-			_BIS_SR(timer->kernel->msp430.scheduler.clockState + GIE);
+			_BIS_SR(timer->kernel->arch.scheduler.clockState + GIE);
 		}
 		else {
 			sched->currentWait--;

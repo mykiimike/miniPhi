@@ -4,7 +4,7 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 
 ```
 .
-├── Makefile                  make config, make (= make -C build), make clean, make doc
+├── Makefile                  make config, make (= make -C build), make flash, make clean, make doc
 ├── build/                    generated, not versioned
 │   ├── config.js             the selection the window reopens
 │   ├── Makefile              compile and link lines for that selection
@@ -14,7 +14,7 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │       ├── mp.h  config.h  list.h  ...   -> ../../common/*.h
 │       ├── task/task.h       -> ../../../common/task/task.h
 │       ├── ina219/INA219.h   -> ../../../drivers/sensors/ina219/INA219.h
-│       └── arch/internal.h   -> ../../../arch/msp430/include/internal.h
+│       └── arch/internal.h   -> ../../../arch/<arch>/include/internal.h
 │
 ├── config/                   Electron app, never compiled into the firmware
 │   ├── package.json          npm start builds the renderer, then opens the window
@@ -47,9 +47,21 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │       ├── f5xx_f6xx/
 │       │   ├── _phi.js       kind series: MCUs, pins, gates, reserved, clocks
 │       │   └── clock.c       boot
-│       └── ld/
-│           ├── msp430f5438.cmd
-│           └── msp430f5438a.cmd
+│   │   └── ld/
+│   │       ├── msp430f5438.cmd
+│   │       └── msp430f5438a.cmd
+│   └── stm32/
+│       ├── _phi.js           buses, arm-none-eabi-gcc toolchain, prepare
+│       ├── stm32.c           machine init, MCU name, die temperature and VDDA sensors
+│       ├── adc.c  gpio.c  uart.c  spi.c  i2c.c  timer.c  flash.c  gate.c  interrupt.c
+│       ├── syscalls.c        newlib hooks, _sbrk bounded by HEAP_SIZE
+│       ├── include/          arch headers, linked as build/include/arch/
+│       └── f1/
+│           ├── _phi.js       kind series: STM32F103T8, pins, gates, JTAG pins, clock
+│           ├── startup.c     vector table, Reset_Handler        (boot)
+│           ├── clock.c       HSE + PLL, SysTick 1 kHz, WFI      (boot)
+│           ├── include/series.h   F1 registers and IRQ numbers, as build/include/arch/series.h
+│           └── ld/stm32f103x8.ld
 │
 ├── drivers/
 │   ├── led/                  _phi.js + led.c + led.h
@@ -64,9 +76,17 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │       ├── _phi.js           kind app: modules, drivers, peripherals and settings it needs
 │       └── main.c            main(): banner, version, build, CPU, then a periodic report
 │
-└── boards/
-    └── olimex/
-        └── _phi.js           preset: target, app, modules, drivers, devices
+└── boards/                   one directory per vendor, then one per product
+    ├── olimex/
+    │   └── msp430-5438-stk/
+    │       └── _phi.js       kind board: target, app, modules, drivers, devices
+    └── artekit/
+        ├── ak-stm32-lkit/
+        │   └── _phi.js       kind board, requires the ak-link probe
+        └── ak-link/
+            ├── _phi.js       kind probe: make flash, prepare checks openocd and the USB device
+            ├── ak-link.cfg   OpenOCD interface for the FT2232D
+            └── flash.sh      openocd program, verify, reset
 ```
 
 ## What lives where
@@ -74,12 +94,13 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 | File | Role | Ends up in |
 |---|---|---|
 | `arch/<arch>/_phi.js` | Arch sources and headers, the buses a device can sit on, the toolchains | `SRCS`, `include/arch/`, `CC`, `CFLAGS`, `LDFLAGS`, compile and link rules |
-| `arch/<arch>/<series>/_phi.js` | Boot files, MCUs (pins, IRQ ports, gates, memory, linker script), pins the kernel reserves, clock settings | `SRCS`, `LDSCRIPT`, `MCU`, `autoconf.h` |
+| `arch/<arch>/<series>/_phi.js` | Boot files, series headers, MCUs (pins, IRQ ports or lines, gates, memory, linker script, `cpu`), pins the kernel reserves, clock settings | `SRCS`, `include/arch/`, `LDSCRIPT`, `MCU`, `CPU`, `autoconf.h` |
 | `common/_phi.js` | Kernel core, always built. Its headers sit at the root of `build/include` | `SRCS`, `include/`, `autoconf.h` |
 | `common/<name>/_phi.js` | One module. `required: true` stays on. `requires` pulls other modules | `SRCS`, `include/<name>/`, `SUPPORT_COMMON_*` |
 | `drivers/<name>/_phi.js` | One driver: its bus, its options, the modules it needs | `SRCS`, `include/<name>/`, `SUPPORT_DRV_*`, `pinout.h` |
 | `app/<name>/_phi.js` | The application the kernel boots into: its `main()`, the modules and drivers it needs, the peripherals it opens | `SRCS`, `include/<name>/`, `PHI_BUILD_APP`, `autoconf.h` |
-| `boards/<name>/_phi.js` | A saved selection, naming one app. The configurator also starts from a blank one | `build/config.js` once picked |
+| `boards/<vendor>/<board>/_phi.js` | A saved selection, naming one app and the probes it `requires`. The configurator also starts from a blank one | `build/config.js` once picked |
+| `boards/<vendor>/<probe>/_phi.js` | A programmer or debugger: the make targets it adds, the files they run | Rules in `build/Makefile` (`make flash`) |
 
 ## _phi.js records
 
@@ -102,7 +123,7 @@ export const phi = {
 
 `headers` are linked into `build/include/<headerDir>/<file>` when the record is part of the build. `headerDir` defaults to the record directory in lowercase (`mem`, `ina219`, `nrf8001`). The kernel sets `headerDir: ""` so `<mp.h>` stays at the root, and the arch sets `headerDir: "arch"`. The links are relative symlinks, and two records cannot claim the same path. `build/include` only holds the headers of what is selected, so `mp.h` includes each module header under its `SUPPORT_*` define.
 
-A driver names its bus and options. The bus options (gate, SDA, SCL) come from the arch. `irq: true` only accepts pins on a port with an interrupt vector:
+Pins are `p<port>.<bit>` on numbered ports (`p10.6` on MSP430) and `p<letter><bit>` on lettered ones (`pa9` on STM32). A driver names its bus and options. The bus options (gate, SDA, SCL) come from the arch. `irq: true` only accepts pins on a port listed in the MCU's `irqPorts`. An MCU with `irqLines: true` (STM32 EXTI) takes any pin, but two interrupt pins cannot share a bit number:
 
 ```js
 // drivers/sensors/tmp006/_phi.js
@@ -155,18 +176,40 @@ A board names it with `app: "sysinfo"`. `sources` on a board or in the window ad
 
 An app stays free of the architecture. It reads the CPU from `kernel->mcuVendor` and `kernel->mcuName`, the clock from `mp_clock_get_speed()`, and the tick rate from `mp_clock_tick_hz()`, which the arch implements. Delays in the app are milliseconds and get converted with that rate. `mp_serial_open()` takes the `PHI_CONSOLE` options and lets the arch own the port. `mp_machine_state_set()` is where the arch publishes the sensors that belong to the chip.
 
+Boards and probes sit under their vendor and carry its name in `vendor`, which groups them in the window. The record name is the product name, so `PHI_BUILD_BOARD` is `"msp430-5438-stk"`. A board names the probes it is flashed with in `requires`. A probe adds make targets that run one of its scripts once `$(TARGET)` is built:
+
+```js
+// boards/artekit/ak-link/_phi.js
+export const phi = {
+	kind: "probe",
+	name: "ak-link",
+	vendor: "Artekit",
+	label: "Artekit AK-LINK",
+	files: ["ak-link.cfg"],
+	targets: [{ name: "flash", label: "Flash", script: "flash.sh", args: "$(MCU) $(TARGET)" }],
+}
+```
+
+```make
+flash: $(TARGET)
+	$(ROOT)/boards/artekit/ak-link/flash.sh $(MCU) $(TARGET)
+```
+
+`make flash` at the root runs it. The script maps `$(MCU)` to what its tool needs (`stm32f1*` to OpenOCD's `target/stm32f1x.cfg`), and the probe's `prepare` refuses an MCU the script does not know. Two probes cannot declare the same target.
+
 `prepare(ctx)` checks the machine. `ctx.requireTool(cmd, hint)`, `ctx.requireFile(path, hint)` (paths may use the toolchain variables, `$(CG_TOOL_ROOT)/bin/cl430`), `ctx.info`, `ctx.warn`, `ctx.error`. It also gets `ctx.selection`, `ctx.mcu`, `ctx.toolchain`, `ctx.vars`, and `ctx.setting(name)`.
 
 ## Checks
 
 The configurator refuses to write `build/` while one of these holds:
 
-- a pin or a gate has two owners, including the pins the series reserves (XT1, the tick timer);
-- an `irq` option sits on a port without an interrupt vector;
+- a pin or a gate has two owners, including the pins the series reserves (XT1, the tick timer, JTAG). A reserved entry with `when: "NAME"` only holds while that setting is on, `when: "!NAME"` while it is off;
+- an `irq` option sits on a port without an interrupt vector, or on an EXTI line another interrupt pin already uses;
 - a gate is set to a mode it cannot run, or a bus pin differs from the pin the gate is wired to;
 - a required option is empty, a setting is out of range, a source or header file is missing;
 - the app needs a peripheral the selection does not define;
 - two records link a header to the same `build/include` path;
+- a board requires a probe that has no `_phi.js`, a probe file is missing, or two probes declare the same make target;
 - the declared RAM exceeds the MCU.
 
 Failed `prepare` checks (compiler not found) do not block writing. They show in the window, and `make` fails.
@@ -179,7 +222,20 @@ The selected arch is always linked as `build/include/arch/`, so `mp.h` does not 
 #include <arch/internal.h>
 ```
 
-The `#ifdef __MSP430__` block around it in `mp.h` is still there, because it also pulls `msp430.h` and the C library headers. `common/` calls `mp_clock_schedule`, `mp_gpio_text_handle`, `mp_uart_open`. Arch state stays in the arch `.c` files.
+`mp.h` pulls the C library headers itself, and each `internal.h` pulls its own vendor header (`msp430.h`, or the series registers in `arch/series.h`). `internal.h` must define `mp_arch_t`, which the kernel embeds as `kernel->arch`: the MSP430 keeps its scheduler state and die temperature there, the STM32 its clock, MCU name and VDDA. `common/` calls `mp_clock_schedule`, `mp_gpio_text_handle`, `mp_uart_open`. Everything else stays in the arch `.c` files.
+
+## STM32
+
+The arch copies the MSP430 API: same functions, same options, same `mp_uart_t` or `mp_i2c_t` fields the drivers touch. What differs:
+
+- One tick is one millisecond (SysTick at 1 kHz). `mp_clock_schedule()` runs WFI when no task is pending, so SysTick or any interrupt wakes the loop.
+- Every peripheral vector of `startup.c` goes to `mp_interrupt_dispatch()`, which looks up the active line in the table `mp_interrupt_set()` fills. `mp_arch_fault[]` holds the last fault (vector, CFSR, HFSR, BFAR) for the debugger.
+- GPIO interrupts use EXTI: one line per bit number, shared vectors for 5 to 9 and 10 to 15.
+- The I2C block wants an explicit SB / ADDR handshake. `i2c.c` keeps a phase (idle, address, data) so the USCI-style calls regMaster makes (`mp_i2c_txStart` on every ASR pass, `mp_i2c_txStop` before the last byte) turn into the F1 register sequence.
+- `mp_clock_low_energy()` keeps the clock: the bus dividers are computed once at boot.
+- The MCU name comes from DBGMCU_IDCODE, which the F1 only returns while a debugger is attached. Without one, sysinfo prints the flash size only.
+
+The F1 series reserves the JTAG pins (PA13, PA14, PA15, PB3, PB4). `_SWD_ONLY` gives PA15, PB3 and PB4 back, but the firmware then turns JTAG off at boot, and the AK-LINK, which has no SWD, has to connect with SRST held (`reset_config srst_only connect_assert_srst`).
 
 ## Code Composer files
 

@@ -107,7 +107,7 @@ function Checks() {
 function SaveBoard() {
 	const { selection, catalog, actions } = useConfig()
 	const board = catalog.boards.find((record) => record.name === selection.board)
-	const [name, setName] = useState(selection.board || "")
+	const [dir, setDir] = useState(board ? board.dir.replace(/^boards\//, "") : "")
 	const [label, setLabel] = useState(board ? board.data.label : "")
 
 	return (
@@ -115,8 +115,8 @@ function SaveBoard() {
 			<div className="fields two">
 				<label className="field">
 					<span className="field-label">Directory</span>
-					<input className="mono" value={name} placeholder="my_board" spellCheck={false} onChange={(event) => setName(event.target.value)} />
-					<code className="field-name">boards/{name || "<name>"}/_phi.js</code>
+					<input className="mono" value={dir} placeholder="vendor/my-board" spellCheck={false} onChange={(event) => setDir(event.target.value)} />
+					<code className="field-name">boards/{dir || "<vendor>/<board>"}/_phi.js</code>
 				</label>
 				<label className="field">
 					<span className="field-label">Label</span>
@@ -124,7 +124,7 @@ function SaveBoard() {
 				</label>
 			</div>
 			<div className="actions">
-				<button className="btn" disabled={!name} onClick={() => actions.saveBoard(name, label)}>Save as board</button>
+				<button className="btn" disabled={!dir} onClick={() => actions.saveBoard(dir, label)}>Save as board</button>
 			</div>
 		</div>
 	)
@@ -174,6 +174,17 @@ function Console() {
 				<span className="tabs-title">make -C build</span>
 				<div className="grow" />
 				<button className="btn small" disabled={making} onClick={() => actions.make("clean")}>make clean</button>
+				{analysis.probes.flatMap((probe) => probe.targets.map((target) => (
+					<button
+						key={target.name}
+						className="btn small"
+						title={target.label + " with the " + probe.label}
+						disabled={blocked || making}
+						onClick={() => actions.make(target.name)}
+					>
+						make {target.name}
+					</button>
+				)))}
 				<button className="btn small primary" disabled={blocked || making} onClick={() => actions.make()}>
 					{making ? "Building…" : "Run make"}
 				</button>

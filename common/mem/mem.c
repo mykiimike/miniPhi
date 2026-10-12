@@ -23,8 +23,8 @@
 #ifdef SUPPORT_COMMON_MEM
 
 #ifndef MP_COMMON_MEM_USE_MALLOC
-	/** linear allocation tab */
-	static unsigned char __line[MP_MEM_SIZE];
+	/** linear allocation tab, word typed so chunks keep the alignment of their struct */
+	static unsigned long __line[(MP_MEM_SIZE + sizeof(unsigned long) - 1) / sizeof(unsigned long)];
 #else
 	static unsigned char *__line = NULL;
 #endif

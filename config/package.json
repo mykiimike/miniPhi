@@ -2,6 +2,9 @@
   "name": "miniphi-config",
   "private": true,
   "version": "1.0.0",
+  "description": "miniPhi build configurator",
+  "author": "Michael VERGOZ",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "main.js",
   "scripts": {

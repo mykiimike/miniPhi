@@ -60,6 +60,8 @@ mp_ret_t mp_hci_initUART(mp_kernel_t *kernel, mp_hci_t *hci, mp_uart_t *uart, ch
 
 	hci->txCir.user = hci;
 	hci->rxCir.user = hci;
+	mp_hci_UART_txIntDisable(&hci->txCir);
+	mp_hci_UART_rxIntDisable(&hci->rxCir);
 
 	/* setup interruption vectors */
 	hci->uart->user = hci;

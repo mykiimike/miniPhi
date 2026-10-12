@@ -82,7 +82,7 @@ mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_i
 	cir->enable = enable ? enable : _mp_circular_dummyInt;
 	cir->disable = disable ? disable : _mp_circular_dummyInt;
 
-	cir->disable(cir);
+	/* cir->user is not set yet: the caller disables once it is */
 
 	return(TRUE);
 }
@@ -211,14 +211,19 @@ void mp_circular_rxInterrupt(mp_circular_t *cir, unsigned char c) {
 	/* get current buffer */
 	buffer = cir->last;
 
-	/* need allocation */
-	if(buffer->size >= MP_CIRCULAR_BUFFER_SIZE-1) {
-		/* allocate the buffer */
+	/* need allocation, also for the first byte ever */
+	if(!buffer || buffer->size >= MP_CIRCULAR_BUFFER_SIZE-1) {
+		/* allocate the buffer, the byte is dropped when the pool is empty */
 		buffer = mp_mem_alloc(cir->kernel, sizeof(mp_circular_buffer_t));
+		if(!buffer)
+			return;
 		buffer->size = 0;
 		buffer->next = NULL;
 
-		cir->last->next = buffer;
+		if(cir->last)
+			cir->last->next = buffer;
+		else
+			cir->first = buffer;
 		cir->last = buffer;
 	}
 

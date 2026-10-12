@@ -48,10 +48,13 @@ Michael Vergoz <mv@verman.fr>
 	#include "spi.h"
 	#include "adc.h"
 
-	typedef struct mp_arch_msp430_s mp_arch_msp430_t;
+	typedef struct mp_arch_msp430_s mp_arch_t;
 
 	struct mp_arch_msp430_s {
 		mp_clock_sched_t scheduler;
+
+		mp_adc_t internalTemp;
+		struct mp_sensor_s *sensorMCU;
 	};
 
 	typedef unsigned char uint8_t;

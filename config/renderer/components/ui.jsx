@@ -1,4 +1,4 @@
-import { parsePin, useConfig } from "../state.js"
+import { parsePin, portHasIrq, useConfig } from "../state.js"
 
 export function Section({ title, subtitle, tools, children }) {
 	return (
@@ -149,7 +149,7 @@ function PinSelect({ index, option, value, onChange }) {
 		<select value={value || ""} onChange={onChange}>
 			<option value="">—</option>
 			{[...ports].map(([port, pins]) => {
-				const irq = (mcu.irqPorts || []).includes(port)
+				const irq = portHasIrq(mcu, port)
 				return (
 					<optgroup key={port} label={"P" + port + (irq ? "  ·  interrupts" : "")}>
 						{pins.map((pin) => {

@@ -59,8 +59,12 @@ function Sidebar({ ctx }) {
 			<div>
 				<div className="side-label">Start from</div>
 				<select value={selection.board || ""} onChange={(event) => actions.loadBoard(event.target.value)}>
-					{catalog.boards.map((board) => (
-						<option key={board.name} value={board.name}>{board.data.label || board.name}</option>
+					{[...new Set(catalog.boards.map((board) => board.data.vendor || "Other"))].map((vendor) => (
+						<optgroup key={vendor} label={vendor}>
+							{catalog.boards.filter((board) => (board.data.vendor || "Other") === vendor).map((board) => (
+								<option key={board.name} value={board.name}>{board.data.label || board.name}</option>
+							))}
+						</optgroup>
 					))}
 					<option value="">Blank configuration</option>
 				</select>
@@ -96,6 +100,14 @@ function Sidebar({ ctx }) {
 					{dirty ? "Not written to build/ yet" : "build/ is up to date"}
 				</span>
 				<button className="link" onClick={actions.reload}>{icons.refresh} Rescan _phi.js</button>
+			</div>
+
+			<div className="side-legal">
+				<span>miniPhi © 2014–2026 Michael VERGOZ</span>
+				<span>
+					Free software under the GNU General Public License, version 3 or later.
+					It comes with no warranty. The kernel sources linked into the firmware are under the same license.
+				</span>
 			</div>
 		</aside>
 	)
@@ -240,17 +252,17 @@ export function App() {
 			setDirty(true)
 			setUi({ driver: null, pin: null })
 		},
-		async saveBoard(name, label) {
+		async saveBoard(dir, label) {
 			try {
-				let saved = await window.phi.saveBoard({ name, label, selection })
+				let saved = await window.phi.saveBoard({ dir, label, selection })
 				if (saved.exists) {
-					if (!confirm("boards/" + name + "/_phi.js exists. Overwrite it?"))
+					if (!confirm("boards/" + dir + "/_phi.js exists. Overwrite it?"))
 						return
-					saved = await window.phi.saveBoard({ name, label, selection, overwrite: true })
+					saved = await window.phi.saveBoard({ dir, label, selection, overwrite: true })
 				}
 				setCatalog(saved.catalog)
 				change((next) => {
-					next.board = name
+					next.board = saved.board
 				})
 				notify("Saved " + saved.path)
 			}

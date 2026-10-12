@@ -824,9 +824,9 @@ static void _mp_drv_LSM9DS0_onWrite(mp_regMaster_op_t *operand, mp_bool_t termin
 static void _mp_drv_LSM9DS0_onGyroRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-	LSM9DS0->gyro->axis3.x = (LSM9DS0->gRes*(double)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->gbias[0];
-	LSM9DS0->gyro->axis3.y = (LSM9DS0->gRes*(double)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->gbias[1];
-	LSM9DS0->gyro->axis3.z = (LSM9DS0->gRes*(double)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->gbias[2];
+	LSM9DS0->gyro->axis3.x = (LSM9DS0->gRes*(double)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->gbias[0];
+	LSM9DS0->gyro->axis3.y = (LSM9DS0->gRes*(double)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->gbias[1];
+	LSM9DS0->gyro->axis3.z = (LSM9DS0->gRes*(double)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->gbias[2];
 
 	if(LSM9DS0->onGyroData)
 		LSM9DS0->onGyroData(LSM9DS0);
@@ -859,9 +859,9 @@ static void _mp_drv_LSM9DS0_onGyroCalibrationRead(mp_regMaster_op_t *operand, mp
 			return;
 	}
 
-	LSM9DS0->gbiasCal[0] += (LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0];
-	LSM9DS0->gbiasCal[1] += (LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2];
-	LSM9DS0->gbiasCal[2] += (LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4];
+	LSM9DS0->gbiasCal[0] += (int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]);
+	LSM9DS0->gbiasCal[1] += (int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]);
+	LSM9DS0->gbiasCal[2] += (int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]);
 	LSM9DS0->gbiasCal[3]++;
 
 	if(LSM9DS0->gbiasCal[3] == LSM9DS0_GYRO_CALIBRATION_COUNT) {
@@ -890,9 +890,9 @@ static void _mp_drv_LSM9DS0_onGyroCalibrationRead(mp_regMaster_op_t *operand, mp
 static void _mp_drv_LSM9DS0_onMagRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-	LSM9DS0->magneto->axis3.x = LSM9DS0->mRes*(double)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]);
-	LSM9DS0->magneto->axis3.y = LSM9DS0->mRes*(double)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]);
-	LSM9DS0->magneto->axis3.z = LSM9DS0->mRes*(double)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]);
+	LSM9DS0->magneto->axis3.x = LSM9DS0->mRes*(double)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]);
+	LSM9DS0->magneto->axis3.y = LSM9DS0->mRes*(double)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]);
+	LSM9DS0->magneto->axis3.z = LSM9DS0->mRes*(double)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]);
 
 	if(LSM9DS0->onMagData)
 		LSM9DS0->onMagData(LSM9DS0);
@@ -919,9 +919,9 @@ static void _mp_drv_LSM9DS0_onTemperatureRead(mp_regMaster_op_t *operand, mp_boo
 static void _mp_drv_LSM9DS0_onAccelRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-	LSM9DS0->accelero->axis3.x = (LSM9DS0->aRes*(double)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->abias[0];
-	LSM9DS0->accelero->axis3.y = (LSM9DS0->aRes*(double)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->abias[1];
-	LSM9DS0->accelero->axis3.z = (LSM9DS0->aRes*(double)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->abias[2];
+	LSM9DS0->accelero->axis3.x = (LSM9DS0->aRes*(double)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->abias[0];
+	LSM9DS0->accelero->axis3.y = (LSM9DS0->aRes*(double)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->abias[1];
+	LSM9DS0->accelero->axis3.z = (LSM9DS0->aRes*(double)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->abias[2];
 
 	if(LSM9DS0->onAccelData)
 		LSM9DS0->onAccelData(LSM9DS0);
@@ -955,9 +955,9 @@ static void _mp_drv_LSM9DS0_onAccelCalibrationRead(mp_regMaster_op_t *operand, m
 			return;
 	}
 
-	LSM9DS0->abiasCal[0] += (LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0];
-	LSM9DS0->abiasCal[1] += (LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2];
-	LSM9DS0->abiasCal[2] += (LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4];
+	LSM9DS0->abiasCal[0] += (int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]);
+	LSM9DS0->abiasCal[1] += (int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]);
+	LSM9DS0->abiasCal[2] += (int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]);
 	LSM9DS0->abiasCal[3]++;
 
 	if(LSM9DS0->abiasCal[3] == LSM9DS0_ACCELERO_CALIBRATION_COUNT) {

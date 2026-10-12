@@ -1,0 +1,25 @@
+export const phi = {
+	kind: "board",
+	name: "ak-stm32-lkit",
+	vendor: "Artekit",
+	label: "Artekit AK-STM32-LKIT",
+	description: "STM32F103T8 board: 8 MHz quartz, RS-232 on USART1, USB device, 20-pin JTAG. D1 and D2 sink into PA0 and PA1.",
+	arch: "stm32",
+	series: "f1",
+	mcu: "stm32f103t8",
+	toolchain: "gcc",
+	requires: ["ak-link"],
+	app: "sysinfo",
+	defines: [],
+	modules: ["SERIAL", "SENSOR"],
+	drivers: ["LED"],
+	settings: {
+		MP_MEM_SIZE: 4096,
+		MP_MEM_CHUNK: 64,
+	},
+	devices: [
+		{ driver: "LED", name: "d1", options: { port: "pa0", reverse: true } },
+		{ driver: "LED", name: "d2", options: { port: "pa1", reverse: true } },
+		{ bus: "uart", name: "console", options: { gate: "USART1", txd: "pa9", rxd: "pa10", baudRate: "115200" } },
+	],
+}

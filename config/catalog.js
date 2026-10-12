@@ -4,7 +4,7 @@ import { pathToFileURL } from "url"
 
 const roots = ["arch", "common", "drivers", "app", "boards"]
 const skipped = new Set(["node_modules", "build", ".git"])
-const kinds = ["kernel", "module", "driver", "arch", "series", "app", "board"]
+const kinds = ["kernel", "module", "driver", "arch", "series", "app", "board", "probe"]
 
 function walk(dir, found) {
 	const entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -37,6 +37,11 @@ function normalize(record) {
 		data.boot = fix(data.boot)
 		for (const mcu of data.mcus || [])
 			mcu.ld = mcu.ld ? join(dir, mcu.ld) : null
+	}
+	if (kind === "probe") {
+		data.files = fix(data.files)
+		for (const target of data.targets || [])
+			target.script = join(dir, target.script)
 	}
 }
 
@@ -108,6 +113,7 @@ export async function loadCatalog(root) {
 		series: of("series"),
 		apps: of("app"),
 		boards: of("board"),
+		probes: of("probe"),
 		problems,
 	}
 }
@@ -122,6 +128,7 @@ export function publicCatalog(catalog) {
 		series: catalog.series.map(strip),
 		apps: catalog.apps.map(strip),
 		boards: catalog.boards.map(strip),
+		probes: catalog.probes.map(strip),
 		problems: catalog.problems,
 	}
 }

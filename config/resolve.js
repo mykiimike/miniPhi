@@ -1,9 +1,22 @@
 const identifier = /^[a-z_][a-z0-9_]*$/
 const defineName = /^[A-Za-z_][A-Za-z0-9_]*(=.*)?$/
 
+/* p1.2 on MSP430 (numbered ports), pa12 on STM32 (lettered ports) */
+/** pinout.h aliases PHI_<DRIVER>_<RANK> to the devices of a driver, in board order */
+export const deviceRanks = ["first", "second", "third", "fourth"]
+
 export function parsePin(pin) {
-	const match = /^p(\d+)\.(\d)$/.exec(pin || "")
-	return match ? { port: Number(match[1]), bit: Number(match[2]) } : null
+	const numbered = /^p(\d+)\.(\d)$/.exec(pin || "")
+	if (numbered)
+		return { port: Number(numbered[1]), bit: Number(numbered[2]) }
+	const lettered = /^p([a-k])(\d{1,2})$/.exec(pin || "")
+	return lettered ? { port: lettered[1].toUpperCase(), bit: Number(lettered[2]) } : null
+}
+
+/* irqPorts: whole ports have a vector. irqLines: any pin can, one per line number (STM32 EXTI) */
+export function pinHasIrq(mcu, pin) {
+	const parsed = parsePin(pin)
+	return !!parsed && (!!mcu.irqLines || (mcu.irqPorts || []).includes(parsed.port))
 }
 
 function clone(value) {
@@ -27,6 +40,7 @@ export function emptySelection(catalog, previous) {
 		devices: [],
 		app: null,
 		sources: [],
+		probes: [],
 	}
 }
 
@@ -46,13 +60,15 @@ export function boardSelection(catalog, board, previous) {
 		devices: clone(data.devices || []),
 		app: typeof data.app === "string" ? data.app : null,
 		sources: [...(data.sources || [])],
+		probes: [...(data.requires || [])],
 	}
 }
 
 export function migrateSelection(selection) {
+	const probes = selection.probes || []
 	if (Array.isArray(selection.app))
-		return { ...selection, app: null, sources: [...(selection.sources || []), ...selection.app] }
-	return { ...selection, app: selection.app || null, sources: selection.sources || [] }
+		return { ...selection, app: null, sources: [...(selection.sources || []), ...selection.app], probes }
+	return { ...selection, app: selection.app || null, sources: selection.sources || [], probes }
 }
 
 export function neededDevices(catalog, selection) {
@@ -242,8 +258,12 @@ export function analyze(catalog, sel, exists) {
 	const useGate = (gate, owner) => (gates[gate] = gates[gate] || []).push(owner)
 
 	for (const reserved of series.data.reserved || []) {
-		if (reserved.when && !settingValue(reserved.when))
-			continue
+		if (reserved.when) {
+			const negated = reserved.when.startsWith("!")
+			const value = !!settingValue(negated ? reserved.when.slice(1) : reserved.when)
+			if (value === negated)
+				continue
+		}
 		const owner = { kind: "reserved", label: reserved.who }
 		if (reserved.pin)
 			usePin(reserved.pin, owner)
@@ -253,6 +273,7 @@ export function analyze(catalog, sel, exists) {
 
 	const buses = arch.data.buses || {}
 	const macros = new Map()
+	const irqLines = new Map()
 
 	const devices = (sel.devices || []).map((device, index) => {
 		const driver = device.driver ? drivers.get(device.driver) : null
@@ -304,7 +325,9 @@ export function analyze(catalog, sel, exists) {
 		if (!identifier.test(device.name || ""))
 			issue("error", view, label + ": names use a-z, 0-9 and _.", nameRef)
 		const macro = "PHI_" + (driver ? driver.name + "_" : "") + String(device.name || "").toUpperCase()
-		if (macros.has(macro))
+		if (driver && deviceRanks.includes(String(device.name).toLowerCase()))
+			issue("error", view, macro + " is reserved for the " + String(device.name).toLowerCase() + " " + driver.name + " device.", nameRef)
+		else if (macros.has(macro))
 			issue("error", view, macro + " names two devices.", nameRef)
 		else
 			macros.set(macro, index)
@@ -328,8 +351,15 @@ export function analyze(catalog, sel, exists) {
 					issue("error", view, label + ": " + value + " does not exist on " + mcu.label + ".", refs)
 				}
 				else {
-					if (option.irq && !(mcu.irqPorts || []).includes(parsed.port))
+					if (option.irq && !pinHasIrq(mcu, value))
 						issue("error", view, label + ": " + option.label + " needs an interrupt pin. Only P" + (mcu.irqPorts || []).join(" and P") + " have one.", refs)
+					if (option.irq && mcu.irqLines) {
+						const other = irqLines.get(parsed.bit)
+						if (other && other.pin !== value)
+							issue("error", view, label + ": " + option.label + " on " + value + " shares interrupt line " + parsed.bit + " with " + other.label + " on " + other.pin + ".", refs)
+						else
+							irqLines.set(parsed.bit, { pin: value, label })
+					}
 					usePin(value, { kind, label, device: index, option: option.name, optionLabel: option.label, driver: device.driver || null })
 				}
 			}
@@ -470,6 +500,31 @@ export function analyze(catalog, sel, exists) {
 
 	const strip = (record) => ({ name: record.name, label: record.data.label, description: record.data.description, path: record.path })
 
+	const makeTargets = new Map([["all", "the configurator"], ["clean", "the configurator"]])
+	const probes = []
+	for (const name of sel.probes || []) {
+		const record = catalog.probes.find((item) => item.name === name)
+		if (!record) {
+			issue("error", "target", (board ? board.data.label : "The selection") + " requires the probe " + name + ", which has no _phi.js.")
+			continue
+		}
+		for (const file of record.data.files || [])
+			if (!exists(file))
+				issue("error", "build", record.data.label + ": " + file + " is missing.")
+		const targets = []
+		for (const target of record.data.targets || []) {
+			if (!exists(target.script))
+				issue("error", "build", record.data.label + ": " + target.script + " is missing.")
+			if (makeTargets.has(target.name)) {
+				issue("error", "build", "make " + target.name + " is declared by " + makeTargets.get(target.name) + " and " + record.data.label + ".")
+				continue
+			}
+			makeTargets.set(target.name, record.data.label)
+			targets.push({ name: target.name, label: target.label || target.name, script: target.script, args: target.args || "" })
+		}
+		probes.push({ ...strip(record), vendor: record.data.vendor || null, targets })
+	}
+
 	return {
 		target: {
 			arch: { ...strip(arch), define: arch.data.define },
@@ -523,6 +578,7 @@ export function analyze(catalog, sel, exists) {
 			needs,
 		} : null,
 		extra: (sel.sources || []).map((source) => ({ path: source, exists: exists(source) })),
+		probes,
 		vars,
 		ram: { total: mcu.ram, used: ramUsed, items: ramItems },
 		issues,

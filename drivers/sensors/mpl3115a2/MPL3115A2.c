@@ -533,7 +533,7 @@ static void _mp_drv_MPL3115A2_readPressureControl(mp_regMaster_op_t *operand, mp
 static void _mp_drv_MPL3115A2_readAltimeterControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
 	float tempcsb = (operand->wait[2]>>4)/16.0;
-	float altitude = (float)( (operand->wait[0] << 8) | operand->wait[1]) + tempcsb;
+	float altitude = (float)(int16_t)((operand->wait[0] << 8) | operand->wait[1]) + tempcsb;
 
 	if(MPL3115A2->sensor->altimeter.conversion == MP_SENSOR_ALTIMETER_FEET)
 		MPL3115A2->sensor->altimeter.result = altitude;
