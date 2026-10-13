@@ -42,6 +42,9 @@ static mp_bool_t __isInit = NO;
 static mp_list_t __list;
 static mp_task_t *__controler = NULL;
 static mp_adc_t * volatile __selected_channel = NULL;
+static mp_kernel_t *__kernel = NULL;
+static int __users = 0;
+static mp_adc_t __hold;
 
 mp_ret_t mp_adc_create(mp_kernel_t *kernel, mp_adc_t *adc, mp_options_t *options, const char *who) {
 	int timer = 100;
@@ -153,6 +156,7 @@ static void __auto_init(mp_kernel_t *kernel) {
 	if(__isInit == YES)
 		return;
 
+	__kernel = kernel;
 	__selected_channel = NULL;
 	mp_list_init(&__list);
 
@@ -196,6 +200,63 @@ static void __auto_fini(mp_kernel_t *kernel) {
 	RCC->APB2ENR &= ~RCC_APB2_ADC1;
 
 	__isInit = NO;
+	__kernel = NULL;
+}
+
+mp_ret_t mp_adc_open(mp_kernel_t *kernel) {
+	__auto_init(kernel);
+	if(__isInit == NO)
+		return(FALSE);
+	__users++;
+	return(TRUE);
+}
+
+void mp_adc_close(void) {
+	if(__users > 0)
+		__users--;
+	if(__users == 0 && __list.first == NULL && __kernel)
+		__auto_fini(__kernel);
+}
+
+int mp_adc_convert(int channel) {
+	unsigned long saved = 0;
+	unsigned long spins;
+	int result;
+	int busy = 0;
+
+	if(__isInit == NO || channel < 0 || channel > MP_ADC_CHANNEL_VREF)
+		return(-1);
+
+	/* the controller and the end-of-conversion interrupt must not run this one */
+	MP_INTERRUPT_SAFE_BEGIN
+	if(__selected_channel != NULL)
+		busy = 1;
+	else {
+		saved = ADC1->CR1;
+		ADC1->CR1 = saved & ~ADC_CR1_EOCIE;
+		__selected_channel = &__hold;
+	}
+	MP_INTERRUPT_SAFE_END
+	if(busy)
+		return(-1);
+
+	ADC1->SQR3 = (unsigned long)channel;
+	(void)ADC1->DR;
+	ADC1->CR2 |= ADC_CR2_SWSTART;
+
+	spins = 100000;
+	while(!(ADC1->SR & ADC_SR_EOC) && spins)
+		spins--;
+	result = spins ? (int)(ADC1->DR & 0xFFF) : -1;
+
+	MP_INTERRUPT_SAFE_BEGIN
+	__selected_channel = NULL;
+	ADC1->CR1 = saved;
+	MP_INTERRUPT_SAFE_END
+
+	if(__controler)
+		mp_task_signal(__controler, MP_TASK_SIG_PENDING);
+	return(result);
 }
 
 MP_TASK(adcControler) {
@@ -269,7 +330,8 @@ static void _mp_adc_interrupt(void *user) {
 		return;
 
 	/* reading DR clears EOC */
-	if(!adc) {
+	/* reading DR clears EOC; a polled conversion holds the slot with no task */
+	if(!adc || !adc->task) {
 		(void)ADC1->DR;
 		return;
 	}

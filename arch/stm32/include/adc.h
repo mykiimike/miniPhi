@@ -60,4 +60,14 @@
 	mp_ret_t mp_adc_state();
 	void mp_adc_restore(mp_bool_t status);
 
+	/** keeps ADC1 on when no channel owns it; paired with mp_adc_close() */
+	mp_ret_t mp_adc_open(mp_kernel_t *kernel);
+	void mp_adc_close(void);
+
+	/**
+	 * One polled conversion on ADC1, 0 to 4095.
+	 * -1 when the channel is invalid or a conversion is already running.
+	 */
+	int mp_adc_convert(int channel);
+
 #endif

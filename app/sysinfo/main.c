@@ -23,6 +23,9 @@
  * uptime, tasks and sensors every SYSINFO_PERIOD ms.
  * Delays are milliseconds and follow mp_clock_tick_hz().
  * When the board has LEDs, the first one blinks SOS in Morse, the second HELP.
+ * On an ILI932x screen the TUI opens on a home of applications. System is the
+ * first: a scrollable page with about, version, copyright, license and the
+ * live figures. Back returns to the home.
  */
 
 #include <mp.h>
@@ -53,6 +56,38 @@ struct sysinfo_s {
 		int step;
 	} leds[2];
 	mp_task_t *morse;
+#endif
+
+#if defined(SUPPORT_DRV_LCD_ILI932X) && defined(PHI_ILI932X_LCD)
+	struct {
+		mp_drv_ili932x_t lcd;
+		mp_tui_t tui;
+		mp_bool_t ready;
+		mp_task_t *task;
+#ifdef SUPPORT_COMMON_INPUT
+		mp_input_t keys;
+#endif
+#if defined(SUPPORT_DRV_TOUCH_RESISTIVE) && defined(PHI_RESISTIVE_TOUCH)
+		mp_drv_resistive_t touch;
+		mp_bool_t touchReady;
+#endif
+		int systemReady;
+		mp_tui_label_t heading;
+		mp_tui_label_t copyright;
+		mp_tui_label_t license;
+		mp_tui_window_t system;
+		mp_tui_window_t status;
+		mp_tui_label_t board;
+		mp_tui_label_t cpu;
+		mp_tui_label_t clock;
+		mp_tui_label_t memory;
+		mp_tui_label_t build;
+		mp_tui_label_t target;
+		mp_tui_label_t uptime;
+		mp_tui_label_t tasks;
+		mp_tui_bar_t taskBar;
+		mp_tui_label_t sensors[2];
+	} screen;
 #endif
 };
 
@@ -105,6 +140,22 @@ static const char _help[] =
 
 static void _sysinfo_morse_led(sysinfo_t *sysinfo, int index, mp_options_t *options, const char *pattern, char *who);
 static MP_TASK(_sysinfo_morse);
+#endif
+
+#if defined(SUPPORT_DRV_LCD_ILI932X) && defined(PHI_ILI932X_LCD)
+#define SYSINFO_SCREEN
+
+/* one display row is enough; more rows mean fewer, longer writes */
+#define SYSINFO_SCREEN_ROWS 8
+
+static mp_tui_color_t _sysinfo_pixels[320 * SYSINFO_SCREEN_ROWS];
+
+static void _sysinfo_system(mp_tui_widget_t *page, void *user);
+static void _sysinfo_screen_refresh(sysinfo_t *sysinfo);
+static void _sysinfo_console_read(sysinfo_t *sysinfo);
+static void _sysinfo_screen_open(sysinfo_t *sysinfo);
+static void _sysinfo_screen_close(sysinfo_t *sysinfo);
+static MP_TASK(_sysinfo_screen);
 #endif
 
 static sysinfo_t _sysinfo;
@@ -161,11 +212,20 @@ static void _sysinfo_op_set(void *user) {
 		);
 #endif
 
-	if(mp_serial_open(&sysinfo->kernel, &sysinfo->serial, console, "Console") == FALSE)
+	if(mp_serial_open(&sysinfo->kernel, &sysinfo->serial, console, "Console") == FALSE) {
+#ifdef SYSINFO_SCREEN
+		_sysinfo_screen_open(sysinfo);
+#endif
 		return;
+	}
 
 	sysinfo->console = YES;
 	mp_printk_set(_sysinfo_printk, sysinfo);
+
+#ifdef SYSINFO_SCREEN
+	/* after the console, so the driver messages show */
+	_sysinfo_screen_open(sysinfo);
+#endif
 
 	/* lets the arch publish its own sensors, such as the die temperature */
 	mp_machine_state_set(&sysinfo->kernel);
@@ -185,6 +245,10 @@ static void _sysinfo_op_unset(void *user) {
 		mp_task_destroy(sysinfo->task);
 		sysinfo->task = NULL;
 	}
+
+#ifdef SYSINFO_SCREEN
+	_sysinfo_screen_close(sysinfo);
+#endif
 
 #ifdef SYSINFO_MORSE
 	if(sysinfo->morse) {
@@ -269,6 +333,214 @@ static MP_TASK(_sysinfo_morse) {
 		if(sysinfo->leds[index].pattern[++sysinfo->leds[index].step] == '\0')
 			sysinfo->leds[index].step = 0;
 	}
+}
+#endif
+
+#ifdef SYSINFO_SCREEN
+static void _sysinfo_field(mp_tui_label_t *label, mp_tui_widget_t *parent, int x, int y, int w, int line, const char *text) {
+	mp_tui_label(label, parent, x, y, w, line, text);
+}
+
+static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
+	sysinfo_t *sysinfo = user;
+	mp_tui_t *tui = page->tui;
+	mp_kernel_t *kernel = &sysinfo->kernel;
+	unsigned long speed = mp_clock_get_speed();
+	int line = tui->theme.font->lineHeight + 1;
+	int width = page->rect.w;
+	int y = 4;
+	int statusH;
+	mp_tui_widget_t *client;
+
+	mp_tui_label(&sysinfo->screen.heading, page, 0, y, width, line, "");
+	mp_tui_label_set(&sysinfo->screen.heading, "miniPhi %s - %s", kernel->version, PHI_BUILD_BOARD);
+	mp_tui_label_align(&sysinfo->screen.heading, MP_TUI_ALIGN_CENTER);
+	mp_tui_label_color(&sysinfo->screen.heading, tui->theme.accent);
+	y += line;
+
+	mp_tui_label(&sysinfo->screen.copyright, page, 0, y, width, line, "(c) Michael Vergoz");
+	mp_tui_label_align(&sysinfo->screen.copyright, MP_TUI_ALIGN_CENTER);
+	mp_tui_label_color(&sysinfo->screen.copyright, tui->theme.muted);
+	y += line;
+
+	mp_tui_label(&sysinfo->screen.license, page, 0, y, width, line, "GNU GPL v3 or later");
+	mp_tui_label_align(&sysinfo->screen.license, MP_TUI_ALIGN_CENTER);
+	mp_tui_label_color(&sysinfo->screen.license, tui->theme.muted);
+	y += line + 4;
+
+	/* title bar plus the six facts */
+	mp_tui_window(&sysinfo->screen.system, page, 4, y, width - 8, line * 6 + line + 10, "System");
+	client = MP_TUI_WIDGET(&sysinfo->screen.system);
+	_sysinfo_field(&sysinfo->screen.board, client, 6, 2, width - 22, line, "");
+	mp_tui_label_set(&sysinfo->screen.board, "Board  %s, app %s", PHI_BUILD_BOARD, PHI_BUILD_APP);
+	_sysinfo_field(&sysinfo->screen.cpu, client, 6, 2 + line, width - 22, line, "");
+	mp_tui_label_set(&sysinfo->screen.cpu, "CPU    %s", kernel->mcuName ? kernel->mcuName : "unknown");
+	_sysinfo_field(&sysinfo->screen.clock, client, 6, 2 + line * 2, width - 22, line, "");
+	mp_tui_label_set(&sysinfo->screen.clock, "Clock  %lu.%02lu MHz", speed / 1000000, (speed / 10000) % 100);
+	_sysinfo_field(&sysinfo->screen.memory, client, 6, 2 + line * 3, width - 22, line, "");
+	mp_tui_label_set(&sysinfo->screen.memory, "Memory %lu KB flash, %lu KB RAM", PHI_BUILD_FLASH / 1024, PHI_BUILD_RAM / 1024);
+	_sysinfo_field(&sysinfo->screen.build, client, 6, 2 + line * 4, width - 22, line, "");
+	mp_tui_label_set(&sysinfo->screen.build, "Build  %s %s", __DATE__, __TIME__);
+	_sysinfo_field(&sysinfo->screen.target, client, 6, 2 + line * 5, width - 22, line, "");
+	mp_tui_label_set(&sysinfo->screen.target, "Target %s / %s / %s", PHI_BUILD_ARCH, PHI_BUILD_SERIES, PHI_BUILD_MCU);
+	y += sysinfo->screen.system.widget.rect.h + 4;
+
+	statusH = line * 4 + line + 10;
+	if(y + statusH + 4 < page->rect.h)
+		statusH = page->rect.h - y - 4;
+	mp_tui_window(&sysinfo->screen.status, page, 4, y, width - 8, statusH, "Status");
+	client = MP_TUI_WIDGET(&sysinfo->screen.status);
+	_sysinfo_field(&sysinfo->screen.uptime, client, 6, 2, width - 22, line, "Uptime");
+	_sysinfo_field(&sysinfo->screen.tasks, client, 6, 2 + line, 110, line, "Tasks");
+	mp_tui_bar(&sysinfo->screen.taskBar, client, 120, 2 + line + 2, width - 140, line > 4 ? line - 4 : line, MP_TASK_MAX);
+	_sysinfo_field(&sysinfo->screen.sensors[0], client, 6, 2 + line * 2, width - 22, line, "");
+	_sysinfo_field(&sysinfo->screen.sensors[1], client, 6, 2 + line * 3, width - 22, line, "");
+	mp_tui_label_color(&sysinfo->screen.sensors[0], tui->theme.muted);
+	mp_tui_label_color(&sysinfo->screen.sensors[1], tui->theme.muted);
+
+	sysinfo->screen.systemReady = 1;
+	_sysinfo_screen_refresh(sysinfo);
+}
+
+#ifdef SUPPORT_COMMON_INPUT
+/* the console is a keyboard for the TUI; j, k and b stand for down, up and back */
+static void _sysinfo_console_key(sysinfo_t *sysinfo, unsigned char c) {
+	mp_input_t *keys = &sysinfo->screen.keys;
+
+	if(c == 'j' || c == 'J')
+		mp_input_key(keys, MP_INPUT_KEY_DOWN);
+	else if(c == 'k' || c == 'K')
+		mp_input_key(keys, MP_INPUT_KEY_UP);
+	else if(c == 'b' || c == 'B')
+		mp_input_key(keys, MP_INPUT_KEY_ESCAPE);
+	else
+		mp_input_terminal(keys, c);
+}
+#endif
+
+static void _sysinfo_console_read(sysinfo_t *sysinfo) {
+#ifdef SUPPORT_COMMON_INPUT
+	mp_circular_t *cir;
+	mp_circular_buffer_t *buffer;
+	int index;
+
+	if(sysinfo->console == NO)
+		return;
+	cir = &sysinfo->serial.rxCir;
+	while(cir->totalSize > 0) {
+		buffer = mp_circular_read(cir);
+		if(!buffer || buffer->size == 0) {
+			if(buffer)
+				mp_mem_free(&sysinfo->kernel, buffer);
+			return;
+		}
+		for(index = 0; index < buffer->size; index++)
+			_sysinfo_console_key(sysinfo, buffer->data[index]);
+		mp_mem_free(&sysinfo->kernel, buffer);
+	}
+#else
+	(void)sysinfo;
+#endif
+}
+
+static void _sysinfo_screen_open(sysinfo_t *sysinfo) {
+	mp_options_t options[] = PHI_ILI932X_LCD;
+	mp_kernel_t *kernel = &sysinfo->kernel;
+	mp_tui_t *tui = &sysinfo->screen.tui;
+
+	if(mp_drv_ili932x_init(kernel, &sysinfo->screen.lcd, options, "LCD") == FALSE)
+		return;
+	if(!mp_tui_init(tui, &sysinfo->screen.lcd.display, _sysinfo_pixels, sizeof(_sysinfo_pixels) / sizeof(_sysinfo_pixels[0]))) {
+		mp_drv_ili932x_fini(&sysinfo->screen.lcd);
+		return;
+	}
+
+	if(!mp_tui_app(tui, "System", _sysinfo_system, sysinfo)) {
+		mp_tui_fini(tui);
+		mp_drv_ili932x_fini(&sysinfo->screen.lcd);
+		return;
+	}
+
+#ifdef SUPPORT_COMMON_INPUT
+	if(sysinfo->console == YES)
+		mp_input_init(kernel, &sysinfo->screen.keys, MP_INPUT_CAP_KEYS, "Console");
+#endif
+#if defined(SUPPORT_DRV_TOUCH_RESISTIVE) && defined(PHI_RESISTIVE_TOUCH)
+	{
+		mp_options_t touch[] = PHI_RESISTIVE_TOUCH;
+		sysinfo->screen.touchReady = mp_drv_resistive_init(kernel, &sysinfo->screen.touch, touch, "Touch") == TRUE;
+	}
+#endif
+
+	sysinfo->screen.ready = YES;
+	mp_tui_attach(kernel, tui, "TUI");
+	sysinfo->screen.task = mp_task_create(&kernel->tasks, "Screen", _sysinfo_screen, sysinfo, _sysinfo_ticks(50));
+}
+
+static void _sysinfo_screen_close(sysinfo_t *sysinfo) {
+	if(sysinfo->screen.ready == NO)
+		return;
+	if(sysinfo->screen.task) {
+		mp_task_destroy(sysinfo->screen.task);
+		sysinfo->screen.task = NULL;
+	}
+#ifdef SUPPORT_COMMON_INPUT
+	mp_input_fini(&sysinfo->screen.keys);
+#endif
+#if defined(SUPPORT_DRV_TOUCH_RESISTIVE) && defined(PHI_RESISTIVE_TOUCH)
+	if(sysinfo->screen.touchReady == YES) {
+		mp_drv_resistive_fini(&sysinfo->screen.touch);
+		sysinfo->screen.touchReady = NO;
+	}
+#endif
+	mp_tui_fini(&sysinfo->screen.tui);
+	mp_drv_ili932x_fini(&sysinfo->screen.lcd);
+	sysinfo->screen.ready = NO;
+}
+
+static void _sysinfo_screen_refresh(sysinfo_t *sysinfo) {
+	mp_kernel_t *kernel = &sysinfo->kernel;
+	unsigned long hz = mp_clock_tick_hz();
+	unsigned long seconds = hz ? mp_clock_ticks() / hz : 0;
+	int index = 0;
+
+	if(!sysinfo->screen.systemReady)
+		return;
+
+	mp_tui_label_set(&sysinfo->screen.uptime, "Uptime   %lu:%02lu:%02lu",
+		seconds / 3600, (seconds / 60) % 60, seconds % 60);
+	mp_tui_label_set(&sysinfo->screen.tasks, "Tasks    %u/%u",
+		kernel->tasks.usedNumber, (unsigned int)MP_TASK_MAX);
+	mp_tui_bar_set(&sysinfo->screen.taskBar, kernel->tasks.usedNumber);
+
+#ifdef SUPPORT_COMMON_SENSOR
+	{
+		mp_list_item_t *item;
+		mp_sensor_t *sensor;
+
+		for(item = kernel->sensors.list.first; item != NULL && index < 2; item = item->next) {
+			sensor = item->user;
+			if(sensor->type == MP_SENSOR_TEMPERATURE)
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.1f °C", sensor->idName, (double)sensor->temperature.result);
+			else if(sensor->type == MP_SENSOR_VOLTAGE)
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.3f V", sensor->idName, (double)sensor->voltage.result);
+		}
+	}
+#endif
+	while(index < 2)
+		mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s", "");
+}
+
+static MP_TASK(_sysinfo_screen) {
+	sysinfo_t *sysinfo = task->user;
+
+	if(task->signal == MP_TASK_SIG_STOP) {
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+
+	_sysinfo_console_read(sysinfo);
+	_sysinfo_screen_refresh(sysinfo);
 }
 #endif
 

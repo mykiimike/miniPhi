@@ -48,6 +48,7 @@
 	#include "i2c.h"
 	#include "uart.h"
 	#include "spi.h"
+	#include "fsmc.h"
 	#include "adc.h"
 
 	typedef struct mp_arch_stm32_s mp_arch_t;

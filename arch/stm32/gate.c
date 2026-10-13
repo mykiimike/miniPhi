@@ -51,6 +51,8 @@ static mp_gate_t __gates[] = {
 	{ "TIM6", NO, NULL, TIM6, TIM6_IRQn, -1, &RCC->APB1ENR, RCC_APB1_TIM6, 1, NULL, NULL, NULL },
 	{ "TIM7", NO, NULL, TIM7, TIM7_IRQn, -1, &RCC->APB1ENR, RCC_APB1_TIM7, 1, NULL, NULL, NULL },
 	{ "TIM8", NO, NULL, TIM8, TIM8_UP_IRQn, -1, &RCC->APB2ENR, RCC_APB2_TIM8, 2, NULL, NULL, NULL },
+	/* on AHB: mp_gate_pclk() does not apply */
+	{ "FSMC", NO, NULL, FSMC_Bank1, -1, -1, &RCC->AHBENR, RCC_AHB_FSMC, 0, NULL, NULL, NULL },
 #endif
 	{ NULL }
 };

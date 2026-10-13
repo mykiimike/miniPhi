@@ -1,0 +1,24 @@
+export const phi = {
+	kind: "driver",
+	name: "ILI932X",
+	label: "ILI9320 / ILI9325 TFT",
+	description: "240x320 RGB565 TFT on the FSMC parallel bus. It is a display for the TUI.",
+	define: "SUPPORT_DRV_LCD_ILI932X",
+	sources: ["ili932x.c"],
+	headers: ["ili932x.h"],
+	buses: ["fsmc"],
+	requires: ["TUI"],
+	options: [
+		{ name: "reset", label: "Reset", type: "pin" },
+		{ name: "backlight", label: "Backlight", type: "pin" },
+		{ name: "backlightLow", label: "Backlight active low", type: "bool", default: false },
+		{
+			name: "orientation",
+			label: "Orientation",
+			type: "enum",
+			values: ["landscape", "portrait", "landscape-flipped", "portrait-flipped"],
+			labels: ["Landscape 320x240", "Portrait 240x320", "Landscape, upside down", "Portrait, upside down"],
+			default: "landscape",
+		},
+	],
+}

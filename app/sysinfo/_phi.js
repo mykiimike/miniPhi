@@ -2,7 +2,7 @@ export const phi = {
 	kind: "app",
 	name: "sysinfo",
 	label: "System info",
-	description: "Prints the miniPhi banner, the version, the build and the CPU on a UART console, then reports uptime, tasks and sensors. Blinks SOS on the first LED and HELP on the second when the board has them.",
+	description: "Prints the miniPhi banner, the version, the build and the CPU on a UART console, then reports uptime, tasks and sensors. Blinks SOS on the first LED and HELP on the second when the board has them. On an ILI932x screen the TUI home lists System, a scrollable page with about, version, copyright, license and the live figures.",
 	sources: ["main.c"],
 	requires: ["SERIAL", "SENSOR"],
 	devices: [

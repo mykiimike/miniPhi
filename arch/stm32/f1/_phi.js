@@ -29,6 +29,11 @@ const high = {
 	TIM6: { kinds: ["timer"] },
 	TIM7: { kinds: ["timer"] },
 	TIM8: { kinds: ["timer"] },
+	/* D0 to D15, NOE and NWE; cs and rs are options of the device */
+	FSMC: {
+		kinds: ["fsmc"],
+		claims: ["pd14", "pd15", "pd0", "pd1", "pe7", "pe8", "pe9", "pe10", "pe11", "pe12", "pe13", "pe14", "pe15", "pd8", "pd9", "pd10", "pd4", "pd5"],
+	},
 }
 
 export const phi = {

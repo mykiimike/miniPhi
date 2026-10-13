@@ -378,6 +378,8 @@ export function analyze(catalog, sel, exists) {
 					if (option.gateKind && !gate.kinds.includes(option.gateKind))
 						issue("error", view, label + ": " + value + " cannot run " + (buses[bus] ? buses[bus].label : option.gateKind) + ".", refs)
 					useGate(value, { kind, label, device: index, driver: device.driver || null })
+					for (const pin of gate.claims || [])
+						usePin(pin, { kind, label: label + " (" + value + ")", device: index, option: option.name, optionLabel: option.label, driver: device.driver || null })
 				}
 			}
 

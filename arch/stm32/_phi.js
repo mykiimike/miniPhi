@@ -10,6 +10,7 @@ export const phi = {
 		"include/adc.h",
 		"include/clock.h",
 		"include/flash.h",
+		"include/fsmc.h",
 		"include/gate.h",
 		"include/gpio.h",
 		"include/i2c.h",
@@ -23,6 +24,7 @@ export const phi = {
 	sources: [
 		"adc.c",
 		"flash.c",
+		"fsmc.c",
 		"gate.c",
 		"gpio.c",
 		"i2c.c",
@@ -66,6 +68,16 @@ export const phi = {
 				{ name: "clk", label: "SCK", type: "pin", required: true },
 			],
 		},
+		fsmc: {
+			label: "Parallel LCD (FSMC)",
+			options: [
+				gate("fsmc", "FSMC"),
+				{ name: "cs", label: "Chip select (NE1 PD7, NE2 PG9, NE3 PG10, NE4 PG12)", type: "pin", required: true },
+				{ name: "rs", label: "RS (an address line: A0 PF0, A16 PD11, A19 PE3...)", type: "pin", required: true },
+				{ name: "writeCycle", label: "Write cycle", type: "number", unit: "ns", default: 100, min: 30, max: 3000 },
+				{ name: "readCycle", label: "Read cycle", type: "number", unit: "ns", default: 500, min: 30, max: 3000 },
+			],
+		},
 	},
 	toolchains: [
 		{
@@ -94,6 +106,8 @@ export const phi = {
 				"-ffunction-sections",
 				"-fdata-sections",
 				"-fno-common",
+				"-MMD",
+				"-MP",
 			],
 			ldflags: [
 				"-mcpu=$(CPU)",

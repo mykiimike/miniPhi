@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "url"
 import { loadCatalog, publicCatalog } from "./catalog.js"
 import { analyze, boardSelection, emptySelection, migrateSelection, neededDevices } from "./resolve.js"
 import { boardSource, buildFiles, writeBuild } from "./generate.js"
-import { runPrepare } from "./prepare.js"
+import { runGenerate, runPrepare } from "./prepare.js"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, "..")
@@ -68,7 +68,8 @@ ipcMain.handle("phi:write", async (_event, selection) => {
 	const { analysis, files } = await evaluate(selection)
 	if (!analysis.target || analysis.issues.some((item) => item.level === "error"))
 		throw new Error("Fix the errors before writing build/.")
-	return writeBuild(root, analysis, files)
+	const generated = await runGenerate(root, catalog, analysis, selection)
+	return writeBuild(root, analysis, { ...files, ...generated })
 })
 
 ipcMain.handle("phi:make", (_event, target) => new Promise((resolve) => {

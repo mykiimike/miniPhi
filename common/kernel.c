@@ -71,6 +71,10 @@ void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) 
 	mp_sensor_init(kernel);
 #endif
 
+#ifdef SUPPORT_COMMON_INPUT
+	mp_list_init(&kernel->inputs);
+#endif
+
 	/* initialize tasks */
 	mp_task_init(kernel, &kernel->tasks);
 

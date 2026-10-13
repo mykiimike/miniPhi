@@ -152,6 +152,24 @@
 	#define RCC    ((RCC_TypeDef *)0x40021000)
 	#define FLASH  ((FLASH_TypeDef *)0x40022000)
 
+	/* FSMC bank 1: BTCR holds BCR1, BTR1, BCR2, BTR2... and BWTR sits 0x104 further */
+	typedef struct {
+		__IO uint32_t BTCR[8];
+	} FSMC_Bank1_TypeDef;
+
+	typedef struct {
+		__IO uint32_t BWTR[7];
+	} FSMC_Bank1E_TypeDef;
+
+	#define FSMC_Bank1  ((FSMC_Bank1_TypeDef *)0xA0000000)
+	#define FSMC_Bank1E ((FSMC_Bank1E_TypeDef *)0xA0000104)
+	#define FSMC_BANK1_MEMORY 0x60000000UL
+
+	#define FSMC_BCR_MBKEN   (1UL << 0)
+	#define FSMC_BCR_MWID_16 (1UL << 4)
+	#define FSMC_BCR_WREN    (1UL << 12)
+	#define FSMC_BCR_EXTMOD  (1UL << 14)
+
 	#define DBGMCU_IDCODE (*(__IO uint32_t *)0xE0042000)
 	#define FLASH_SIZE_KB (*(__IO uint16_t *)0x1FFFF7E0)
 
@@ -169,6 +187,8 @@
 	#define RCC_CFGR_ADCPRE   (3UL << 14)
 	#define RCC_CFGR_PLLSRC   (1UL << 16)
 	#define RCC_CFGR_PLLMUL   (15UL << 18)
+
+	#define RCC_AHB_FSMC      (1UL << 8)
 
 	#define RCC_APB2_AFIO     (1UL << 0)
 	#define RCC_APB2_IOPA     (1UL << 2)

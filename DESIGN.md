@@ -37,7 +37,9 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │   │   ├── task.c
 │   │   └── task.h
 │   ├── mem/  circular/  serial/  pinout/  sensor/  regmaster/  hci/
-│   └── quaternion/  kalman/  optional modules, same shape
+│   ├── quaternion/  kalman/  optional modules, same shape
+│   ├── input/       touch, mouse and keyboard gestures, read by the TUI
+│   └── tui/         Things UI, for small screens; fonts/ holds the TTF files
 │
 ├── arch/
 │   └── msp430/
@@ -201,6 +203,26 @@ flash: $(TARGET)
 
 `prepare(ctx)` checks the machine. `ctx.requireTool(cmd, hint)`, `ctx.requireFile(path, hint)` (paths may use the toolchain variables, `$(CG_TOOL_ROOT)/bin/cl430`), `ctx.info`, `ctx.warn`, `ctx.error`. It also gets `ctx.selection`, `ctx.mcu`, `ctx.toolchain`, `ctx.vars`, and `ctx.setting(name)`.
 
+`generate(ctx)` produces files when `build/` is written, not on every evaluation. It returns `{ "include/gen/<file>": content }`, gets `ctx.root`, `ctx.selection`, `ctx.setting(name)` and `ctx.compileFont(file, options)`, and two records cannot generate the same path. Objects are rebuilt when a file of `include/gen/` changes, and when a header they include changes. A setting with `emit: "none"` only feeds `generate` and stays out of `autoconf.h`.
+
+## TUI
+
+TUI is Things UI, a user interface for small screens such as the 320×240 of the STM32-LCD. When a screen starts, `mp_tui_step()` shows a splash before anything else: the word miniPhi, the logo from `config/assets/logo.svg`, `MP_KERNEL_VERSION`, the copyright and the GNU GPL v3 license, all at once. `common/tui` (module `TUI`) then draws a tree of things on any display. A display is one `write(display, x, y, w, h, pixels)` callback taking RGB565, plus an optional `flush`. There is no framebuffer: changes mark up to `MP_TUI_DIRTY_MAX` dirty rectangles, and `mp_tui_step()` renders one band of the current one into a buffer the caller gives to `mp_tui_init()`, at least one display row. Every `mp_tui_t` carries its own state, so several screens run side by side; `mp_tui_attach()` gives one a kernel task that draws a band per tick.
+
+After the splash the screen is a home. `mp_tui_app()` declares an application (a name and a function that fills a page). The home lists them. Opening one shows that page, which scrolls when the content is taller than the screen, and a Back button returns to the home. The first application is System: about, version, copyright, license, and the board, CPU, clock, memory, build, uptime and tasks.
+
+Things are caller-allocated structs that start with an `mp_tui_widget_t`: box, label, bar, window (children sit below the title), button, and a view whose children scroll. Positions are relative to the parent's client area, and drawing is clipped to it. A custom thing passes its own `mp_tui_class_t` to `mp_tui_widget_init()`; its optional `event` callback receives click, drop and wheel events, which go up to the parents until one returns non-zero. `mp_tui_widget_name()` with `mp_tui_set_text()` and `mp_tui_set_value()` updates by name, and setters only redraw when the value changes.
+
+On every tick the TUI task calls `mp_tui_poll()`, which reads every input of the kernel (see Input) and acts on the widgets. A down highlights the button under it, a click runs it. A drag moves the nearest widget flagged `MP_TUI_DRAGGABLE`, raised above its siblings, and its drop sends `MP_TUI_EVENT_DROP` with the dragged widget as `source` to what lies under the drop point. Otherwise a drag scrolls the view under it, like the wheel. Arrows, Tab, Enter, Space, Escape, Backspace and Page Up / Down drive the home and the page through `mp_tui_key()`. A mouse also gets an arrow cursor, drawn over the bands like any dirty rectangle. Events are dropped while the splash is up.
+
+`MP_TUI_FONT` picks a TrueType file of `common/tui/fonts/` (each with its license), `MP_TUI_FONT_SIZE`, `MP_TUI_FONT_BPP` (4 antialiased, 1 for pixel fonts) and `MP_TUI_FONT_CHARSET` (ASCII or Latin-1). `config/font.js` rasterizes it at write time into `include/gen/tui_font_default.h`, which is `mp_tui_font_default`, in flash. Text is UTF-8; a character the font lacks shows as a box. Other fonts compiled the same way can be given to `mp_tui_label_font()`.
+
+## Input
+
+`common/input` (module `INPUT`) turns what drivers feed into gestures. An `mp_input_t` is listed on `kernel->inputs` by `mp_input_init()` with its capabilities: touch (absolute), mouse (relative, a cursor), wheel, keys. A driver feeds it from a task or an interrupt, one producer per input: `mp_input_touch(x, y, down)`, `mp_input_motion(dx, dy)` and `mp_input_button(down)`, `mp_input_wheel(steps)`, `mp_input_key(key)`, or `mp_input_terminal(byte)` for a VT100 terminal (arrows, Home, End, Page Up / Down, Delete, a lone Escape after 50 ms). Transitions go in a queue of `MP_INPUT_QUEUE` entries, and motion is only the last position, so a fast pointer never fills it.
+
+`mp_input_read()` gives the gestures: move, down, click, drag start once the pointer leaves the press point by more than `MP_INPUT_DRAG_THRESHOLD` pixels, drag with its delta, drop, wheel and key. A press and a release between two reads still give the drag and the drop. `mp_input_bind()` keeps an input for one reader, a screen for instance, when there are several; `mp_input_next()` lists those a reader may take. Keys are their character, or `MP_INPUT_KEY_*` from 0x100. sysinfo makes its console a keyboard this way. The STM32-LCD touch panel is a resistive input on the same list.
+
 ## Checks
 
 The configurator refuses to write `build/` while one of these holds:
@@ -239,7 +261,11 @@ The arch copies the MSP430 API: same functions, same options, same `mp_uart_t` o
 
 The F1 series reserves the JTAG pins (PA13, PA14, PA15, PB3, PB4). `_SWD_ONLY` gives PA15, PB3 and PB4 back, but the firmware then turns JTAG off at boot, and the AK-LINK, which has no SWD, has to connect with SRST held (`reset_config srst_only connect_assert_srst`).
 
-`STM32F10X_HD` (the STM32F103ZE) extends the same code: 60 interrupt lines instead of 43, GPIO ports A to G, USART3, UART4, UART5, SPI2, SPI3, I2C2 and TIM5 to TIM8, and 2 KB flash pages. The medium-density build keeps the shorter vector table. On the 144-pin package the 8 MHz crystal is PD0 and PD1, so the board reserves them.
+`STM32F10X_HD` (the STM32F103ZE) extends the same code: 60 interrupt lines instead of 43, GPIO ports A to G, USART3, UART4, UART5, SPI2, SPI3, I2C2 and TIM5 to TIM8, and 2 KB flash pages. The medium-density build keeps the shorter vector table. On the 144-pin package the crystal has its own pins and PD0, PD1 are FSMC D2, D3.
+
+The `fsmc` bus drives an 8080 LCD on bank 1 in 16 bits. The `FSMC` gate claims D0 to D15, NOE and NWE through `claims` in the series, so no other device can take them; `cs` (an NE pin) and `rs` (any address line) are device options. `mp_fsmc_write_cmd()` writes with RS low, `mp_fsmc_write_data()` with RS high. The STM32-LCD wires an ILI9320 on NE1 with RS on A19 (PE3), its reset on PE2 and the backlight on PD13, active low; `drivers/lcd/ili932x` turns it into an `mp_tui_display_t` for the TUI.
+
+The same board's touch panel is a 4-wire resistive sheet, not a controller: YD is PC0, YU is PC1, XL is PC2 and XR is PC3, all ADC inputs. `drivers/touch/resistive` drives one plate and measures the other with `mp_adc_convert()`, which borrows ADC1 between the temperature samples, then feeds an `mp_input_t`. A press is the two plates meeting. Landscape uses the same corner mapping as the ILI932x.
 
 ## Code Composer files
 

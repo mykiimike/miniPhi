@@ -86,6 +86,7 @@ export async function loadCatalog(root) {
 			dir,
 			data,
 			prepare: typeof mod.prepare === "function" ? mod.prepare : null,
+			generate: typeof mod.generate === "function" ? mod.generate : null,
 		}
 		normalize(record)
 		records.push(record)
@@ -119,7 +120,7 @@ export async function loadCatalog(root) {
 }
 
 export function publicCatalog(catalog) {
-	const strip = ({ prepare, ...record }) => ({ ...record, hasPrepare: !!prepare })
+	const strip = ({ prepare, generate, ...record }) => ({ ...record, hasPrepare: !!prepare, hasGenerate: !!generate })
 	return {
 		kernel: catalog.kernel ? strip(catalog.kernel) : null,
 		modules: catalog.modules.map(strip),

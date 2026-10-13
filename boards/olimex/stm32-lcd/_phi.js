@@ -3,7 +3,7 @@ export const phi = {
 	name: "stm32-lcd",
 	vendor: "Olimex",
 	label: "Olimex STM32-LCD",
-	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. The TFT and the touch panel are not driven yet. No user LED: D1 to D4 are supply diodes, and the backlight belongs to the panel.",
+	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. ILI9320 TFT on the FSMC (NE1, RS on A19), shown by the TUI. The 4-wire touch panel is on PC0 to PC3 (YD, YU, XL, XR). No user LED: D1 to D4 are supply diodes.",
 	arch: "stm32",
 	series: "f1",
 	mcu: "stm32f103ze",
@@ -11,16 +11,15 @@ export const phi = {
 	requires: ["ak-link"],
 	app: "sysinfo",
 	defines: [],
-	modules: ["SERIAL", "SENSOR"],
-	drivers: [],
+	modules: ["SERIAL", "SENSOR", "INPUT", "TUI"],
+	drivers: ["ILI932X", "RESISTIVE"],
 	settings: {
 		MP_MEM_SIZE: 8192,
 		MP_MEM_CHUNK: 64,
+		MP_TUI_TEXT_MAX: 48,
 	},
 	/* pins wired to something the firmware does not own yet */
 	reserved: [
-		{ pin: "pd0", who: "8 MHz crystal" },
-		{ pin: "pd1", who: "8 MHz crystal" },
 		{ pin: "pc14", who: "32.768 kHz crystal" },
 		{ pin: "pc15", who: "32.768 kHz crystal" },
 		{ pin: "pa11", who: "USB D-" },
@@ -34,5 +33,15 @@ export const phi = {
 	],
 	devices: [
 		{ bus: "uart", name: "console", options: { gate: "USART1", txd: "pa9", rxd: "pa10", baudRate: "115200" } },
+		{
+			driver: "ILI932X",
+			name: "lcd",
+			options: { gate: "FSMC", cs: "pd7", rs: "pe3", reset: "pe2", backlight: "pd13", backlightLow: true, orientation: "landscape" },
+		},
+		{
+			driver: "RESISTIVE",
+			name: "touch",
+			options: { yd: "pc0", yu: "pc1", xl: "pc2", xr: "pc3", orientation: "landscape" },
+		},
 	],
 }

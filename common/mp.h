@@ -137,12 +137,24 @@
 	#ifdef SUPPORT_COMMON_KALMAN
 		#include <kalman/kalman.h>
 	#endif
+	#ifdef SUPPORT_COMMON_INPUT
+		#include <input/input.h>
+	#endif
+	#ifdef SUPPORT_COMMON_TUI
+		#include <tui/tui.h>
+	#endif
 
 	#ifdef SUPPORT_DRV_BUTTON
 		#include <button/button.h>
 	#endif
 	#ifdef SUPPORT_DRV_LED
 		#include <led/led.h>
+	#endif
+	#ifdef SUPPORT_DRV_LCD_ILI932X
+		#include <ili932x/ili932x.h>
+	#endif
+	#ifdef SUPPORT_DRV_TOUCH_RESISTIVE
+		#include <resistive/resistive.h>
 	#endif
 	#ifdef SUPPORT_DRV_LCD_NOKIA3310
 		#include <nokia3310/nokia3310.h>
@@ -169,7 +181,7 @@
 		#include <ads124x/ADS124x.h>
 	#endif
 
-	#define MP_KERNEL_VERSION "1.0.5"
+	#define MP_KERNEL_VERSION "2.0.0"
 
 	struct mp_kernel_s {
 		/** Vendor name  */
@@ -189,6 +201,11 @@
 
 		/** Sensors handler */
 		mp_sensor_handler_t sensors;
+
+#ifdef SUPPORT_COMMON_INPUT
+		/** every mp_input_t, see mp_input_next() */
+		mp_list_t inputs;
+#endif
 
 		/** Internal tick timer */
 		mp_timer_t tickTimer;
