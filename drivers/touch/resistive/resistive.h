@@ -61,6 +61,8 @@
 		int down;
 		int seen;
 		int miss;
+		/** first sample of a press, waiting for a second one that agrees */
+		int px, py;
 		/** last position sent, after the plate noise is filtered out */
 		int fx, fy;
 		int tracked;

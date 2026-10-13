@@ -16,7 +16,7 @@ export const phi = {
 	settings: {
 		MP_MEM_SIZE: 8192,
 		MP_MEM_CHUNK: 64,
-		MP_TUI_TEXT_MAX: 48,
+		MP_TUI_TEXT_MAX: 96,
 	},
 	/* pins wired to something the firmware does not own yet */
 	reserved: [
@@ -41,7 +41,7 @@ export const phi = {
 		{
 			driver: "RESISTIVE",
 			name: "touch",
-			options: { yd: "pc0", yu: "pc1", xl: "pc2", xr: "pc3", orientation: "landscape" },
+			options: { yd: "pc0", yu: "pc1", xl: "pc2", xr: "pc3", orientation: "landscape", flipY: true },
 		},
 	],
 }

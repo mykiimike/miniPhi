@@ -337,66 +337,158 @@ static MP_TASK(_sysinfo_morse) {
 #endif
 
 #ifdef SYSINFO_SCREEN
-static void _sysinfo_field(mp_tui_label_t *label, mp_tui_widget_t *parent, int x, int y, int w, int line, const char *text) {
-	mp_tui_label(label, parent, x, y, w, line, text);
+static int _sysinfo_fits(const mp_tui_font_t *font, const char *text, int count, int width) {
+	char probe[MP_TUI_TEXT_MAX];
+
+	if(count <= 0)
+		return(1);
+	if(count >= MP_TUI_TEXT_MAX)
+		count = MP_TUI_TEXT_MAX - 1;
+	memcpy(probe, text, (size_t)count);
+	probe[count] = '\0';
+	return(mp_tui_text_width(font, probe) <= width);
+}
+
+/* a line that does not fit the panel continues underneath, so nothing is cut off */
+static int _sysinfo_wrap(char *text, const mp_tui_font_t *font, int width) {
+	char src[MP_TUI_TEXT_MAX];
+	int from, lines, out;
+
+	if(!text || !text[0] || width < 1)
+		return(1);
+	if(_sysinfo_fits(font, text, (int)strlen(text), width))
+		return(1);
+
+	snprintf(src, sizeof(src), "%s", text);
+	text[0] = '\0';
+	from = 0;
+	out = 0;
+	lines = 0;
+	while(src[from] && out < MP_TUI_TEXT_MAX - 1) {
+		int at = from;
+		int space = -1;
+		int end, next, n;
+
+		while(src[at] && src[at] != '\n' && _sysinfo_fits(font, src + from, at - from + 1, width)) {
+			if(src[at] == ' ')
+				space = at;
+			at++;
+		}
+		if(!src[at] || src[at] == '\n') {
+			n = at - from;
+			if(out + n >= MP_TUI_TEXT_MAX)
+				n = MP_TUI_TEXT_MAX - out - 1;
+			memcpy(text + out, src + from, (size_t)n);
+			out += n;
+			text[out] = '\0';
+			lines++;
+			if(src[at] != '\n')
+				break;
+			if(out < MP_TUI_TEXT_MAX - 1) {
+				text[out++] = '\n';
+				text[out] = '\0';
+			}
+			from = at + 1;
+			continue;
+		}
+		if(space > from) {
+			end = space;
+			next = space + 1;
+		}
+		else if(at > from) {
+			end = at;
+			next = at;
+		}
+		else {
+			end = from + 1;
+			next = from + 1;
+		}
+		n = end - from;
+		if(out + n + 1 >= MP_TUI_TEXT_MAX)
+			break;
+		memcpy(text + out, src + from, (size_t)n);
+		out += n;
+		text[out++] = '\n';
+		text[out] = '\0';
+		lines++;
+		from = next;
+	}
+	return(lines > 0 ? lines : 1);
+}
+
+static void _sysinfo_text(mp_tui_label_t *label, mp_tui_widget_t *parent, int x, int *y, int w, int line, const mp_tui_font_t *font, const char *text) {
+	char wrapped[MP_TUI_TEXT_MAX];
+	int rows;
+
+	snprintf(wrapped, sizeof(wrapped), "%s", text);
+	rows = _sysinfo_wrap(wrapped, font, w);
+	mp_tui_label(label, parent, x, *y, w, rows * line, wrapped);
+	*y += rows * line;
 }
 
 static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	sysinfo_t *sysinfo = user;
 	mp_tui_t *tui = page->tui;
 	mp_kernel_t *kernel = &sysinfo->kernel;
+	const mp_tui_font_t *font = tui->theme.font;
 	unsigned long speed = mp_clock_get_speed();
-	int line = tui->theme.font->lineHeight + 1;
+	int line = font->lineHeight + 1;
+	int title = font->lineHeight + 4;
 	int width = page->rect.w;
+	int innerW = width - 22;
 	int y = 4;
-	int statusH;
+	int inner;
+	char text[MP_TUI_TEXT_MAX];
 	mp_tui_widget_t *client;
 
 	mp_tui_label(&sysinfo->screen.heading, page, 0, y, width, line, "");
 	mp_tui_label_set(&sysinfo->screen.heading, "miniPhi %s - %s", kernel->version, PHI_BUILD_BOARD);
 	mp_tui_label_align(&sysinfo->screen.heading, MP_TUI_ALIGN_CENTER);
 	mp_tui_label_color(&sysinfo->screen.heading, tui->theme.accent);
-	y += line;
+	y += line + 4;
 
+	inner = 2;
+	mp_tui_window(&sysinfo->screen.system, page, 4, y, width - 8, title + inner + 4, "System");
+	client = MP_TUI_WIDGET(&sysinfo->screen.system);
+	snprintf(text, sizeof(text), "Board  %s, app %s", PHI_BUILD_BOARD, PHI_BUILD_APP);
+	_sysinfo_text(&sysinfo->screen.board, client, 6, &inner, innerW, line, font, text);
+	snprintf(text, sizeof(text), "CPU    %s", kernel->mcuName ? kernel->mcuName : "unknown");
+	_sysinfo_text(&sysinfo->screen.cpu, client, 6, &inner, innerW, line, font, text);
+	snprintf(text, sizeof(text), "Clock  %lu.%02lu MHz", speed / 1000000, (speed / 10000) % 100);
+	_sysinfo_text(&sysinfo->screen.clock, client, 6, &inner, innerW, line, font, text);
+	snprintf(text, sizeof(text), "Memory %lu KB flash, %lu KB RAM", PHI_BUILD_FLASH / 1024, PHI_BUILD_RAM / 1024);
+	_sysinfo_text(&sysinfo->screen.memory, client, 6, &inner, innerW, line, font, text);
+	snprintf(text, sizeof(text), "Build  %s %s", __DATE__, __TIME__);
+	_sysinfo_text(&sysinfo->screen.build, client, 6, &inner, innerW, line, font, text);
+	snprintf(text, sizeof(text), "Target %s / %s / %s", PHI_BUILD_ARCH, PHI_BUILD_SERIES, PHI_BUILD_MCU);
+	_sysinfo_text(&sysinfo->screen.target, client, 6, &inner, innerW, line, font, text);
+	mp_tui_resize(&sysinfo->screen.system.widget, width - 8, title + inner + 4);
+	y += sysinfo->screen.system.widget.rect.h + 4;
+
+	inner = 2;
+	mp_tui_window(&sysinfo->screen.status, page, 4, y, width - 8, title + line * 4 + 6, "Status");
+	client = MP_TUI_WIDGET(&sysinfo->screen.status);
+	_sysinfo_text(&sysinfo->screen.uptime, client, 6, &inner, innerW, line, font, "Uptime");
+	mp_tui_label(&sysinfo->screen.tasks, client, 6, inner, 110, line, "Tasks");
+	mp_tui_bar(&sysinfo->screen.taskBar, client, 120, inner + 2, width - 140, line > 4 ? line - 4 : line, MP_TASK_MAX);
+	inner += line;
+	_sysinfo_text(&sysinfo->screen.sensors[0], client, 6, &inner, innerW, line, font, "");
+	_sysinfo_text(&sysinfo->screen.sensors[1], client, 6, &inner, innerW, line, font, "");
+	mp_tui_label_color(&sysinfo->screen.sensors[0], tui->theme.muted);
+	mp_tui_label_color(&sysinfo->screen.sensors[1], tui->theme.muted);
+	mp_tui_resize(&sysinfo->screen.status.widget, width - 8, title + inner + 4);
+	y += sysinfo->screen.status.widget.rect.h + 8;
+
+	/* under the panels when the page is full, on the bottom edge when it fits */
+	if(y + line * 2 < page->rect.h)
+		y = page->rect.h - line * 2 - 4;
 	mp_tui_label(&sysinfo->screen.copyright, page, 0, y, width, line, "(c) Michael Vergoz");
 	mp_tui_label_align(&sysinfo->screen.copyright, MP_TUI_ALIGN_CENTER);
 	mp_tui_label_color(&sysinfo->screen.copyright, tui->theme.muted);
 	y += line;
-
 	mp_tui_label(&sysinfo->screen.license, page, 0, y, width, line, "GNU GPL v3 or later");
 	mp_tui_label_align(&sysinfo->screen.license, MP_TUI_ALIGN_CENTER);
 	mp_tui_label_color(&sysinfo->screen.license, tui->theme.muted);
-	y += line + 4;
-
-	/* title bar plus the six facts */
-	mp_tui_window(&sysinfo->screen.system, page, 4, y, width - 8, line * 6 + line + 10, "System");
-	client = MP_TUI_WIDGET(&sysinfo->screen.system);
-	_sysinfo_field(&sysinfo->screen.board, client, 6, 2, width - 22, line, "");
-	mp_tui_label_set(&sysinfo->screen.board, "Board  %s, app %s", PHI_BUILD_BOARD, PHI_BUILD_APP);
-	_sysinfo_field(&sysinfo->screen.cpu, client, 6, 2 + line, width - 22, line, "");
-	mp_tui_label_set(&sysinfo->screen.cpu, "CPU    %s", kernel->mcuName ? kernel->mcuName : "unknown");
-	_sysinfo_field(&sysinfo->screen.clock, client, 6, 2 + line * 2, width - 22, line, "");
-	mp_tui_label_set(&sysinfo->screen.clock, "Clock  %lu.%02lu MHz", speed / 1000000, (speed / 10000) % 100);
-	_sysinfo_field(&sysinfo->screen.memory, client, 6, 2 + line * 3, width - 22, line, "");
-	mp_tui_label_set(&sysinfo->screen.memory, "Memory %lu KB flash, %lu KB RAM", PHI_BUILD_FLASH / 1024, PHI_BUILD_RAM / 1024);
-	_sysinfo_field(&sysinfo->screen.build, client, 6, 2 + line * 4, width - 22, line, "");
-	mp_tui_label_set(&sysinfo->screen.build, "Build  %s %s", __DATE__, __TIME__);
-	_sysinfo_field(&sysinfo->screen.target, client, 6, 2 + line * 5, width - 22, line, "");
-	mp_tui_label_set(&sysinfo->screen.target, "Target %s / %s / %s", PHI_BUILD_ARCH, PHI_BUILD_SERIES, PHI_BUILD_MCU);
-	y += sysinfo->screen.system.widget.rect.h + 4;
-
-	statusH = line * 4 + line + 10;
-	if(y + statusH + 4 < page->rect.h)
-		statusH = page->rect.h - y - 4;
-	mp_tui_window(&sysinfo->screen.status, page, 4, y, width - 8, statusH, "Status");
-	client = MP_TUI_WIDGET(&sysinfo->screen.status);
-	_sysinfo_field(&sysinfo->screen.uptime, client, 6, 2, width - 22, line, "Uptime");
-	_sysinfo_field(&sysinfo->screen.tasks, client, 6, 2 + line, 110, line, "Tasks");
-	mp_tui_bar(&sysinfo->screen.taskBar, client, 120, 2 + line + 2, width - 140, line > 4 ? line - 4 : line, MP_TASK_MAX);
-	_sysinfo_field(&sysinfo->screen.sensors[0], client, 6, 2 + line * 2, width - 22, line, "");
-	_sysinfo_field(&sysinfo->screen.sensors[1], client, 6, 2 + line * 3, width - 22, line, "");
-	mp_tui_label_color(&sysinfo->screen.sensors[0], tui->theme.muted);
-	mp_tui_label_color(&sysinfo->screen.sensors[1], tui->theme.muted);
 
 	sysinfo->screen.systemReady = 1;
 	_sysinfo_screen_refresh(sysinfo);

@@ -874,9 +874,11 @@ static void _mp_tui_input_key(mp_tui_t *ui, int key) {
 	}
 }
 
-/* the header goes back; the page underneath is for scrolling */
-static int _mp_tui_back_zone(mp_tui_t *ui, int y) {
-	return(ui->opened >= 0 && y >= 0 && y < ui->page.header);
+/* the words and a margin around them, from the corner: a finger on the bezel reads as 0 */
+static int _mp_tui_back_zone(mp_tui_t *ui, int x, int y) {
+	mp_tui_rect_t *words = &ui->back.widget.screen;
+
+	return(ui->opened >= 0 && x >= 0 && y >= 0 && x < words->x + words->w + 16 && y < ui->page.header);
 }
 
 static void _mp_tui_arm_back(mp_tui_t *ui) {
@@ -895,7 +897,7 @@ static int _mp_tui_held(mp_tui_t *ui, int x, int y) {
 	if(!ui->pressed)
 		return(0);
 	if(ui->pressed == &ui->back)
-		return(_mp_tui_back_zone(ui, y));
+		return(_mp_tui_back_zone(ui, x, y));
 	area = &ui->pressed->widget.screen;
 	return(x >= area->x - 12 && y >= area->y - 12 && x < area->x + area->w + 12 && y < area->y + area->h + 12);
 }
@@ -914,7 +916,7 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 
 	switch(in->type) {
 		case MP_INPUT_DOWN:
-			if(_mp_tui_back_zone(ui, in->y)) {
+			if(_mp_tui_back_zone(ui, in->x, in->y)) {
 				_mp_tui_arm_back(ui);
 				break;
 			}
@@ -931,7 +933,7 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 			break;
 
 		case MP_INPUT_CLICK:
-			if(ui->pressed == &ui->back || _mp_tui_back_zone(ui, in->y)) {
+			if(ui->pressed == &ui->back || _mp_tui_back_zone(ui, in->x, in->y)) {
 				_mp_tui_unpress(ui);
 				_mp_tui_on_back(&ui->back);
 				break;
@@ -986,10 +988,12 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 			break;
 
 		case MP_INPUT_DROP:
-			/* still the bar: the finger never travelled far enough to be a scroll */
+			/* lifted on Back again: a press that slid away from it is not a tap */
 			if(ui->pressed == &ui->back) {
+				held = _mp_tui_back_zone(ui, in->x, in->y);
 				_mp_tui_unpress(ui);
-				_mp_tui_on_back(&ui->back);
+				if(held)
+					_mp_tui_on_back(&ui->back);
 				break;
 			}
 			if(ui->pressed) {

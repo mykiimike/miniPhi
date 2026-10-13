@@ -47,6 +47,21 @@
 /* one bad sample does not mean the finger left */
 #define RESISTIVE_MISS 4
 
+/* counts a sample may fall outside the calibration; further out is a plate losing contact, not the edge */
+#define RESISTIVE_EDGE 100
+
+/* pixels two samples of a new press may differ by */
+#define RESISTIVE_AGREE 10
+
+/* pixels a held finger may move in one period */
+#define RESISTIVE_JUMP 80
+
+static int _resistive_far(int a, int b, int limit) {
+	int d = a - b;
+
+	return((d < 0 ? -d : d) > limit);
+}
+
 static const char *_orientations[] = { "landscape", "portrait", "landscape-flipped", "portrait-flipped" };
 
 static MP_TASK(_resistive_task);
@@ -250,7 +265,9 @@ static MP_TASK(_resistive_task) {
 	/* X runs from XL to XR and is read on YD; Y runs from YD to YU and is read on XL */
 	rawX = _resistive_sample(panel->xl, panel->xr, panel->yu, panel->yd, panel->channelYd);
 	rawY = _resistive_sample(panel->yd, panel->yu, panel->xr, panel->xl, panel->channelXl);
-	if(rawX < 0 || rawY < 0) {
+	if(rawX < 0 || rawY < 0 ||
+		rawX < panel->xMin - RESISTIVE_EDGE || rawX > panel->xMax + RESISTIVE_EDGE ||
+		rawY < panel->yMin - RESISTIVE_EDGE || rawY > panel->yMax + RESISTIVE_EDGE) {
 		_resistive_dropout(panel);
 		return;
 	}
@@ -260,11 +277,22 @@ static MP_TASK(_resistive_task) {
 	row = _resistive_scale(rawY, panel->yMin, panel->yMax, RESISTIVE_ROWS);
 	_resistive_map(panel, column, row, &x, &y);
 
-	/* the first sample only confirms the press, so a spike does not click */
+	/* a light finger first gives a wrong place; two close samples are where it really is */
 	if(!panel->down) {
-		if(++panel->seen < 2)
+		if(!panel->seen || _resistive_far(x, panel->px, RESISTIVE_AGREE) || _resistive_far(y, panel->py, RESISTIVE_AGREE)) {
+			panel->seen = 1;
+			panel->px = x;
+			panel->py = y;
 			return;
+		}
+		x = (x + panel->px) / 2;
+		y = (y + panel->py) / 2;
 		panel->down = 1;
+	}
+	/* a finger does not cross the screen in one period; that is a plate losing contact */
+	else if(panel->tracked && (_resistive_far(x, panel->fx, RESISTIVE_JUMP) || _resistive_far(y, panel->fy, RESISTIVE_JUMP))) {
+		_resistive_dropout(panel);
+		return;
 	}
 	_resistive_track(panel, x, y);
 }
