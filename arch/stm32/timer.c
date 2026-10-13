@@ -41,6 +41,10 @@ static const _mp_timer_channels_t __channels[] = {
 	{ "TIM2", { "pa0", "pa1", "pa2", "pa3" } },
 	{ "TIM3", { "pa6", "pa7", "pb0", "pb1" } },
 	{ "TIM4", { "pb6", "pb7", "pb8", "pb9" } },
+#if defined(STM32F10X_HD) || defined(STM32F10X_XL)
+	{ "TIM5", { "pa0", "pa1", "pa2", "pa3" } },
+	{ "TIM8", { "pc6", "pc7", "pc8", "pc9" } },
+#endif
 	{ NULL }
 };
 

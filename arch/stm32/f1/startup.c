@@ -81,6 +81,11 @@ void (* const mp_arch_vectors[16 + MP_ARCH_IRQ_COUNT])(void) = {
 	_IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ,
 	_IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ,
 	_IRQ, _IRQ, _IRQ,
+#if MP_ARCH_IRQ_COUNT > 43
+	/* high density and XL: TIM8, ADC3, FSMC, SDIO, TIM5, SPI3, UART4, UART5, TIM6, TIM7, DMA2 */
+	_IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ,
+	_IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ, _IRQ,
+#endif
 };
 
 void Reset_Handler(void) {

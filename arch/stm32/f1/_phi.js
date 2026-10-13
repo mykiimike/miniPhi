@@ -16,6 +16,21 @@ const medium = {
 	TIM4: { kinds: ["timer"] },
 }
 
+/* remap 0 pins, the ones bonded out of reset */
+const high = {
+	...medium,
+	USART3: { kinds: ["uart"], pins: { uart: { txd: "pb10", rxd: "pb11" } } },
+	UART4: { kinds: ["uart"], pins: { uart: { txd: "pc10", rxd: "pc11" } } },
+	UART5: { kinds: ["uart"], pins: { uart: { txd: "pc12", rxd: "pd2" } } },
+	SPI2: { kinds: ["spi"], pins: { spi: { simo: "pb15", somi: "pb14", clk: "pb13" } } },
+	SPI3: { kinds: ["spi"], pins: { spi: { simo: "pb5", somi: "pb4", clk: "pb3" } } },
+	I2C2: { kinds: ["i2c"], pins: { i2c: { sda: "pb11", clk: "pb10" } } },
+	TIM5: { kinds: ["timer"] },
+	TIM6: { kinds: ["timer"] },
+	TIM7: { kinds: ["timer"] },
+	TIM8: { kinds: ["timer"] },
+}
+
 export const phi = {
 	kind: "series",
 	arch: "stm32",
@@ -50,6 +65,19 @@ export const phi = {
 			pins: [...port("a", 16), ...port("b", 8)],
 			irqLines: true,
 			gates: medium,
+		},
+		{
+			name: "stm32f103ze",
+			label: "STM32F103ZE",
+			cpu: "cortex-m3",
+			define: "STM32F10X_HD",
+			ld: "ld/stm32f103xe.ld",
+			package: "144-pin LQFP",
+			flash: 524288,
+			ram: 65536,
+			pins: ["a", "b", "c", "d", "e", "f", "g"].flatMap((letter) => port(letter, 16)),
+			irqLines: true,
+			gates: high,
 		},
 	],
 }

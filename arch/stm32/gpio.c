@@ -28,7 +28,12 @@
 @{
 */
 
-static GPIO_TypeDef * const __bases[MP_ARCH_GPIO_PORTS] = { GPIOA, GPIOB, GPIOC, GPIOD };
+static GPIO_TypeDef * const __bases[MP_ARCH_GPIO_PORTS] = {
+	GPIOA, GPIOB, GPIOC, GPIOD,
+#if MP_ARCH_GPIO_PORTS > 4
+	GPIOE, GPIOF, GPIOG,
+#endif
+};
 static mp_gpio_port_t __ports[MP_ARCH_GPIO_PORTS][16];
 
 /* owner of each EXTI line */
@@ -40,6 +45,9 @@ void mp_gpio_init() {
 	unsigned int port, pin;
 
 	RCC->APB2ENR |= RCC_APB2_AFIO | RCC_APB2_IOPA | RCC_APB2_IOPB | RCC_APB2_IOPC | RCC_APB2_IOPD;
+#if MP_ARCH_GPIO_PORTS > 4
+	RCC->APB2ENR |= RCC_APB2_IOPE | RCC_APB2_IOPF | RCC_APB2_IOPG;
+#endif
 	(void)RCC->APB2ENR;
 
 #ifdef _SWD_ONLY

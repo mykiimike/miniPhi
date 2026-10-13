@@ -124,17 +124,30 @@
 	#define TIM2   ((TIM_TypeDef *)0x40000000)
 	#define TIM3   ((TIM_TypeDef *)0x40000400)
 	#define TIM4   ((TIM_TypeDef *)0x40000800)
+	#define TIM5   ((TIM_TypeDef *)0x40000C00)
+	#define TIM6   ((TIM_TypeDef *)0x40001000)
+	#define TIM7   ((TIM_TypeDef *)0x40001400)
+	#define SPI2   ((SPI_TypeDef *)0x40003800)
+	#define SPI3   ((SPI_TypeDef *)0x40003C00)
 	#define USART2 ((USART_TypeDef *)0x40004400)
+	#define USART3 ((USART_TypeDef *)0x40004800)
+	#define UART4  ((USART_TypeDef *)0x40004C00)
+	#define UART5  ((USART_TypeDef *)0x40005000)
 	#define I2C1   ((I2C_TypeDef *)0x40005400)
+	#define I2C2   ((I2C_TypeDef *)0x40005800)
 	#define AFIO   ((AFIO_TypeDef *)0x40010000)
 	#define EXTI   ((EXTI_TypeDef *)0x40010400)
 	#define GPIOA  ((GPIO_TypeDef *)0x40010800)
 	#define GPIOB  ((GPIO_TypeDef *)0x40010C00)
 	#define GPIOC  ((GPIO_TypeDef *)0x40011000)
 	#define GPIOD  ((GPIO_TypeDef *)0x40011400)
+	#define GPIOE  ((GPIO_TypeDef *)0x40011800)
+	#define GPIOF  ((GPIO_TypeDef *)0x40011C00)
+	#define GPIOG  ((GPIO_TypeDef *)0x40012000)
 	#define ADC1   ((ADC_TypeDef *)0x40012400)
 	#define TIM1   ((TIM_TypeDef *)0x40012C00)
 	#define SPI1   ((SPI_TypeDef *)0x40013000)
+	#define TIM8   ((TIM_TypeDef *)0x40013400)
 	#define USART1 ((USART_TypeDef *)0x40013800)
 	#define RCC    ((RCC_TypeDef *)0x40021000)
 	#define FLASH  ((FLASH_TypeDef *)0x40022000)
@@ -162,15 +175,28 @@
 	#define RCC_APB2_IOPB     (1UL << 3)
 	#define RCC_APB2_IOPC     (1UL << 4)
 	#define RCC_APB2_IOPD     (1UL << 5)
+	#define RCC_APB2_IOPE     (1UL << 6)
+	#define RCC_APB2_IOPF     (1UL << 7)
+	#define RCC_APB2_IOPG     (1UL << 8)
 	#define RCC_APB2_ADC1     (1UL << 9)
 	#define RCC_APB2_TIM1     (1UL << 11)
 	#define RCC_APB2_SPI1     (1UL << 12)
+	#define RCC_APB2_TIM8     (1UL << 13)
 	#define RCC_APB2_USART1   (1UL << 14)
 	#define RCC_APB1_TIM2     (1UL << 0)
 	#define RCC_APB1_TIM3     (1UL << 1)
 	#define RCC_APB1_TIM4     (1UL << 2)
+	#define RCC_APB1_TIM5     (1UL << 3)
+	#define RCC_APB1_TIM6     (1UL << 4)
+	#define RCC_APB1_TIM7     (1UL << 5)
+	#define RCC_APB1_SPI2     (1UL << 14)
+	#define RCC_APB1_SPI3     (1UL << 15)
 	#define RCC_APB1_USART2   (1UL << 17)
+	#define RCC_APB1_USART3   (1UL << 18)
+	#define RCC_APB1_UART4    (1UL << 19)
+	#define RCC_APB1_UART5    (1UL << 20)
 	#define RCC_APB1_I2C1     (1UL << 21)
+	#define RCC_APB1_I2C2     (1UL << 22)
 
 	/* FLASH */
 	#define FLASH_ACR_LATENCY (7UL << 0)
@@ -268,7 +294,7 @@
 	#define ADC_CR2_SWSTART  (1UL << 22)
 	#define ADC_CR2_TSVREFE  (1UL << 23)
 
-	/* IRQ numbers, medium density */
+	/* IRQ numbers. 0 to 42 exist on every density; 43 to 59 are high density and XL */
 	typedef enum {
 		WWDG_IRQn = 0,
 		PVD_IRQn = 1,
@@ -289,15 +315,30 @@
 		TIM4_IRQn = 30,
 		I2C1_EV_IRQn = 31,
 		I2C1_ER_IRQn = 32,
+		I2C2_EV_IRQn = 33,
+		I2C2_ER_IRQn = 34,
 		SPI1_IRQn = 35,
+		SPI2_IRQn = 36,
 		USART1_IRQn = 37,
 		USART2_IRQn = 38,
+		USART3_IRQn = 39,
 		EXTI15_10_IRQn = 40,
+		TIM8_UP_IRQn = 44,
+		TIM5_IRQn = 50,
+		SPI3_IRQn = 51,
+		UART4_IRQn = 52,
+		UART5_IRQn = 53,
+		TIM6_IRQn = 54,
+		TIM7_IRQn = 55,
 	} IRQn_Type;
 
-	#define MP_ARCH_IRQ_COUNT 43
-
-	/* GPIO ports bonded on the largest F1 package handled here */
-	#define MP_ARCH_GPIO_PORTS 4
+	/* STM32F10X_HD and STM32F10X_XL come from the MCU entry */
+	#if defined(STM32F10X_HD) || defined(STM32F10X_XL)
+		#define MP_ARCH_IRQ_COUNT 60
+		#define MP_ARCH_GPIO_PORTS 7
+	#else
+		#define MP_ARCH_IRQ_COUNT 43
+		#define MP_ARCH_GPIO_PORTS 4
+	#endif
 
 #endif

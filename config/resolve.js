@@ -257,7 +257,13 @@ export function analyze(catalog, sel, exists) {
 	const usePin = (pin, owner) => (pins[pin] = pins[pin] || []).push(owner)
 	const useGate = (gate, owner) => (gates[gate] = gates[gate] || []).push(owner)
 
-	for (const reserved of series.data.reserved || []) {
+	const board = catalog.boards.find((record) => record.name === sel.board)
+	const reservedPins = [
+		...(series.data.reserved || []),
+		...(mcu.reserved || []),
+		...((board && board.data.reserved) || []),
+	]
+	for (const reserved of reservedPins) {
 		if (reserved.when) {
 			const negated = reserved.when.startsWith("!")
 			const value = !!settingValue(negated ? reserved.when.slice(1) : reserved.when)
@@ -447,7 +453,6 @@ export function analyze(catalog, sel, exists) {
 		return { ...need, index }
 	})
 
-	const board = catalog.boards.find((record) => record.name === sel.board)
 	const headers = []
 	const links = new Map([["autoconf.h", "the configurator"], ["pinout.h", "the configurator"]])
 	const addHeaders = (record) => {

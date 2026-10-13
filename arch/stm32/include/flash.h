@@ -21,8 +21,12 @@
 #ifndef _HAVE_STM32_FLASH_H
 	#define _HAVE_STM32_FLASH_H
 
-	/* 1 KB pages on low and medium density parts */
-	#define MP_FLASH_PAGE_SIZE 1024UL
+	/* high density and XL erase 2 KB at a time, the others 1 KB */
+	#if defined(STM32F10X_HD) || defined(STM32F10X_XL)
+		#define MP_FLASH_PAGE_SIZE 2048UL
+	#else
+		#define MP_FLASH_PAGE_SIZE 1024UL
+	#endif
 
 	typedef struct mp_flash_s mp_flash_t;
 	typedef unsigned long mp_flash_addr_t;

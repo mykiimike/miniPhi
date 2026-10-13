@@ -57,11 +57,11 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │       ├── syscalls.c        newlib hooks, _sbrk bounded by HEAP_SIZE
 │       ├── include/          arch headers, linked as build/include/arch/
 │       └── f1/
-│           ├── _phi.js       kind series: STM32F103T8, pins, gates, JTAG pins, clock
+│           ├── _phi.js       kind series: STM32F103T8 and STM32F103ZE, pins, gates, clock
 │           ├── startup.c     vector table, Reset_Handler        (boot)
 │           ├── clock.c       HSE + PLL, SysTick 1 kHz, WFI      (boot)
 │           ├── include/series.h   F1 registers and IRQ numbers, as build/include/arch/series.h
-│           └── ld/stm32f103x8.ld
+│           └── ld/           stm32f103x8.ld (64 KB), stm32f103xe.ld (512 KB)
 │
 ├── drivers/
 │   ├── led/                  _phi.js + led.c + led.h
@@ -78,8 +78,10 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │
 └── boards/                   one directory per vendor, then one per product
     ├── olimex/
-    │   └── msp430-5438-stk/
-    │       └── _phi.js       kind board: target, app, modules, drivers, devices
+    │   ├── msp430-5438-stk/
+    │   │   └── _phi.js       kind board: target, app, modules, drivers, devices
+    │   └── stm32-lcd/
+    │       └── _phi.js       STM32F103ZE, console on UEXT USART1, TFT not driven yet
     └── artekit/
         ├── ak-stm32-lkit/
         │   └── _phi.js       kind board, requires the ak-link probe
@@ -203,7 +205,7 @@ flash: $(TARGET)
 
 The configurator refuses to write `build/` while one of these holds:
 
-- a pin or a gate has two owners, including the pins the series reserves (XT1, the tick timer, JTAG). A reserved entry with `when: "NAME"` only holds while that setting is on, `when: "!NAME"` while it is off;
+- a pin or a gate has two owners, including the pins reserved by the series (XT1, the tick timer, JTAG), the MCU or the board (a crystal, a wired USB or SD socket). A reserved entry with `when: "NAME"` only holds while that setting is on, `when: "!NAME"` while it is off;
 - an `irq` option sits on a port without an interrupt vector, or on an EXTI line another interrupt pin already uses;
 - a gate is set to a mode it cannot run, or a bus pin differs from the pin the gate is wired to;
 - a required option is empty, a setting is out of range, a source or header file is missing;
@@ -236,6 +238,8 @@ The arch copies the MSP430 API: same functions, same options, same `mp_uart_t` o
 - The MCU name comes from DBGMCU_IDCODE, which the F1 only returns while a debugger is attached. Without one, sysinfo prints the flash size only.
 
 The F1 series reserves the JTAG pins (PA13, PA14, PA15, PB3, PB4). `_SWD_ONLY` gives PA15, PB3 and PB4 back, but the firmware then turns JTAG off at boot, and the AK-LINK, which has no SWD, has to connect with SRST held (`reset_config srst_only connect_assert_srst`).
+
+`STM32F10X_HD` (the STM32F103ZE) extends the same code: 60 interrupt lines instead of 43, GPIO ports A to G, USART3, UART4, UART5, SPI2, SPI3, I2C2 and TIM5 to TIM8, and 2 KB flash pages. The medium-density build keeps the shorter vector table. On the 144-pin package the 8 MHz crystal is PD0 and PD1, so the board reserves them.
 
 ## Code Composer files
 

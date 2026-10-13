@@ -1,0 +1,38 @@
+export const phi = {
+	kind: "board",
+	name: "stm32-lcd",
+	vendor: "Olimex",
+	label: "Olimex STM32-LCD",
+	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. The TFT and the touch panel are not driven yet. No user LED: D1 to D4 are supply diodes, and the backlight belongs to the panel.",
+	arch: "stm32",
+	series: "f1",
+	mcu: "stm32f103ze",
+	toolchain: "gcc",
+	requires: ["ak-link"],
+	app: "sysinfo",
+	defines: [],
+	modules: ["SERIAL", "SENSOR"],
+	drivers: [],
+	settings: {
+		MP_MEM_SIZE: 8192,
+		MP_MEM_CHUNK: 64,
+	},
+	/* pins wired to something the firmware does not own yet */
+	reserved: [
+		{ pin: "pd0", who: "8 MHz crystal" },
+		{ pin: "pd1", who: "8 MHz crystal" },
+		{ pin: "pc14", who: "32.768 kHz crystal" },
+		{ pin: "pc15", who: "32.768 kHz crystal" },
+		{ pin: "pa11", who: "USB D-" },
+		{ pin: "pa12", who: "USB D+" },
+		{ pin: "pc8", who: "microSD DAT0" },
+		{ pin: "pc9", who: "microSD DAT1" },
+		{ pin: "pc10", who: "microSD DAT2" },
+		{ pin: "pc11", who: "microSD DAT3" },
+		{ pin: "pc12", who: "microSD CLK" },
+		{ pin: "pd2", who: "microSD CMD" },
+	],
+	devices: [
+		{ bus: "uart", name: "console", options: { gate: "USART1", txd: "pa9", rxd: "pa10", baudRate: "115200" } },
+	],
+}
