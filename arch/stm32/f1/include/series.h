@@ -229,6 +229,7 @@
 	#define FLASH_CR_PER      (1UL << 1)
 	#define FLASH_CR_STRT     (1UL << 6)
 	#define FLASH_CR_LOCK     (1UL << 7)
+	#define FLASH_OBR_RDPRT   (1UL << 1)
 	#define FLASH_KEY1        0x45670123UL
 	#define FLASH_KEY2        0xCDEF89ABUL
 

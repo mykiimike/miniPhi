@@ -535,20 +535,7 @@ static int _mp_tui_button_top(mp_tui_t *ui) {
 	return(8 + line + 14);
 }
 
-static void _mp_tui_on_back(mp_tui_button_t *button) {
-	mp_tui_t *ui = button->user;
-
-	if(!ui || ui->opened < 0)
-		return;
-	_mp_tui_release(ui);
-	ui->opened = -1;
-	mp_tui_hide(&ui->page.widget);
-}
-
-static void _mp_tui_open(mp_tui_t *ui, int index) {
-	if(index < 0 || index >= ui->appCount || !ui->app[index].build)
-		return;
-
+static void _mp_tui_show(mp_tui_t *ui, int index) {
 	_mp_tui_release(ui);
 	while(ui->view.widget.first)
 		mp_tui_widget_remove(ui->view.widget.first);
@@ -560,6 +547,32 @@ static void _mp_tui_open(mp_tui_t *ui, int index) {
 	_mp_tui_place(&ui->view.widget);
 	mp_tui_show(&ui->page.widget);
 	mp_tui_raise(&ui->page.widget);
+}
+
+static void _mp_tui_on_back(mp_tui_button_t *button) {
+	mp_tui_t *ui = button->user;
+
+	if(!ui || ui->opened < 0)
+		return;
+	/* a sub-page returns to the page that opened it */
+	if(ui->depth > 1) {
+		ui->depth--;
+		_mp_tui_show(ui, ui->stack[ui->depth - 1]);
+		return;
+	}
+	_mp_tui_release(ui);
+	ui->depth = 0;
+	ui->opened = -1;
+	mp_tui_hide(&ui->page.widget);
+}
+
+static void _mp_tui_open(mp_tui_t *ui, int index) {
+	if(index < 0 || index >= ui->appCount || !ui->app[index].build)
+		return;
+
+	ui->depth = 0;
+	ui->stack[ui->depth++] = index;
+	_mp_tui_show(ui, index);
 }
 
 static void _mp_tui_on_app(mp_tui_button_t *button) {
@@ -603,12 +616,12 @@ static void _mp_tui_shell(mp_tui_t *ui) {
 }
 
 static void _mp_tui_focus(mp_tui_t *ui, int index) {
-	if(ui->appCount <= 0)
+	if(ui->homeCount <= 0)
 		return;
 	if(index < 0)
 		index = 0;
-	if(index >= ui->appCount)
-		index = ui->appCount - 1;
+	if(index >= ui->homeCount)
+		index = ui->homeCount - 1;
 	if(index == ui->focus)
 		return;
 	ui->homeButton[ui->focus].selected = 0;
@@ -699,8 +712,34 @@ int mp_tui_app(mp_tui_t *ui, const char *name, mp_tui_app_build_t build, void *u
 	button->selected = index == ui->focus;
 
 	ui->appCount++;
+	ui->homeCount++;
 	mp_tui_raise(&ui->page.widget);
 	return(1);
+}
+
+int mp_tui_child(mp_tui_t *ui, const char *name, mp_tui_app_build_t build, void *user) {
+	int index;
+
+	if(!ui->display || !name || !name[0] || !build || ui->appCount >= MP_TUI_APP_MAX)
+		return(0);
+	if(!ui->shell)
+		_mp_tui_shell(ui);
+
+	index = ui->appCount;
+	ui->app[index].name = name;
+	ui->app[index].build = build;
+	ui->app[index].user = user;
+	ui->appCount++;
+	return(1);
+}
+
+void mp_tui_enter(mp_tui_t *ui, int index) {
+	if(!ui || index < 0 || index >= ui->appCount || !ui->app[index].build)
+		return;
+	if(ui->depth >= MP_TUI_APP_MAX)
+		return;
+	ui->stack[ui->depth++] = index;
+	_mp_tui_show(ui, index);
 }
 
 int mp_tui_dispatch(mp_tui_t *ui, const mp_tui_event_t *event) {
@@ -771,8 +810,8 @@ void mp_tui_key(mp_tui_t *ui, mp_tui_key_t key) {
 		_mp_tui_focus(ui, ui->focus - 1);
 	else if(key == MP_TUI_KEY_DOWN)
 		_mp_tui_focus(ui, ui->focus + 1);
-	else if(key == MP_TUI_KEY_ENTER)
-		_mp_tui_open(ui, ui->focus);
+	else if(key == MP_TUI_KEY_ENTER && ui->homeCount > 0)
+		_mp_tui_open(ui, ui->homeButton[ui->focus].id);
 }
 
 /* mouse cursor: 'X' outline, '.' fill */

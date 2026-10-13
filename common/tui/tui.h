@@ -247,9 +247,14 @@
 		/** home of applications; shell is set by the first mp_tui_app() */
 		int shell;
 		int appCount;
+		/** how many of app[] have a button on the home; the rest are sub-pages */
+		int homeCount;
 		int focus;
 		/** index of the open application, or -1 on the home */
 		int opened;
+		/** pages opened from a page; Back steps back through them */
+		int stack[MP_TUI_APP_MAX];
+		int depth;
 		struct {
 			const char *name;
 			mp_tui_app_build_t build;
@@ -326,6 +331,36 @@
 		int max;
 	} mp_tui_bar_t;
 
+	#ifndef MP_TUI_TABLE_CELL
+		/** bytes kept for one table cell, including the trailing 0 */
+		#define MP_TUI_TABLE_CELL 24
+	#endif
+
+	/** one column of a table; width 0 shares what the fixed columns leave */
+	typedef struct {
+		const char *title;
+		int width;
+		mp_tui_align_t align;
+	} mp_tui_column_t;
+
+	/** one cell; the caller owns the array, row by row */
+	typedef struct {
+		char text[MP_TUI_TABLE_CELL];
+	} mp_tui_cell_t;
+
+	/**
+	 * Header plus rows. columns and cells outlive the table.
+	 * At most 8 columns are drawn.
+	 */
+	typedef struct {
+		mp_tui_widget_t widget;
+		const mp_tui_column_t *columns;
+		mp_tui_cell_t *cells;
+		int columnCount;
+		int capacity;
+		int rows;
+	} mp_tui_table_t;
+
 	/** framed panel with a title bar; children go below the title */
 	typedef struct {
 		mp_tui_widget_t widget;
@@ -336,6 +371,7 @@
 	extern const mp_tui_class_t mp_tui_box_class;
 	extern const mp_tui_class_t mp_tui_label_class;
 	extern const mp_tui_class_t mp_tui_bar_class;
+	extern const mp_tui_class_t mp_tui_table_class;
 	extern const mp_tui_class_t mp_tui_window_class;
 	extern const mp_tui_class_t mp_tui_button_class;
 	extern const mp_tui_class_t mp_tui_view_class;
@@ -353,6 +389,16 @@
 	void mp_tui_bar(mp_tui_bar_t *bar, mp_tui_widget_t *parent, int x, int y, int w, int h, int max);
 	void mp_tui_bar_set(mp_tui_bar_t *bar, int value);
 
+	/**
+	 * A table of columnCount columns and up to capacity rows.
+	 * The height follows the row count, header included. cells is row-major.
+	 */
+	void mp_tui_table(mp_tui_table_t *table, mp_tui_widget_t *parent, int x, int y, int w, const mp_tui_column_t *columns, int columnCount, mp_tui_cell_t *cells, int capacity);
+	/** how many data rows are shown, clamped to capacity; resizes the table */
+	void mp_tui_table_rows(mp_tui_table_t *table, int rows);
+	/** printf-like; redraws only when that cell changes */
+	void mp_tui_table_set(mp_tui_table_t *table, int row, int column, const char *format, ...);
+
 	void mp_tui_window(mp_tui_window_t *window, mp_tui_widget_t *parent, int x, int y, int w, int h, const char *title);
 	void mp_tui_window_title(mp_tui_window_t *window, const char *format, ...);
 
@@ -367,6 +413,16 @@
 	 * each time it is opened. Returns 0 when the home is full or the name is missing.
 	 */
 	int mp_tui_app(mp_tui_t *ui, const char *name, mp_tui_app_build_t build, void *user);
+
+	/**
+	 * A page that does not appear on the home. Open it with mp_tui_enter()
+	 * from a button on another page. Back returns to that page.
+	 * Returns 0 when the list is full or the name is missing.
+	 */
+	int mp_tui_child(mp_tui_t *ui, const char *name, mp_tui_app_build_t build, void *user);
+
+	/** opens a page declared with mp_tui_app() or mp_tui_child(), above the one on screen */
+	void mp_tui_enter(mp_tui_t *ui, int index);
 
 	/** a click at x, y: the topmost widget under it, then its parents, get it */
 	int mp_tui_press(mp_tui_t *ui, int x, int y);
@@ -391,7 +447,7 @@
 		MP_TUI_KEY_PAGE_DOWN,
 	} mp_tui_key_t;
 
-	/** home: up and down move, enter opens. page: up and down scroll, back returns home */
+	/** home: up and down move, enter opens. page: up and down scroll, back steps out */
 	void mp_tui_key(mp_tui_t *ui, mp_tui_key_t key);
 
 	/** moves the open page by dy pixels; a positive dy reveals what is below */

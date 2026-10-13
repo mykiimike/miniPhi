@@ -2,7 +2,7 @@ export const phi = {
 	kind: "app",
 	name: "sysinfo",
 	label: "System info",
-	description: "Prints the miniPhi banner, the version, the build and the CPU on a UART console, then reports uptime, tasks and sensors. Blinks SOS on the first LED and HELP on the second when the board has them. On an ILI932x screen the TUI home lists System, a scrollable page with about, version, copyright, license and the live figures.",
+	description: "Prints the miniPhi banner, the version, the build and the CPU on a UART console, then reports uptime, tasks and sensors. Blinks SOS on the first LED and HELP on the second when the board has them. On an ILI932x screen the TUI home lists Accelerometer, then System. System is a scrollable page with about, version, copyright, license, the flash (size, image, blank pages and the controller), uptime and the MCU sensors, and opens a Task manager that lists the kernel tasks. Accelerometer shows the 3-axis sensor that is present, with a bubble level.",
 	sources: ["main.c", "screen.c", "morse.c"],
 	requires: ["SERIAL", "SENSOR"],
 	devices: [

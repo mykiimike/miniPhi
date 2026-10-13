@@ -31,6 +31,14 @@
 
 #define SYSINFO_OP MP_KERNEL_RES01
 
+#if defined(SUPPORT_DRV_LCD_ILI932X) && defined(PHI_ILI932X_LCD) && defined(SUPPORT_COMMON_SENSOR)
+/** bubble level: mx, my, mz are centi-g, and ±100 is the edge of the glass */
+typedef struct {
+	mp_tui_widget_t widget;
+	int mx, my, mz;
+} sysinfo_level_t;
+#endif
+
 typedef struct sysinfo_s sysinfo_t;
 
 struct sysinfo_s {
@@ -80,12 +88,37 @@ struct sysinfo_s {
 		mp_tui_label_t cpu;
 		mp_tui_label_t clock;
 		mp_tui_label_t memory;
+		mp_tui_window_t flash;
+		mp_tui_label_t flashSize;
+		mp_tui_label_t flashUsed;
+		mp_tui_bar_t flashBar;
+		mp_tui_label_t flashFree;
+		mp_tui_label_t flashState;
 		mp_tui_label_t build;
 		mp_tui_label_t target;
 		mp_tui_label_t uptime;
 		mp_tui_label_t tasks;
 		mp_tui_bar_t taskBar;
-		mp_tui_label_t sensors[3];
+		/** sub-page of System; -1 until it is registered */
+		int tasksIndex;
+		int tasksReady;
+		mp_tui_button_t taskManager;
+		mp_tui_label_t taskCount;
+		mp_tui_table_t taskTable;
+		mp_tui_cell_t taskCell[MP_TASK_MAX][3];
+		/** die temperature and supply, the only sensors this page shows */
+		mp_tui_label_t sensors[2];
+#ifdef SUPPORT_COMMON_SENSOR
+		/** home entry "Accelerometer"; -1 until it is registered */
+		int accelIndex;
+		int accelReady;
+		sysinfo_level_t level;
+		mp_tui_label_t accelName;
+		mp_tui_label_t accelX;
+		mp_tui_label_t accelY;
+		mp_tui_label_t accelZ;
+		mp_tui_label_t accelTemperature;
+#endif
 	} screen;
 #endif
 };
