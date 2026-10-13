@@ -3,7 +3,7 @@ export const phi = {
 	name: "stm32-lcd",
 	vendor: "Olimex",
 	label: "Olimex STM32-LCD",
-	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. ILI9320 TFT on the FSMC (NE1, RS on A19), shown by the TUI. The 4-wire touch panel is on PC0 to PC3 (YD, YU, XL, XR). No user LED: D1 to D4 are supply diodes.",
+	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. ILI9320 TFT on the FSMC (NE1, RS on A19), shown by the TUI. The 4-wire touch panel is on PC0 to PC3 (YD, YU, XL, XR). A Bosch SMB380 accelerometer is on I2C2 (PB10 SCL, PB11 SDA), its interrupt on PE4. No user LED: D1 to D4 are supply diodes.",
 	arch: "stm32",
 	series: "f1",
 	mcu: "stm32f103ze",
@@ -12,7 +12,7 @@ export const phi = {
 	app: "sysinfo",
 	defines: [],
 	modules: ["SERIAL", "SENSOR", "INPUT", "TUI"],
-	drivers: ["ILI932X", "RESISTIVE"],
+	drivers: ["ILI932X", "RESISTIVE", "SMB380"],
 	settings: {
 		MP_MEM_SIZE: 8192,
 		MP_MEM_CHUNK: 64,
@@ -42,6 +42,11 @@ export const phi = {
 			driver: "RESISTIVE",
 			name: "touch",
 			options: { yd: "pc0", yu: "pc1", xl: "pc2", xr: "pc3", orientation: "landscape", flipY: true },
+		},
+		{
+			driver: "SMB380",
+			name: "accel",
+			options: { gate: "I2C2", sda: "pb11", clk: "pb10", int: "pe4", address: "0x38", range: "2", bandwidth: "25" },
 		},
 	],
 }

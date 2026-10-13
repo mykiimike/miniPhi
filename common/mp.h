@@ -180,6 +180,9 @@
 	#ifdef SUPPORT_DRV_ADS124X
 		#include <ads124x/ADS124x.h>
 	#endif
+	#ifdef SUPPORT_DRV_SMB380
+		#include <smb380/smb380.h>
+	#endif
 
 	#define MP_KERNEL_VERSION "2.0.0"
 
