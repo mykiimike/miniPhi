@@ -8,6 +8,7 @@ export const phi = {
 	headers: ["smb380.h"],
 	buses: ["i2c"],
 	requires: ["SENSOR", "REGMASTER"],
+	device: { struct: "mp_drv_smb380_t", ops: "mp_drv_smb380_device" },
 	options: [
 		{
 			name: "address",

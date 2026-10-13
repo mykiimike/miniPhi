@@ -34,9 +34,16 @@
 			mp_list_item_t item;
 		};
 
+		/** chunks handed out, and how many mp_mem_erase() prepared */
+		typedef struct {
+			int used;
+			int total;
+		} mp_mem_state_t;
+
 		mp_ret_t mp_mem_erase(mp_kernel_t *kernel);
 		void *mp_mem_alloc(mp_kernel_t *kernel, int size);
 		void mp_mem_free(mp_kernel_t *kernel, void *ptr);
+		void mp_mem_state(mp_mem_state_t *state);
 	#endif
 
 #endif

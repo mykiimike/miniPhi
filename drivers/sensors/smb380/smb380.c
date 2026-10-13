@@ -358,4 +358,18 @@ static MP_TASK(_smb380_task) {
 		smb->busy = NO;
 }
 
+#ifdef SUPPORT_COMMON_DEVICE
+static mp_ret_t _smb380_device_open(mp_kernel_t *kernel, void *self, mp_options_t *options, char *who) {
+	return(mp_drv_smb380_init(kernel, self, options, who));
+}
+
+static void _smb380_device_close(void *self) {
+	mp_drv_smb380_fini(self);
+}
+
+const mp_device_driver_t mp_drv_smb380_device = {
+	"SMB380", MP_DEVICE_ACCELEROMETER, _smb380_device_open, _smb380_device_close, NULL, NULL
+};
+#endif
+
 #endif

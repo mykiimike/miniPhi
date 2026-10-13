@@ -79,4 +79,27 @@ void mp_drv_led_turn(mp_drv_led_t *led) {
 	led->state = led->state == ON ? OFF : ON;
 }
 
+#ifdef SUPPORT_COMMON_DEVICE
+static mp_ret_t _led_device_open(mp_kernel_t *kernel, void *self, mp_options_t *options, char *who) {
+	return(mp_drv_led_init(kernel, self, options, who));
+}
+
+/* a closed LED is off */
+static void _led_device_close(void *self) {
+	mp_drv_led_turnOff(self);
+	mp_drv_led_fini(self);
+}
+
+static void _led_device_set(void *self, int value) {
+	if(value)
+		mp_drv_led_turnOn(self);
+	else
+		mp_drv_led_turnOff(self);
+}
+
+const mp_device_driver_t mp_drv_led_device = {
+	"LED", MP_DEVICE_LED, _led_device_open, _led_device_close, NULL, _led_device_set
+};
+#endif
+
 #endif

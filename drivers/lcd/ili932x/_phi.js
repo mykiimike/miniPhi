@@ -8,6 +8,7 @@ export const phi = {
 	headers: ["ili932x.h"],
 	buses: ["fsmc"],
 	requires: ["TUI"],
+	device: { struct: "mp_drv_ili932x_t", ops: "mp_drv_ili932x_device" },
 	options: [
 		{ name: "reset", label: "Reset", type: "pin" },
 		{ name: "backlight", label: "Backlight", type: "pin" },

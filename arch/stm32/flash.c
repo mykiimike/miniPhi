@@ -96,12 +96,27 @@ mp_ret_t mp_flash_read(mp_flash_t *flash, mp_flash_addr_t offset, int size, void
 	return(TRUE);
 }
 
+/* unlocked, interrupts off; an odd tail is padded with 0xFF */
+static mp_ret_t _mp_flash_program(mp_flash_addr_t address, const unsigned char *data, int size) {
+	mp_ret_t ret = TRUE;
+	uint16_t half;
+	int a;
+
+	FLASH->CR |= FLASH_CR_PG;
+	for(a=0; a<size && ret == TRUE; a+=2) {
+		half = data[a];
+		half |= (a + 1 < size ? data[a + 1] : 0xFF) << 8;
+		*(volatile uint16_t *)(address + a) = half;
+		ret = _mp_flash_wait();
+	}
+	FLASH->CR &= ~FLASH_CR_PG;
+	return(ret);
+}
+
 mp_ret_t mp_flash_write(mp_flash_t *flash, mp_flash_addr_t offset, int size, void *out_mem) {
 	const unsigned char *data = out_mem;
 	mp_flash_addr_t first, last, address;
 	mp_ret_t ret = TRUE;
-	uint16_t half;
-	int a;
 
 	if(size <= 0 || offset & 1 || offset + size > flash->size)
 		return(FALSE);
@@ -117,20 +132,35 @@ mp_ret_t mp_flash_write(mp_flash_t *flash, mp_flash_addr_t offset, int size, voi
 		if(_mp_flash_erase_page(address) == FALSE)
 			ret = FALSE;
 
-	FLASH->CR |= FLASH_CR_PG;
-	for(a=0; a<size && ret == TRUE; a+=2) {
-		half = data[a];
-		half |= (a + 1 < size ? data[a + 1] : 0xFF) << 8;
-		*(volatile uint16_t *)(flash->base + offset + a) = half;
-		ret = _mp_flash_wait();
-	}
-	FLASH->CR &= ~FLASH_CR_PG;
+	if(ret == TRUE)
+		ret = _mp_flash_program(flash->base + offset, data, size);
 
 	_mp_flash_lock();
 
 	MP_INTERRUPT_SAFE_END
 
 	return(ret);
+}
+
+mp_ret_t mp_flash_program(mp_flash_t *flash, mp_flash_addr_t offset, int size, const void *data) {
+	mp_ret_t ret;
+
+	if(size <= 0 || offset & 1 || offset + size > flash->size)
+		return(FALSE);
+
+	MP_INTERRUPT_SAFE_BEGIN
+	_mp_flash_unlock();
+	ret = _mp_flash_program(flash->base + offset, data, size);
+	_mp_flash_lock();
+	MP_INTERRUPT_SAFE_END
+
+	return(ret);
+}
+
+extern uint32_t _sidata, _sdata, _edata;
+
+mp_flash_addr_t mp_flash_image_end(void) {
+	return((mp_flash_addr_t)&_sidata + ((mp_flash_addr_t)&_edata - (mp_flash_addr_t)&_sdata));
 }
 
 /**@}*/

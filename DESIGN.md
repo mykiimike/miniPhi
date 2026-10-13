@@ -39,6 +39,7 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │   ├── mem/  circular/  serial/  pinout/  sensor/  regmaster/  hci/
 │   ├── quaternion/  kalman/  optional modules, same shape
 │   ├── input/       touch, mouse and keyboard gestures, read by the TUI
+│   ├── device/      board devices by class, so an app names no driver
 │   └── tui/         Things UI, for small screens; fonts/ holds the TTF files
 │
 ├── arch/
@@ -76,7 +77,11 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 ├── app/
 │   └── sysinfo/
 │       ├── _phi.js           kind app: modules, drivers, peripherals and settings it needs
-│       └── main.c            main(): banner, version, build, CPU, then a periodic report
+│       ├── main.c            main(): banner, version, build, CPU, then a periodic report
+│       ├── screen.c          the display: open, close, console keys
+│       └── pages/            one directory per home page; index.c is the list
+│           ├── accelerometer/index.c
+│           └── system/       index.c, tasks.c and devices.c are its sub-pages
 │
 └── boards/                   one directory per vendor, then one per product
     ├── olimex/
@@ -161,6 +166,15 @@ They become `PHI_LED_RED`, `PHI_INA219_INA219`, and `PHI_CONSOLE` in `build/pino
 mp_options_t options[] = PHI_LED_RED;
 ```
 
+An app that should run on any board does not take those macros: it goes through `common/device` (module `DEVICE`). A driver takes part with a `device` entry naming the struct the configurator allocates and its `mp_device_driver_t`:
+
+```js
+// drivers/sensors/smb380/_phi.js
+device: { struct: "mp_drv_smb380_t", ops: "mp_drv_smb380_device" },
+```
+
+The driver fills `mp_drv_smb380_device` with its class (`MP_DEVICE_DISPLAY`, `MP_DEVICE_TOUCH`, `MP_DEVICE_ACCELEROMETER`, `MP_DEVICE_LED`), `open` and `close` around its own init and fini, and optionally `face`, the common interface of the class (the `mp_tui_display_t` of a display, the `mp_input_t` of a touch panel), and `set` for an output. When `build/` is written, `common/device` generates `include/gen/devices.h`: one storage and one flash copy of the options per board device of such a driver, in board order. The app finds one with `mp_device_find(class, rank)` or `mp_device_named(name)`, then calls `mp_device_open()`, `mp_device_face()`, `mp_device_set()` and `mp_device_close()`. The board name of the device is its `who`. sysinfo uses that and names no driver.
+
 An app is the firmware's entry point. It pulls modules and drivers the same way, and declares the bus peripherals it opens. Picking the app adds the missing ones to the selection, where the pins and gate are chosen:
 
 ```js
@@ -170,7 +184,7 @@ export const phi = {
 	name: "sysinfo",
 	label: "System info",
 	sources: ["main.c"],
-	requires: ["SERIAL", "SENSOR"],
+	requires: ["SERIAL", "SENSOR", "DEVICE"],
 	devices: [{ bus: "uart", name: "console", label: "Console" }],
 	settings: [{ name: "SYSINFO_PERIOD", label: "Report period", type: "number", unit: "ms", default: 5000 }],
 }
@@ -203,15 +217,15 @@ flash: $(TARGET)
 
 `prepare(ctx)` checks the machine. `ctx.requireTool(cmd, hint)`, `ctx.requireFile(path, hint)` (paths may use the toolchain variables, `$(CG_TOOL_ROOT)/bin/cl430`), `ctx.info`, `ctx.warn`, `ctx.error`. It also gets `ctx.selection`, `ctx.mcu`, `ctx.toolchain`, `ctx.vars`, and `ctx.setting(name)`.
 
-`generate(ctx)` produces files when `build/` is written, not on every evaluation. It returns `{ "include/gen/<file>": content }`, gets `ctx.root`, `ctx.selection`, `ctx.setting(name)` and `ctx.compileFont(file, options)`, and two records cannot generate the same path. Objects are rebuilt when a file of `include/gen/` changes, and when a header they include changes. A setting with `emit: "none"` only feeds `generate` and stays out of `autoconf.h`.
+`generate(ctx)` produces files when `build/` is written, not on every evaluation. It returns `{ "include/gen/<file>": content }`, gets `ctx.root`, `ctx.selection`, `ctx.setting(name)`, `ctx.devices` (the board devices with their `macro` and the `device` entry of their driver) and `ctx.compileFont(file, options)`, and two records cannot generate the same path. Objects are rebuilt when a file of `include/gen/` changes, and when a header they include changes. A setting with `emit: "none"` only feeds `generate` and stays out of `autoconf.h`.
 
 ## TUI
 
-TUI is Things UI, a user interface for small screens such as the 320×240 of the STM32-LCD. When a screen starts, `mp_tui_step()` shows a splash before anything else: the word miniPhi, the logo from `config/assets/logo.svg`, `MP_KERNEL_VERSION`, the copyright and the GNU GPL v3 license, all at once. `common/tui` (module `TUI`) then draws a tree of things on any display. A display is one `write(display, x, y, w, h, pixels)` callback taking RGB565, plus an optional `flush`. There is no framebuffer: changes mark up to `MP_TUI_DIRTY_MAX` dirty rectangles, and `mp_tui_step()` renders one band of the current one into a buffer the caller gives to `mp_tui_init()`, at least one display row. Every `mp_tui_t` carries its own state, so several screens run side by side; `mp_tui_attach()` gives one a kernel task that draws a band per tick.
+TUI is Things UI, a user interface for small screens such as the 320×240 of the STM32-LCD. When a screen starts, `mp_tui_step()` shows a splash before anything else: the word miniPhi, the logo from `config/assets/logo.svg`, `MP_KERNEL_VERSION`, all at once. `common/tui` (module `TUI`) then draws a tree of things on any display. A display is one `write(display, x, y, w, h, pixels)` callback taking RGB565, plus an optional `flush`. There is no framebuffer: changes mark up to `MP_TUI_DIRTY_MAX` dirty rectangles, and `mp_tui_step()` renders one band of the current one into a buffer the caller gives to `mp_tui_init()`, at least one display row. Every `mp_tui_t` carries its own state, so several screens run side by side; `mp_tui_attach()` gives one a kernel task that draws a band per tick.
 
-After the splash the screen is a home. `mp_tui_app()` declares an application (a name and a function that fills a page). The home lists them. Opening one shows that page, which scrolls when the content is taller than the screen, and a Back button returns to the home. The first application is System: about, version, copyright, license, and the board, CPU, clock, memory, build, uptime and tasks.
+After the splash the screen is a home. `mp_tui_app()` declares an application (a name and a function that fills a page). The home lists them. Opening one shows that page, which scrolls when the content is taller than the screen, and a Back button returns to the home. The first application is System: the logo, about, version, copyright, license, and the board, CPU, clock, memory, build, uptime and tasks. It opens Task manager, the kernel tasks, and Devices, the board devices from `common/device` with their class and whether they are open.
 
-Things are caller-allocated structs that start with an `mp_tui_widget_t`: box, label, bar, table (a header and caller-owned cells, at most 8 columns), window (children sit below the title), button, and a view whose children scroll. Positions are relative to the parent's client area, and drawing is clipped to it. A custom thing passes its own `mp_tui_class_t` to `mp_tui_widget_init()`; its optional `event` callback receives click, drop and wheel events, which go up to the parents until one returns non-zero. `mp_tui_widget_name()` with `mp_tui_set_text()` and `mp_tui_set_value()` updates by name, and setters only redraw when the value changes.
+Things are caller-allocated structs that start with an `mp_tui_widget_t`: box, label, bar, table (a header and caller-owned cells, at most 8 columns), window (children sit below the title), button, switch (a label and an on/off track that a click flips), columns, and a view whose children scroll. Columns are laid out when the page is built: side by side when each gets its minimum width, one under the other otherwise, so the same page works in landscape and in portrait. Positions are relative to the parent's client area, and drawing is clipped to it. A custom thing passes its own `mp_tui_class_t` to `mp_tui_widget_init()`; its optional `event` callback receives click, drop and wheel events, which go up to the parents until one returns non-zero. `mp_tui_widget_name()` with `mp_tui_set_text()` and `mp_tui_set_value()` updates by name, and setters only redraw when the value changes.
 
 On every tick the TUI task calls `mp_tui_poll()`, which reads every input of the kernel (see Input) and acts on the widgets. A down highlights the button under it, a click runs it. A drag moves the nearest widget flagged `MP_TUI_DRAGGABLE`, raised above its siblings, and its drop sends `MP_TUI_EVENT_DROP` with the dragged widget as `source` to what lies under the drop point. Otherwise a drag scrolls the view under it, like the wheel. Arrows, Tab, Enter, Space, Escape, Backspace and Page Up / Down drive the home and the page through `mp_tui_key()`. A mouse also gets an arrow cursor, drawn over the bands like any dirty rectangle. Events are dropped while the splash is up.
 
@@ -222,6 +236,12 @@ On every tick the TUI task calls `mp_tui_poll()`, which reads every input of the
 `common/input` (module `INPUT`) turns what drivers feed into gestures. An `mp_input_t` is listed on `kernel->inputs` by `mp_input_init()` with its capabilities: touch (absolute), mouse (relative, a cursor), wheel, keys. A driver feeds it from a task or an interrupt, one producer per input: `mp_input_touch(x, y, down)`, `mp_input_motion(dx, dy)` and `mp_input_button(down)`, `mp_input_wheel(steps)`, `mp_input_key(key)`, or `mp_input_terminal(byte)` for a VT100 terminal (arrows, Home, End, Page Up / Down, Delete, a lone Escape after 50 ms). Transitions go in a queue of `MP_INPUT_QUEUE` entries, and motion is only the last position, so a fast pointer never fills it.
 
 `mp_input_read()` gives the gestures: move, down, click, drag start once the pointer leaves the press point by more than `MP_INPUT_DRAG_THRESHOLD` pixels, drag with its delta, drop, wheel and key. A press and a release between two reads still give the drag and the drop. `mp_input_bind()` keeps an input for one reader, a screen for instance, when there are several; `mp_input_next()` lists those a reader may take. Keys are their character, or `MP_INPUT_KEY_*` from 0x100. sysinfo makes its console a keyboard this way. The STM32-LCD touch panel is a resistive input on the same list.
+
+## Flash store
+
+`common/kflash` (module `KFLASH`) keeps small values across power cycles in the last two pages of the internal flash, which `make flash` does not touch. A key is a name such as `sysinfo.accelerometers`, stored as its FNV-1a hash. The module that owns a key declares its size and its default with `mp_kflash_listen()`, and gets the stored value at once. Its callback runs on later changes. `mp_kflash_set()` from anywhere stores a value and tells every listener of that key, and writes nothing when the value is the same. `_bool` helpers wrap a one-byte `mp_bool_t`. A value is at most `MP_KFLASH_VALUE_MAX` bytes.
+
+Records are appended: the hash, the size, a Fletcher-16, then the value, with the check programmed last so a record cut by a reset is skipped. When the page is full, the latest record of each key moves to the other page, which becomes active once its header is written. A page is erased once every few hundred writes. The CPU stalls while the flash is programmed, so `mp_kflash_set()` runs from a task, never from an interrupt. The arch provides `mp_flash_program()`, `mp_flash_image_end()`, `MP_FLASH_ORIGIN` and `MP_FLASH_PAGE_SIZE`; only the STM32 does for now. If the image grows into the two pages, the store stays closed and listeners keep their defaults.
 
 ## Checks
 

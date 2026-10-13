@@ -226,7 +226,7 @@ static void _mp_tui_splash_paint(mp_tui_t *ui, mp_tui_draw_t *draw) {
 	const mp_tui_font_t *font = ui->theme.font;
 	int gap = font->lineHeight / 2 + 2;
 	int logo = mp_tui_logo.w;
-	int foot = font->lineHeight * 3;
+	int foot = font->lineHeight;
 	int limit = ui->display->height - font->lineHeight - foot - gap * 4;
 	int block, top, y;
 
@@ -249,8 +249,6 @@ static void _mp_tui_splash_paint(mp_tui_t *ui, mp_tui_draw_t *draw) {
 
 	y = top + font->lineHeight + gap + logo + gap;
 	_mp_tui_splash_line(ui, draw, font, y, MP_KERNEL_VERSION, ui->theme.muted);
-	_mp_tui_splash_line(ui, draw, font, y + font->lineHeight, "(c) Michael Vergoz", ui->theme.muted);
-	_mp_tui_splash_line(ui, draw, font, y + font->lineHeight * 2, "GNU GPL v3 or later", ui->theme.muted);
 }
 
 /* draws one band of the splash; returns non-zero while the splash is up */

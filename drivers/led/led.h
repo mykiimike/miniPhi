@@ -40,6 +40,11 @@
 	void mp_drv_led_turnOn(mp_drv_led_t *led);
 	void mp_drv_led_turn(mp_drv_led_t *led);
 
+#ifdef SUPPORT_COMMON_DEVICE
+	/** an MP_DEVICE_LED */
+	extern const mp_device_driver_t mp_drv_led_device;
+#endif
+
 #endif
 
 #endif

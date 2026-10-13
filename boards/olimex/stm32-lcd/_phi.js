@@ -11,7 +11,7 @@ export const phi = {
 	requires: ["ak-link"],
 	app: "sysinfo",
 	defines: [],
-	modules: ["SERIAL", "SENSOR", "INPUT", "TUI"],
+	modules: ["SERIAL", "SENSOR", "INPUT", "TUI", "KFLASH"],
 	drivers: ["ILI932X", "RESISTIVE", "SMB380"],
 	settings: {
 		MP_MEM_SIZE: 8192,

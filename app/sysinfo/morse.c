@@ -24,8 +24,6 @@
 
 #include "sysinfo.h"
 
-#ifdef SYSINFO_MORSE
-
 /* one char per Morse unit, '1' lit: dot 1, dash 3, gaps 1 / 3 (letter) / 7 (word) */
 static const char _sos[] =
 	"10101" "000"
@@ -40,10 +38,12 @@ static const char _help[] =
 
 #define SYSINFO_LEDS ((int)(sizeof(((sysinfo_t *)0)->leds) / sizeof(((sysinfo_t *)0)->leds[0])))
 
-static void _sysinfo_morse_led(sysinfo_t *sysinfo, int index, mp_options_t *options, const char *pattern, char *who) {
-	if(mp_drv_led_init(&sysinfo->kernel, &sysinfo->leds[index].led, options, who) == FALSE)
+static void _sysinfo_morse_led(sysinfo_t *sysinfo, int index, const char *pattern) {
+	mp_device_t *device = mp_device_find(MP_DEVICE_LED, index);
+
+	if(mp_device_open(&sysinfo->kernel, device) == FALSE)
 		return;
-	sysinfo->leds[index].ready = YES;
+	sysinfo->leds[index].device = device;
 	sysinfo->leds[index].pattern = pattern;
 	sysinfo->leds[index].step = 0;
 }
@@ -59,13 +59,10 @@ static MP_TASK(_sysinfo_morse) {
 	}
 
 	for(index = 0; index < SYSINFO_LEDS; index++) {
-		if(sysinfo->leds[index].ready == NO)
+		if(!sysinfo->leds[index].device)
 			continue;
 
-		if(sysinfo->leds[index].pattern[sysinfo->leds[index].step] == '1')
-			mp_drv_led_turnOn(&sysinfo->leds[index].led);
-		else
-			mp_drv_led_turnOff(&sysinfo->leds[index].led);
+		mp_device_set(sysinfo->leds[index].device, sysinfo->leds[index].pattern[sysinfo->leds[index].step] == '1');
 
 		if(sysinfo->leds[index].pattern[++sysinfo->leds[index].step] == '\0')
 			sysinfo->leds[index].step = 0;
@@ -73,17 +70,10 @@ static MP_TASK(_sysinfo_morse) {
 }
 
 void _sysinfo_morse_start(sysinfo_t *sysinfo) {
-	mp_options_t sos[] = PHI_LED_FIRST;
-#ifdef PHI_LED_SECOND
-	mp_options_t help[] = PHI_LED_SECOND;
-#endif
-
 	/* the LEDs do not need the console */
-	_sysinfo_morse_led(sysinfo, 0, sos, _sos, "SOS");
-#ifdef PHI_LED_SECOND
-	_sysinfo_morse_led(sysinfo, 1, help, _help, "HELP");
-#endif
-	if(sysinfo->leds[0].ready == YES || sysinfo->leds[1].ready == YES)
+	_sysinfo_morse_led(sysinfo, 0, _sos);
+	_sysinfo_morse_led(sysinfo, 1, _help);
+	if(sysinfo->leds[0].device || sysinfo->leds[1].device)
 		sysinfo->morse = mp_task_create(
 			&sysinfo->kernel.tasks, "Morse", _sysinfo_morse, sysinfo,
 			_sysinfo_ticks(SYSINFO_MORSE_UNIT)
@@ -98,22 +88,9 @@ void _sysinfo_morse_stop(sysinfo_t *sysinfo) {
 		sysinfo->morse = NULL;
 	}
 	for(index = 0; index < SYSINFO_LEDS; index++) {
-		if(sysinfo->leds[index].ready == NO)
+		if(!sysinfo->leds[index].device)
 			continue;
-		mp_drv_led_turnOff(&sysinfo->leds[index].led);
-		mp_drv_led_fini(&sysinfo->leds[index].led);
-		sysinfo->leds[index].ready = NO;
+		mp_device_close(sysinfo->leds[index].device);
+		sysinfo->leds[index].device = NULL;
 	}
 }
-
-#else
-
-void _sysinfo_morse_start(sysinfo_t *sysinfo) {
-	(void)sysinfo;
-}
-
-void _sysinfo_morse_stop(sysinfo_t *sysinfo) {
-	(void)sysinfo;
-}
-
-#endif

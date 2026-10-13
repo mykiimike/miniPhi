@@ -259,6 +259,24 @@ void mp_drv_ili932x_backlight(mp_drv_ili932x_t *lcd, mp_bool_t on) {
 		mp_gpio_unset(lcd->backlight);
 }
 
+#ifdef SUPPORT_COMMON_DEVICE
+static mp_ret_t _ili932x_device_open(mp_kernel_t *kernel, void *self, mp_options_t *options, char *who) {
+	return(mp_drv_ili932x_init(kernel, self, options, who));
+}
+
+static void _ili932x_device_close(void *self) {
+	mp_drv_ili932x_fini(self);
+}
+
+static void *_ili932x_device_face(void *self) {
+	return(&((mp_drv_ili932x_t *)self)->display);
+}
+
+const mp_device_driver_t mp_drv_ili932x_device = {
+	"ILI932X", MP_DEVICE_DISPLAY, _ili932x_device_open, _ili932x_device_close, _ili932x_device_face, NULL
+};
+#endif
+
 /**@}*/
 
 #endif

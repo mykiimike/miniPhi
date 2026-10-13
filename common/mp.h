@@ -111,6 +111,9 @@
 	#ifdef SUPPORT_COMMON_MEM
 		#include <mem/mem.h>
 	#endif
+	#ifdef SUPPORT_COMMON_KFLASH
+		#include <kflash/kflash.h>
+	#endif
 	#ifdef SUPPORT_COMMON_CIRCULAR
 		#include <circular/circular.h>
 	#endif
@@ -142,6 +145,9 @@
 	#endif
 	#ifdef SUPPORT_COMMON_TUI
 		#include <tui/tui.h>
+	#endif
+	#ifdef SUPPORT_COMMON_DEVICE
+		#include <device/device.h>
 	#endif
 
 	#ifdef SUPPORT_DRV_BUTTON
@@ -208,6 +214,11 @@
 #ifdef SUPPORT_COMMON_INPUT
 		/** every mp_input_t, see mp_input_next() */
 		mp_list_t inputs;
+#endif
+
+#ifdef SUPPORT_COMMON_KFLASH
+		/** values kept in flash, see mp_kflash_listen() */
+		mp_kflash_t kflash;
 #endif
 
 		/** Internal tick timer */

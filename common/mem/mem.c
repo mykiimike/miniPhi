@@ -124,6 +124,20 @@ void mp_mem_free(mp_kernel_t *kernel, void *ptr) {
 	__mem_allocated--;
 }
 
+void mp_mem_state(mp_mem_state_t *state) {
+	int total;
+
+	if(!state)
+		return;
+	total = (int)(MP_MEM_SIZE / sizeof(mp_mem_chunk_t)) - 1;
+	if(total < 0)
+		total = 0;
+	state->total = total;
+	state->used = __mem_allocated > 0 ? (int)__mem_allocated : 0;
+	if(state->used > state->total)
+		state->used = state->total;
+}
+
 
 
 /**

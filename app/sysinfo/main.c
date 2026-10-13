@@ -23,7 +23,7 @@
  * uptime, tasks and sensors every SYSINFO_PERIOD ms.
  * Delays are milliseconds and follow mp_clock_tick_hz().
  * When the board has LEDs, morse.c blinks SOS on the first and HELP on the second.
- * On an ILI932x screen, screen.c opens the TUI: System is a scrollable page
+ * On the first display of the board, screen.c opens the TUI and the pages in pages/. System is a scrollable page
  * with about, version, copyright, license and the live figures. Back returns
  * to the home.
  */
@@ -86,11 +86,57 @@ static void _sysinfo_onBoot(void *user) {
 	mp_kernel_state(&sysinfo->kernel, SYSINFO_OP);
 }
 
+/* opens or closes every accelerometer of the board */
+static void _sysinfo_accel_run(sysinfo_t *sysinfo, mp_bool_t on) {
+	mp_device_t *device;
+	int rank;
+
+	for(rank = 0; (device = mp_device_find(MP_DEVICE_ACCELEROMETER, rank)) != NULL; rank++) {
+		if(on == YES)
+			mp_device_open(&sysinfo->kernel, device);
+		else
+			mp_device_close(device);
+	}
+}
+
+/* starts or stops the accelerometers to match sysinfo->accelEnabled */
+static void _sysinfo_accel_apply(sysinfo_t *sysinfo) {
+	_sysinfo_accel_run(sysinfo, sysinfo->accelEnabled);
+}
+
+#ifdef SUPPORT_COMMON_KFLASH
+static void _sysinfo_accel_changed(mp_kflash_var_t *var) {
+	sysinfo_t *sysinfo = var->user;
+
+	mp_printk("%s %s", var->key, sysinfo->accelEnabled == YES ? "on" : "off");
+	_sysinfo_accel_apply(sysinfo);
+}
+#endif
+
+void _sysinfo_accel_enable(sysinfo_t *sysinfo, mp_bool_t on) {
+#ifdef SUPPORT_COMMON_KFLASH
+	if(mp_kflash_set_bool(&sysinfo->kernel, SYSINFO_KEY_ACCEL, on) == TRUE)
+		return;
+	mp_printk("%s: the flash did not take it, until the next reset only", SYSINFO_KEY_ACCEL);
+#endif
+	sysinfo->accelEnabled = on ? YES : NO;
+	_sysinfo_accel_apply(sysinfo);
+}
+
 static void _sysinfo_op_set(void *user) {
 	sysinfo_t *sysinfo = user;
 	mp_options_t console[] = PHI_CONSOLE;
 
 	_sysinfo_morse_start(sysinfo);
+
+#ifdef SUPPORT_COMMON_KFLASH
+	sysinfo->accelListened = mp_kflash_listen_bool(&sysinfo->kernel, &sysinfo->accelVar,
+		SYSINFO_KEY_ACCEL, &sysinfo->accelEnabled, YES, _sysinfo_accel_changed, sysinfo);
+	if(sysinfo->accelListened == FALSE)
+		sysinfo->accelEnabled = YES;
+#else
+	sysinfo->accelEnabled = YES;
+#endif
 
 	if(mp_serial_open(&sysinfo->kernel, &sysinfo->serial, console, "Console") == FALSE) {
 		_sysinfo_screen_open(sysinfo);
@@ -106,12 +152,7 @@ static void _sysinfo_op_set(void *user) {
 	/* lets the arch publish its own sensors, such as the die temperature */
 	mp_machine_state_set(&sysinfo->kernel);
 
-#if defined(SUPPORT_DRV_SMB380) && defined(PHI_SMB380_FIRST)
-	{
-		mp_options_t accel[] = PHI_SMB380_FIRST;
-		sysinfo->accelReady = mp_drv_smb380_init(&sysinfo->kernel, &sysinfo->accel, accel, "SMB380") == TRUE;
-	}
-#endif
+	_sysinfo_accel_apply(sysinfo);
 
 	/* one line per wake up: each write takes chunks from the memory pool */
 	sysinfo->line = 0;
@@ -132,10 +173,11 @@ static void _sysinfo_op_unset(void *user) {
 	_sysinfo_screen_close(sysinfo);
 	_sysinfo_morse_stop(sysinfo);
 
-#if defined(SUPPORT_DRV_SMB380) && defined(PHI_SMB380_FIRST)
-	if(sysinfo->accelReady == YES) {
-		mp_drv_smb380_fini(&sysinfo->accel);
-		sysinfo->accelReady = NO;
+	_sysinfo_accel_run(sysinfo, NO);
+#ifdef SUPPORT_COMMON_KFLASH
+	if(sysinfo->accelListened == YES) {
+		mp_kflash_unlisten(&sysinfo->kernel, &sysinfo->accelVar);
+		sysinfo->accelListened = NO;
 	}
 #endif
 

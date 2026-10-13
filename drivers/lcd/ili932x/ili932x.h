@@ -54,4 +54,9 @@
 	mp_ret_t mp_drv_ili932x_fini(mp_drv_ili932x_t *lcd);
 	void mp_drv_ili932x_backlight(mp_drv_ili932x_t *lcd, mp_bool_t on);
 
+#ifdef SUPPORT_COMMON_DEVICE
+	/** an MP_DEVICE_DISPLAY */
+	extern const mp_device_driver_t mp_drv_ili932x_device;
+#endif
+
 #endif

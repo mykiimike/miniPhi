@@ -108,6 +108,17 @@ export async function runGenerate(root, catalog, analysis, selection) {
 			root,
 			selection: clone(selection),
 			setting: settingOf(analysis),
+			/** the board devices; device is the { struct, ops } of their driver, null when it has none */
+			devices: analysis.devices.map((device) => {
+				const driver = device.driver ? catalog.drivers.find((item) => item.name === device.driver) : null
+				return {
+					name: device.name,
+					label: device.label,
+					macro: device.macro,
+					driver: device.driver,
+					device: driver && driver.data.device ? clone(driver.data.device) : null,
+				}
+			}),
 			compileFont(file, options) {
 				return compileFont(path.resolve(root, file), { ...options, source: file })
 			},

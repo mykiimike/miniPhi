@@ -13,9 +13,14 @@ export const phi = {
 	kind: "module",
 	name: "TUI",
 	label: "Things UI",
-	description: "A user interface for small screens. On start it shows miniPhi, the logo, the version, the copyright and the license together, then a home of applications declared by the firmware. Opening one shows a scrollable page and a Back button. With INPUT, every touch panel, mouse and keyboard clicks, drags, drops and scrolls them. Things are drawn in bands into any RGB565 display: no framebuffer, and several screens at once. The default font and the logo are rasterized when build/ is written.",
+	description: "A user interface for small screens. On start it shows miniPhi, the logo and the version together, then a home of applications declared by the firmware. Opening one shows a scrollable page and a Back button. With INPUT, every touch panel, mouse and keyboard clicks, drags, drops and scrolls them. Things are drawn in bands into any RGB565 display: no framebuffer, and several screens at once. The default font and the logo are rasterized when build/ is written.",
 	define: "SUPPORT_COMMON_TUI",
-	sources: ["tui.c", "draw.c", "font.c", "widgets.c", "task.c", "font_default.c"],
+	sources: [
+		"tui.c", "draw.c", "font.c", "task.c", "font_default.c",
+		"widgets/box.c", "widgets/label.c", "widgets/bar.c", "widgets/table.c",
+		"widgets/columns.c", "widgets/window.c", "widgets/button.c", "widgets/switch.c",
+		"widgets/view.c", "widgets/page.c", "widgets/named.c",
+	],
 	headers: ["tui.h", "font.h"],
 	settings: [
 		{

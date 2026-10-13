@@ -194,6 +194,20 @@
 		int pressed;
 	};
 
+	typedef struct mp_tui_switch_s mp_tui_switch_t;
+
+	/** called after a click flipped the switch; sw->on is the new state */
+	typedef void (*mp_tui_switch_on_t)(mp_tui_switch_t *sw);
+
+	/** text on the left, an on/off track on the right; a click flips it */
+	struct mp_tui_switch_s {
+		mp_tui_widget_t widget;
+		char text[MP_TUI_TEXT_MAX];
+		int on;
+		mp_tui_switch_on_t onChange;
+		void *user;
+	};
+
 	/** children can sit below the visible area; mp_tui_scroll() moves them */
 	typedef struct {
 		mp_tui_widget_t widget;
@@ -361,6 +375,30 @@
 		int rows;
 	} mp_tui_table_t;
 
+	#ifndef MP_TUI_COLUMNS_MAX
+		#define MP_TUI_COLUMNS_MAX 4
+	#endif
+
+	/** one column of a layout: width 0 shares what the fixed ones leave; never under minWidth */
+	typedef struct {
+		int width;
+		int minWidth;
+	} mp_tui_column_spec_t;
+
+	/**
+	 * Columns side by side when each gets its minWidth, one under the other
+	 * otherwise, so a page follows the orientation of the screen. Children go
+	 * in mp_tui_columns_at(); mp_tui_columns_fit() sizes everything once they are in.
+	 */
+	typedef struct {
+		mp_tui_widget_t widget;
+		const mp_tui_column_spec_t *specs;
+		int count;
+		int gap;
+		int stacked;
+		mp_tui_widget_t column[MP_TUI_COLUMNS_MAX];
+	} mp_tui_columns_t;
+
 	/** framed panel with a title bar; children go below the title */
 	typedef struct {
 		mp_tui_widget_t widget;
@@ -372,8 +410,10 @@
 	extern const mp_tui_class_t mp_tui_label_class;
 	extern const mp_tui_class_t mp_tui_bar_class;
 	extern const mp_tui_class_t mp_tui_table_class;
+	extern const mp_tui_class_t mp_tui_columns_class;
 	extern const mp_tui_class_t mp_tui_window_class;
 	extern const mp_tui_class_t mp_tui_button_class;
+	extern const mp_tui_class_t mp_tui_switch_class;
 	extern const mp_tui_class_t mp_tui_view_class;
 	extern const mp_tui_class_t mp_tui_page_class;
 
@@ -399,10 +439,21 @@
 	/** printf-like; redraws only when that cell changes */
 	void mp_tui_table_set(mp_tui_table_t *table, int row, int column, const char *format, ...);
 
+	/** specs outlives the layout; at most MP_TUI_COLUMNS_MAX columns */
+	void mp_tui_columns(mp_tui_columns_t *columns, mp_tui_widget_t *parent, int x, int y, int w, const mp_tui_column_spec_t *specs, int count, int gap);
+	/** the parent of what goes in column index; its rect.w is the width to lay out in */
+	mp_tui_widget_t *mp_tui_columns_at(mp_tui_columns_t *columns, int index);
+	/** each column as tall as its children, stacked ones moved under each other; returns the height */
+	int mp_tui_columns_fit(mp_tui_columns_t *columns);
+
 	void mp_tui_window(mp_tui_window_t *window, mp_tui_widget_t *parent, int x, int y, int w, int h, const char *title);
 	void mp_tui_window_title(mp_tui_window_t *window, const char *format, ...);
 
 	void mp_tui_button(mp_tui_button_t *button, mp_tui_widget_t *parent, int x, int y, int w, int h, const char *text);
+
+	void mp_tui_switch(mp_tui_switch_t *sw, mp_tui_widget_t *parent, int x, int y, int w, int h, const char *text, int on);
+	/** does not call onChange; redraws only when the state changes */
+	void mp_tui_switch_set(mp_tui_switch_t *sw, int on);
 	void mp_tui_view(mp_tui_view_t *view, mp_tui_widget_t *parent, int x, int y, int w, int h);
 	/** moves the content by dy pixels, kept between the top and the lowest child */
 	void mp_tui_view_scroll(mp_tui_view_t *view, int dy);

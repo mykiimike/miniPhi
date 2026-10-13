@@ -393,6 +393,24 @@ mp_ret_t mp_drv_resistive_fini(mp_drv_resistive_t *panel) {
 	return(TRUE);
 }
 
+#ifdef SUPPORT_COMMON_DEVICE
+static mp_ret_t _resistive_device_open(mp_kernel_t *kernel, void *self, mp_options_t *options, char *who) {
+	return(mp_drv_resistive_init(kernel, self, options, who));
+}
+
+static void _resistive_device_close(void *self) {
+	mp_drv_resistive_fini(self);
+}
+
+static void *_resistive_device_face(void *self) {
+	return(&((mp_drv_resistive_t *)self)->input);
+}
+
+const mp_device_driver_t mp_drv_resistive_device = {
+	"RESISTIVE", MP_DEVICE_TOUCH, _resistive_device_open, _resistive_device_close, _resistive_device_face, NULL
+};
+#endif
+
 /**@}*/
 
 #endif

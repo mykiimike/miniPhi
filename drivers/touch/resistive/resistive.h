@@ -76,4 +76,9 @@
 	mp_ret_t mp_drv_resistive_init(mp_kernel_t *kernel, mp_drv_resistive_t *panel, mp_options_t *options, char *who);
 	mp_ret_t mp_drv_resistive_fini(mp_drv_resistive_t *panel);
 
+#ifdef SUPPORT_COMMON_DEVICE
+	/** an MP_DEVICE_TOUCH */
+	extern const mp_device_driver_t mp_drv_resistive_device;
+#endif
+
 #endif

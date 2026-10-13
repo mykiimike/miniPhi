@@ -7,6 +7,7 @@ export const phi = {
 	sources: ["resistive.c"],
 	headers: ["resistive.h"],
 	requires: ["INPUT"],
+	device: { struct: "mp_drv_resistive_t", ops: "mp_drv_resistive_device" },
 	options: [
 		{ name: "yd", label: "YD, bottom of the Y plate", type: "pin", required: true },
 		{ name: "yu", label: "YU, top of the Y plate", type: "pin", required: true },

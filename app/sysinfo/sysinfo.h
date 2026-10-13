@@ -19,8 +19,8 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Shared by main.c (boot and the console report), screen.c (the TUI)
- * and morse.c (the LEDs).
+ * Shared by main.c (boot and the console report), screen.c (the display),
+ * pages/ (one directory per home page, its index.c) and morse.c (the LEDs).
  */
 
 #ifndef _MINIPHI_APP_SYSINFO_H
@@ -31,7 +31,15 @@
 
 #define SYSINFO_OP MP_KERNEL_RES01
 
-#if defined(SUPPORT_DRV_LCD_ILI932X) && defined(PHI_ILI932X_LCD) && defined(SUPPORT_COMMON_SENSOR)
+/* kept in flash when KFLASH is on; a bool, YES by default */
+#define SYSINFO_KEY_ACCEL "sysinfo.accelerometers"
+
+/* the devices come from common/device: sysinfo never names a driver */
+#ifdef SUPPORT_COMMON_TUI
+#define SYSINFO_SCREEN
+#endif
+
+#if defined(SYSINFO_SCREEN) && defined(SUPPORT_COMMON_SENSOR)
 /** bubble level: mx, my, mz are centi-g, and ±100 is the edge of the glass */
 typedef struct {
 	mp_tui_widget_t widget;
@@ -50,35 +58,32 @@ struct sysinfo_s {
 	mp_task_t *task;
 	int line;
 
-#if defined(SUPPORT_DRV_SMB380) && defined(PHI_SMB380_FIRST)
-	mp_drv_smb380_t accel;
-	mp_bool_t accelReady;
+	/** SYSINFO_KEY_ACCEL: the accelerometers run while it is YES */
+	mp_bool_t accelEnabled;
+#ifdef SUPPORT_COMMON_KFLASH
+	mp_kflash_var_t accelVar;
+	mp_bool_t accelListened;
 #endif
 
-#if defined(SUPPORT_DRV_LED) && defined(PHI_LED_FIRST)
+	/** the first two LEDs of the board; NULL when it has fewer */
 	struct {
-		mp_drv_led_t led;
-		mp_bool_t ready;
+		mp_device_t *device;
 		const char *pattern;
 		int step;
 	} leds[2];
 	mp_task_t *morse;
-#endif
 
-#if defined(SUPPORT_DRV_LCD_ILI932X) && defined(PHI_ILI932X_LCD)
+#ifdef SYSINFO_SCREEN
 	struct {
-		mp_drv_ili932x_t lcd;
+		mp_device_t *display;
 		mp_tui_t tui;
 		mp_bool_t ready;
 		mp_task_t *task;
 #ifdef SUPPORT_COMMON_INPUT
 		mp_input_t keys;
 #endif
-#if defined(SUPPORT_DRV_TOUCH_RESISTIVE) && defined(PHI_RESISTIVE_TOUCH)
-		mp_drv_resistive_t touch;
-		mp_bool_t touchReady;
-#endif
 		int systemReady;
+		mp_tui_widget_t logo;
 		mp_tui_label_t heading;
 		mp_tui_label_t copyright;
 		mp_tui_label_t license;
@@ -94,42 +99,51 @@ struct sysinfo_s {
 		mp_tui_bar_t flashBar;
 		mp_tui_label_t flashFree;
 		mp_tui_label_t flashState;
+#ifdef SUPPORT_COMMON_KFLASH
+		mp_tui_label_t flashStore;
+#endif
 		mp_tui_label_t build;
 		mp_tui_label_t target;
 		mp_tui_label_t uptime;
 		mp_tui_label_t tasks;
 		mp_tui_bar_t taskBar;
-		/** sub-page of System; -1 until it is registered */
+		mp_tui_label_t ram;
+		mp_tui_bar_t ramBar;
+#ifdef SUPPORT_COMMON_MEM
+		mp_tui_label_t pool;
+		mp_tui_bar_t poolBar;
+#endif
+		/** sub-pages of System; -1 until they are registered */
 		int tasksIndex;
 		int tasksReady;
 		mp_tui_button_t taskManager;
 		mp_tui_label_t taskCount;
 		mp_tui_table_t taskTable;
 		mp_tui_cell_t taskCell[MP_TASK_MAX][3];
+		int devicesIndex;
+		int devicesReady;
+		mp_tui_button_t devicesButton;
+		mp_tui_label_t deviceCount;
+		mp_tui_table_t deviceTable;
+		mp_tui_cell_t deviceCell[MP_DEVICE_MAX][3];
 		/** die temperature and supply, the only sensors this page shows */
 		mp_tui_label_t sensors[2];
 #ifdef SUPPORT_COMMON_SENSOR
 		/** home entry "Accelerometer"; -1 until it is registered */
 		int accelIndex;
 		int accelReady;
+		mp_tui_columns_t accelLayout;
 		sysinfo_level_t level;
 		mp_tui_label_t accelName;
 		mp_tui_label_t accelX;
 		mp_tui_label_t accelY;
 		mp_tui_label_t accelZ;
 		mp_tui_label_t accelTemperature;
+		mp_tui_switch_t accelSwitch;
 #endif
 	} screen;
 #endif
 };
-
-#if defined(SUPPORT_DRV_LED) && defined(PHI_LED_FIRST)
-#define SYSINFO_MORSE
-#endif
-
-#if defined(SUPPORT_DRV_LCD_ILI932X) && defined(PHI_ILI932X_LCD)
-#define SYSINFO_SCREEN
-#endif
 
 /* delays are milliseconds and follow mp_clock_tick_hz() */
 static inline unsigned long _sysinfo_ticks(unsigned long ms) {
@@ -147,5 +161,8 @@ void _sysinfo_morse_start(sysinfo_t *sysinfo);
 void _sysinfo_morse_stop(sysinfo_t *sysinfo);
 void _sysinfo_screen_open(sysinfo_t *sysinfo);
 void _sysinfo_screen_close(sysinfo_t *sysinfo);
+
+/** stores SYSINFO_KEY_ACCEL; the accelerometers follow when the store tells sysinfo */
+void _sysinfo_accel_enable(sysinfo_t *sysinfo, mp_bool_t on);
 
 #endif

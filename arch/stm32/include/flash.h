@@ -28,6 +28,9 @@
 		#define MP_FLASH_PAGE_SIZE 1024UL
 	#endif
 
+	/* the image is linked here, and the flash runs PHI_BUILD_FLASH bytes from it */
+	#define MP_FLASH_ORIGIN 0x08000000UL
+
 	typedef struct mp_flash_s mp_flash_t;
 	typedef unsigned long mp_flash_addr_t;
 
@@ -44,5 +47,11 @@
 
 	/* erases the pages it touches, then programs half-words */
 	mp_ret_t mp_flash_write(mp_flash_t *flash, mp_flash_addr_t offset, int size, void *out_mem);
+
+	/* programs half-words without erasing: the cells must still read 0xFF */
+	mp_ret_t mp_flash_program(mp_flash_t *flash, mp_flash_addr_t offset, int size, const void *data);
+
+	/* first byte after the image, .data included */
+	mp_flash_addr_t mp_flash_image_end(void);
 
 #endif
