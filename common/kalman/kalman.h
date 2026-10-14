@@ -31,35 +31,29 @@
 	typedef struct mp_kalman_s mp_kalman_t;
 
 	struct mp_kalman_s {
-		/** last estimation */
-		float x_est_last;
+		/** current estimation */
+		float x;
 
-		/* last covariance estimation error */
-		float P_last;
-
-		/** process noise covariance matrix */
-		float Q;
-
-		/** the measurement noise covariance matrix */
-		float R;
-
-		/** the kalman gain */
-		float K;
-
-		/** estimate error covariance matrix */
+		/** variance of the estimation error */
 		float P;
 
-		/** current estimation */
-		float x_est;
+		/** process noise variance: how much the value may move between two measurements */
+		float Q;
+
+		/** measurement noise variance */
+		float R;
+
+		/** NO until the first measurement */
+		mp_bool_t primed;
 	};
 
 	/** @} */
 
-	void mp_kalman_init(mp_kernel_t *kernel, mp_kalman_t *kalman, float Q, float R);
+	mp_ret_t mp_kalman_init(mp_kernel_t *kernel, mp_kalman_t *kalman, float Q, float R);
 	void mp_kalman_fini(mp_kalman_t *kalman);
+	void mp_kalman_reset(mp_kalman_t *kalman);
 	float mp_kalman_update(mp_kalman_t *kalman, float x);
 
 
 #endif
 #endif
-

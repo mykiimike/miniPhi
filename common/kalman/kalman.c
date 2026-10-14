@@ -28,9 +28,9 @@
 
 @ingroup mpCommon
 
-@brief Simple Kalman filter computation
+@brief One-dimensional Kalman filter
 
-@version 1.0.0
+@version 1.1.0
 
 @author @htmlonly &copy; @endhtmlonly 2015
 Michael Vergoz <mv@verman.fr>
@@ -43,7 +43,15 @@ containing noise (random variations) and other inaccuracies, and produces
 estimates of unknown variables that tend to be more precise than those
 based on a single measurement alone.
 
-This version of kalman filtering is fast and easy to use.
+The model is a random walk: the value is taken as constant between two
+measurements, give or take Q. It suits a value that moves slowly next
+to its noise. A small Q over R smooths more and lags more behind a
+change, a big one follows the measurements closely.
+
+The first measurement is taken as the estimation, with the measurement
+noise as its error.
+
+Single precision only: neither the MSP430 nor the Cortex-M3 has an FPU.
 
 @{
 */
@@ -51,55 +59,74 @@ This version of kalman filtering is fast and easy to use.
 /**
  * @brief Initiate Kalman filtering context
  *
- * This initiates a Kalman filtering context.
- * Q and R are noise related and these values are know.
- *
  * @param[in] kernel Kernel handler
  * @param[in] kalman Kalman context
- * @param[in] Q The process noise covariance matrix
- * @param[in] R The measurement noise covariance matrix
+ * @param[in] Q Process noise variance, 0 or more
+ * @param[in] R Measurement noise variance, more than 0
+ * @return FALSE when Q or R is out of range
  */
-void mp_kalman_init(mp_kernel_t *kernel, mp_kalman_t *kalman, float Q, float R) {
+mp_ret_t mp_kalman_init(mp_kernel_t *kernel, mp_kalman_t *kalman, float Q, float R) {
+	(void)kernel;
+
 	memset(kalman, 0, sizeof(*kalman));
+
+	/* written so NaN fails too */
+	if(!(Q >= 0.0f) || !(R > 0.0f))
+		return(FALSE);
+
 	kalman->Q = Q;
 	kalman->R = R;
+	kalman->primed = NO;
+
+	return(TRUE);
 }
 
 /**
  * @brief Terminate Kalman filtering context
  *
- * This terminates a Kalman filtering context.
+ * Nothing is held: kept for the symmetry of the module API.
  *
  * @param[in] kalman Kalman context
  */
 void mp_kalman_fini(mp_kalman_t *kalman) {
-	// none
+	(void)kalman;
+}
+
+/**
+ * @brief Forget the estimation, the next measurement starts over
+ *
+ * @param[in] kalman Kalman context
+ */
+void mp_kalman_reset(mp_kalman_t *kalman) {
+	kalman->primed = NO;
 }
 
 /**
  * @brief Update Kalman filtering context
  *
- * This updates a Kalman filtering using the value @ref x
- *
  * @param[in] kalman Kalman context
  * @param[in] x Measurement
- * @return New Kalman number
+ * @return New estimation
  */
 float mp_kalman_update(mp_kalman_t *kalman, float x) {
-	float P_temp;
-	float x_temp_est;
+	float K;
 
-    x_temp_est = kalman->x_est_last;
-    P_temp = kalman->P_last + kalman->Q;
+	if(kalman->primed == NO) {
+		kalman->x = x;
+		kalman->P = kalman->R;
+		kalman->primed = YES;
+		return(kalman->x);
+	}
 
-    // calculate the Kalman gain
-    kalman->K = P_temp * (1.0/(P_temp + kalman->R));
+	/* predict: the value may have moved by Q */
+	kalman->P += kalman->Q;
 
-    // correct
-    kalman->x_est = x_temp_est + kalman->K * (x - x_temp_est);
-    kalman->P = (1- kalman->K) * P_temp;
+	/* correct: R > 0 keeps the division away from 0 */
+	K = kalman->P / (kalman->P + kalman->R);
+	kalman->x += K * (x - kalman->x);
+	kalman->P *= 1.0f - K;
 
-    return(kalman->x_est);
+	return(kalman->x);
 }
 
 /**@}*/
