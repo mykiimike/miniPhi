@@ -43,8 +43,10 @@ H4 has no framing to resync on: a byte that is no packet indicator, a
 Hardware Error event or a command without answer resets the controller.
 The connections are gone after that, onReady tells the owner.
 
-The UART carries no RTS/CTS: the line has to be fast enough for the
-controller, or the controller configured without flow control.
+Give the UART rts and cts pins: RTS rises when the received bytes come
+within MP_HCI_RX_SLACK of the queue limit, and falls again once the task
+emptied half of it. Without them the line has to be slow enough for the
+task, or the controller configured without flow control.
 
 @{
 */
@@ -470,6 +472,11 @@ static MP_TASK(_mp_hci_reader) {
 		_mp_hci_restart(hci, MP_HCI_STATUS_RESET);
 	}
 
+	if(hci->rxHeld == YES && hci->rxCir.totalSize <= hci->rxCir.maxSize / 2) {
+		hci->rxHeld = NO;
+		mp_uart_enable_rx(hci->uart);
+	}
+
 	/* an answer to wait for keeps the clock watched, otherwise only a received byte wakes the task */
 	if(hci->cmdOpcode != 0 || hci->resetPending == YES)
 		mp_task_delay(task, _mp_hci_ticks(MP_HCI_POLL));
@@ -532,6 +539,11 @@ mp_ret_t mp_hci_fini(mp_hci_t *hci) {
 
 	mp_circular_fini(&hci->rxCir);
 	mp_circular_fini(&hci->txCir);
+
+	if(hci->rxHeld == YES) {
+		hci->rxHeld = NO;
+		mp_uart_enable_rx(hci->uart);
+	}
 
 	return(TRUE);
 }
@@ -681,6 +693,10 @@ static void mp_hci_UART_rxInt(mp_uart_t *uart) {
 
 	/* run circular interrupt service */
 	mp_circular_rxInterrupt(&hci->rxCir, chr);
+	if(hci->rxHeld == NO && hci->rxCir.totalSize >= hci->rxCir.maxSize - MP_HCI_RX_SLACK) {
+		hci->rxHeld = YES;
+		mp_uart_disable_rx(uart);
+	}
 	if(hci->task)
 		mp_task_wake(hci->task);
 }

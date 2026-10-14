@@ -26,13 +26,21 @@
 @ingroup mpArchSTM32
 
 Options of mp_uart_open(): gate (USART1, USART2), txd and rxd (the
-remap 0 pins when missing). Options of mp_uart_setup(): baudRate,
-parity (none, even, odd), stopBits (1, 2), bits (8, 9).
+remap 0 pins when missing), rts and cts (any pins, flow control off
+when missing). Options of mp_uart_setup(): baudRate, parity (none,
+even, odd), stopBits (1, 2), bits (8, 9).
+
+RTS and CTS are GPIO, active low. RTS is held low from the open;
+mp_uart_disable_rx() raises it when the reader falls behind. CTS high
+stops the TX interrupt before the next byte, its EXTI falling edge
+starts it again: the byte in the shift register and the one in DR still
+leave. CTS takes the EXTI line of its pin number.
 
 @{
 */
 
 static void _mp_uart_interrupt(void *user);
+static void _mp_uart_cts(void *user);
 
 static mp_list_t __uarts;
 
@@ -86,6 +94,39 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 	mp_gpio_mode(uart->txd_port, MP_GPIO_MODE_AF);
 	mp_gpio_mode(uart->rxd_port, MP_GPIO_MODE_INPUT_PULL);
 	uart->rxd_port->base->BSRR = 1UL << uart->rxd_port->pin;
+
+	value = mp_options_get(options, "rts");
+	if(value) {
+		uart->rts_port = mp_gpio_text_handle(value, who);
+		if(!uart->rts_port) {
+			mp_printk("UART %s: RTS pin %s is not available", uart->gate->portDevice, value);
+			mp_uart_close(uart);
+			return(FALSE);
+		}
+		mp_gpio_mode(uart->rts_port, MP_GPIO_MODE_OUTPUT);
+		mp_uart_enable_rx(uart);
+	}
+
+	value = mp_options_get(options, "cts");
+	if(value) {
+		uart->cts_port = mp_gpio_text_handle(value, who);
+		if(!uart->cts_port) {
+			mp_printk("UART %s: CTS pin %s is not available", uart->gate->portDevice, value);
+			mp_uart_close(uart);
+			return(FALSE);
+		}
+		/* pulled up: without a peer, nothing leaves */
+		mp_gpio_mode(uart->cts_port, MP_GPIO_MODE_INPUT_PULL);
+		uart->cts_port->base->BSRR = 1UL << uart->cts_port->pin;
+		if(mp_gpio_interrupt_set(uart->cts_port, _mp_uart_cts, uart, who) == FALSE) {
+			mp_uart_close(uart);
+			return(FALSE);
+		}
+		MP_INTERRUPT_SAFE_BEGIN
+		EXTI->RTSR &= ~(1UL << uart->cts_port->pin);
+		EXTI->FTSR |= 1UL << uart->cts_port->pin;
+		MP_INTERRUPT_SAFE_END
+	}
 
 	return(mp_uart_setup(uart, options));
 }
@@ -169,6 +210,17 @@ mp_ret_t mp_uart_close(mp_uart_t *uart) {
 		mp_gpio_release(uart->rxd_port);
 		uart->rxd_port = NULL;
 	}
+
+	if(uart->rts_port) {
+		mp_gpio_release(uart->rts_port);
+		uart->rts_port = NULL;
+	}
+
+	if(uart->cts_port) {
+		mp_gpio_release(uart->cts_port);
+		uart->cts_port = NULL;
+	}
+	uart->ctsWait = NO;
 
 	if(uart->gate) {
 		mp_gate_release(uart->gate);
@@ -256,8 +308,32 @@ static void _mp_uart_interrupt(void *user) {
 		}
 	}
 
-	if((sr & USART_SR_TXE) && (cr1 & USART_CR1_TXEIE))
-		(uart->onWrite ? uart->onWrite : _mp_uart_dummy_write)(uart);
+	if((sr & USART_SR_TXE) && (cr1 & USART_CR1_TXEIE)) {
+		if(uart->cts_port && (uart->cts_port->base->IDR & (1UL << uart->cts_port->pin))) {
+			/* CTS high: wait for its falling edge */
+			mp_uart_disable_tx_int(uart);
+			uart->ctsWait = YES;
+			EXTI->PR = 1UL << uart->cts_port->pin;
+			mp_gpio_interrupt_enable(uart->cts_port);
+
+			/* it may have fallen before the edge was watched */
+			if(!(uart->cts_port->base->IDR & (1UL << uart->cts_port->pin)))
+				_mp_uart_cts(uart);
+		}
+		else
+			(uart->onWrite ? uart->onWrite : _mp_uart_dummy_write)(uart);
+	}
+}
+
+static void _mp_uart_cts(void *user) {
+	mp_uart_t *uart = user;
+
+	if(uart->ctsWait == NO)
+		return;
+
+	uart->ctsWait = NO;
+	mp_gpio_interrupt_disable(uart->cts_port);
+	mp_uart_enable_tx_int(uart);
 }
 
 /**@}*/

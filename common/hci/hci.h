@@ -44,6 +44,11 @@
 			#define MP_HCI_ACL_MAX 255
 		#endif
 
+		/* bytes the controller may still send once RTS rises (its FIFO) */
+		#ifndef MP_HCI_RX_SLACK
+			#define MP_HCI_RX_SLACK 32
+		#endif
+
 		/* command parameters and event parameters have a one byte length */
 		#define MP_HCI_PAYLOAD_MAX 255
 
@@ -172,7 +177,10 @@
 			mp_hci_on_ready_t onReady;
 			void *user;
 
-			/* commands the controller accepts now */
+			/* RTS raised because the reader fell behind */
+		volatile mp_bool_t rxHeld;
+
+		/* commands the controller accepts now */
 			int cmdCredits;
 
 			/* the command waiting for its answer, opcode 0 when none */

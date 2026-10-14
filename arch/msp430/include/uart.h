@@ -46,6 +46,13 @@
 		/** internal: txd_port */
 		mp_gpio_port_t *txd_port;
 
+		/** internal: flow control lines, NULL without; both active low */
+		mp_gpio_port_t *rts_port;
+		mp_gpio_port_t *cts_port;
+
+		/** internal: the TX interrupt waits for CTS to fall */
+		volatile mp_bool_t ctsWait;
+
 		/** internal: in the list mp_uart_quiet() looks at */
 		mp_list_item_t item;
 		mp_bool_t listed;
@@ -111,16 +118,20 @@
 		return(_UART_REG8(uart->gate, _UART_STATW) & 0xEC);
 	}
 
+	/* RTS low: the peer may send */
 	static inline void mp_uart_enable_rx(mp_uart_t *uart) {
-		// P1OUT &= ~BIT4; // = 0 - RTS low -> ok
+		if(uart->rts_port)
+			_GPIO_REG8(uart->rts_port, _GPIO_OUT) &= ~(1<<uart->rts_port->pin);
 	}
 
+	/* RTS high: the peer stops after the byte it is sending, a few more with a FIFO */
 	static inline void mp_uart_disable_rx(mp_uart_t *uart) {
-		// P1OUT |= BIT4; // = 1 - RTS high -> stop
+		if(uart->rts_port)
+			_GPIO_REG8(uart->rts_port, _GPIO_OUT) |= 1<<uart->rts_port->pin;
 	}
 
+	/* with CTS high the interrupt turns itself off and waits for CTS */
 	static inline void mp_uart_enable_tx_int(mp_uart_t *uart) {
-		/* check CTS */
 		_UART_REG8(uart->gate, _UART_IE) |= UCTXIE;
 	}
 

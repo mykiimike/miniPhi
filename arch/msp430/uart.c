@@ -20,7 +20,16 @@
 
 #include <mp.h>
 
+/*
+ * Options of mp_uart_open(): gate, txd, rxd, rts and cts. RTS and CTS
+ * are GPIO, active low, flow control off when missing. RTS is held low
+ * from the open; mp_uart_disable_rx() raises it when the reader falls
+ * behind. CTS high stops the TX interrupt before the next byte, its
+ * falling edge starts it again. CTS needs an interrupt pin (P1, P2).
+ */
+
 static void _mp_uart_interrupt(void *user);
+static void _mp_uart_cts(void *user);
 
 static mp_list_t __uarts;
 
@@ -82,6 +91,38 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 	_GPIO_REG8(uart->txd_port, _GPIO_SEL) |= 1<<uart->txd_port->pin;
 	mp_gpio_direction(uart->rxd_port, MP_GPIO_INPUT);
 	mp_gpio_direction(uart->txd_port, MP_GPIO_OUTPUT);
+
+	value = mp_options_get(options, "rts");
+	if(value) {
+		uart->rts_port = mp_gpio_text_handle(value, "UART RTS");
+		if(!uart->rts_port) {
+			mp_printk("UART - Can not handle GPIO RTS for %s using %s", who, value);
+			mp_uart_close(uart);
+			return(FALSE);
+		}
+		_GPIO_REG8(uart->rts_port, _GPIO_SEL) &= ~(1<<uart->rts_port->pin);
+		mp_uart_enable_rx(uart);
+		mp_gpio_direction(uart->rts_port, MP_GPIO_OUTPUT);
+	}
+
+	value = mp_options_get(options, "cts");
+	if(value) {
+		uart->cts_port = mp_gpio_text_handle(value, "UART CTS");
+		if(!uart->cts_port) {
+			mp_printk("UART - Can not handle GPIO CTS for %s using %s", who, value);
+			mp_uart_close(uart);
+			return(FALSE);
+		}
+		if(mp_gpio_interrupt_set(uart->cts_port, _mp_uart_cts, uart, who) == FALSE) {
+			mp_printk("UART - CTS %s of %s has no interrupt", value, who);
+			mp_uart_close(uart);
+			return(FALSE);
+		}
+		/* pulled up: without a peer, nothing leaves */
+		_GPIO_REG8(uart->cts_port, _GPIO_OUT) |= 1<<uart->cts_port->pin;
+		_GPIO_REG8(uart->cts_port, _GPIO_REN) |= 1<<uart->cts_port->pin;
+		mp_gpio_interrupt_hi2lo(uart->cts_port);
+	}
 
 	/* setup */
 	mp_uart_setup(uart, options);
@@ -230,6 +271,19 @@ mp_ret_t mp_uart_close(mp_uart_t *uart) {
 		mp_gpio_release(uart->txd_port);
 	}
 
+	if(uart->rts_port != NULL) {
+		mp_gpio_release(uart->rts_port);
+		uart->rts_port = NULL;
+	}
+
+	if(uart->cts_port != NULL) {
+		mp_gpio_interrupt_unset(uart->cts_port);
+		_GPIO_REG8(uart->cts_port, _GPIO_REN) &= ~(1<<uart->cts_port->pin);
+		mp_gpio_release(uart->cts_port);
+		uart->cts_port = NULL;
+	}
+	uart->ctsWait = NO;
+
 	if(uart->gate) {
 		_UART_REG8(uart->gate, _UART_CTL1) |= UCSWRST;
 		_UART_REG8(uart->gate, _UART_CTL1) |= UCDORM;
@@ -281,13 +335,32 @@ static void _mp_uart_interrupt(void *user) {
 	}
 
 	if(flag & UCTXIFG) {
-		if(uart->onWrite)
+		if(uart->cts_port && mp_gpio_raw_read(uart->cts_port)) {
+			/* CTS high: wait for its falling edge */
+			mp_uart_disable_tx_int(uart);
+			uart->ctsWait = YES;
+			_GPIO_REG8(uart->cts_port, _GPIO_IFG) &= ~(1<<uart->cts_port->pin);
+			mp_gpio_interrupt_enable(uart->cts_port);
+
+			/* it may have fallen before the edge was watched */
+			if(!mp_gpio_raw_read(uart->cts_port))
+				_mp_uart_cts(uart);
+		}
+		else if(uart->onWrite)
 			uart->onWrite(uart);
 		else
 			_UART_REG8(uart->gate, _UART_IFG) &= ~(UCTXIFG);
 	}
+}
 
+static void _mp_uart_cts(void *user) {
+	mp_uart_t *uart = user;
 
+	if(uart->ctsWait == NO)
+		return;
 
+	uart->ctsWait = NO;
+	mp_gpio_interrupt_disable(uart->cts_port);
+	mp_uart_enable_tx_int(uart);
 }
 

@@ -39,6 +39,13 @@
 		mp_gpio_port_t *rxd_port;
 		mp_gpio_port_t *txd_port;
 
+		/* flow control lines, NULL without; both active low */
+		mp_gpio_port_t *rts_port;
+		mp_gpio_port_t *cts_port;
+
+		/* the TX interrupt waits for CTS to fall */
+		volatile mp_bool_t ctsWait;
+
 		USART_TypeDef *regs;
 
 		mp_list_item_t item;
@@ -64,11 +71,16 @@
 		return(uart->regs->SR & (USART_SR_ORE | USART_SR_FE | USART_SR_PE) ? 1 : 0);
 	}
 
-	/* no flow control lines */
+	/* RTS low: the peer may send */
 	static inline void mp_uart_enable_rx(mp_uart_t *uart) {
+		if(uart->rts_port)
+			uart->rts_port->base->BRR = 1UL << uart->rts_port->pin;
 	}
 
+	/* RTS high: the peer stops after the byte it is sending, a few more with a FIFO */
 	static inline void mp_uart_disable_rx(mp_uart_t *uart) {
+		if(uart->rts_port)
+			uart->rts_port->base->BSRR = 1UL << uart->rts_port->pin;
 	}
 
 	static inline void mp_uart_enable_tx_int(mp_uart_t *uart) {

@@ -46,6 +46,8 @@ export const phi = {
 				gate("uart"),
 				{ name: "txd", label: "TXD", type: "pin" },
 				{ name: "rxd", label: "RXD", type: "pin" },
+				{ name: "rts", label: "RTS (flow control)", type: "pin" },
+				{ name: "cts", label: "CTS (flow control)", type: "pin", irq: true },
 				{ name: "baudRate", label: "Baud rate", type: "enum", values: ["1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"], default: "9600" },
 			],
 		},
