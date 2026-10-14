@@ -202,6 +202,54 @@ export function analyze(catalog, sel, exists) {
 	const activeModules = catalog.modules.filter((record) => moduleState.has(record.name))
 	const activeDrivers = catalog.drivers.filter((record) => driverState.has(record.name))
 
+	/* accelerators: { SHA256: { sources, headers } } on the series; an MCU entry replaces it, null removes it */
+	const accelerated = { ...(series.data.accelerators || {}), ...(mcu.accelerators || {}) }
+	const accelerators = activeModules
+		.filter((record) => accelerated[record.name])
+		.map((record) => ({
+			module: record.name,
+			label: mcu.label + " " + (record.data.label || record.name) + " accelerator",
+			define: "MP_ARCH_" + record.name,
+			sources: accelerated[record.name].sources || [],
+			headers: accelerated[record.name].headers || [],
+		}))
+	/* the directory under common/crypto/ is the class: hash, mac, cipher, kdf, rng */
+	const cryptoFamilyLabel = { hash: "Hash", mac: "MAC", cipher: "Cipher", kdf: "KDF", rng: "RNG" }
+	const cryptoFamily = (dir) => {
+		const parts = (dir || "").split("/")
+		const at = parts.indexOf("crypto")
+		const name = at >= 0 ? parts[at + 1] : ""
+		if (!name)
+			return { name: "other", label: "Other" }
+		const label = cryptoFamilyLabel[name] || name.charAt(0).toUpperCase() + name.slice(1)
+		return { name, label }
+	}
+	/* crypto modules linked in this firmware, plus any block the chip declares */
+	const crypto = []
+	const cryptoSeen = new Set()
+	for (const record of catalog.modules) {
+		const hardware = !!accelerated[record.name]
+		const built = moduleState.has(record.name)
+		/* common/crypto/<class>/<algorithm>; the class directory itself holds the common API */
+		if (!record.dir.startsWith("common/crypto/") || record.dir.split("/").length < 4 || (!built && !hardware))
+			continue
+		cryptoSeen.add(record.name)
+		const family = cryptoFamily(record.dir)
+		crypto.push({
+			name: record.name,
+			label: record.data.label || record.name,
+			family: family.name,
+			familyLabel: family.label,
+			hardware,
+			built,
+		})
+	}
+	for (const [name, spec] of Object.entries(accelerated)) {
+		if (!spec || cryptoSeen.has(name))
+			continue
+		crypto.push({ name, label: name, family: "other", familyLabel: "Other", hardware: true, built: false })
+	}
+
 	const declared = []
 	const declare = (list, owner, view) => {
 		for (const setting of list || [])
@@ -442,6 +490,8 @@ export function analyze(catalog, sel, exists) {
 		addSources(record.data.sources, record.data.label)
 	addSources(arch.data.sources, arch.data.label)
 	addSources(series.data.boot, series.data.label)
+	for (const accelerator of accelerators)
+		addSources(accelerator.sources, accelerator.label)
 	for (const record of activeDrivers)
 		addSources(record.data.sources, record.data.label)
 	if (app)
@@ -475,6 +525,8 @@ export function analyze(catalog, sel, exists) {
 		addHeaders(record)
 	addHeaders(arch)
 	addHeaders(series)
+	for (const accelerator of accelerators)
+		addHeaders({ data: { label: accelerator.label, headers: accelerator.headers, headerDir: series.data.headerDir } })
 	for (const record of activeDrivers)
 		addHeaders(record)
 	if (app)
@@ -574,8 +626,11 @@ export function analyze(catalog, sel, exists) {
 		headers,
 		headerDefines: [
 			...activeModules.map((record) => record.data.define).filter(Boolean),
+			...accelerators.map((accelerator) => accelerator.define),
 			...activeDrivers.map((record) => record.data.define).filter(Boolean),
 		],
+		accelerators: accelerators.map(({ module, label, define }) => ({ module, label, define })),
+		crypto,
 		app: app ? {
 			...strip(app),
 			requires: app.data.requires || [],

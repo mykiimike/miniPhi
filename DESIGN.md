@@ -40,6 +40,7 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │   ├── quaternion/  kalman/  optional modules, same shape
 │   ├── input/       touch, mouse and keyboard gestures, read by the TUI
 │   ├── device/      board devices by class, so an app names no driver
+│   ├── crypto/      by family: hash/sha256/..., mac/hmac/, rng/hmac_drbg/; each family dir is its API; headers as <crypto/...>
 │   └── tui/         Things UI, for small screens; fonts/ holds the TTF files
 │
 ├── arch/
@@ -75,13 +76,14 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │       ├── ina219/  tmp006/  ads1115/  ads124x/  lsm9ds0/  mpl3115a2/
 │
 ├── app/
-│   └── sysinfo/
-│       ├── _phi.js           kind app: modules, drivers, peripherals and settings it needs
-│       ├── main.c            main(): banner, version, build, CPU, then a periodic report
-│       ├── screen.c          the display: open, close, console keys
-│       └── pages/            one directory per home page; index.c is the list
-│           ├── accelerometer/index.c
-│           └── system/       index.c, tasks.c and devices.c are its sub-pages
+│   ├── _phi.js               kind app, name sysinfo: modules, drivers, peripherals and settings it needs
+│   ├── main.c                main(): banner, version, build, CPU, then a periodic report
+│   ├── screen.c              the display: open, close, console keys
+│   ├── sysinfo.h
+│   └── pages/                one directory per home page; index.c is the list
+│       ├── accelerometer/index.c
+│       ├── cryptography/index.c   home page: class, then algorithm, then acceleration
+│       └── system/           index.c, tasks.c and devices.c are its sub-pages
 │
 └── boards/                   one directory per vendor, then one per product
     ├── olimex/
@@ -103,11 +105,11 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 | File | Role | Ends up in |
 |---|---|---|
 | `arch/<arch>/_phi.js` | Arch sources and headers, the buses a device can sit on, the toolchains | `SRCS`, `include/arch/`, `CC`, `CFLAGS`, `LDFLAGS`, compile and link rules |
-| `arch/<arch>/<series>/_phi.js` | Boot files, series headers, MCUs (pins, IRQ ports or lines, gates, memory, linker script, `cpu`), pins the kernel reserves, clock settings | `SRCS`, `include/arch/`, `LDSCRIPT`, `MCU`, `CPU`, `autoconf.h` |
+| `arch/<arch>/<series>/_phi.js` | Boot files, series headers, MCUs (pins, IRQ ports or lines, gates, memory, linker script, `cpu`), pins the kernel reserves, clock settings, crypto `accelerators` | `SRCS`, `include/arch/`, `LDSCRIPT`, `MCU`, `CPU`, `autoconf.h` |
 | `common/_phi.js` | Kernel core, always built. Its headers sit at the root of `build/include` | `SRCS`, `include/`, `autoconf.h` |
 | `common/<name>/_phi.js` | One module. `required: true` stays on. `requires` pulls other modules | `SRCS`, `include/<name>/`, `SUPPORT_COMMON_*` |
 | `drivers/<name>/_phi.js` | One driver: its bus, its options, the modules it needs | `SRCS`, `include/<name>/`, `SUPPORT_DRV_*`, `pinout.h` |
-| `app/<name>/_phi.js` | The application the kernel boots into: its `main()`, the modules and drivers it needs, the peripherals it opens | `SRCS`, `include/<name>/`, `PHI_BUILD_APP`, `autoconf.h` |
+| `app/_phi.js` | The application the kernel boots into. Its `name` is what a board selects. Its `main()`, the modules and drivers it needs, the peripherals it opens | `SRCS`, `PHI_BUILD_APP`, `autoconf.h` |
 | `boards/<vendor>/<board>/_phi.js` | A saved selection, naming one app and the probes it `requires`. The configurator also starts from a blank one | `build/config.js` once picked |
 | `boards/<vendor>/<probe>/_phi.js` | A programmer or debugger: the make targets it adds, the files they run | Rules in `build/Makefile` (`make flash`) |
 
@@ -178,7 +180,7 @@ The driver fills `mp_drv_smb380_device` with its class (`MP_DEVICE_DISPLAY`, `MP
 An app is the firmware's entry point. It pulls modules and drivers the same way, and declares the bus peripherals it opens. Picking the app adds the missing ones to the selection, where the pins and gate are chosen:
 
 ```js
-// app/sysinfo/_phi.js
+// app/_phi.js
 export const phi = {
 	kind: "app",
 	name: "sysinfo",
@@ -223,11 +225,11 @@ flash: $(TARGET)
 
 TUI is Things UI, a user interface for small screens such as the 320×240 of the STM32-LCD. When a screen starts, `mp_tui_step()` shows a splash before anything else: the word miniPhi, the logo from `config/assets/logo.svg`, `MP_KERNEL_VERSION`, all at once. `common/tui` (module `TUI`) then draws a tree of things on any display. A display is one `write(display, x, y, w, h, pixels)` callback taking RGB565, plus an optional `flush`. There is no framebuffer: changes mark up to `MP_TUI_DIRTY_MAX` dirty rectangles, and `mp_tui_step()` renders one band of the current one into a buffer the caller gives to `mp_tui_init()`, at least one display row. Every `mp_tui_t` carries its own state, so several screens run side by side; `mp_tui_attach()` gives one a kernel task that draws a band per tick.
 
-After the splash the screen is a home. `mp_tui_app()` declares an application (a name and a function that fills a page). The home lists them. Opening one shows that page, which scrolls when the content is taller than the screen, and a Back button returns to the home. The first application is System: the logo, about, version, copyright, license, and the board, CPU, clock, memory, build, uptime and tasks. It opens Task manager, the kernel tasks, and Devices, the board devices from `common/device` with their class and whether they are open.
+After the splash the screen is a home. `mp_tui_app()` declares an application (a name and a function that fills a page). The home lists them. Opening one shows that page, which scrolls when the content is taller than the screen, and a Back button returns to the home. The home lists Accelerometer, Cryptography and System. Cryptography lists the classes in the firmware (hash, mac, cipher, kdf, rng). A class lists its algorithms, and opening one says whether the chip accelerates it; HMAC also lists the hashes it runs over. System shows the logo, about, version, copyright, license, and the board, CPU, clock, memory, build, uptime and tasks. It opens Task manager, the kernel tasks, and Devices, the board devices from `common/device` with their class and whether they are open.
 
 Things are caller-allocated structs that start with an `mp_tui_widget_t`: box, label (`mp_tui_label_wrap()` breaks a line that does not fit and moves the next widget down), bar, table (a header and caller-owned cells, at most 8 columns), window (children sit below the title), button, switch (a label and an on/off track that a click flips), columns, and a view whose children scroll. Columns are laid out when the page is built: side by side when each gets its minimum width, one under the other otherwise, so the same page works in landscape and in portrait. Positions are relative to the parent's client area, and drawing is clipped to it. A custom thing passes its own `mp_tui_class_t` to `mp_tui_widget_init()`; its optional `event` callback receives click, drop and wheel events, which go up to the parents until one returns non-zero. `mp_tui_widget_name()` with `mp_tui_set_text()` and `mp_tui_set_value()` updates by name, and setters only redraw when the value changes.
 
-On every tick the TUI task calls `mp_tui_poll()`, which reads every input of the kernel (see Input) and acts on the widgets. A down highlights the button under it, a click runs it. A drag moves the nearest widget flagged `MP_TUI_DRAGGABLE`, raised above its siblings, and its drop sends `MP_TUI_EVENT_DROP` with the dragged widget as `source` to what lies under the drop point. Otherwise a drag scrolls the view under it, like the wheel. Arrows, Tab, Enter, Space, Escape, Backspace and Page Up / Down drive the home and the page through `mp_tui_key()`. A mouse also gets an arrow cursor, drawn over the bands like any dirty rectangle. Events are dropped while the splash is up.
+On every tick the TUI task calls `mp_tui_poll()`, which reads every input of the kernel (see Input) and acts on the widgets. A down highlights the button under it, a click runs it. A drag moves the nearest widget flagged `MP_TUI_DRAGGABLE`, raised above its siblings, and its drop sends `MP_TUI_EVENT_DROP` with the dragged widget as `source` to what lies under the drop point. Otherwise a drag scrolls the view under it, like the wheel. A finger that starts on a button and moves does the same once the page is taller than the screen, so a list of buttons still scrolls; a short press still clicks. Arrows, Tab, Enter, Space, Escape, Backspace and Page Up / Down drive the home and the page through `mp_tui_key()`. A mouse also gets an arrow cursor, drawn over the bands like any dirty rectangle. Events are dropped while the splash is up.
 
 `MP_TUI_FONT` picks a TrueType file of `common/tui/fonts/` (each with its license), `MP_TUI_FONT_SIZE`, `MP_TUI_FONT_BPP` (4 antialiased, 1 for pixel fonts) and `MP_TUI_FONT_CHARSET` (ASCII or Latin-1). `config/font.js` rasterizes it at write time into `include/gen/tui_font_default.h`, which is `mp_tui_font_default`, in flash. Text is UTF-8; a character the font lacks shows as a box. Other fonts compiled the same way can be given to `mp_tui_label_font()`.
 
@@ -242,6 +244,45 @@ On every tick the TUI task calls `mp_tui_poll()`, which reads every input of the
 `common/kflash` (module `KFLASH`) keeps small values across power cycles in the last two pages of the internal flash, which `make flash` does not touch. A key is a name such as `sysinfo.accelerometers`, stored as its FNV-1a hash. The module that owns a key declares its size and its default with `mp_kflash_listen()`, and gets the stored value at once. Its callback runs on later changes. `mp_kflash_set()` from anywhere stores a value and tells every listener of that key, and writes nothing when the value is the same. `_bool` helpers wrap a one-byte `mp_bool_t`. A value is at most `MP_KFLASH_VALUE_MAX` bytes.
 
 Records are appended: the hash, the size, a Fletcher-16, then the value, with the check programmed last so a record cut by a reset is skipped. When the page is full, the latest record of each key moves to the other page, which becomes active once its header is written. A page is erased once every few hundred writes. The CPU stalls while the flash is programmed, so `mp_kflash_set()` runs from a task, never from an interrupt. The arch provides `mp_flash_program()`, `mp_flash_image_end()`, `MP_FLASH_ORIGIN` and `MP_FLASH_PAGE_SIZE`; only the STM32 does for now. If the image grows into the two pages, the store stays closed and listeners keep their defaults.
+
+## Crypto
+
+`common/crypto` groups the crypto modules by family: `hash/` holds `blake2s/` (module `BLAKE2S`), `sha1/` (`SHA1`), `sha256/` (`SHA256`), `sha384/` (`SHA384`) and `sha512/` (`SHA512`). SHA-384 requires SHA-512 and reuses its compression. Each algorithm is its own module, so a build only carries what an app `requires`. They all set `headerDir: "crypto"`, so code includes `<crypto/sha256.h>`, and two of them cannot publish a header of the same name.
+
+A digest runs through a context the caller owns: `mp_sha256_init()`, `mp_sha256_update()`, `mp_sha256_final()`, which wipes the context, or `mp_sha256()` in one call. SHA-1, SHA-384, SHA-512 and BLAKE2s have the same calls. BLAKE2s adds `mp_blake2s_init_key()` for a key of up to 32 bytes. The software version sits in the module's `.c` and always builds. The schedule is a ring of 16 words, so the stack stays small on MSP430.
+
+`common/crypto/hash` itself is the module `HASH`, one API over every hash in the build, picked by name:
+
+```c
+mp_hash_t hash;
+uint8_t digest[MP_HASH_SIZE_MAX];
+
+if(mp_hash_init(&hash, "SHA256") == TRUE) {
+	mp_hash_update(&hash, data, size);
+	mp_hash_digest(&hash, digest);   /* returns the size, wipes the context */
+}
+```
+
+The name is the module name or the label, in any case (`"SHA256"`, `"sha-256"`). `mp_hash_init()` returns `FALSE` for an algorithm the build does not carry, so an app pulls the ones it wants with `requires`. `mp_hash_t` is a union of the contexts in the build, owned by the caller; nothing is allocated, and `mp_hash_free()` only wipes a hash that will not reach `mp_hash_digest()`. `mp_hash_count()`, `mp_hash_at()` and `mp_hash_find()` list them with their digest and block sizes. A new algorithm adds its wrappers and a line to the table in `index.c`, and a member to the union in `hash.h`.
+
+`mac/hmac/` is the module `HMAC` (RFC 2104), which requires `HASH` and runs over any hash of the build: `mp_hmac_init(&hmac, "SHA256", key, keylen)`, `mp_hmac_update()`, `mp_hmac_final()`, which returns the tag size and wipes the context, or `mp_hmac()` in one call. A key longer than the block is hashed first. The context keeps the inner hash and the key XOR opad, about 350 bytes when SHA-512 is in the build.
+
+`common/crypto/mac` itself is the module `MAC`, the same kind of API for MACs: `mp_mac_init(&mac, "HMAC-SHA256", key, keylen)`, `mp_mac_update()`, `mp_mac_final()`, `mp_mac_free()`. `HMAC-` takes any hash name of the build, and `BLAKE2S` is the keyed BLAKE2s (1 to 32 bytes of key). `mp_mac_equal()` compares two tags in a time that does not depend on where they differ; checking a tag with `memcmp()` tells an attacker how much of a forgery was right. CMAC and GMAC wait for AES under `cipher/`, and Poly1305 comes with ChaCha20.
+
+`rng/hmac_drbg/` is the module `HMAC_DRBG` (NIST SP 800-90A), which requires `HMAC`. It is a generator, so it lives under `rng/` and not next to HMAC: the MAC is the primitive it consumes. `mp_hmac_drbg_init(&drbg, "SHA256", entropy, entropylen, nonce, noncelen, personal, personlen)` seeds it, `mp_hmac_drbg_generate()` draws at most `MP_HMAC_DRBG_MAX` bytes, and `mp_hmac_drbg_reseed()` mixes new entropy in. After `MP_HMAC_DRBG_RESEED` draws, generate refuses until a reseed. The context holds the HMAC key and the chaining value, both the digest size, and the caller owns it. The entropy is the caller's: the module reads no device. NIST approves SHA-1, SHA-256, SHA-384 and SHA-512 for this construction; another hash of the build runs the same steps. The seed material is fed to HMAC in pieces, so a long seed never needs its own buffer.
+
+`common/crypto/rng` itself is the module `RNG`. The kernel calls `mp_rng_start()` once the task pool exists, and `mp_rng_stop()` wipes the generator on the way down. One task, named RNG, wakes every `MP_RNG_PERIOD` milliseconds (one second unless the build says otherwise) and reseeds HMAC-DRBG. The noise is the low byte of the die temperature and of the internal reference; the clock and a counter ride along so two reseeds differ. `mp_rng_bytes()` draws from that generator and returns `FALSE` until the first sample has seeded it. SHA-256 is the hash when the build carries it.
+
+A chip with a hash block declares it on its series, or on one MCU, with the module name as the key:
+
+```js
+// arch/stm32/<series>/_phi.js
+accelerators: { SHA256: { sources: ["hash.c"], headers: ["include/sha256.h"] } },
+```
+
+When that module is in the build, its sources join `SRCS`, its headers are linked under the series `headerDir` (`<arch/sha256.h>`, which defines `mp_arch_sha256_t`) and `MP_ARCH_SHA256` goes to `autoconf.h`. An MCU entry replaces the series one, and `SHA256: null` removes it. The arch then implements `mp_arch_sha256_init()`, `_update()` and `_final()`, declared in `sha256.h`. `init` returns `NO` when the block is busy or off, and that context runs in software. The API stays the same either way.
+
+Writing `build/` also writes `include/gen/crypto.h`: every `common/crypto` module linked in the firmware, and every block the series or the MCU declares, at most `MP_CRYPTO_MAX`. The directory under `common/crypto/` is the class (`hash`, `mac`, `cipher`, `kdf`, `rng`), and `hardware` is set when the chip has the block. Nothing linked and no block gives `MP_CRYPTO_COUNT 0`. The API modules, `HASH`, `MAC` and `RNG`, sit in the class directory itself and are not listed. sysinfo requires BLAKE2S, SHA1, SHA256, SHA384, SHA512, HMAC, HMAC_DRBG and RNG, so Cryptography shows Hash with those five, MAC with HMAC, and RNG with HMAC-DRBG. Opening one says the STM32F103 does not accelerate it. HMAC and HMAC-DRBG also list the hashes they run over and whether the chip accelerates each of them. The RNG class page first names the generator the task reseeds (HMAC-DRBG / SHA-256), then shows 12 bytes from `mp_rng_bytes()` in hex, redrawn every 500 ms while the page is open, or "Seeding..." until the first sample, and lists the algorithms below.
 
 ## Checks
 

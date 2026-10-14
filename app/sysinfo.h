@@ -28,6 +28,7 @@
 
 #include <mp.h>
 #include <pinout.h>
+#include <gen/crypto.h>
 
 #define SYSINFO_OP MP_KERNEL_RES01
 
@@ -126,6 +127,26 @@ struct sysinfo_s {
 		mp_tui_label_t deviceCount;
 		mp_tui_table_t deviceTable;
 		mp_tui_cell_t deviceCell[MP_DEVICE_MAX][3];
+		/** class page, then the algorithm; the detail says if that one is accelerated */
+		int cryptoClass;
+		int cryptoDetail;
+		int cryptoPick;
+		const char *cryptoFamily;
+		mp_tui_button_t cryptoButton[MP_CRYPTO_MAX];
+		mp_tui_label_t cryptoState;
+#ifdef SUPPORT_COMMON_CRYPTO_RNG
+		/** RNG class page: the generator, a fresh number every 500 ms, then the algorithms */
+		int rngShown;
+		unsigned long rngLast;
+		mp_tui_label_t rngGenerator;
+		mp_tui_label_t rngValue;
+		mp_tui_label_t rngHeading;
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
+		/** HMAC and HMAC-DRBG: the hashes they run over, and whether the chip accelerates them */
+		mp_tui_table_t cryptoTable;
+		mp_tui_cell_t cryptoCell[MP_CRYPTO_MAX][3];
+#endif
 		/** die temperature and supply, the only sensors this page shows */
 		mp_tui_label_t sensors[2];
 #ifdef SUPPORT_COMMON_SENSOR

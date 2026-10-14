@@ -685,29 +685,31 @@ static void _mp_tui_release(mp_tui_t *ui) {
 }
 
 int mp_tui_app(mp_tui_t *ui, const char *name, mp_tui_app_build_t build, void *user) {
-	int index, line, h, y;
+	int index, home, line, h, y;
 	mp_tui_button_t *button;
 
-	if(!ui->display || !name || !name[0] || !build || ui->appCount >= MP_TUI_APP_MAX)
+	if(!ui->display || !name || !name[0] || !build || ui->appCount >= MP_TUI_APP_MAX || ui->homeCount >= MP_TUI_APP_MAX)
 		return(0);
 	if(!ui->shell)
 		_mp_tui_shell(ui);
 
+	/* a child registered between two home entries must not open a gap on the home */
 	index = ui->appCount;
+	home = ui->homeCount;
 	line = _mp_tui_line(ui);
 	h = line + 18;
-	y = _mp_tui_button_top(ui) + index * (h + 8);
+	y = _mp_tui_button_top(ui) + home * (h + 8);
 
 	ui->app[index].name = name;
 	ui->app[index].build = build;
 	ui->app[index].user = user;
 
-	button = &ui->homeButton[index];
+	button = &ui->homeButton[home];
 	mp_tui_button(button, &ui->root, 12, y, ui->display->width - 24, h, name);
 	button->onPress = _mp_tui_on_app;
 	button->id = index;
 	button->chevron = 1;
-	button->selected = index == ui->focus;
+	button->selected = home == ui->focus;
 
 	ui->appCount++;
 	ui->homeCount++;
@@ -998,15 +1000,16 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 			break;
 
 		case MP_INPUT_DRAG:
-			if(ui->pressed == &ui->back) {
+			if(ui->pressed) {
 				int dy = in->y - in->startY;
 				int travel = dy < 0 ? -dy : dy;
+				mp_tui_view_t *view = ui->pressed == &ui->back ? &ui->view : _mp_tui_view_of(&ui->pressed->widget);
 
-				/* a pull down the page is a scroll, not a tap on the bar */
-				if(travel >= 20) {
+				/* a pull on a button is a scroll, not a tap, when the page has more below */
+				if(view && travel >= 20 && _mp_tui_view_max(view) > 0) {
 					_mp_tui_unpress(ui);
-					ui->dragView = &ui->view;
-					mp_tui_view_scroll(&ui->view, -dy);
+					ui->dragView = view;
+					mp_tui_view_scroll(view, -dy);
 					break;
 				}
 			}

@@ -149,6 +149,39 @@
 	#ifdef SUPPORT_COMMON_DEVICE
 		#include <device/device.h>
 	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
+		#include <crypto/blake2s.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHA1
+		#include <crypto/sha1.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHA256
+		#include <crypto/sha256.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHA384
+		#include <crypto/sha384.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHA512
+		#include <crypto/sha512.h>
+	#endif
+	/* after the algorithms: its context is a union of theirs */
+	#ifdef SUPPORT_COMMON_CRYPTO_HASH
+		#include <crypto/hash.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
+		#include <crypto/hmac.h>
+	#endif
+	/* after the MACs: its context is a union of theirs */
+	#ifdef SUPPORT_COMMON_CRYPTO_MAC
+		#include <crypto/mac.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_RNG_HMAC_DRBG
+		#include <crypto/hmac_drbg.h>
+	#endif
+	/* after the generators: the task reseeds the one this build carries */
+	#ifdef SUPPORT_COMMON_CRYPTO_RNG
+		#include <crypto/rng.h>
+	#endif
 
 	#ifdef SUPPORT_DRV_BUTTON
 		#include <button/button.h>

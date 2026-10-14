@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
+ * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -17,42 +18,57 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHA256
 
-/*
- * One directory per home page, and its sub-pages inside it. index.c is the list
- * screen.c calls; a new page is an index.c in its directory, two lines in
- * index.c and its source in _phi.js. sensor.c is shared by the pages.
- */
+#ifndef _HAVE_MP_COMMON_SHA256_H
+	#define _HAVE_MP_COMMON_SHA256_H
 
-#ifndef _MINIPHI_APP_SYSINFO_PAGES_H
-#define _MINIPHI_APP_SYSINFO_PAGES_H
+	#include <stdint.h>
 
-#include "../sysinfo.h"
+	/* the arch header defines mp_arch_sha256_t, the state of one hardware digest */
+	#ifdef MP_ARCH_SHA256
+		#include <arch/sha256.h>
+	#endif
 
-#ifdef SYSINFO_SCREEN
+	/**
+	 * @defgroup mpCommonSha256
+	 * @{
+	 */
 
-#include <stdio.h>
+	#define MP_SHA256_SIZE 32
+	#define MP_SHA256_BLOCK 64
 
-/** a temperature published beside an accelerometer: its name, a space, then anything */
-#ifdef SUPPORT_COMMON_SENSOR
-int _sysinfo_sensor_beside(mp_sensor_t *axis, mp_sensor_t *sensor);
+	typedef struct mp_sha256_s mp_sha256_t;
+
+	struct mp_sha256_s {
+		uint32_t state[8];
+
+		/** bytes hashed so far */
+		uint64_t length;
+
+		uint8_t block[MP_SHA256_BLOCK];
+		uint8_t used;
+
+	#ifdef MP_ARCH_SHA256
+		mp_bool_t onHardware;
+		mp_arch_sha256_t hw;
+	#endif
+	};
+
+	/** @} */
+
+	void mp_sha256_init(mp_sha256_t *ctx);
+	void mp_sha256_update(mp_sha256_t *ctx, const void *data, unsigned int size);
+	void mp_sha256_final(mp_sha256_t *ctx, uint8_t digest[MP_SHA256_SIZE]);
+	void mp_sha256(const void *data, unsigned int size, uint8_t digest[MP_SHA256_SIZE]);
+
+	/* an arch with a SHA256 accelerator provides these; init returns NO when the block is busy or off, and the context then runs in software */
+	#ifdef MP_ARCH_SHA256
+		mp_bool_t mp_arch_sha256_init(mp_arch_sha256_t *hw);
+		void mp_arch_sha256_update(mp_arch_sha256_t *hw, const uint8_t *data, unsigned int size);
+		void mp_arch_sha256_final(mp_arch_sha256_t *hw, uint8_t digest[MP_SHA256_SIZE]);
+	#endif
+
+#endif
 #endif
 
-void _sysinfo_accel_open(sysinfo_t *sysinfo);
-void _sysinfo_accel_refresh(sysinfo_t *sysinfo);
-/** 0 when the System page could not be registered */
-int _sysinfo_system_open(sysinfo_t *sysinfo);
-void _sysinfo_system_refresh(sysinfo_t *sysinfo);
-void _sysinfo_tasks_open(sysinfo_t *sysinfo);
-void _sysinfo_tasks_refresh(sysinfo_t *sysinfo);
-void _sysinfo_devices_open(sysinfo_t *sysinfo);
-void _sysinfo_devices_refresh(sysinfo_t *sysinfo);
-
-/** home entries first, then the sub-pages of System; 0 when System is missing */
-int _sysinfo_pages_open(sysinfo_t *sysinfo);
-/** the live figures of whichever page is on screen */
-void _sysinfo_pages_refresh(sysinfo_t *sysinfo);
-
-#endif
-
-#endif

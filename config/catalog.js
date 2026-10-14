@@ -33,10 +33,19 @@ function normalize(record) {
 	data.headers = fix(data.headers)
 	if (data.headerDir === undefined)
 		data.headerDir = path.posix.basename(dir).toLowerCase()
+	const fixAccelerators = (list) => {
+		for (const accelerator of Object.values(list || {}).filter(Boolean)) {
+			accelerator.sources = fix(accelerator.sources)
+			accelerator.headers = fix(accelerator.headers)
+		}
+	}
 	if (kind === "series") {
 		data.boot = fix(data.boot)
-		for (const mcu of data.mcus || [])
+		fixAccelerators(data.accelerators)
+		for (const mcu of data.mcus || []) {
 			mcu.ld = mcu.ld ? join(dir, mcu.ld) : null
+			fixAccelerators(mcu.accelerators)
+		}
 	}
 	if (kind === "probe") {
 		data.files = fix(data.files)

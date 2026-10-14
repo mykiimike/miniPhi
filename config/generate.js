@@ -174,12 +174,50 @@ export function toJs(value, indent = "") {
 	return JSON.stringify(value)
 }
 
+function cryptoHardware(analysis) {
+	const items = analysis.crypto || []
+	const lines = [
+		"/* " + header + " */",
+		"/* crypto in this firmware, and the blocks the chip declares; included after mp.h */",
+		"#ifndef _HAVE_GEN_CRYPTO_H",
+		"#define _HAVE_GEN_CRYPTO_H",
+		"",
+		"#define MP_CRYPTO_MAX 8",
+		"#define MP_CRYPTO_COUNT " + items.length,
+		"",
+	]
+	if (items.length > 8)
+		lines.push("#error more than MP_CRYPTO_MAX crypto entries", "")
+	lines.push(
+		"typedef struct mp_crypto_s {",
+		"\tconst char *name;",
+		"\tconst char *label;",
+		"\tconst char *family;",
+		"\tconst char *familyLabel;",
+		"\tmp_bool_t hardware;",
+		"\tmp_bool_t built;",
+		"} mp_crypto_t;",
+		"",
+	)
+	lines.push("#endif", "")
+	/* outside the guard, so a second include with MP_CRYPTO_TABLE set emits the table once */
+	if (items.length) {
+		lines.push("", "#ifdef MP_CRYPTO_TABLE", "static const mp_crypto_t mp_crypto[] = {")
+		for (const item of items)
+			lines.push("\t{ " + JSON.stringify(item.name) + ", " + JSON.stringify(item.label) + ", " + JSON.stringify(item.family) + ", " + JSON.stringify(item.familyLabel) + ", " + (item.hardware ? "YES" : "NO") + ", " + (item.built ? "YES" : "NO") + " },")
+		lines.push("};", "#undef MP_CRYPTO_TABLE", "#endif")
+	}
+	lines.push("")
+	return lines.join("\n")
+}
+
 export function buildFiles(analysis, selection) {
 	return {
 		"config.js": "// " + header + "\nexport const config = " + toJs(selection) + "\n",
 		"Makefile": makefile(analysis, selection),
 		"include/autoconf.h": autoconf(analysis, selection),
 		"include/pinout.h": pinout(analysis),
+		"include/gen/crypto.h": cryptoHardware(analysis),
 	}
 }
 
