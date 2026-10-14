@@ -86,22 +86,24 @@ void *mp_mem_alloc(mp_kernel_t *kernel, int size) {
 		return(NULL);
 	}
 
-	/* pop chunk */
+	/* pop chunk, interrupt handlers allocate too */
+	chunk = NULL;
+	MP_INTERRUPT_SAFE_BEGIN
 	item = __mem_free_root.first;
-	if(!item) {
+	if(item) {
+		chunk = item->user;
+		mp_list_remove(&__mem_free_root, item);
+		__mem_allocated++;
+	}
+	MP_INTERRUPT_SAFE_END
+
+	if(!chunk) {
 		mp_kernel_panic(kernel, KPANIC_MEM_OOM);
 		mp_printk("chunk has no reach the limit increase MP_MEM_SIZE");
 		return(NULL);
 	}
 
-	/* get chunk */
-	chunk = item->user;
-
-	/* remove chunk from free and push it into used list */
-	mp_list_remove(&__mem_free_root, item);
 	memset(&chunk->data, 0, sizeof(chunk->data));
-
-	__mem_allocated++;
 
 	return((void *)chunk);
 }
@@ -119,9 +121,11 @@ void mp_mem_free(mp_kernel_t *kernel, void *ptr) {
 		mp_printk("Memory currupted");
 		return;
 	}
+	MP_INTERRUPT_SAFE_BEGIN
 	memset(&chunk->item, 0, sizeof(chunk->item));
 	mp_list_add_first(&__mem_free_root, &chunk->item, chunk);
 	__mem_allocated--;
+	MP_INTERRUPT_SAFE_END
 }
 
 void mp_mem_state(mp_mem_state_t *state) {

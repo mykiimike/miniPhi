@@ -68,6 +68,8 @@ static mp_ret_t _mp_serial_attach(mp_kernel_t *kernel, mp_serial_t *serial, mp_u
 	serial->uart->onRead = mp_serial_UART_rxInt;
 	serial->uart->onWrite = mp_serial_UART_txInt;
 
+	mp_circular_start(&serial->rxCir);
+
 	mp_printk("Initialize Serial over UART: %s", who);
 
 	serial->opened = _MP_SERIAL_IS_OPEN;

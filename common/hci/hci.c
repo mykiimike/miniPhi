@@ -68,6 +68,8 @@ mp_ret_t mp_hci_initUART(mp_kernel_t *kernel, mp_hci_t *hci, mp_uart_t *uart, ch
 	hci->uart->onRead = mp_hci_UART_rxInt;
 	hci->uart->onWrite = mp_hci_UART_txInt;
 
+	mp_circular_start(&hci->rxCir);
+
 	mp_printk("Initialize HCI over UART: %s", who);
 
 	hci->state |= MP_HCI_STATE_OPENED;

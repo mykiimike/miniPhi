@@ -25,8 +25,14 @@
 
 	#ifdef SUPPORT_COMMON_CIRCULAR
 
+	/* the trailing pointer leaves room for tail padding: mp_mem_alloc() wants size < MP_MEM_CHUNK */
 	#define MP_CIRCULAR_BUFFER_SIZE \
-		(MP_MEM_CHUNK-(sizeof(unsigned short)*2)-sizeof(mp_circular_buffer_t *)-4)
+		((int)(MP_MEM_CHUNK-(sizeof(unsigned short)*2)-sizeof(void *)-sizeof(void *)))
+
+	/* bytes queued per circular, so one stream can not drain the pool */
+	#ifndef MP_CIRCULAR_MAX_SIZE
+		#define MP_CIRCULAR_MAX_SIZE (MP_MEM_SIZE/4)
+	#endif
 
 
 	/**
@@ -40,22 +46,31 @@
 	typedef void (*mp_circular_int_t)(mp_circular_t *cir);
 
 	struct mp_circular_buffer_s {
-		unsigned char data[MP_CIRCULAR_BUFFER_SIZE];
+		mp_circular_buffer_t *next;
 		unsigned short size;
 		unsigned short pos;
-		mp_circular_buffer_t *next;
+		unsigned char data[MP_CIRCULAR_BUFFER_SIZE];
 	};
 
+	typedef char mp_circular_buffer_fits_chunk_t[sizeof(mp_circular_buffer_t) < MP_MEM_CHUNK ? 1 : -1];
+
+	/* first, last and totalSize move under interrupt */
 	struct mp_circular_s {
 		mp_kernel_t *kernel;
 
-		int totalSize;
+		volatile int totalSize;
 
-		mp_circular_buffer_t *first;
-		mp_circular_buffer_t *last;
+		mp_circular_buffer_t * volatile first;
+		mp_circular_buffer_t * volatile last;
 
 		mp_circular_int_t enable;
 		mp_circular_int_t disable;
+
+		/* the interrupt line as the circular left it, restored after each locked section */
+		volatile mp_bool_t enabled;
+
+		/* a write is running, a nested one from printk() is dropped */
+		volatile mp_bool_t writing;
 
 		void *user;
 	};
@@ -64,6 +79,7 @@
 
 	mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_int_t enable, mp_circular_int_t disable);
 	void mp_circular_fini(mp_circular_t *cir);
+	void mp_circular_start(mp_circular_t *cir);
 	mp_circular_buffer_t *mp_circular_read(mp_circular_t *cir);
 	mp_ret_t mp_circular_write(mp_circular_t *cir, unsigned char *data, int size);
 	void mp_circular_rxInterrupt(mp_circular_t *cir, unsigned char c);
