@@ -281,11 +281,11 @@ static void _resistive_every(mp_task_t *task, unsigned long ticks) {
 		mp_task_delay(task, ticks);
 }
 
-/* nobody touches: sample slower, or wait for the pen while the screen is off */
+/* nobody touches: sample slower, and slower still with the pen armed while the screen is off */
 static void _resistive_rest(mp_drv_resistive_t *panel, mp_task_t *task) {
 	if(panel->input.dozing) {
-		/* asleep first: the pen may fire as soon as it is armed */
-		mp_task_signal(task, MP_TASK_SIG_SLEEP);
+		/* scheduled first: the pen may fire as soon as it is armed */
+		_resistive_every(task, panel->doze);
 		if(_resistive_arm(panel) == YES)
 			return;
 	}
@@ -401,6 +401,7 @@ mp_ret_t mp_drv_resistive_init(mp_kernel_t *kernel, mp_drv_resistive_t *panel, m
 
 	panel->period = _resistive_ticks((unsigned long)_resistive_number(options, "period", 20));
 	panel->idle = _resistive_ticks((unsigned long)_resistive_number(options, "idle", 100));
+	panel->doze = _resistive_ticks((unsigned long)_resistive_number(options, "doze", 50));
 	panel->task = mp_task_create(&kernel->tasks, "Touch", _resistive_task, panel, panel->idle);
 	if(!panel->task) {
 		mp_input_fini(&panel->input);

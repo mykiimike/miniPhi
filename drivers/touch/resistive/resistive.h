@@ -30,8 +30,9 @@
 	 * XL and XR the other, each on an ADC-capable pin. There is no
 	 * controller chip: the driver notices a press because the plates
 	 * connect. It samples every period while a finger is down, every idle
-	 * otherwise, and not at all while the input dozes: YD then waits on a
-	 * falling edge, which only a firm press gives.
+	 * otherwise, and every doze while the input dozes. Between those YD
+	 * waits on a falling edge, which only a firm press gives: a light one
+	 * is still seen by the next sample.
 	 */
 
 	typedef enum {
@@ -69,9 +70,10 @@
 		int fx, fy;
 		int tracked;
 
-		/** ticks between samples, with a finger and without */
+		/** ticks between samples, with a finger, without, and while the input dozes */
 		unsigned long period;
 		unsigned long idle;
+		unsigned long doze;
 		/** YD has its pen interrupt */
 		mp_bool_t armed;
 	};
@@ -79,7 +81,7 @@
 	/**
 	 * options: yd, yu, xl, xr (ADC pins), orientation (landscape, portrait,
 	 * landscape-flipped, portrait-flipped), flipX, flipY, xMin, xMax, yMin,
-	 * yMax (raw ADC window, 0 to 4095), period and idle in ms.
+	 * yMax (raw ADC window, 0 to 4095), period, idle and doze in ms.
 	 */
 	mp_ret_t mp_drv_resistive_init(mp_kernel_t *kernel, mp_drv_resistive_t *panel, mp_options_t *options, char *who);
 	mp_ret_t mp_drv_resistive_fini(mp_drv_resistive_t *panel);
