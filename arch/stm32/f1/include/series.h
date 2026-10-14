@@ -64,12 +64,17 @@
 	#define SCB     ((SCB_Type *)0xE000ED00)
 	#define DWT     ((DWT_Type *)0xE0001000)
 	#define DEMCR   (*(__IO uint32_t *)0xE000EDFC)
+	#define DHCSR   (*(__IO uint32_t *)0xE000EDF0)
 
 	#define SysTick_CTRL_ENABLE    (1UL << 0)
 	#define SysTick_CTRL_TICKINT   (1UL << 1)
 	#define SysTick_CTRL_CLKSOURCE (1UL << 2)
 	#define SysTick_CTRL_COUNTFLAG (1UL << 16)
 	#define SCB_ICSR_VECTACTIVE    0x1FFUL
+	#define SCB_ICSR_PENDSTSET     (1UL << 26)
+	#define SCB_ICSR_PENDSTCLR     (1UL << 25)
+	#define SCB_SCR_SLEEPDEEP      (1UL << 2)
+	#define DHCSR_C_DEBUGEN        (1UL << 0)
 	#define SCB_AIRCR_RESET        (0x05FAUL << 16 | 1UL << 2)
 	#define DEMCR_TRCENA           (1UL << 24)
 	#define DWT_CTRL_CYCCNTENA     (1UL << 0)
@@ -121,6 +126,18 @@
 		__IO uint32_t SQR1, SQR2, SQR3, JSQR, JDR1, JDR2, JDR3, JDR4, DR;
 	} ADC_TypeDef;
 
+	typedef struct {
+		__IO uint32_t CR, CSR;
+	} PWR_TypeDef;
+
+	/* 16-bit registers on a 32-bit stride */
+	typedef struct {
+		__IO uint32_t CRH, CRL, PRLH, PRLL, DIVH, DIVL, CNTH, CNTL, ALRH, ALRL;
+	} RTC_TypeDef;
+
+	#define RTC    ((RTC_TypeDef *)0x40002800)
+	#define PWR    ((PWR_TypeDef *)0x40007000)
+
 	#define TIM2   ((TIM_TypeDef *)0x40000000)
 	#define TIM3   ((TIM_TypeDef *)0x40000400)
 	#define TIM4   ((TIM_TypeDef *)0x40000800)
@@ -171,6 +188,9 @@
 	#define FSMC_BCR_EXTMOD  (1UL << 14)
 
 	#define DBGMCU_IDCODE (*(__IO uint32_t *)0xE0042000)
+	#define DBGMCU_CR     (*(__IO uint32_t *)0xE0042004)
+	#define DBGMCU_CR_SLEEP (1UL << 0)
+	#define DBGMCU_CR_STOP  (1UL << 1)
 	#define FLASH_SIZE_KB (*(__IO uint16_t *)0x1FFFF7E0)
 
 	/* RCC */
@@ -187,6 +207,13 @@
 	#define RCC_CFGR_ADCPRE   (3UL << 14)
 	#define RCC_CFGR_PLLSRC   (1UL << 16)
 	#define RCC_CFGR_PLLMUL   (15UL << 18)
+	#define RCC_CFGR_PLLXTPRE (1UL << 17)
+	#define RCC_BDCR_LSEON    (1UL << 0)
+	#define RCC_BDCR_LSERDY   (1UL << 1)
+	#define RCC_BDCR_RTCSEL   (3UL << 8)
+	#define RCC_BDCR_RTCSEL_LSE (1UL << 8)
+	#define RCC_BDCR_RTCEN    (1UL << 15)
+	#define RCC_BDCR_BDRST    (1UL << 16)
 
 	#define RCC_AHB_FSMC      (1UL << 8)
 
@@ -217,6 +244,22 @@
 	#define RCC_APB1_UART5    (1UL << 20)
 	#define RCC_APB1_I2C1     (1UL << 21)
 	#define RCC_APB1_I2C2     (1UL << 22)
+	#define RCC_APB1_BKP      (1UL << 27)
+	#define RCC_APB1_PWR      (1UL << 28)
+
+	#define PWR_CR_LPDS       (1UL << 0)
+	#define PWR_CR_PDDS       (1UL << 1)
+	#define PWR_CR_CWUF       (1UL << 2)
+	#define PWR_CR_DBP        (1UL << 8)
+
+	#define RTC_CRH_ALRIE     (1UL << 1)
+	#define RTC_CRL_ALRF      (1UL << 1)
+	#define RTC_CRL_RSF       (1UL << 3)
+	#define RTC_CRL_CNF       (1UL << 4)
+	#define RTC_CRL_RTOFF     (1UL << 5)
+
+	/* EXTI line wired to the RTC alarm */
+	#define EXTI_LINE_RTC_ALARM 17
 
 	/* FLASH */
 	#define FLASH_ACR_LATENCY (7UL << 0)
@@ -297,6 +340,7 @@
 
 	/* TIM */
 	#define TIM_CR1_CEN      (1UL << 0)
+	#define TIM_CR1_URS      (1UL << 2)
 	#define TIM_CR1_ARPE     (1UL << 7)
 	#define TIM_CR1_CMS_CENTER (1UL << 5)
 	#define TIM_DIER_UIE     (1UL << 0)
@@ -344,6 +388,7 @@
 		USART2_IRQn = 38,
 		USART3_IRQn = 39,
 		EXTI15_10_IRQn = 40,
+		RTCAlarm_IRQn = 41,
 		TIM8_UP_IRQn = 44,
 		TIM5_IRQn = 50,
 		SPI3_IRQn = 51,

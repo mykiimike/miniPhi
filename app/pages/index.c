@@ -29,6 +29,7 @@
 int _sysinfo_pages_open(sysinfo_t *sysinfo) {
 	_sysinfo_accel_open(sysinfo);
 	_sysinfo_crypto_open(sysinfo);
+	_sysinfo_power_open(sysinfo);
 	if(_sysinfo_system_open(sysinfo) == 0)
 		return(0);
 	_sysinfo_tasks_open(sysinfo);
@@ -39,6 +40,7 @@ int _sysinfo_pages_open(sysinfo_t *sysinfo) {
 void _sysinfo_pages_refresh(sysinfo_t *sysinfo) {
 	_sysinfo_accel_refresh(sysinfo);
 	_sysinfo_crypto_refresh(sysinfo);
+	_sysinfo_power_refresh(sysinfo);
 	_sysinfo_tasks_refresh(sysinfo);
 	_sysinfo_devices_refresh(sysinfo);
 	_sysinfo_system_refresh(sysinfo);

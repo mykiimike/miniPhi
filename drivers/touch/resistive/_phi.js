@@ -2,7 +2,7 @@ export const phi = {
 	kind: "driver",
 	name: "RESISTIVE",
 	label: "4-wire resistive touch",
-	description: "Resistive touch panel measured on two ADC pins, with no controller chip. A press connects the two plates. It is a touch input for the TUI: tap, drag and scroll.",
+	description: "Resistive touch panel measured on two ADC pins, with no controller chip. A press connects the two plates. It is a touch input for the TUI: tap, drag and scroll. While the screen is off it stops sampling and waits on a pen interrupt.",
 	define: "SUPPORT_DRV_TOUCH_RESISTIVE",
 	sources: ["resistive.c"],
 	headers: ["resistive.h"],
@@ -27,6 +27,7 @@ export const phi = {
 		{ name: "xMax", label: "Raw X at the last column", type: "number", default: 3850, min: 0, max: 4095 },
 		{ name: "yMin", label: "Raw Y at the first row", type: "number", default: 250, min: 0, max: 4095 },
 		{ name: "yMax", label: "Raw Y at the last row", type: "number", default: 3850, min: 0, max: 4095 },
-		{ name: "period", label: "Sample period", type: "number", unit: "ms", default: 20, min: 5, max: 100 },
+		{ name: "period", label: "Sample period with a finger", type: "number", unit: "ms", default: 20, min: 5, max: 100 },
+		{ name: "idle", label: "Sample period without a finger", type: "number", unit: "ms", default: 100, min: 5, max: 1000 },
 	],
 }

@@ -74,6 +74,7 @@
 
 	#include <list.h>
 	#include <task/task.h>
+	#include <power/power.h>
 
 	#include <math.h>
 	#include <string.h>
@@ -90,6 +91,11 @@
 	unsigned long mp_clock_ticks();
 	unsigned long mp_clock_tick_hz();
 	unsigned long mp_clock_get_speed();
+	unsigned long mp_clock_us(void);
+	unsigned long mp_clock_level_hz(mp_power_level_t level);
+	mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level);
+	void mp_clock_schedule(mp_kernel_t *kernel, unsigned long limit);
+	const char *mp_clock_deep(void);
 	void mp_machine_state_set(mp_kernel_t *kernel);
 	void mp_machine_state_unset(mp_kernel_t *kernel);
 
@@ -240,6 +246,9 @@
 
 		/** Kernel tasks */
 		mp_task_handler_t tasks;
+
+		/** Level, governor and holds */
+		mp_power_t power;
 
 		/** Sensors handler */
 		mp_sensor_handler_t sensors;

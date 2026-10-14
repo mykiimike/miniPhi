@@ -25,10 +25,6 @@
 	#include "autoconf.h"
 
 	/* clock manager */
-	#ifndef MP_CLOCK_LE_FREQ
-		#define MP_CLOCK_LE_FREQ MHZ1_t
-	#endif
-
 	#ifndef MP_CLOCK_HE_FREQ
 		#define MP_CLOCK_HE_FREQ MHZ25_t
 	#endif

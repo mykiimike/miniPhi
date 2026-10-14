@@ -46,9 +46,9 @@
 		/** internal: txd_port */
 		mp_gpio_port_t *txd_port;
 
-
-
-
+		/** internal: in the list mp_uart_quiet() looks at */
+		mp_list_item_t item;
+		mp_bool_t listed;
 	};
 
 	mp_ret_t mp_uart_init();
@@ -56,6 +56,8 @@
 	mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *options, char *who);
 	mp_ret_t mp_uart_setup(mp_uart_t *uart, mp_options_t *options);
 	mp_ret_t mp_uart_close(mp_uart_t *uart);
+	/** NO while a UART runs on SMCLK, which LPM3 stops */
+	mp_bool_t mp_uart_quiet(void);
 
 	/* machine specs */
 	#define _UART_CTLW0   0x00

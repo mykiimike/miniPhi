@@ -80,6 +80,12 @@
 		mp_list_item_t item;
 
 		TIM_TypeDef *regs;
+
+		mp_pwm_mode_t mode;
+
+		/* AFIO_MAPR value decided by the first PWM */
+		uint32_t remap;
+		mp_bool_t remapped;
 	};
 
 	mp_ret_t mp_timer_init(mp_kernel_t *kernel);
@@ -92,7 +98,9 @@
 	mp_ret_t mp_timer_set_interrupt(mp_timer_t *timer, mp_timer_interrupt_t isr);
 	mp_ret_t mp_timer_unset_interrupt(mp_timer_t *timer);
 
-	/* options: port, a pin wired to one channel of the timer */
+	void mp_timer_retime(void);
+
+	/* options: port, a pin wired to one channel of the timer, polarity (high, low) */
 	mp_ret_t mp_timer_pwm_create(mp_timer_t *timer, mp_pwm_t *pwm, mp_options_t *options, char *who);
 	void mp_timer_pwm_destroy(mp_pwm_t *pwm);
 	void mp_timer_pwm_set(mp_pwm_t *pwm, unsigned int dutyCycle);

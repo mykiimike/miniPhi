@@ -248,9 +248,55 @@ static void _resistive_track(mp_drv_resistive_t *panel, int x, int y) {
 	mp_input_touch(&panel->input, panel->fx, panel->fy, 1);
 }
 
+static void _resistive_pen(void *user) {
+	mp_drv_resistive_t *panel = user;
+
+	mp_gpio_interrupt_disable(panel->yd);
+	mp_task_wake(panel->task);
+}
+
+/* the wiring of _resistive_pressed() left in place, with a falling edge on YD */
+static mp_bool_t _resistive_arm(mp_drv_resistive_t *panel) {
+	_resistive_float(panel->yu);
+	_resistive_float(panel->xr);
+	_resistive_drive(panel->xl, 0);
+	_resistive_pullup(panel->yd);
+	if(mp_gpio_interrupt_set(panel->yd, _resistive_pen, panel, "Touch pen") == FALSE)
+		return(NO);
+	mp_gpio_interrupt_hi2lo(panel->yd);
+	mp_gpio_interrupt_enable(panel->yd);
+	panel->armed = YES;
+	return(YES);
+}
+
+static void _resistive_disarm(mp_drv_resistive_t *panel) {
+	if(panel->armed == NO)
+		return;
+	mp_gpio_interrupt_unset(panel->yd);
+	panel->armed = NO;
+}
+
+static void _resistive_every(mp_task_t *task, unsigned long ticks) {
+	if(task->signal != MP_TASK_SIG_OK || task->delay != ticks)
+		mp_task_delay(task, ticks);
+}
+
+/* nobody touches: sample slower, or wait for the pen while the screen is off */
+static void _resistive_rest(mp_drv_resistive_t *panel, mp_task_t *task) {
+	if(panel->input.dozing) {
+		/* asleep first: the pen may fire as soon as it is armed */
+		mp_task_signal(task, MP_TASK_SIG_SLEEP);
+		if(_resistive_arm(panel) == YES)
+			return;
+	}
+	_resistive_every(task, panel->idle);
+}
+
 static MP_TASK(_resistive_task) {
 	mp_drv_resistive_t *panel = task->user;
 	int rawX, rawY, column, row, x, y;
+
+	_resistive_disarm(panel);
 
 	if(task->signal == MP_TASK_SIG_STOP) {
 		task->signal = MP_TASK_SIG_DEAD;
@@ -258,9 +304,11 @@ static MP_TASK(_resistive_task) {
 	}
 
 	if(!_resistive_pressed(panel)) {
-		_resistive_dropout(panel);
+		if(!_resistive_dropout(panel))
+			_resistive_rest(panel, task);
 		return;
 	}
+	_resistive_every(task, panel->period);
 
 	/* X runs from XL to XR and is read on YD; Y runs from YD to YU and is read on XL */
 	rawX = _resistive_sample(panel->xl, panel->xr, panel->yu, panel->yd, panel->channelYd);
@@ -308,7 +356,6 @@ mp_ret_t mp_drv_resistive_init(mp_kernel_t *kernel, mp_drv_resistive_t *panel, m
 	char *value;
 	unsigned int index;
 	int width, height;
-	unsigned long period;
 
 	memset(panel, 0, sizeof(*panel));
 	panel->kernel = kernel;
@@ -352,13 +399,15 @@ mp_ret_t mp_drv_resistive_init(mp_kernel_t *kernel, mp_drv_resistive_t *panel, m
 	mp_input_bounds(&panel->input, width, height);
 	_resistive_idle(panel);
 
-	period = _resistive_ticks((unsigned long)_resistive_number(options, "period", 20));
-	panel->task = mp_task_create(&kernel->tasks, "Touch", _resistive_task, panel, period);
+	panel->period = _resistive_ticks((unsigned long)_resistive_number(options, "period", 20));
+	panel->idle = _resistive_ticks((unsigned long)_resistive_number(options, "idle", 100));
+	panel->task = mp_task_create(&kernel->tasks, "Touch", _resistive_task, panel, panel->idle);
 	if(!panel->task) {
 		mp_input_fini(&panel->input);
 		mp_adc_close();
 		goto fail;
 	}
+	panel->input.task = panel->task;
 
 	mp_printk("Resistive touch %s, plates on P%c%u P%c%u P%c%u P%c%u",
 		_orientations[panel->orientation],
@@ -381,6 +430,7 @@ mp_ret_t mp_drv_resistive_fini(mp_drv_resistive_t *panel) {
 		mp_input_touch(&panel->input, panel->input.x, panel->input.y, 0);
 	if(panel->task)
 		mp_task_destroy(panel->task);
+	_resistive_disarm(panel);
 	if(panel->input.kernel)
 		mp_input_fini(&panel->input);
 	_resistive_idle(panel);

@@ -99,9 +99,14 @@ static void _sysinfo_accel_run(sysinfo_t *sysinfo, mp_bool_t on) {
 	}
 }
 
-/* starts or stops the accelerometers to match sysinfo->accelEnabled */
-static void _sysinfo_accel_apply(sysinfo_t *sysinfo) {
-	_sysinfo_accel_run(sysinfo, sysinfo->accelEnabled);
+/* the accelerometers run while enabled and, with a screen, looked at */
+void _sysinfo_accel_apply(sysinfo_t *sysinfo) {
+	mp_bool_t on = sysinfo->accelEnabled == YES && _sysinfo_accel_shown(sysinfo) == YES ? YES : NO;
+
+	if(on == sysinfo->accelRunning)
+		return;
+	sysinfo->accelRunning = on;
+	_sysinfo_accel_run(sysinfo, on);
 }
 
 #ifdef SUPPORT_COMMON_KFLASH
@@ -174,6 +179,7 @@ static void _sysinfo_op_unset(void *user) {
 	_sysinfo_morse_stop(sysinfo);
 
 	_sysinfo_accel_run(sysinfo, NO);
+	sysinfo->accelRunning = NO;
 #ifdef SUPPORT_COMMON_KFLASH
 	if(sysinfo->accelListened == YES) {
 		mp_kflash_unlisten(&sysinfo->kernel, &sysinfo->accelVar);
@@ -313,6 +319,9 @@ static void _sysinfo_report(sysinfo_t *sysinfo) {
 	mp_printk("up %lu:%02lu:%02lu, %u/%u tasks",
 		seconds / 3600, (seconds / 60) % 60, seconds % 60,
 		kernel->tasks.usedNumber, (unsigned int)MP_TASK_MAX);
+	mp_printk("  power %s %lu MHz, load %u%%, %lu wake/s, %lu deep",
+		mp_power_name(kernel->power.level), (mp_clock_level_hz(kernel->power.level) + 500000UL) / 1000000UL,
+		(unsigned int)kernel->power.load, kernel->power.wakeups, kernel->power.deep);
 
 #ifdef SUPPORT_COMMON_SENSOR
 	{

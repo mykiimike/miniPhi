@@ -105,6 +105,8 @@ mp_ret_t mp_serial_fini(mp_serial_t *serial) {
 	serial->uart->onRead = NULL;
 	serial->uart->onWrite = NULL;
 	serial->uart->user = NULL;
+	serial->reader = NULL;
+	mp_power_release(serial->kernel, &serial->awake);
 
 	mp_circular_fini(&serial->rxCir);
 	mp_circular_fini(&serial->txCir);
@@ -140,6 +142,11 @@ static void mp_serial_UART_rxInt(mp_uart_t *uart) {
 
 	/* run circular interrupt service */
 	mp_circular_rxInterrupt(&serial->rxCir, chr);
+
+	/* someone types: stay out of Stop, which loses the first byte */
+	mp_power_hold_for(serial->kernel, &serial->awake, MP_POWER_LOW, MP_SERIAL_AWAKE, "Serial");
+	if(serial->reader)
+		mp_task_wake(serial->reader);
 }
 
 static void mp_serial_UART_txInt(mp_uart_t *uart) {

@@ -29,6 +29,10 @@ Same model as the MSP430: one task per channel asks the controller task
 for a capture, the controller runs one single conversion at a time and
 the end of conversion interrupt hands the result back.
 
+ADC1 and the temperature sensor are only powered around conversions:
+the first one after a power down waits for them and calibrates again,
+the clock powers them down with mp_adc_idle() before the core sleeps.
+
 @{
 */
 
@@ -173,14 +177,7 @@ static void __auto_init(mp_kernel_t *kernel) {
 	ADC1->SMPR2 = 0x3FFFFFFF;
 	ADC1->SQR1 = 0;
 	ADC1->CR1 = 0;
-	ADC1->CR2 = ADC_CR2_EXTSEL_SW | ADC_CR2_EXTTRIG | ADC_CR2_TSVREFE | ADC_CR2_ADON;
-
-	/* tSTAB, then calibrate */
-	mp_clock_delay(2);
-	ADC1->CR2 |= ADC_CR2_RSTCAL;
-	while(ADC1->CR2 & ADC_CR2_RSTCAL);
-	ADC1->CR2 |= ADC_CR2_CAL;
-	while(ADC1->CR2 & ADC_CR2_CAL);
+	ADC1->CR2 = ADC_CR2_EXTSEL_SW | ADC_CR2_EXTTRIG;
 
 	mp_interrupt_set(ADC1_2_IRQn, _mp_adc_interrupt, NULL, "ADC1");
 
@@ -201,6 +198,38 @@ static void __auto_fini(mp_kernel_t *kernel) {
 
 	__isInit = NO;
 	__kernel = NULL;
+}
+
+/* from off: tSTAB is 1 us, the temperature sensor wants 10 us, then calibrate */
+static void _mp_adc_power(void) {
+	if(ADC1->CR2 & ADC_CR2_ADON)
+		return;
+
+	ADC1->CR2 = ADC_CR2_EXTSEL_SW | ADC_CR2_EXTTRIG | ADC_CR2_TSVREFE | ADC_CR2_ADON;
+	mp_clock_nanoDelay(10000);
+	ADC1->CR2 |= ADC_CR2_RSTCAL;
+	while(ADC1->CR2 & ADC_CR2_RSTCAL);
+	ADC1->CR2 |= ADC_CR2_CAL;
+	while(ADC1->CR2 & ADC_CR2_CAL);
+}
+
+/**
+ * @brief Power ADC1 down when no conversion runs
+ *
+ * The clock calls it with interrupts masked, before the core sleeps.
+ */
+void mp_adc_idle(void) {
+	if(__isInit == YES && __selected_channel == NULL && (ADC1->CR2 & ADC_CR2_ADON))
+		ADC1->CR2 &= ~(ADC_CR2_ADON | ADC_CR2_TSVREFE);
+}
+
+/**
+ * @brief No conversion runs
+ *
+ * @return YES when the ADC clock may change or stop
+ */
+mp_bool_t mp_adc_quiet(void) {
+	return(__selected_channel == NULL ? YES : NO);
 }
 
 mp_ret_t mp_adc_open(mp_kernel_t *kernel) {
@@ -240,6 +269,7 @@ int mp_adc_convert(int channel) {
 	if(busy)
 		return(-1);
 
+	_mp_adc_power();
 	ADC1->SQR3 = (unsigned long)channel;
 	(void)ADC1->DR;
 	ADC1->CR2 |= ADC_CR2_SWSTART;
@@ -278,11 +308,11 @@ MP_TASK(adcControler) {
 		if(seek->state == 1) {
 			__selected_channel = seek;
 
+			_mp_adc_power();
 			ADC1->SQR3 = seek->channelId;
 			(void)ADC1->DR;
 			mp_adc_enable(seek);
 
-			/* ADON again starts the conversion once the ADC is on */
 			ADC1->CR2 |= ADC_CR2_SWSTART;
 
 			mp_task_signal(task, MP_TASK_SIG_SLEEP);
@@ -290,7 +320,8 @@ MP_TASK(adcControler) {
 		}
 	}
 
-	mp_task_signal(task, MP_TASK_SIG_OK);
+	/* a channel wakes it when it wants a capture */
+	mp_task_signal(task, MP_TASK_SIG_SLEEP);
 }
 
 MP_TASK(adcChannel) {

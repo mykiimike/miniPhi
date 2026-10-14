@@ -30,7 +30,15 @@
 
 	/** @} */
 
-	/** one task, reseeding every MP_RNG_PERIOD ms; called from the kernel */
+	#ifndef MP_RNG_PERIOD
+		#define MP_RNG_PERIOD 60000
+	#endif
+
+	#ifndef MP_RNG_RESEED
+		#define MP_RNG_RESEED 64
+	#endif
+
+	/** one task, reseeding while the generator is drawn from; called from the kernel */
 	void mp_rng_start(mp_kernel_t *kernel);
 	void mp_rng_stop(void);
 	/**

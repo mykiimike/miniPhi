@@ -79,9 +79,15 @@ void mp_input_bounds(mp_input_t *input, int width, int height) {
 
 /* producer */
 
+static void _mp_input_wake(mp_input_t *input) {
+	if(input->reader)
+		mp_task_wake(input->reader);
+}
+
 static void _mp_input_push(mp_input_t *input, int type, int down, int value) {
 	unsigned char next = (unsigned char)((input->head + 1) % MP_INPUT_QUEUE);
 
+	_mp_input_wake(input);
 	if(next == input->tail) {
 		input->dropped++;
 		return;
@@ -101,6 +107,7 @@ void mp_input_touch(mp_input_t *input, int x, int y, int down) {
 		input->x = x;
 		input->y = y;
 		input->moved = 1;
+		_mp_input_wake(input);
 	}
 	mp_input_button(input, down);
 }
@@ -111,6 +118,7 @@ void mp_input_motion(mp_input_t *input, int dx, int dy) {
 	input->x = _mp_input_clamp(input->x + dx, input->width);
 	input->y = _mp_input_clamp(input->y + dy, input->height);
 	input->moved = 1;
+	_mp_input_wake(input);
 }
 
 void mp_input_button(mp_input_t *input, int down) {
@@ -333,6 +341,27 @@ mp_input_t *mp_input_next(mp_kernel_t *kernel, mp_input_t *after, void *reader) 
 			return(input);
 	}
 	return(NULL);
+}
+
+unsigned long mp_input_waiting(mp_input_t *input) {
+	unsigned long wait = _mp_input_ms(_MP_INPUT_ESCAPE_MS);
+	unsigned long gone;
+
+	if(input->pendingCount > 0 || input->tail != input->head || input->moved)
+		return(1);
+	if(input->escape != 1)
+		return(0);
+	gone = mp_clock_ticks() - input->escapeTick;
+	return(gone >= wait ? 1 : wait - gone);
+}
+
+void mp_input_doze(mp_input_t *input, int dozing) {
+	dozing = dozing ? 1 : 0;
+	if(input->dozing == dozing)
+		return;
+	input->dozing = dozing;
+	if(!dozing && input->task)
+		mp_task_wake(input->task);
 }
 
 /**@}*/

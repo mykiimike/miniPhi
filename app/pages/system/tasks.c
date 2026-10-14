@@ -19,7 +19,8 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Sub-page of System: the kernel tasks, their state and their period.
+ * Sub-page of System: the kernel tasks, their state, their period and how
+ * often they woke up over the last second or so.
  */
 
 #include "../index.h"
@@ -38,9 +39,28 @@ static const char *_sysinfo_task_state(mp_task_signal_t signal) {
 
 static const mp_tui_column_t _sysinfo_task_columns[] = {
 	{ "Task", 0, MP_TUI_ALIGN_LEFT },
-	{ "State", 78, MP_TUI_ALIGN_LEFT },
-	{ "Period", 72, MP_TUI_ALIGN_RIGHT },
+	{ "State", 66, MP_TUI_ALIGN_LEFT },
+	{ "Period", 66, MP_TUI_ALIGN_RIGHT },
+	{ "Wake/s", 60, MP_TUI_ALIGN_RIGHT },
 };
+
+static void _sysinfo_tasks_rates(sysinfo_t *sysinfo) {
+	mp_task_handler_t *hdl = &sysinfo->kernel.tasks;
+	unsigned long hz = mp_clock_tick_hz();
+	unsigned long now = mp_clock_ticks();
+	unsigned long elapsed = now - sysinfo->screen.taskAt;
+	unsigned long ms;
+	int slot;
+
+	if(!hz || elapsed < hz)
+		return;
+	ms = elapsed * 1000UL / hz;
+	for(slot = 0; slot < MP_TASK_MAX; slot++) {
+		sysinfo->screen.taskRate[slot] = (hdl->tasks[slot].runs - sysinfo->screen.taskRuns[slot]) * 1000UL / ms;
+		sysinfo->screen.taskRuns[slot] = hdl->tasks[slot].runs;
+	}
+	sysinfo->screen.taskAt = now;
+}
 
 static void _sysinfo_tasks_values(sysinfo_t *sysinfo) {
 	mp_kernel_t *kernel = &sysinfo->kernel;
@@ -53,6 +73,7 @@ static void _sysinfo_tasks_values(sysinfo_t *sysinfo) {
 
 	if(rows > MP_TASK_MAX)
 		rows = MP_TASK_MAX;
+	_sysinfo_tasks_rates(sysinfo);
 	mp_tui_table_rows(&sysinfo->screen.taskTable, rows);
 	mp_tui_label_set(&sysinfo->screen.taskCount, "%u / %u",
 		kernel->tasks.usedNumber, (unsigned int)MP_TASK_MAX);
@@ -66,6 +87,7 @@ static void _sysinfo_tasks_values(sysinfo_t *sysinfo) {
 		mp_tui_table_set(&sysinfo->screen.taskTable, n, 0, "%s", task->name ? task->name : "(unnamed)");
 		mp_tui_table_set(&sysinfo->screen.taskTable, n, 1, "%s", _sysinfo_task_state(task->signal));
 		mp_tui_table_set(&sysinfo->screen.taskTable, n, 2, "%s", period);
+		mp_tui_table_set(&sysinfo->screen.taskTable, n, 3, "%lu", sysinfo->screen.taskRate[task - kernel->tasks.tasks]);
 	}
 }
 
@@ -78,7 +100,7 @@ static void _sysinfo_tasks_page(mp_tui_widget_t *page, void *user) {
 	mp_tui_label(&sysinfo->screen.taskCount, page, 8, 4, width, line, "");
 	mp_tui_label_color(&sysinfo->screen.taskCount, page->tui->theme.accent);
 	mp_tui_table(&sysinfo->screen.taskTable, page, 8, 4 + line + 4, width,
-		_sysinfo_task_columns, 3, &sysinfo->screen.taskCell[0][0], MP_TASK_MAX);
+		_sysinfo_task_columns, 4, &sysinfo->screen.taskCell[0][0], MP_TASK_MAX);
 	sysinfo->screen.tasksReady = 1;
 	_sysinfo_tasks_values(sysinfo);
 }

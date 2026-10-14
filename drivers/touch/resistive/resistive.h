@@ -28,8 +28,10 @@
 	 *
 	 * One plate is driven, the other is measured. YD and YU are one plate,
 	 * XL and XR the other, each on an ADC-capable pin. There is no
-	 * controller chip and no pen interrupt: the driver notices a press
-	 * because the plates connect.
+	 * controller chip: the driver notices a press because the plates
+	 * connect. It samples every period while a finger is down, every idle
+	 * otherwise, and not at all while the input dozes: YD then waits on a
+	 * falling edge, which only a firm press gives.
 	 */
 
 	typedef enum {
@@ -66,12 +68,18 @@
 		/** last position sent, after the plate noise is filtered out */
 		int fx, fy;
 		int tracked;
+
+		/** ticks between samples, with a finger and without */
+		unsigned long period;
+		unsigned long idle;
+		/** YD has its pen interrupt */
+		mp_bool_t armed;
 	};
 
 	/**
 	 * options: yd, yu, xl, xr (ADC pins), orientation (landscape, portrait,
 	 * landscape-flipped, portrait-flipped), flipX, flipY, xMin, xMax, yMin,
-	 * yMax (raw ADC window, 0 to 4095), period in ms.
+	 * yMax (raw ADC window, 0 to 4095), period and idle in ms.
 	 */
 	mp_ret_t mp_drv_resistive_init(mp_kernel_t *kernel, mp_drv_resistive_t *panel, mp_options_t *options, char *who);
 	mp_ret_t mp_drv_resistive_fini(mp_drv_resistive_t *panel);

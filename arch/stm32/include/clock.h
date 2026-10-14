@@ -40,21 +40,12 @@
 	mp_ret_t mp_clock_fini(mp_kernel_t *kernel);
 	void mp_clock_reset(mp_kernel_t *kernel);
 
-	/* the bus clocks are fixed at boot, so both keep MP_CLOCK_HE_FREQ */
-	mp_ret_t mp_clock_low_energy(mp_kernel_t *kernel);
-	mp_ret_t mp_clock_high_energy(mp_kernel_t *kernel);
-
-	/* sleeps until the next interrupt when no task is pending */
-	void mp_clock_schedule(mp_kernel_t *kernel);
-	void mp_clock_task_change(mp_task_t *task);
-	void mp_clock_wakeup(mp_kernel_t *kernel);
-
 	unsigned long mp_clock_ticks();
 	unsigned long mp_clock_tick_hz();
 	unsigned long mp_clock_get_speed();
 	const char *mp_clock_name(mp_clock_freq_t clock);
 
-	/* busy waits, in ticks (ms) and in nanoseconds */
+	/* waits, in ticks (ms) with WFI between them, and busy in nanoseconds */
 	void mp_clock_delay(int delay);
 	void mp_clock_nanoDelay(unsigned long delay);
 

@@ -23,6 +23,10 @@
 	#define _HAVE_MP_SERIAL_H
 
 	#ifdef SUPPORT_COMMON_SERIAL
+		#ifndef MP_SERIAL_AWAKE
+			#define MP_SERIAL_AWAKE 30000
+		#endif
+
 		typedef struct mp_serial_s mp_serial_t;
 		typedef struct mp_serial_interface_s mp_serial_interface_t;
 
@@ -57,6 +61,12 @@
 			mp_bool_t owned;
 
 			char opened;
+
+			/* woken on each byte received, NULL for none */
+			mp_task_t *reader;
+
+			/* held at LOW for MP_SERIAL_AWAKE ms after each byte received */
+			mp_power_hold_t awake;
 		};
 
 		mp_ret_t mp_serial_initUART(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who);

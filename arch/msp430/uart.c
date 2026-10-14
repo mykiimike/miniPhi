@@ -22,13 +22,15 @@
 
 static void _mp_uart_interrupt(void *user);
 
+static mp_list_t __uarts;
+
 
 /**
  * @brief Global uart initialization
  * @return TRUE or FALSE
  */
 mp_ret_t mp_uart_init() {
-
+	mp_list_init(&__uarts);
 	return(TRUE);
 }
 
@@ -83,6 +85,11 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 
 	/* setup */
 	mp_uart_setup(uart, options);
+
+	MP_INTERRUPT_SAFE_BEGIN
+	mp_list_add_last(&__uarts, &uart->item, uart);
+	uart->listed = YES;
+	MP_INTERRUPT_SAFE_END
 
 	return(TRUE);
 }
@@ -202,6 +209,13 @@ mp_ret_t mp_uart_setup(mp_uart_t *uart, mp_options_t *options) {
 
 mp_ret_t mp_uart_close(mp_uart_t *uart) {
 
+	if(uart->listed == YES) {
+		MP_INTERRUPT_SAFE_BEGIN
+		mp_list_remove(&__uarts, &uart->item);
+		uart->listed = NO;
+		MP_INTERRUPT_SAFE_END
+	}
+
 	/* remove interrupt */
 	mp_interrupt_unset(uart->gate->_ISRVector);
 
@@ -230,6 +244,18 @@ mp_ret_t mp_uart_close(mp_uart_t *uart) {
 
 
 
+
+mp_bool_t mp_uart_quiet(void) {
+	mp_list_item_t *item;
+	mp_uart_t *uart;
+
+	for(item = __uarts.first; item != NULL; item = item->next) {
+		uart = item->user;
+		if((_UART_REG8(uart->gate, _UART_CTL1) & _UART_UCSSEL_SMCLK_mask) == _UART_UCSSEL_SMCLK_mask)
+			return(NO);
+	}
+	return(YES);
+}
 
 // int used to indicate a request for more new data
 /*

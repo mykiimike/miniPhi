@@ -142,6 +142,12 @@ void _sysinfo_system_refresh(sysinfo_t *sysinfo) {
 		_sysinfo_flash_state(state, sizeof(state));
 		mp_tui_label_set(&sysinfo->screen.flashState, "%s", state);
 	}
+	{
+		unsigned long speed = mp_clock_get_speed();
+
+		mp_tui_label_set(&sysinfo->screen.clock, "Clock  %lu.%02lu MHz, %s", speed / 1000000, (speed / 10000) % 100,
+			mp_power_name(kernel->power.level));
+	}
 	mp_tui_label_set(&sysinfo->screen.uptime, "Uptime   %lu:%02lu:%02lu",
 		seconds / 3600, (seconds / 60) % 60, seconds % 60);
 	mp_tui_label_set(&sysinfo->screen.tasks, "Tasks    %u/%u",

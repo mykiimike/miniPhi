@@ -72,6 +72,10 @@
 	mp_ret_t mp_gpio_interrupt_set(mp_gpio_port_t *port, mp_interrupt_cb_t in, void *user, char *who);
 	mp_ret_t mp_gpio_interrupt_unset(mp_gpio_port_t *port);
 
+	/* an EXTI falling edge that only wakes the core from Stop */
+	mp_bool_t mp_gpio_wake_arm(mp_gpio_port_t *port);
+	void mp_gpio_wake_disarm(mp_gpio_port_t *port);
+
 	#define mp_gpio_raw_read(port) ((port)->base->IDR & (1UL << (port)->pin))
 
 	static inline void mp_gpio_interrupt_enable(mp_gpio_port_t *port) {

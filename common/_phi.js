@@ -6,7 +6,7 @@ export const phi = {
 	sources: ["kernel.c", "state.c", "printk.c", "utils.c", "mp.c"],
 	headers: ["mp.h", "config.h", "list.h", "utils.h", "state.h", "printk.h"],
 	headerDir: "",
-	requires: ["TASK"],
+	requires: ["TASK", "POWER"],
 	settings: [
 		{ name: "MP_STATE_MAX", label: "Machine states", type: "number", default: 5, min: 3, max: 16 },
 		{ name: "_DEBUG", label: "printk output", type: "bool", default: true },

@@ -37,17 +37,30 @@
 
 	struct mp_drv_ili932x_s {
 		mp_tui_display_t display;
+		mp_kernel_t *kernel;
 		mp_fsmc_t bus;
 		mp_gpio_port_t *reset;
+		/** the backlight pin, when it is not on a PWM */
 		mp_gpio_port_t *backlight;
 		mp_drv_ili932x_orientation_t orientation;
 		/** register 0x00: 0x9320 or 0x9325 */
 		uint16_t id;
+
+		/** backlightTimer: the pin is a PWM channel */
+		mp_bool_t dimmable;
+		mp_timer_t timer;
+		mp_pwm_t pwm;
+		int brightness;
+		mp_power_hold_t dimmed;
+
+		/** the panel is in standby, see mp_tui_display_t.power */
+		mp_bool_t standby;
 	};
 
 	/**
 	 * options: the fsmc bus ones, reset and backlight pins (both optional),
-	 * backlightLow, orientation (landscape, portrait, landscape-flipped,
+	 * backlightLow, backlightTimer (the timer whose channel is the backlight
+	 * pin, to dim it), orientation (landscape, portrait, landscape-flipped,
 	 * portrait-flipped).
 	 */
 	mp_ret_t mp_drv_ili932x_init(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_options_t *options, char *who);

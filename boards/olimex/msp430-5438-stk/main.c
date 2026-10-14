@@ -164,9 +164,6 @@ MP_TASK(blinkTask) {
 static void __olimex_state_op_set(void *user) {
 	olimex_msp430_t *olimex = user;
 
-
-	mp_clock_high_energy(&olimex->kernel);
-
 	mp_ret_t ret;
 
 	/* initialize UART source */

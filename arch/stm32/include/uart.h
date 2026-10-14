@@ -40,6 +40,10 @@
 		mp_gpio_port_t *txd_port;
 
 		USART_TypeDef *regs;
+
+		mp_list_item_t item;
+		mp_bool_t listed;
+		mp_bool_t wakeArmed;
 	};
 
 	mp_ret_t mp_uart_init();
@@ -48,6 +52,9 @@
 	mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *options, char *who);
 	mp_ret_t mp_uart_setup(mp_uart_t *uart, mp_options_t *options);
 	mp_ret_t mp_uart_close(mp_uart_t *uart);
+	void mp_uart_retime(void);
+	mp_bool_t mp_uart_quiet(void);
+	void mp_uart_wake(mp_bool_t arm);
 
 	static inline char mp_uart_isBusy(mp_uart_t *uart) {
 		return(uart->regs->SR & USART_SR_TC ? 0 : 1);

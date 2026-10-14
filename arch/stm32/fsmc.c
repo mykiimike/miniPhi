@@ -66,9 +66,11 @@ static unsigned long _mp_fsmc_ns(mp_options_t *options, char *key, unsigned long
 	return(value ? strtoul(value, NULL, 10) : fallback);
 }
 
-/* ADDSET and DATAST for a cycle of ns, about a third of it for the address */
-static uint32_t _mp_fsmc_timing(unsigned long ns) {
-	unsigned long mhz = mp_clock_get_speed() / 1000000;
+static mp_list_t __fsmc;
+
+/* ADDSET and DATAST for a cycle of ns at hclk, about a third of it for the address */
+static uint32_t _mp_fsmc_timing(unsigned long ns, unsigned long hclk) {
+	unsigned long mhz = hclk / 1000000;
 	unsigned long cycles = (ns * mhz + 999) / 1000;
 	unsigned long addset = cycles / 3, datast;
 
@@ -114,10 +116,16 @@ mp_ret_t mp_fsmc_open(mp_kernel_t *kernel, mp_fsmc_t *fsmc, mp_options_t *option
 	if(_mp_fsmc_pin(fsmc, slot++, _mp_fsmc_address[rs], who) == FALSE)
 		goto failed;
 
+	fsmc->readNs = _mp_fsmc_ns(options, "readCycle", 500);
+	fsmc->writeNs = _mp_fsmc_ns(options, "writeCycle", 100);
 	FSMC_Bank1->BTCR[fsmc->bank * 2] = FSMC_BCR_MWID_16 | FSMC_BCR_WREN | FSMC_BCR_EXTMOD;
-	FSMC_Bank1->BTCR[fsmc->bank * 2 + 1] = _mp_fsmc_timing(_mp_fsmc_ns(options, "readCycle", 500));
-	FSMC_Bank1E->BWTR[fsmc->bank * 2] = _mp_fsmc_timing(_mp_fsmc_ns(options, "writeCycle", 100));
+	FSMC_Bank1->BTCR[fsmc->bank * 2 + 1] = _mp_fsmc_timing(fsmc->readNs, mp_clock_get_speed());
+	FSMC_Bank1E->BWTR[fsmc->bank * 2] = _mp_fsmc_timing(fsmc->writeNs, mp_clock_get_speed());
 	FSMC_Bank1->BTCR[fsmc->bank * 2] |= FSMC_BCR_MBKEN;
+
+	fsmc->item.next = fsmc->item.prev = NULL;
+	mp_list_add_last(&__fsmc, &fsmc->item, fsmc);
+	fsmc->listed = YES;
 
 	/* a 16-bit bank drives A[n] from HADDR[n + 1] */
 	fsmc->cmd = (volatile uint16_t *)(FSMC_BANK1_MEMORY + 0x04000000UL * fsmc->bank);
@@ -141,6 +149,11 @@ mp_ret_t mp_fsmc_close(mp_fsmc_t *fsmc) {
 	if(fsmc->cmd)
 		FSMC_Bank1->BTCR[fsmc->bank * 2] &= ~FSMC_BCR_MBKEN;
 
+	if(fsmc->listed == YES) {
+		mp_list_remove(&__fsmc, &fsmc->item);
+		fsmc->listed = NO;
+	}
+
 	for(index = 0; index < MP_FSMC_PINS; index++) {
 		if(!fsmc->pins[index])
 			continue;
@@ -153,6 +166,26 @@ mp_ret_t mp_fsmc_close(mp_fsmc_t *fsmc) {
 	fsmc->gate = NULL;
 	fsmc->cmd = fsmc->data = NULL;
 	return(TRUE);
+}
+
+/**
+ * @brief Time every bank for hclk
+ *
+ * The clock calls it before a change with the faster of both clocks,
+ * and after it with the new one: a bank timed for a faster clock is
+ * only slower.
+ *
+ * @param[in] hclk AHB clock in Hz
+ */
+void mp_fsmc_retime(unsigned long hclk) {
+	mp_list_item_t *item;
+	mp_fsmc_t *fsmc;
+
+	for(item = __fsmc.first; item; item = item->next) {
+		fsmc = item->user;
+		FSMC_Bank1->BTCR[fsmc->bank * 2 + 1] = _mp_fsmc_timing(fsmc->readNs, hclk);
+		FSMC_Bank1E->BWTR[fsmc->bank * 2] = _mp_fsmc_timing(fsmc->writeNs, hclk);
+	}
 }
 
 /**@}*/

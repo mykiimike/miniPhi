@@ -49,6 +49,8 @@ void _sysinfo_devices_open(sysinfo_t *sysinfo);
 void _sysinfo_devices_refresh(sysinfo_t *sysinfo);
 void _sysinfo_crypto_open(sysinfo_t *sysinfo);
 void _sysinfo_crypto_refresh(sysinfo_t *sysinfo);
+void _sysinfo_power_open(sysinfo_t *sysinfo);
+void _sysinfo_power_refresh(sysinfo_t *sysinfo);
 
 /** home entries first, then the sub-pages of System; 0 when System is missing */
 int _sysinfo_pages_open(sysinfo_t *sysinfo);

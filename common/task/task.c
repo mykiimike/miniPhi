@@ -102,6 +102,7 @@ mp_task_t *mp_task_create(mp_task_handler_t *hdl, char *name, mp_task_wakeup_t w
 	task->name = name;
 	task->wakeup = wakeup;
 	task->user = user;
+	task->runs = 0;
 
 	hdl->usedNumber++;
 
@@ -119,19 +120,90 @@ mp_ret_t mp_task_destroy(mp_task_t *task) {
 	return(TRUE);
 }
 
+static void _mp_task_soon(mp_task_handler_t *hdl, unsigned long at) {
+	if(hdl->wakeSet == NO || (long)(at - hdl->wakeAt) < 0) {
+		hdl->wakeAt = at;
+		hdl->wakeSet = YES;
+	}
+}
+
+/**
+ * @brief Change the state of a task
+ *
+ * Interrupt safe.
+ *
+ * @param[in] task The task
+ * @param[in] signal New state
+ */
 void mp_task_signal(mp_task_t *task, mp_task_signal_t signal) {
+	mp_task_handler_t *hdl = task->handler;
+
+	MP_INTERRUPT_SAFE_BEGIN
 	if(task->signal != MP_TASK_SIG_SLEEP && signal == MP_TASK_SIG_SLEEP)
-		task->handler->sleepNumber++;
+		hdl->sleepNumber++;
 	else if(task->signal == MP_TASK_SIG_SLEEP && signal != MP_TASK_SIG_SLEEP)
-		task->handler->sleepNumber--;
+		hdl->sleepNumber--;
 
 	if(task->signal != MP_TASK_SIG_PENDING && signal == MP_TASK_SIG_PENDING)
-		task->handler->pendingNumber++;
+		hdl->pendingNumber++;
 	else if(task->signal == MP_TASK_SIG_PENDING && signal != MP_TASK_SIG_PENDING)
-		task->handler->pendingNumber--;
+		hdl->pendingNumber--;
 
 	task->signal = signal;
-	mp_clock_task_change(task);
+	if(signal == MP_TASK_SIG_OK || signal == MP_TASK_SIG_STOP)
+		_mp_task_soon(hdl, task->check + task->delay);
+	MP_INTERRUPT_SAFE_END
+}
+
+/**
+ * @brief Run a task on the next pass
+ *
+ * For an interrupt that has work for a task. A stopping task is left alone.
+ * Interrupt safe.
+ *
+ * @param[in] task The task
+ */
+void mp_task_wake(mp_task_t *task) {
+	MP_INTERRUPT_SAFE_BEGIN
+	if(task->signal == MP_TASK_SIG_OK || task->signal == MP_TASK_SIG_SLEEP)
+		mp_task_signal(task, MP_TASK_SIG_PENDING);
+	MP_INTERRUPT_SAFE_END
+}
+
+/**
+ * @brief Run a task delay ticks from now, then every delay ticks
+ *
+ * A sleeping or pending task goes back to OK. Interrupt safe.
+ *
+ * @param[in] task The task
+ * @param[in] delay Ticks
+ */
+void mp_task_delay(mp_task_t *task, unsigned long delay) {
+	MP_INTERRUPT_SAFE_BEGIN
+	task->check = mp_clock_ticks();
+	task->delay = delay;
+	if(task->signal == MP_TASK_SIG_OK || task->signal == MP_TASK_SIG_SLEEP || task->signal == MP_TASK_SIG_PENDING)
+		mp_task_signal(task, MP_TASK_SIG_OK);
+	MP_INTERRUPT_SAFE_END
+}
+
+/**
+ * @brief Ticks the kernel can sleep before a task is due
+ *
+ * The arch calls it with interrupts masked, before it sleeps.
+ *
+ * @param[in] hdl Task handler
+ * @return 0 when a task is due or pending, MP_TASK_FOREVER when none waits on time
+ */
+unsigned long mp_task_idle(mp_task_handler_t *hdl) {
+	long left;
+
+	if(hdl->pendingNumber > 0 || hdl->signal == MP_TASK_SIG_STOP)
+		return(0);
+	if(hdl->wakeSet == NO)
+		return(MP_TASK_FOREVER);
+	left = (long)(hdl->wakeAt - mp_clock_ticks());
+	return(left > 0 ? (unsigned long)left : 0);
 }
 
 mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
@@ -149,6 +221,11 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 
 	/* get clock */
 	now = mp_clock_ticks();
+
+	/* the pass puts back the deadline of every task it visits */
+	MP_INTERRUPT_SAFE_BEGIN
+	hdl->wakeSet = NO;
+	MP_INTERRUPT_SAFE_END
 
 	/* just send the message to all tasks */
 	seek = hdl->usedList.last->user;
@@ -171,6 +248,7 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 
 		if(pass == YES) {
 			/* execute wakeup */
+			seek->runs++;
 			seek->wakeup(seek);
 
 			/* signal was pending restore OK state */
@@ -191,6 +269,12 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 			/* recycle check delay */
 			else
 				seek->check = now;
+		}
+
+		if(seek->signal == MP_TASK_SIG_OK || seek->signal == MP_TASK_SIG_STOP) {
+			MP_INTERRUPT_SAFE_BEGIN
+			_mp_task_soon(hdl, seek->check + seek->delay);
+			MP_INTERRUPT_SAFE_END
 		}
 		seek = next;
 	}

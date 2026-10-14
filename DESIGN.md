@@ -36,6 +36,7 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │   │   ├── _phi.js
 │   │   ├── task.c
 │   │   └── task.h
+│   ├── power/                required module: power levels, load governor, holds
 │   ├── mem/  circular/  serial/  pinout/  sensor/  regmaster/  hci/
 │   ├── quaternion/  kalman/  optional modules, same shape
 │   ├── input/       touch, mouse and keyboard gestures, read by the TUI
@@ -63,7 +64,7 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │       └── f1/
 │           ├── _phi.js       kind series: STM32F103T8 and STM32F103ZE, pins, gates, clock
 │           ├── startup.c     vector table, Reset_Handler        (boot)
-│           ├── clock.c       HSE + PLL, SysTick 1 kHz, WFI      (boot)
+│           ├── clock.c       power levels, tickless SysTick, WFI, Stop on the RTC  (boot)
 │           ├── include/series.h   F1 registers and IRQ numbers, as build/include/arch/series.h
 │           └── ld/           stm32f103x8.ld (64 KB), stm32f103xe.ld (512 KB)
 │
@@ -83,6 +84,7 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │   └── pages/                one directory per home page; index.c is the list
 │       ├── accelerometer/index.c
 │       ├── cryptography/index.c   home page: class, then algorithm, then acceleration
+│       ├── power/index.c     home page: level, load, wake ups, holds, time per level
 │       └── system/           index.c, tasks.c and devices.c are its sub-pages
 │
 └── boards/                   one directory per vendor, then one per product
@@ -221,15 +223,32 @@ flash: $(TARGET)
 
 `generate(ctx)` produces files when `build/` is written, not on every evaluation. It returns `{ "include/gen/<file>": content }`, gets `ctx.root`, `ctx.selection`, `ctx.setting(name)`, `ctx.devices` (the board devices with their `macro` and the `device` entry of their driver) and `ctx.compileFont(file, options)`, and two records cannot generate the same path. Objects are rebuilt when a file of `include/gen/` changes, and when a header they include changes. A setting with `emit: "none"` only feeds `generate` and stays out of `autoconf.h`.
 
+## Power
+
+`common/power` (module `POWER`, always on) picks how fast the chip runs and how deep it sleeps. There are four levels, `MP_POWER_SLEEP`, `LOW`, `MEDIUM` and `HIGH`; a higher one never consumes less. The kernel loop is: the task pass, the state tick, then `mp_power_schedule()`, which measures, decides, and calls the arch to sleep.
+
+The load is the share of time the loop spent awake over a window of `MP_POWER_WINDOW` ms. Like a CPU governor: at 90 % or more the level jumps to HIGH, at `MP_POWER_UP` % or more it goes one level up. It goes one level down once the load stayed under `MP_POWER_DOWN` % for `MP_POWER_DOWN_DELAY` ms, and only when the load the level below would see (the load times the ratio of the two clocks), with 10 points of margin, is still under `MP_POWER_UP`; that keeps it from bouncing. `MP_POWER_PINNED` starts with the level fixed at HIGH, and `mp_power_fix(kernel, level)` pins one at run time, `MP_POWER_AUTO` gives it back.
+
+A hold is a floor: `mp_power_hold(kernel, &hold, MP_POWER_LOW, "Serial")` keeps the level at LOW or more until `mp_power_release()`, and `mp_power_hold_for()` lets go by itself after some ms. Holds are interrupt safe and the hold struct belongs to the caller. The serial line holds LOW for `MP_SERIAL_AWAKE` ms after each byte received, the TUI holds HIGH for `MP_TUI_BOOST` ms after each input, and a dimmed ILI932x backlight holds LOW because its PWM stops in Stop. The power struct also counts the wake ups per second, the level changes, the deep sleeps and the ms spent at each level; sysinfo shows them as tables on its Power page, under the Governor switch.
+
+Tasks give the arch their deadline. `mp_task_idle()` is the number of ticks before the next task is due, 0 when one is pending, `MP_TASK_FOREVER` when every task sleeps. `mp_task_wake()` makes a task pending from an interrupt, and `mp_task_delay()` sets a new period from now. A task that has nothing to do should sleep, or set a long delay, rather than run to find out: every wake up costs a full pass. The drivers do so: the TUI only runs while something is dirty or an input arrives, the touch panel slows down without a finger, the ADC task and the RNG sleep when nobody waits on them.
+
+The arch provides `mp_clock_level(kernel, level)`, which returns `FALSE` when the switch has to wait (a transfer in flight), `mp_clock_level_hz()`, `mp_clock_us()`, `mp_clock_schedule(kernel, limit)` and `mp_clock_deep()`, a name for its deepest sleep. `mp_clock_schedule()` sleeps until an interrupt or the next deadline, `limit` ticks at most, and goes deep (`mp_power_deep()`) only at SLEEP with no hold above it, for `MP_POWER_STOP_MIN` ticks or more.
+
+- STM32: HIGH, MEDIUM and LOW are `MP_CLOCK_HE_FREQ`, `MP_CLOCK_ME_FREQ` and `MP_CLOCK_LE_FREQ` (the crystal itself when one of them equals it, otherwise the PLL), SLEEP is the HSI at 8 MHz. A switch retimes SysTick, the UARTs, I2C, SPI, the timers (duty cycles keep their share), the FSMC and the ADC prescaler. SysTick is tickless: its reload stretches over the idle ticks, and an early interrupt counts what went by. Stop needs the RTC: with `MP_CLOCK_LSE` (the 32.768 kHz crystal of the STM32-LCD) an RTC alarm ends it, and the UART RX pins get a falling-edge EXTI so a byte wakes the core. That first byte is lost, the next ones are not, since the serial hold keeps the chip out of Stop. Without the LSE, or while a transfer is in flight, it is WFI.
+- MSP430: the DCO stays at `MP_CLOCK_HE_FREQ`; the levels only decide LPM0 or LPM3. TA1 runs on ACLK in continuous mode and its compare moves past the idle ticks, so one tick is 1/1024 s. LPM3 needs every UART on ACLK (9600 baud or less). Every interrupt leaves the LPM on its way out, and `mp_interrupt_state()` reads GIE, so a safe section inside an interrupt stays masked.
+
 ## TUI
 
 TUI is Things UI, a user interface for small screens such as the 320×240 of the STM32-LCD. When a screen starts, `mp_tui_step()` shows a splash before anything else: the word miniPhi, the logo from `config/assets/logo.svg`, `MP_KERNEL_VERSION`, all at once. `common/tui` (module `TUI`) then draws a tree of things on any display. A display is one `write(display, x, y, w, h, pixels)` callback taking RGB565, plus an optional `flush`. There is no framebuffer: changes mark up to `MP_TUI_DIRTY_MAX` dirty rectangles, and `mp_tui_step()` renders one band of the current one into a buffer the caller gives to `mp_tui_init()`, at least one display row. Every `mp_tui_t` carries its own state, so several screens run side by side; `mp_tui_attach()` gives one a kernel task that draws a band per tick.
 
-After the splash the screen is a home. `mp_tui_app()` declares an application (a name and a function that fills a page). The home lists them. Opening one shows that page, which scrolls when the content is taller than the screen, and a Back button returns to the home. The home lists Accelerometer, Cryptography and System. Cryptography lists the classes in the firmware (hash, mac, cipher, kdf, rng). A class lists its algorithms, and opening one says whether the chip accelerates it; HMAC also lists the hashes it runs over. System shows the logo, about, version, copyright, license, and the board, CPU, clock, memory, build, uptime and tasks. It opens Task manager, the kernel tasks, and Devices, the board devices from `common/device` with their class and whether they are open.
+After the splash the screen is a home. `mp_tui_app()` declares an application (a name and a function that fills a page). The home lists them. Opening one shows that page, which scrolls when the content is taller than the screen, and a Back button returns to the home. The home lists Accelerometer, Cryptography, Power and System. Cryptography lists the classes in the firmware (hash, mac, cipher, kdf, rng). A class lists its algorithms, and opening one says whether the chip accelerates it; HMAC also lists the hashes it runs over. System shows the logo, about, version, copyright, license, and the board, CPU, clock, memory, build, uptime and tasks. It opens Task manager, the kernel tasks, and Devices, the board devices from `common/device` with their class and whether they are open.
 
 Things are caller-allocated structs that start with an `mp_tui_widget_t`: box, label (`mp_tui_label_wrap()` breaks a line that does not fit and moves the next widget down), bar, table (a header and caller-owned cells, at most 8 columns), window (children sit below the title), button, switch (a label and an on/off track that a click flips), columns, and a view whose children scroll. Columns are laid out when the page is built: side by side when each gets its minimum width, one under the other otherwise, so the same page works in landscape and in portrait. Positions are relative to the parent's client area, and drawing is clipped to it. A custom thing passes its own `mp_tui_class_t` to `mp_tui_widget_init()`; its optional `event` callback receives click, drop and wheel events, which go up to the parents until one returns non-zero. `mp_tui_widget_name()` with `mp_tui_set_text()` and `mp_tui_set_value()` updates by name, and setters only redraw when the value changes.
 
-On every tick the TUI task calls `mp_tui_poll()`, which reads every input of the kernel (see Input) and acts on the widgets. A down highlights the button under it, a click runs it. A drag moves the nearest widget flagged `MP_TUI_DRAGGABLE`, raised above its siblings, and its drop sends `MP_TUI_EVENT_DROP` with the dragged widget as `source` to what lies under the drop point. Otherwise a drag scrolls the view under it, like the wheel. A finger that starts on a button and moves does the same once the page is taller than the screen, so a list of buttons still scrolls; a short press still clicks. Arrows, Tab, Enter, Space, Escape, Backspace and Page Up / Down drive the home and the page through `mp_tui_key()`. A mouse also gets an arrow cursor, drawn over the bands like any dirty rectangle. Events are dropped while the splash is up.
+The TUI task runs while something is dirty or an input arrives: an invalidation and an input push wake it, and it sleeps otherwise. It calls `mp_tui_poll()`, which reads every input of the kernel (see Input) and acts on the widgets. A down highlights the button under it, a click runs it. A drag moves the nearest widget flagged `MP_TUI_DRAGGABLE`, raised above its siblings, and its drop sends `MP_TUI_EVENT_DROP` with the dragged widget as `source` to what lies under the drop point. Otherwise a drag scrolls the view under it, like the wheel. A finger that starts on a button and moves does the same once the page is taller than the screen, so a list of buttons still scrolls; a short press still clicks. A widget with its own event, a switch, gets the same slack: the finger may wander 12 px past it and still click it on release, and a pull of 20 px or more scrolls instead. Arrows, Tab, Enter, Space, Escape, Backspace and Page Up / Down drive the home and the page through `mp_tui_key()`. A mouse also gets an arrow cursor, drawn over the bands like any dirty rectangle. Events are dropped while the splash is up.
+
+A display may also give `backlight(display, percent)` and `power(display, on)`. With either, the TUI has a screen saver: it dims to `MP_TUI_DIM_LEVEL` % after `MP_TUI_DIM_AFTER` s without an input, and turns the display off after `MP_TUI_OFF_AFTER` s; 0 turns a step off. While the screen is off nothing is drawn and the inputs doze. The next input wakes it, and the press that did so is swallowed until its release, so it does not click what lies under the finger. `mp_tui_awake()` says whether it is lit, `mp_tui_wake()` lights it.
 
 `MP_TUI_FONT` picks a TrueType file of `common/tui/fonts/` (each with its license), `MP_TUI_FONT_SIZE`, `MP_TUI_FONT_BPP` (4 antialiased, 1 for pixel fonts) and `MP_TUI_FONT_CHARSET` (ASCII or Latin-1). `config/font.js` rasterizes it at write time into `include/gen/tui_font_default.h`, which is `mp_tui_font_default`, in flash. Text is UTF-8; a character the font lacks shows as a box. Other fonts compiled the same way can be given to `mp_tui_label_font()`.
 
@@ -238,6 +257,8 @@ On every tick the TUI task calls `mp_tui_poll()`, which reads every input of the
 `common/input` (module `INPUT`) turns what drivers feed into gestures. An `mp_input_t` is listed on `kernel->inputs` by `mp_input_init()` with its capabilities: touch (absolute), mouse (relative, a cursor), wheel, keys. A driver feeds it from a task or an interrupt, one producer per input: `mp_input_touch(x, y, down)`, `mp_input_motion(dx, dy)` and `mp_input_button(down)`, `mp_input_wheel(steps)`, `mp_input_key(key)`, or `mp_input_terminal(byte)` for a VT100 terminal (arrows, Home, End, Page Up / Down, Delete, a lone Escape after 50 ms). Transitions go in a queue of `MP_INPUT_QUEUE` entries, and motion is only the last position, so a fast pointer never fills it.
 
 `mp_input_read()` gives the gestures: move, down, click, drag start once the pointer leaves the press point by more than `MP_INPUT_DRAG_THRESHOLD` pixels, drag with its delta, drop, wheel and key. A press and a release between two reads still give the drag and the drop. `mp_input_bind()` keeps an input for one reader, a screen for instance, when there are several; `mp_input_next()` lists those a reader may take. Keys are their character, or `MP_INPUT_KEY_*` from 0x100. sysinfo makes its console a keyboard this way. The STM32-LCD touch panel is a resistive input on the same list.
+
+A push wakes `input->reader`, the task reading the input (the TUI sets it), so the reader can sleep. `mp_input_waiting()` says when the reader has to come back: something queued, or the ms left before a lone Escape. `mp_input_doze(input, 1)` tells the driver nobody looks, and when it ends `input->task`, the driver task, is woken.
 
 ## Flash store
 
@@ -271,7 +292,7 @@ The name is the module name or the label, in any case (`"SHA256"`, `"sha-256"`).
 
 `rng/hmac_drbg/` is the module `HMAC_DRBG` (NIST SP 800-90A), which requires `HMAC`. It is a generator, so it lives under `rng/` and not next to HMAC: the MAC is the primitive it consumes. `mp_hmac_drbg_init(&drbg, "SHA256", entropy, entropylen, nonce, noncelen, personal, personlen)` seeds it, `mp_hmac_drbg_generate()` draws at most `MP_HMAC_DRBG_MAX` bytes, and `mp_hmac_drbg_reseed()` mixes new entropy in. After `MP_HMAC_DRBG_RESEED` draws, generate refuses until a reseed. The context holds the HMAC key and the chaining value, both the digest size, and the caller owns it. The entropy is the caller's: the module reads no device. NIST approves SHA-1, SHA-256, SHA-384 and SHA-512 for this construction; another hash of the build runs the same steps. The seed material is fed to HMAC in pieces, so a long seed never needs its own buffer.
 
-`common/crypto/rng` itself is the module `RNG`. The kernel calls `mp_rng_start()` once the task pool exists, and `mp_rng_stop()` wipes the generator on the way down. One task, named RNG, wakes every `MP_RNG_PERIOD` milliseconds (one second unless the build says otherwise) and reseeds HMAC-DRBG. The noise is the low byte of the die temperature and of the internal reference; the clock and a counter ride along so two reseeds differ. `mp_rng_bytes()` draws from that generator and returns `FALSE` until the first sample has seeded it. SHA-256 is the hash when the build carries it.
+`common/crypto/rng` itself is the module `RNG`. The kernel calls `mp_rng_start()` once the task pool exists, and `mp_rng_stop()` wipes the generator on the way down. One task, named RNG, reseeds HMAC-DRBG after `MP_RNG_RESEED` draws, or on the first draw once the seed is `MP_RNG_PERIOD` ms old (a minute unless the build says otherwise), and sleeps while nobody draws. The noise is the low byte of the die temperature and of the internal reference; the clock and a counter ride along so two reseeds differ. `mp_rng_bytes()` draws from that generator and returns `FALSE` until the first sample has seeded it. SHA-256 is the hash when the build carries it.
 
 A chip with a hash block declares it on its series, or on one MCU, with the module name as the key:
 
@@ -307,26 +328,27 @@ The selected arch is always linked as `build/include/arch/`, so `mp.h` does not 
 #include <arch/internal.h>
 ```
 
-`mp.h` pulls the C library headers itself, and each `internal.h` pulls its own vendor header (`msp430.h`, or the series registers in `arch/series.h`). `internal.h` must define `mp_arch_t`, which the kernel embeds as `kernel->arch`: the MSP430 keeps its scheduler state and die temperature there, the STM32 its clock, MCU name and VDDA. `common/` calls `mp_clock_schedule`, `mp_gpio_text_handle`, `mp_uart_open`. Everything else stays in the arch `.c` files.
+`mp.h` pulls the C library headers itself, and each `internal.h` pulls its own vendor header (`msp430.h`, or the series registers in `arch/series.h`). `internal.h` must define `mp_arch_t`, which the kernel embeds as `kernel->arch`: the MSP430 keeps its die temperature there, the STM32 its clock, MCU name and VDDA. `common/` calls `mp_clock_schedule`, `mp_gpio_text_handle`, `mp_uart_open`. Everything else stays in the arch `.c` files.
 
 ## STM32
 
 The arch copies the MSP430 API: same functions, same options, same `mp_uart_t` or `mp_i2c_t` fields the drivers touch. What differs:
 
-- One tick is one millisecond (SysTick at 1 kHz). `mp_clock_schedule()` runs WFI when no task is pending, so SysTick or any interrupt wakes the loop.
+- One tick is one millisecond (SysTick at 1 kHz, tickless while idle). `mp_clock_schedule()` sleeps in WFI or Stop until the next task or an interrupt, see Power. `mp_clock_delay()` runs WFI between the ticks.
 - Every peripheral vector of `startup.c` goes to `mp_interrupt_dispatch()`, which looks up the active line in the table `mp_interrupt_set()` fills. `mp_arch_fault[]` holds the last fault (vector, CFSR, HFSR, BFAR) for the debugger.
 - GPIO interrupts use EXTI: one line per bit number, shared vectors for 5 to 9 and 10 to 15.
 - The I2C block wants an explicit SB / ADDR handshake. `i2c.c` keeps a phase (idle, address, data) so the USCI-style calls regMaster makes (`mp_i2c_txStart` on every ASR pass, `mp_i2c_txStop` before the last byte) turn into the F1 register sequence.
-- `mp_clock_low_energy()` keeps the clock: the bus dividers are computed once at boot.
+- The clock changes at run time with the power level. The bus dividers follow, and a peripheral that keeps its clock settings registers itself so it can be retimed. A switch waits while I2C, SPI or a UART transmits.
+- Unused pins are analog inputs from boot, the lowest leakage, except the debug ones; a released pin goes back to analog. The ADC is only powered while a conversion runs.
 - The MCU name comes from DBGMCU_IDCODE, which the F1 only returns while a debugger is attached. Without one, sysinfo prints the flash size only.
 
 The F1 series reserves the JTAG pins (PA13, PA14, PA15, PB3, PB4). `_SWD_ONLY` gives PA15, PB3 and PB4 back, but the firmware then turns JTAG off at boot, and the AK-LINK, which has no SWD, has to connect with SRST held (`reset_config srst_only connect_assert_srst`).
 
 `STM32F10X_HD` (the STM32F103ZE) extends the same code: 60 interrupt lines instead of 43, GPIO ports A to G, USART3, UART4, UART5, SPI2, SPI3, I2C2 and TIM5 to TIM8, and 2 KB flash pages. The medium-density build keeps the shorter vector table. On the 144-pin package the crystal has its own pins and PD0, PD1 are FSMC D2, D3.
 
-The `fsmc` bus drives an 8080 LCD on bank 1 in 16 bits. The `FSMC` gate claims D0 to D15, NOE and NWE through `claims` in the series, so no other device can take them; `cs` (an NE pin) and `rs` (any address line) are device options. `mp_fsmc_write_cmd()` writes with RS low, `mp_fsmc_write_data()` with RS high. The STM32-LCD wires an ILI9320 on NE1 with RS on A19 (PE3), its reset on PE2 and the backlight on PD13, active low; `drivers/lcd/ili932x` turns it into an `mp_tui_display_t` for the TUI.
+The `fsmc` bus drives an 8080 LCD on bank 1 in 16 bits. The `FSMC` gate claims D0 to D15, NOE and NWE through `claims` in the series, so no other device can take them; `cs` (an NE pin) and `rs` (any address line) are device options. `mp_fsmc_write_cmd()` writes with RS low, `mp_fsmc_write_data()` with RS high. The STM32-LCD wires an ILI9320 on NE1 with RS on A19 (PE3), its reset on PE2 and the backlight on PD13, active low; `drivers/lcd/ili932x` turns it into an `mp_tui_display_t` for the TUI. PD13 is TIM4 channel 2 on the full remap, so with `backlightTimer: "TIM4"` the backlight is a 1 kHz PWM the screen saver dims. Off, the panel goes to standby (STB in R10) after the display is turned off, and its power registers are written again when it comes back; the TUI redraws the whole screen.
 
-The same board's touch panel is a 4-wire resistive sheet, not a controller: YD is PC0, YU is PC1, XL is PC2 and XR is PC3, all ADC inputs. `drivers/touch/resistive` drives one plate and measures the other with `mp_adc_convert()`, which borrows ADC1 between the temperature samples, then feeds an `mp_input_t`. A press is the two plates meeting. Landscape uses the same corner mapping as the ILI932x.
+The same board's touch panel is a 4-wire resistive sheet, not a controller: YD is PC0, YU is PC1, XL is PC2 and XR is PC3, all ADC inputs. `drivers/touch/resistive` drives one plate and measures the other with `mp_adc_convert()`, which borrows ADC1 between the temperature samples, then feeds an `mp_input_t`. A press is the two plates meeting. Landscape uses the same corner mapping as the ILI932x. It samples every `period` ms with a finger and every `idle` ms without; while the input dozes it stops and puts a falling-edge interrupt on YD, pulled up with XL low, which only a firm press triggers.
 
 ## Code Composer files
 

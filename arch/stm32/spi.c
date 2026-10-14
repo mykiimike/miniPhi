@@ -78,10 +78,18 @@ mp_ret_t mp_spi_open(mp_kernel_t *kernel, mp_spi_t *spi, mp_options_t *options, 
 	return(TRUE);
 }
 
-mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
+/* fPCLK / 2^(br + 1), the highest under the frequency */
+static uint32_t _mp_spi_br(mp_spi_t *spi) {
 	unsigned long pclk = mp_gate_pclk(spi->gate);
-	uint32_t cr1 = SPI_CR1_SSM | SPI_CR1_SSI;
 	uint32_t br = 0;
+
+	while(br < 7 && (pclk >> (br + 1)) > spi->frequency)
+		br++;
+	return(br << 3);
+}
+
+mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
+	uint32_t cr1 = SPI_CR1_SSM | SPI_CR1_SSI;
 	char *value;
 
 	value = mp_options_get(options, "frequency");
@@ -91,11 +99,7 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 		return(FALSE);
 	}
 	spi->frequency = strtoul(value, NULL, 10);
-
-	/* fPCLK / 2^(br + 1) */
-	while(br < 7 && (pclk >> (br + 1)) > spi->frequency)
-		br++;
-	cr1 |= br << 3;
+	cr1 |= _mp_spi_br(spi);
 
 	value = mp_options_get(options, "phase");
 	if(value && mp_options_cmp(value, "change") == TRUE)
@@ -142,6 +146,44 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 	__spi_count++;
 
 	return(TRUE);
+}
+
+/**
+ * @brief Recompute the baud rate dividers after the bus clocks changed
+ *
+ * The clock only changes while mp_spi_quiet() holds.
+ */
+void mp_spi_retime(void) {
+	mp_list_item_t *item;
+	mp_spi_t *spi;
+	uint32_t cr1;
+
+	for(item = __spi.first; item; item = item->next) {
+		spi = item->user;
+		MP_INTERRUPT_SAFE_BEGIN
+		cr1 = spi->regs->CR1;
+		spi->regs->CR1 = cr1 & ~SPI_CR1_SPE;
+		spi->regs->CR1 = ((cr1 & ~SPI_CR1_BR) | _mp_spi_br(spi)) & ~SPI_CR1_SPE;
+		spi->regs->CR1 |= cr1 & SPI_CR1_SPE;
+		MP_INTERRUPT_SAFE_END
+	}
+}
+
+/**
+ * @brief No frame is shifting and no interrupt waits on one
+ *
+ * @return YES when the clock may change or stop
+ */
+mp_bool_t mp_spi_quiet(void) {
+	mp_list_item_t *item;
+	mp_spi_t *spi;
+
+	for(item = __spi.first; item; item = item->next) {
+		spi = item->user;
+		if(spi->ie || (spi->regs->SR & SPI_SR_BSY))
+			return(NO);
+	}
+	return(YES);
 }
 
 mp_ret_t mp_spi_close(mp_spi_t *spi) {

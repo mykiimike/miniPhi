@@ -54,6 +54,25 @@
 		#define MP_TUI_APP_MAX 8
 	#endif
 
+	/* screen saver, in seconds without input; 0 never */
+	#ifndef MP_TUI_DIM_AFTER
+		#define MP_TUI_DIM_AFTER 30
+	#endif
+
+	#ifndef MP_TUI_OFF_AFTER
+		#define MP_TUI_OFF_AFTER 90
+	#endif
+
+	/* backlight while dimmed, in % */
+	#ifndef MP_TUI_DIM_LEVEL
+		#define MP_TUI_DIM_LEVEL 15
+	#endif
+
+	/* ms the level stays HIGH after an input */
+	#ifndef MP_TUI_BOOST
+		#define MP_TUI_BOOST 300
+	#endif
+
 	/** RGB565 */
 	typedef uint16_t mp_tui_color_t;
 
@@ -89,8 +108,18 @@
 		void (*write)(mp_tui_display_t *display, int x, int y, int w, int h, const mp_tui_color_t *pixels);
 		/** optional, once every dirty rectangle is drawn */
 		void (*flush)(mp_tui_display_t *display);
+		/** optional, 0 to 100 %; the screen saver dims with it */
+		void (*backlight)(mp_tui_display_t *display, int percent);
+		/** optional, the panel itself; off keeps what it shows for the next on */
+		void (*power)(mp_tui_display_t *display, int on);
 		void *user;
 	};
+
+	typedef enum {
+		MP_TUI_AWAKE = 0,
+		MP_TUI_DIMMED,
+		MP_TUI_OFF,
+	} mp_tui_saver_t;
 
 	typedef struct {
 		mp_tui_color_t background;
@@ -287,8 +316,16 @@
 		int cursorShown;
 		int cursorX, cursorY;
 		mp_tui_button_t *pressed;
+		/** a widget with its own event, a switch: a tap on it survives a noisy finger like a button */
+		mp_tui_widget_t *tapped;
 		mp_tui_widget_t *dragged;
 		mp_tui_view_t *dragView;
+
+		/** screen saver: last input, and the gesture that woke the screen is not applied */
+		mp_tui_saver_t saver;
+		unsigned long activeAt;
+		int swallow;
+		mp_power_hold_t boost;
 	};
 
 	/* screen */
@@ -527,9 +564,24 @@
 
 	/* kernel */
 
-	/** a task draws one band per tick while the screen is dirty */
+	/**
+	 * A task draws one band per tick while the screen is dirty, then
+	 * sleeps until an input, an invalidation or the screen saver.
+	 */
 	int mp_tui_attach(struct mp_kernel_s *kernel, mp_tui_t *ui, char *who);
 	void mp_tui_detach(mp_tui_t *ui);
+
+	/**
+	 * Screen saver: dims after MP_TUI_DIM_AFTER s without input, turns the
+	 * backlight and the panel off after MP_TUI_OFF_AFTER s. Only with a
+	 * display that has backlight() or power(). Off, nothing is drawn and
+	 * the touch panel dozes; the first gesture only wakes the screen.
+	 */
+	void mp_tui_wake(mp_tui_t *ui);
+	int mp_tui_awake(mp_tui_t *ui);
+
+	/** applies the screen saver; ticks until it moves again or an input wants a read, 0 for never */
+	unsigned long mp_tui_idle(mp_tui_t *ui);
 
 	/** @} */
 

@@ -20,7 +20,9 @@
 
 /*
  * Opens the first display of the board, then the pages in pages/. The console
- * is a keyboard for the TUI; j, k and b stand for down, up and back.
+ * is a keyboard for the TUI; j, k and b stand for down, up and back. The task
+ * refreshes the live figures every 250 ms, 50 ms on the Accelerometer page and
+ * every second while the screen is off; a byte on the console wakes it.
  */
 
 #include "pages/index.h"
@@ -117,13 +119,16 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 
 	sysinfo->screen.ready = YES;
 	mp_tui_attach(kernel, tui, "TUI");
-	sysinfo->screen.task = mp_task_create(&kernel->tasks, "Screen", _sysinfo_screen, sysinfo, _sysinfo_ticks(50));
+	sysinfo->screen.task = mp_task_create(&kernel->tasks, "Screen", _sysinfo_screen, sysinfo, _sysinfo_ticks(250));
+	if(sysinfo->console == YES)
+		sysinfo->serial.reader = sysinfo->screen.task;
 }
 
 void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 	if(sysinfo->screen.ready == NO)
 		return;
 	if(sysinfo->screen.task) {
+		sysinfo->serial.reader = NULL;
 		mp_task_destroy(sysinfo->screen.task);
 		sysinfo->screen.task = NULL;
 	}
@@ -137,8 +142,32 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 	sysinfo->screen.ready = NO;
 }
 
+static mp_bool_t _sysinfo_accel_page_on(sysinfo_t *sysinfo) {
+#ifdef SUPPORT_COMMON_SENSOR
+	return(sysinfo->screen.accelIndex >= 0 && sysinfo->screen.tui.opened == sysinfo->screen.accelIndex ? YES : NO);
+#else
+	(void)sysinfo;
+	return(NO);
+#endif
+}
+
+mp_bool_t _sysinfo_accel_shown(sysinfo_t *sysinfo) {
+	if(sysinfo->screen.ready == NO)
+		return(YES);
+	return(mp_tui_awake(&sysinfo->screen.tui) && _sysinfo_accel_page_on(sysinfo) == YES ? YES : NO);
+}
+
+static unsigned long _sysinfo_screen_period(sysinfo_t *sysinfo) {
+	if(!mp_tui_awake(&sysinfo->screen.tui))
+		return(1000);
+	if(_sysinfo_accel_page_on(sysinfo) == YES)
+		return(50);
+	return(250);
+}
+
 static MP_TASK(_sysinfo_screen) {
 	sysinfo_t *sysinfo = task->user;
+	unsigned long delay;
 
 	if(task->signal == MP_TASK_SIG_STOP) {
 		task->signal = MP_TASK_SIG_DEAD;
@@ -146,10 +175,21 @@ static MP_TASK(_sysinfo_screen) {
 	}
 
 	_sysinfo_console_read(sysinfo);
+	_sysinfo_accel_apply(sysinfo);
 	_sysinfo_pages_refresh(sysinfo);
+
+	/* woken by the console, or the page changed */
+	delay = _sysinfo_ticks(_sysinfo_screen_period(sysinfo));
+	if(task->signal != MP_TASK_SIG_OK || task->delay != delay)
+		mp_task_delay(task, delay);
 }
 
 #else
+
+mp_bool_t _sysinfo_accel_shown(sysinfo_t *sysinfo) {
+	(void)sysinfo;
+	return(YES);
+}
 
 void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 	(void)sysinfo;

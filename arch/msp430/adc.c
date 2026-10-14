@@ -338,5 +338,8 @@ void __attribute__ ((interrupt(ADC12_VECTOR))) ADC12ISR (void)
 	}
 
 	ADC12IFG = 0;
+
+	/* the task is pending: mp_clock_schedule() has to run it */
+	__bic_SR_register_on_exit(LPM4_bits);
 }
 

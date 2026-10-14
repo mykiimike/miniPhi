@@ -39,11 +39,10 @@ export const phi = {
 	arch: "msp430",
 	name: "f5xx_f6xx",
 	label: "MSP430F5xx / F6xx",
-	description: "UCS clock system, PMM core voltage, USCI serial blocks.",
+	description: "UCS clock system, PMM core voltage, USCI serial blocks. The CPU clock is fixed; the power levels choose LPM0 or LPM3, and the tick timer is tickless.",
 	boot: ["clock.c"],
 	settings: [
-		{ name: "MP_CLOCK_LE_FREQ", label: "Low-energy clock", type: "enum", values: clocks, labels: clockLabels, default: "MHZ1_t" },
-		{ name: "MP_CLOCK_HE_FREQ", label: "High-energy clock", type: "enum", values: clocks, labels: clockLabels, default: "MHZ25_t" },
+		{ name: "MP_CLOCK_HE_FREQ", label: "CPU clock", type: "enum", values: clocks, labels: clockLabels, default: "MHZ25_t" },
 		{ name: "_LED_DEBUG", label: "Scheduler debug LED on P4.2", type: "bool", default: false },
 	],
 	reserved: [

@@ -45,6 +45,9 @@
 
 	typedef void (*mp_task_wakeup_t)(mp_task_t *task);
 
+	/* mp_task_idle() when nothing is due */
+	#define MP_TASK_FOREVER 0xFFFFFFFFUL
+
 	struct mp_task_s {
 		/** Connected to handler */
 		mp_task_handler_t *handler;
@@ -65,7 +68,10 @@
 		mp_task_wakeup_t wakeup;
 
 		/** actual signal */
-		mp_task_signal_t signal;
+		volatile mp_task_signal_t signal;
+
+		/** wake ups since creation */
+		unsigned long runs;
 
 		/** list input */
 		mp_list_item_t item;
@@ -88,7 +94,11 @@
 		unsigned int sleepNumber;
 
 		/** Number of pending tasks */
-		unsigned int pendingNumber;
+		volatile unsigned int pendingNumber;
+
+		/** soonest deadline of the tasks, when wakeSet is YES */
+		volatile unsigned long wakeAt;
+		volatile mp_bool_t wakeSet;
 
 		/** free organized list */
 		mp_list_t freeList;
@@ -107,6 +117,9 @@
 	mp_ret_t mp_task_destroy(mp_task_t *task);
 
 	void mp_task_signal(mp_task_t *task, mp_task_signal_t signal);
+	void mp_task_wake(mp_task_t *task);
+	void mp_task_delay(mp_task_t *task, unsigned long delay);
+	unsigned long mp_task_idle(mp_task_handler_t *hdl);
 
 	mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl);
 

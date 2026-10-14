@@ -59,8 +59,10 @@ struct sysinfo_s {
 	mp_task_t *task;
 	int line;
 
-	/** SYSINFO_KEY_ACCEL: the accelerometers run while it is YES */
+	/** SYSINFO_KEY_ACCEL: the accelerometers may run while it is YES */
 	mp_bool_t accelEnabled;
+	/** they are open: enabled, and on screen when there is one */
+	mp_bool_t accelRunning;
 #ifdef SUPPORT_COMMON_KFLASH
 	mp_kflash_var_t accelVar;
 	mp_bool_t accelListened;
@@ -120,7 +122,11 @@ struct sysinfo_s {
 		mp_tui_button_t taskManager;
 		mp_tui_label_t taskCount;
 		mp_tui_table_t taskTable;
-		mp_tui_cell_t taskCell[MP_TASK_MAX][3];
+		mp_tui_cell_t taskCell[MP_TASK_MAX][4];
+		/** per kernel task slot: runs at taskAt, and wake ups per second since the one before */
+		unsigned long taskRuns[MP_TASK_MAX];
+		unsigned long taskRate[MP_TASK_MAX];
+		unsigned long taskAt;
 		int devicesIndex;
 		int devicesReady;
 		mp_tui_button_t devicesButton;
@@ -149,6 +155,19 @@ struct sysinfo_s {
 #endif
 		/** die temperature and supply, the only sensors this page shows */
 		mp_tui_label_t sensors[2];
+		/** home entry "Power"; -1 until it is registered */
+		int powerIndex;
+		int powerReady;
+		mp_tui_switch_t powerSwitch;
+		mp_tui_label_t powerLevel;
+		mp_tui_label_t powerGovernor;
+		/** figures, then the supply sensors found when the page was built */
+		mp_tui_table_t powerTable;
+		mp_tui_cell_t powerCell[8][2];
+		int powerSensorRows;
+		mp_tui_label_t powerHolds;
+		mp_tui_table_t powerLevels;
+		mp_tui_cell_t powerLevelCell[MP_POWER_LEVELS][4];
 #ifdef SUPPORT_COMMON_SENSOR
 		/** home entry "Accelerometer"; -1 until it is registered */
 		int accelIndex;
@@ -185,5 +204,9 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo);
 
 /** stores SYSINFO_KEY_ACCEL; the accelerometers follow when the store tells sysinfo */
 void _sysinfo_accel_enable(sysinfo_t *sysinfo, mp_bool_t on);
+/** opens or closes the accelerometers after accelEnabled or the screen changed */
+void _sysinfo_accel_apply(sysinfo_t *sysinfo);
+/** YES without a screen; with one, while the Accelerometer page is on and lit */
+mp_bool_t _sysinfo_accel_shown(sysinfo_t *sysinfo);
 
 #endif

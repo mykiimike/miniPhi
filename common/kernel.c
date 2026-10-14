@@ -61,6 +61,9 @@ void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) 
 	/* initialize the machine */
 	mp_machine_init(kernel);
 
+	/* the clock runs: the governor can measure */
+	mp_power_init(kernel);
+
 	/* erase mem if necessary */
 #ifdef SUPPORT_COMMON_MEM
 	mp_mem_erase(kernel);
@@ -134,15 +137,15 @@ void mp_kernel_state(mp_kernel_t *kernel, char number) {
 void mp_kernel_loop(mp_kernel_t *kernel) {
 	mp_task_tick_t taskRet;
 	while(1) {
-		/* let the clock schedules */
-		mp_clock_schedule(kernel);
-
 		/* execute tasks */
 		taskRet = mp_task_tick(&kernel->tasks);
 		if(taskRet == MP_TASK_WORKING) {
 			/* execute machine state */
 			mp_state_tick(&kernel->states);
 		}
+
+		/* pick the level, then sleep until a task is due or an interrupt wakes one */
+		mp_power_schedule(kernel);
 	}
 }
 

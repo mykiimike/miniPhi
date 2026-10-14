@@ -74,9 +74,6 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	/* intialize clock */
 	mp_clock_init(kernel);
 
-	/* set high energy */
-	mp_clock_high_energy(kernel);
-
 	/* intialize UART */
 	mp_uart_init();
 

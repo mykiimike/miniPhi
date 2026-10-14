@@ -2,7 +2,7 @@ export const phi = {
 	kind: "driver",
 	name: "ILI932X",
 	label: "ILI9320 / ILI9325 TFT",
-	description: "240x320 RGB565 TFT on the FSMC parallel bus. It is a display for the TUI.",
+	description: "240x320 RGB565 TFT on the FSMC parallel bus. It is a display for the TUI, which dims its backlight through a PWM timer and puts the panel in standby.",
 	define: "SUPPORT_DRV_LCD_ILI932X",
 	sources: ["ili932x.c"],
 	headers: ["ili932x.h"],
@@ -13,6 +13,7 @@ export const phi = {
 		{ name: "reset", label: "Reset", type: "pin" },
 		{ name: "backlight", label: "Backlight", type: "pin" },
 		{ name: "backlightLow", label: "Backlight active low", type: "bool", default: false },
+		{ name: "backlightTimer", label: "Backlight PWM timer (dims; the pin must be one of its channels)", type: "gate", gateKind: "timer" },
 		{
 			name: "orientation",
 			label: "Orientation",

@@ -30,10 +30,11 @@
 
 @brief The running generator
 
-One task, started with the kernel. Every MP_RNG_PERIOD milliseconds it
-mixes a fresh noise sample into HMAC-DRBG. The noise is the low byte of
-the die temperature and of the internal reference, on an arch that has
-those channels. SHA-256 is the hash when the build carries it.
+One task, started with the kernel. It mixes a fresh noise sample into
+HMAC-DRBG after MP_RNG_RESEED draws, or on the first draw once the seed
+is MP_RNG_PERIOD milliseconds old; nobody drawing, it sleeps. The noise is
+the low byte of the die temperature and of the internal reference, on an
+arch that has those channels. SHA-256 is the hash when the build carries it.
 
 mp_rng_bytes() draws from that generator. It stays FALSE until the first
 sample has seeded it, so a caller never receives bytes mixed from the
@@ -42,10 +43,15 @@ clock alone.
 @{
 */
 
+/* retry of a seed that found no noise */
+#define _MP_RNG_RETRY 100
+
 static mp_task_t *_mp_rng_task;
 static mp_hmac_drbg_t _mp_rng_drbg;
 static mp_bool_t _mp_rng_ready;
 static uint32_t _mp_rng_stir;
+static volatile unsigned long _mp_rng_draws;
+static unsigned long _mp_rng_seededAt;
 
 static unsigned long _mp_rng_ticks(unsigned long ms) {
 	unsigned long hz = mp_clock_tick_hz();
@@ -86,7 +92,7 @@ static unsigned int _mp_rng_noise(uint8_t *out, unsigned int cap) {
 	return(n);
 }
 
-static void _mp_rng_reseed(void) {
+static mp_bool_t _mp_rng_reseed(void) {
 	uint8_t noise[32];
 	uint8_t nonce[4];
 	unsigned long ticks = mp_clock_ticks();
@@ -95,7 +101,7 @@ static void _mp_rng_reseed(void) {
 
 	n = _mp_rng_noise(noise, sizeof(noise) - 8);
 	if(n == 0)
-		return;
+		return(NO);
 
 	noise[n++] = (uint8_t)ticks;
 	noise[n++] = (uint8_t)(ticks >> 8);
@@ -110,7 +116,7 @@ static void _mp_rng_reseed(void) {
 	if(_mp_rng_ready == YES) {
 		mp_hmac_drbg_reseed(&_mp_rng_drbg, noise, n, NULL, 0);
 		memset(noise, 0, sizeof(noise));
-		return;
+		return(YES);
 	}
 
 	hash = _mp_rng_hash();
@@ -122,6 +128,7 @@ static void _mp_rng_reseed(void) {
 		_mp_rng_ready = YES;
 	memset(noise, 0, sizeof(noise));
 	memset(nonce, 0, sizeof(nonce));
+	return(_mp_rng_ready);
 }
 
 static MP_TASK(_mp_rng_wake) {
@@ -129,7 +136,13 @@ static MP_TASK(_mp_rng_wake) {
 		task->signal = MP_TASK_SIG_DEAD;
 		return;
 	}
-	_mp_rng_reseed();
+	if(_mp_rng_reseed() == NO) {
+		mp_task_delay(task, _mp_rng_ticks(_MP_RNG_RETRY));
+		return;
+	}
+	_mp_rng_draws = 0;
+	_mp_rng_seededAt = mp_clock_ticks();
+	mp_task_signal(task, MP_TASK_SIG_SLEEP);
 }
 
 /**
@@ -144,8 +157,9 @@ void mp_rng_start(mp_kernel_t *kernel) {
 		return;
 	_mp_rng_ready = NO;
 	_mp_rng_stir = 0;
+	_mp_rng_draws = 0;
 	memset(&_mp_rng_drbg, 0, sizeof(_mp_rng_drbg));
-	_mp_rng_task = mp_task_create(&kernel->tasks, "RNG", _mp_rng_wake, NULL, _mp_rng_ticks(MP_RNG_PERIOD));
+	_mp_rng_task = mp_task_create(&kernel->tasks, "RNG", _mp_rng_wake, NULL, _mp_rng_ticks(_MP_RNG_RETRY));
 	if(!_mp_rng_task)
 		mp_printk("RNG: no task slot");
 }
@@ -167,6 +181,9 @@ void mp_rng_stop(void) {
 /**
  * @brief Draw random bytes
  *
+ * Wakes the task for a reseed after MP_RNG_RESEED draws, or when the
+ * seed is older than MP_RNG_PERIOD ms.
+ *
  * @param[out] out Buffer
  * @param[in] size 1 to MP_HMAC_DRBG_MAX
  * @return FALSE until the task has seeded, or when size is empty
@@ -174,6 +191,10 @@ void mp_rng_stop(void) {
 mp_ret_t mp_rng_bytes(void *out, unsigned int size) {
 	if(_mp_rng_ready != YES || !out || !size)
 		return(FALSE);
+	if(++_mp_rng_draws >= MP_RNG_RESEED || mp_clock_ticks() - _mp_rng_seededAt >= _mp_rng_ticks(MP_RNG_PERIOD)) {
+		if(_mp_rng_task)
+			mp_task_wake(_mp_rng_task);
+	}
 	return(mp_hmac_drbg_generate(&_mp_rng_drbg, out, size, NULL, 0));
 }
 

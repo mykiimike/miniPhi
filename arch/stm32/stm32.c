@@ -124,12 +124,12 @@ void mp_machine_state_set(mp_kernel_t *kernel) {
 #ifdef SUPPORT_COMMON_SENSOR
 	mp_options_t vref[] = {
 		{ "channel", "A17" },
-		{ "delay", "1000" },
+		{ "delay", "5000" },
 		{ NULL, NULL }
 	};
 	mp_options_t temp[] = {
 		{ "channel", "A16" },
-		{ "delay", "1000" },
+		{ "delay", "5000" },
 		{ NULL, NULL }
 	};
 

@@ -13,7 +13,7 @@ export const phi = {
 	kind: "module",
 	name: "TUI",
 	label: "Things UI",
-	description: "A user interface for small screens. On start it shows miniPhi, the logo and the version together, then a home of applications declared by the firmware. Opening one shows a scrollable page and a Back button. With INPUT, every touch panel, mouse and keyboard clicks, drags, drops and scrolls them. Things are drawn in bands into any RGB565 display: no framebuffer, and several screens at once. The default font and the logo are rasterized when build/ is written.",
+	description: "A user interface for small screens. On start it shows miniPhi, the logo and the version together, then a home of applications declared by the firmware. Opening one shows a scrollable page and a Back button. With INPUT, every touch panel, mouse and keyboard clicks, drags, drops and scrolls them. Things are drawn in bands into any RGB565 display: no framebuffer, and several screens at once. The task only runs while something is dirty or an input arrives; a screen saver dims, then turns off a display that can, and an input holds the HIGH power level for a moment. The default font and the logo are rasterized when build/ is written.",
 	define: "SUPPORT_COMMON_TUI",
 	sources: [
 		"tui.c", "draw.c", "font.c", "task.c", "font_default.c",
@@ -40,6 +40,10 @@ export const phi = {
 		},
 		{ name: "MP_TUI_TEXT_MAX", label: "Label and title length", type: "number", unit: "bytes", default: 32, min: 8, max: 256 },
 		{ name: "MP_TUI_DIRTY_MAX", label: "Dirty rectangles per screen", type: "number", default: 4, min: 1, max: 16 },
+		{ name: "MP_TUI_DIM_AFTER", label: "Dim the backlight after (0 never)", type: "number", unit: "s", default: 30, min: 0, max: 3600 },
+		{ name: "MP_TUI_OFF_AFTER", label: "Screen off after (0 never)", type: "number", unit: "s", default: 90, min: 0, max: 3600 },
+		{ name: "MP_TUI_DIM_LEVEL", label: "Dimmed backlight", type: "number", unit: "%", default: 15, min: 1, max: 100 },
+		{ name: "MP_TUI_BOOST", label: "HIGH level after an input", type: "number", unit: "ms", default: 300, min: 0, max: 5000 },
 	],
 }
 

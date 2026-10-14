@@ -138,6 +138,15 @@
 		mp_input_event_t pending[4];
 		int pendingCount;
 
+		/** woken by every feed; the TUI puts its task there */
+		struct mp_task_s *reader;
+
+		/** the driver task, woken when the input stops dozing */
+		struct mp_task_s *task;
+
+		/** set by mp_input_doze(): nobody looks, the driver may sample slower */
+		volatile int dozing;
+
 		mp_list_item_t item;
 	};
 
@@ -168,6 +177,12 @@
 
 	/** first input after `after` (NULL for the first) that `reader` may read */
 	mp_input_t *mp_input_next(mp_kernel_t *kernel, mp_input_t *after, void *reader);
+
+	/** ticks until mp_input_read() has something without a new feed, 0 for never */
+	unsigned long mp_input_waiting(mp_input_t *input);
+
+	/** the screen is off: the driver may only watch for a press */
+	void mp_input_doze(mp_input_t *input, int dozing);
 
 	/** @} */
 

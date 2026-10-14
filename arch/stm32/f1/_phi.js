@@ -41,13 +41,16 @@ export const phi = {
 	arch: "stm32",
 	name: "f1",
 	label: "STM32F1",
-	description: "Cortex-M3 up to 72 MHz. HSE crystal and PLL, SysTick kernel tick at 1 kHz, JTAG or SWD debug.",
+	description: "Cortex-M3 up to 72 MHz. HSE crystal and PLL, a clock per power level, tickless SysTick kernel tick at 1 kHz, Stop woken by the RTC on the LSE crystal, JTAG or SWD debug.",
 	boot: ["startup.c", "clock.c"],
 	headers: ["include/series.h"],
 	headerDir: "arch",
 	settings: [
-		{ name: "MP_CLOCK_HE_FREQ", label: "System clock", type: "enum", values: clocks, labels: clockLabels, default: "MHZ72_t" },
+		{ name: "MP_CLOCK_HE_FREQ", label: "HIGH level clock", type: "enum", values: clocks, labels: clockLabels, default: "MHZ72_t" },
+		{ name: "MP_CLOCK_ME_FREQ", label: "MEDIUM level clock", type: "enum", values: clocks, labels: clockLabels, default: "MHZ24_t" },
+		{ name: "MP_CLOCK_LE_FREQ", label: "LOW level clock (SLEEP runs HSI at 8 MHz)", type: "enum", values: clocks, labels: clockLabels, default: "MHZ8_t" },
 		{ name: "MP_CLOCK_HSE_HZ", label: "HSE crystal (0 runs on the internal 8 MHz HSI)", type: "number", unit: "Hz", default: 8000000, min: 0, max: 16000000 },
+		{ name: "MP_CLOCK_LSE", label: "32.768 kHz LSE crystal on PC14 / PC15: RTC and Stop at SLEEP", type: "bool", default: false },
 		{ name: "_SWD_ONLY", label: "SWD only, frees PA15, PB3 and PB4 from JTAG", type: "bool", default: false },
 	],
 	reserved: [

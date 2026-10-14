@@ -70,4 +70,7 @@
 	 */
 	int mp_adc_convert(int channel);
 
+	void mp_adc_idle(void);
+	mp_bool_t mp_adc_quiet(void);
+
 #endif

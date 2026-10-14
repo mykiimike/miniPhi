@@ -37,6 +37,12 @@
 		int bank;
 		volatile uint16_t *cmd;
 		volatile uint16_t *data;
+
+		/* cycles in ns, kept to retime the bank */
+		unsigned long readNs;
+		unsigned long writeNs;
+		mp_list_item_t item;
+		mp_bool_t listed;
 	};
 
 	/**
@@ -46,6 +52,7 @@
 	 */
 	mp_ret_t mp_fsmc_open(mp_kernel_t *kernel, mp_fsmc_t *fsmc, mp_options_t *options, char *who);
 	mp_ret_t mp_fsmc_close(mp_fsmc_t *fsmc);
+	void mp_fsmc_retime(unsigned long hclk);
 
 	static inline void mp_fsmc_write_cmd(mp_fsmc_t *fsmc, uint16_t value) {
 		*fsmc->cmd = value;

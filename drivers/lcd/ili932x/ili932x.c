@@ -31,6 +31,11 @@ The panel is 240 columns (h) by 320 lines (v). The orientation maps
 display coordinates onto them and sets the entry mode so the pixels of
 a window arrive row after row of the display.
 
+The backlight is a pin, or a PWM channel when backlightTimer names the
+timer of that pin: the TUI screen saver dims it. Timers stop in Stop, so
+a backlight between off and full holds the LOW power level. Off, the
+panel goes to standby: the TUI redraws everything when it comes back.
+
 @{
 */
 
@@ -159,6 +164,88 @@ static void _ili932x_write(mp_tui_display_t *display, int x, int y, int w, int h
 		mp_fsmc_write_data(&lcd->bus, *pixels++);
 }
 
+static void _ili932x_percent(mp_drv_ili932x_t *lcd, int percent) {
+	unsigned long period;
+
+	if(percent < 0)
+		percent = 0;
+	if(percent > 100)
+		percent = 100;
+	lcd->brightness = percent;
+
+	if(lcd->dimmable == YES) {
+		period = (unsigned long)mp_timer_get_precision(&lcd->timer);
+		/* above the period is always active: steady through Stop */
+		mp_timer_pwm_set(&lcd->pwm, percent >= 100 ? period : period * (unsigned long)percent / 100UL);
+		if(percent > 0 && percent < 100)
+			mp_power_hold(lcd->kernel, &lcd->dimmed, MP_POWER_LOW, "Backlight");
+		else
+			mp_power_release(lcd->kernel, &lcd->dimmed);
+		return;
+	}
+
+	if(!lcd->backlight)
+		return;
+	if(percent > 0)
+		mp_gpio_set(lcd->backlight);
+	else
+		mp_gpio_unset(lcd->backlight);
+}
+
+static void _ili932x_backlight(mp_tui_display_t *display, int percent) {
+	_ili932x_percent(display->user, percent);
+}
+
+/* standby keeps GRAM; out of it, the power registers are written again */
+static void _ili932x_power(mp_tui_display_t *display, int on) {
+	mp_drv_ili932x_t *lcd = display->user;
+
+	if(on && lcd->standby == YES) {
+		_ili932x_reg(lcd, 0x0010, 0x17B0);
+		_ili932x_reg(lcd, 0x0011, 0x0137);
+		_ili932x_reg(lcd, 0x0012, 0x0139);
+		_ili932x_reg(lcd, 0x0013, 0x1D00);
+		_ili932x_reg(lcd, 0x0029, 0x0013);
+		_ili932x_wait(50);
+		_ili932x_reg(lcd, 0x0007, 0x0173);
+		lcd->standby = NO;
+	}
+	else if(!on && lcd->standby == NO) {
+		_ili932x_reg(lcd, 0x0007, 0x0000);
+		_ili932x_wait(20);
+		_ili932x_reg(lcd, 0x0010, 0x17B1);
+		lcd->standby = YES;
+	}
+}
+
+static mp_ret_t _ili932x_dimmer(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_options_t *options, char *who) {
+	char *gate = mp_options_get(options, "backlightTimer");
+	char *pin = mp_options_get(options, "backlight");
+	char *low = mp_options_get(options, "backlightLow");
+	mp_options_t timer[] = {
+		{ "gate", gate },
+		{ "frequency", "1000" },
+		{ "precision", "100" },
+		{ NULL, NULL }
+	};
+	mp_options_t pwm[] = {
+		{ "port", pin },
+		{ "polarity", low && mp_options_cmp(low, "true") == TRUE ? "low" : "high" },
+		{ NULL, NULL }
+	};
+
+	if(!gate || !*gate || !pin || !*pin)
+		return(FALSE);
+	if(mp_timer_create(kernel, &lcd->timer, timer, who) == FALSE)
+		return(FALSE);
+	if(mp_timer_pwm_create(&lcd->timer, &lcd->pwm, pwm, who) == FALSE) {
+		mp_timer_destroy(&lcd->timer);
+		return(FALSE);
+	}
+	lcd->dimmable = YES;
+	return(TRUE);
+}
+
 static mp_gpio_port_t *_ili932x_output(mp_options_t *options, char *key, char *who) {
 	char *value = mp_options_get(options, key);
 	mp_gpio_port_t *port;
@@ -176,6 +263,7 @@ mp_ret_t mp_drv_ili932x_init(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_opti
 	unsigned int index;
 
 	memset(lcd, 0, sizeof(*lcd));
+	lcd->kernel = kernel;
 
 	value = mp_options_get(options, "orientation");
 	for(index = 0; value && index < sizeof(_ili932x_orientations) / sizeof(_ili932x_orientations[0]); index++)
@@ -185,12 +273,17 @@ mp_ret_t mp_drv_ili932x_init(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_opti
 	if(mp_fsmc_open(kernel, &lcd->bus, options, who) == FALSE)
 		return(FALSE);
 
-	lcd->backlight = _ili932x_output(options, "backlight", who);
-	if(lcd->backlight) {
-		value = mp_options_get(options, "backlightLow");
-		if(value && mp_options_cmp(value, "true") == TRUE)
-			lcd->backlight->reverse = YES;
-		mp_gpio_unset(lcd->backlight);
+	/* dark until the panel is set up */
+	if(_ili932x_dimmer(kernel, lcd, options, who) == TRUE)
+		_ili932x_percent(lcd, 0);
+	else {
+		lcd->backlight = _ili932x_output(options, "backlight", who);
+		if(lcd->backlight) {
+			value = mp_options_get(options, "backlightLow");
+			if(value && mp_options_cmp(value, "true") == TRUE)
+				lcd->backlight->reverse = YES;
+			mp_gpio_unset(lcd->backlight);
+		}
 	}
 
 	lcd->reset = _ili932x_output(options, "reset", who);
@@ -221,6 +314,8 @@ mp_ret_t mp_drv_ili932x_init(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_opti
 	lcd->display.height = (lcd->orientation & 1) ? ILI932X_HEIGHT : ILI932X_WIDTH;
 	lcd->display.write = _ili932x_write;
 	lcd->display.flush = NULL;
+	lcd->display.backlight = (lcd->dimmable == YES || lcd->backlight) ? _ili932x_backlight : NULL;
+	lcd->display.power = _ili932x_power;
 	lcd->display.user = lcd;
 
 	mp_drv_ili932x_backlight(lcd, YES);
@@ -236,6 +331,12 @@ mp_ret_t mp_drv_ili932x_fini(mp_drv_ili932x_t *lcd) {
 
 	if(lcd->id)
 		_ili932x_reg(lcd, 0x0007, 0x0000);
+	if(lcd->dimmable == YES) {
+		_ili932x_percent(lcd, 0);
+		mp_timer_pwm_destroy(&lcd->pwm);
+		mp_timer_destroy(&lcd->timer);
+		lcd->dimmable = NO;
+	}
 	if(lcd->backlight) {
 		mp_gpio_unset(lcd->backlight);
 		mp_gpio_release(lcd->backlight);
@@ -251,12 +352,7 @@ mp_ret_t mp_drv_ili932x_fini(mp_drv_ili932x_t *lcd) {
 }
 
 void mp_drv_ili932x_backlight(mp_drv_ili932x_t *lcd, mp_bool_t on) {
-	if(!lcd->backlight)
-		return;
-	if(on == YES)
-		mp_gpio_set(lcd->backlight);
-	else
-		mp_gpio_unset(lcd->backlight);
+	_ili932x_percent(lcd, on == YES ? 100 : 0);
 }
 
 #ifdef SUPPORT_COMMON_DEVICE

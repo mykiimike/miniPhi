@@ -58,7 +58,11 @@ static void _set_timer(mp_kernel_t *kernel);
 #endif
 
 #pragma DATA_SECTION(__ticks, ".sysmem")
-static unsigned long __ticks;
+static volatile unsigned long __ticks;
+
+/* ACLK counts in one tick, and TA1R at the last tick counted */
+static unsigned int __counts;
+static unsigned int __last;
 
 static const mp_clock_freq_settings_t _mp_clock_freq_settings[] = {
 	{MHZ1_t, DCORSEL_2, _VCORE_1MHZ, 30},  /* MHZ1_t. */
@@ -150,13 +154,11 @@ You can specify the frequency of each oscillator by setting MP_CLOCK_XT1_FREQ an
 
 */
 mp_ret_t mp_clock_init(mp_kernel_t *kernel) {
-	memset(&kernel->arch.scheduler, 0, sizeof(kernel->arch.scheduler));
-
 	/* start crystal oscillo */
 	__start_crystal();
 
-	/* CPU voltage and freq */
-	_system_clock(MP_CLOCK_LE_FREQ);
+	/* CPU voltage and freq, fixed: the levels only choose how deep the core sleeps */
+	_system_clock(MP_CLOCK_HE_FREQ);
 
 	/* tick timer */
 	_set_timer(kernel);
@@ -170,99 +172,135 @@ mp_ret_t mp_clock_fini(mp_kernel_t *kernel) {
 }
 
 void mp_clock_reset(mp_kernel_t *kernel) {
-	memset(&kernel->arch.scheduler, 0, sizeof(kernel->arch.scheduler));
 
 }
 
-mp_ret_t mp_clock_low_energy(mp_kernel_t *kernel) {
-	kernel->arch.scheduler.clockState = LPM4_bits;
-	_system_clock(MP_CLOCK_LE_FREQ);
-	kernel->arch.scheduler.schedulerOff = FALSE;
-	_BIS_SR(kernel->arch.scheduler.clockState + GIE);
+/* TA1R runs on ACLK, not on MCLK: two reads that agree are a stable one */
+static unsigned int _mp_clock_tar(void) {
+	unsigned int a, b;
+
+	do {
+		a = TA1R;
+		b = TA1R;
+	} while(a != b);
+	return(a);
+}
+
+/* adds the whole ticks TA1R went past, then compares on the next one; interrupts masked */
+static void _mp_clock_catchup(void) {
+	unsigned int ticks = (unsigned int)(_mp_clock_tar() - __last) / __counts;
+
+	__ticks += ticks;
+	__last += ticks * __counts;
+	TA1CCR0 = __last + __counts;
+}
+
+/**
+ * @brief Microseconds since boot, wrapping
+ */
+unsigned long mp_clock_us(void) {
+	unsigned long ticks;
+	unsigned int part;
+
+	MP_INTERRUPT_SAFE_BEGIN
+	ticks = __ticks;
+	part = _mp_clock_tar() - __last;
+	MP_INTERRUPT_SAFE_END
+	/* a tick is 15625/16 µs, an ACLK count 15625/512 */
+	return((ticks >> 4) * 15625UL + ((ticks & 15UL) * 15625UL) / 16UL + ((unsigned long)part * 15625UL) / 512UL);
+}
+
+/**
+ * @brief The frequency of a level
+ *
+ * Changing the DCO means a new core voltage and an FLL that settles, so
+ * every level runs at MP_CLOCK_HE_FREQ.
+ */
+unsigned long mp_clock_level_hz(mp_power_level_t level) {
+	(void)level;
+	return(mp_clock_get_speed());
+}
+
+mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
+	(void)kernel;
+	(void)level;
 	return(TRUE);
 }
 
-mp_ret_t mp_clock_high_energy(mp_kernel_t *kernel) {
-	kernel->arch.scheduler.clockState = LPM0_bits;
-	_system_clock(MP_CLOCK_HE_FREQ);
-	kernel->arch.scheduler.schedulerOff = FALSE;
-	_BIS_SR(kernel->arch.scheduler.clockState + GIE);
-	return(TRUE);
-}
+/**
+ * @brief Sleep until an interrupt or the next task
+ *
+ * TA1 compares further away, so no tick wakes the core while nothing is
+ * due. LPM0 keeps SMCLK for the peripherals; LPM3 when the power level
+ * allows a deep sleep, the wait is long enough and no UART runs on SMCLK.
+ * Every interrupt leaves the LPM on its way out.
+ *
+ * @param[in] kernel Kernel
+ * @param[in] limit Ticks at most, for the power holds that expire
+ */
+void mp_clock_schedule(mp_kernel_t *kernel, unsigned long limit) {
+	unsigned int mode = LPM0_bits;
+	unsigned long idle;
+	mp_bool_t state = mp_interrupt_state();
 
-void mp_clock_schedule(mp_kernel_t *kernel) {
-	mp_clock_sched_t *sched = &kernel->arch.scheduler;
+	__disable_interrupt();
+	idle = mp_task_idle(&kernel->tasks);
+	if(idle > limit)
+		idle = limit;
+	if(idle == 0) {
+		mp_interrupt_restore(state);
+		return;
+	}
+	if(idle > MSP430_STRETCH_MAX)
+		idle = MSP430_STRETCH_MAX;
 
-	if(sched->longestDelay > 0 || kernel->tasks.usedNumber == kernel->tasks.sleepNumber) {
-		if(kernel->tasks.pendingNumber == 0) {
+	/* a tick already went by: its interrupt is pending, no stretch over it */
+	if(idle > 1 && (unsigned int)(_mp_clock_tar() - __last) < __counts)
+		TA1CCR0 = __last + (unsigned int)idle * __counts;
 
-			DEBUG_LED_OFF;
-
-			sched->currentWait = sched->shortestDelay;
-
-			if(sched->longestDelay == 0)
-				sched->currentWait = mp_clock_get_speed()/MSP430_TICK_RATE_HZ/100;
-
-			sched->schedulerOff = TRUE;
-
-			_BIS_SR(LPM3_bits + GIE);
-
-			while(sched->currentWait-1 > 0 && kernel->tasks.pendingNumber == 0)
-				__delay_cycles(1);
-
-
-			sched->longestDelay = 0;
-			sched->shortestDelay = ~(sched->longestDelay)-1;
-
-			return;
-		}
+	if(idle >= MP_POWER_STOP_MIN && mp_power_deep(kernel) == YES && mp_uart_quiet() == YES) {
+		mode = LPM3_bits;
+		kernel->power.deep++;
 	}
 
-	/* reset scheduler */
-	sched->longestDelay = 0;
-	sched->shortestDelay = ~(sched->longestDelay)-1;
-
+	DEBUG_LED_OFF;
+	__bis_SR_register(mode | GIE);
+	__no_operation();
+	__disable_interrupt();
 	DEBUG_LED_SWITCH;
+
+	_mp_clock_catchup();
+	mp_interrupt_restore(state);
 }
 
-void mp_clock_task_change(mp_task_t *task) {
-	mp_kernel_t *kernel = task->handler->kernel;
-	mp_clock_sched_t *sched = &kernel->arch.scheduler;
-
-	switch(task->signal) {
-		case MP_TASK_SIG_SLEEP:
-		case MP_TASK_SIG_OK:
-			if(task->delay > sched->longestDelay)
-				sched->longestDelay = task->delay;
-			if(task->delay < sched->shortestDelay)
-				sched->shortestDelay = task->delay;
-			break;
-
-		case MP_TASK_SIG_STOP:
-		case MP_TASK_SIG_PENDING:
-			/* turn on scheduler */
-			if(sched->schedulerOff == TRUE)
-				sched->currentWait = 0;
-			sched->shortestDelay = 0;
-			sched->longestDelay = 0;
-			break;
-
-	}
+/**
+ * @brief What the deepest sleep is
+ */
+const char *mp_clock_deep(void) {
+	return("LPM3, TA1 on ACLK");
 }
-
 
 unsigned long mp_clock_ticks() {
-	return(__ticks);
+	unsigned long ticks;
+
+	MP_INTERRUPT_SAFE_BEGIN
+	ticks = __ticks;
+	MP_INTERRUPT_SAFE_END
+	return(ticks);
 }
 
 unsigned long mp_clock_tick_hz() {
 	return(MSP430_TICK_RATE_HZ);
 }
 
-
+/* each tick interrupt leaves LPM0 */
 void mp_clock_delay(int delay) {
-	unsigned long local = __ticks+delay;
-	while(__ticks < local);
+	unsigned long local = mp_clock_ticks() + delay;
+
+	while((long)(mp_clock_ticks() - local) < 0) {
+		if(mp_interrupt_state() == YES)
+			__bis_SR_register(LPM0_bits | GIE);
+	}
 }
 
 void mp_clock_nanoDelay(unsigned long delay) {
@@ -509,22 +547,10 @@ static void __start_crystal(void) {
 }
 
 
+/* TA1 in continuous mode; CCR0 is the next tick, or the end of a stretched sleep */
 void _mp_clock_system_timer(mp_timer_t *timer) {
-	mp_clock_sched_t *sched = &timer->kernel->arch.scheduler;
-
-	if(sched->schedulerOff == TRUE) {
-		if(sched->currentWait == 0) {
-			sched->schedulerOff = FALSE;
-
-			/* turn on general interrupt */
-			_BIS_SR(timer->kernel->arch.scheduler.clockState + GIE);
-		}
-		else {
-			sched->currentWait--;
-		}
-	}
-
-	__ticks++;
+	(void)timer;
+	_mp_clock_catchup();
 }
 
 /* This function is called to configure the System Timer, i.e TA1. */
@@ -532,11 +558,15 @@ void _mp_clock_system_timer(mp_timer_t *timer) {
 static void _set_timer(mp_kernel_t *kernel) {
 	mp_options_t options[] = {
 		{ "gate", "TIMER_A1" },
-		{ "frequency", "1000" },
+		{ "frequency", "1024" },
+		{ "mode", "cont" },
 		{ NULL, NULL }
 	};
 	__ticks = 0;
+	__last = 0;
+	__counts = ACLK_FREQ_HZ / MSP430_TICK_RATE_HZ;
 	mp_timer_create(kernel, &kernel->tickTimer, options, "MSP430 Timer");
+	TA1CCR0 = __counts;
 	mp_timer_set_interrupt(&kernel->tickTimer, _mp_clock_system_timer);
 	mp_timer_enable_interrupt(&kernel->tickTimer);
 }

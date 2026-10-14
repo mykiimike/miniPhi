@@ -25,13 +25,27 @@
 /* inputs first, then one band per wake up, so a large redraw never holds the kernel */
 static MP_TASK(_mp_tui_task) {
 	mp_tui_t *ui = task->user;
+	unsigned long wait;
 
 	if(task->signal == MP_TASK_SIG_STOP) {
 		task->signal = MP_TASK_SIG_DEAD;
 		return;
 	}
 	mp_tui_poll(ui);
-	mp_tui_step(ui);
+	if(mp_tui_step(ui)) {
+		/* the splash sets its own wait */
+		if(ui->splash >= 3)
+			task->delay = 1;
+		mp_task_signal(task, MP_TASK_SIG_OK);
+		return;
+	}
+
+	/* an input or an invalidation wakes it before */
+	wait = mp_tui_idle(ui);
+	if(wait)
+		mp_task_delay(task, wait);
+	else
+		mp_task_signal(task, MP_TASK_SIG_SLEEP);
 }
 
 int mp_tui_attach(mp_kernel_t *kernel, mp_tui_t *ui, char *who) {
@@ -39,12 +53,15 @@ int mp_tui_attach(mp_kernel_t *kernel, mp_tui_t *ui, char *who) {
 	if(ui->task)
 		return(1);
 	ui->task = mp_task_create(&kernel->tasks, who, _mp_tui_task, ui, 1);
+	ui->activeAt = mp_clock_ticks();
 	return(ui->task != NULL);
 }
 
 void mp_tui_detach(mp_tui_t *ui) {
 	if(!ui->task)
 		return;
+	if(ui->kernel)
+		mp_power_release(ui->kernel, &ui->boost);
 	mp_task_destroy(ui->task);
 	ui->task = NULL;
 }

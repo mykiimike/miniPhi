@@ -82,11 +82,16 @@ into the right register sequence. Master only.
 
 		mp_bool_t txEnabled;
 		mp_bool_t rxEnabled;
+
+		/* SCL in Hz, kept to retime the bus */
+		unsigned long frequency;
 	};
 
 	mp_ret_t mp_i2c_init();
 	mp_ret_t mp_i2c_fini();
 	mp_ret_t mp_i2c_open(mp_kernel_t *kernel, mp_i2c_t *i2c, mp_options_t *options, char *who);
+	void mp_i2c_retime(void);
+	mp_bool_t mp_i2c_quiet(void);
 
 	/* options: frequency in Hz (100000 by default, 400000 for fast mode) */
 	mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options);

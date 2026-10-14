@@ -34,6 +34,8 @@ parity (none, even, odd), stopBits (1, 2), bits (8, 9).
 
 static void _mp_uart_interrupt(void *user);
 
+static mp_list_t __uarts;
+
 /* without a reader or a writer, the flags still have to drop or the line fires forever */
 static void _mp_uart_dummy_read(mp_uart_t *uart) {
 	(void)uart->regs->DR;
@@ -118,6 +120,12 @@ mp_ret_t mp_uart_setup(mp_uart_t *uart, mp_options_t *options) {
 
 	MP_INTERRUPT_SAFE_BEGIN
 
+	if(uart->listed == NO) {
+		uart->item.next = uart->item.prev = NULL;
+		mp_list_add_last(&__uarts, &uart->item, uart);
+		uart->listed = YES;
+	}
+
 	regs->CR1 = 0;
 	regs->CR2 = cr2;
 	regs->CR3 = 0;
@@ -145,6 +153,13 @@ mp_ret_t mp_uart_close(mp_uart_t *uart) {
 		uart->regs->CR1 = 0;
 	}
 
+	if(uart->listed == YES) {
+		MP_INTERRUPT_SAFE_BEGIN
+		mp_list_remove(&__uarts, &uart->item);
+		uart->listed = NO;
+		MP_INTERRUPT_SAFE_END
+	}
+
 	if(uart->txd_port) {
 		mp_gpio_release(uart->txd_port);
 		uart->txd_port = NULL;
@@ -161,6 +176,69 @@ mp_ret_t mp_uart_close(mp_uart_t *uart) {
 	}
 
 	return(TRUE);
+}
+
+/**
+ * @brief Recompute the baud rate of every open UART after the bus clocks changed
+ *
+ * The clock only changes while mp_uart_quiet() holds.
+ */
+void mp_uart_retime(void) {
+	mp_list_item_t *item;
+	mp_uart_t *uart;
+
+	for(item = __uarts.first; item; item = item->next) {
+		uart = item->user;
+		uart->regs->BRR = (mp_gate_pclk(uart->gate) + uart->baudRate / 2) / uart->baudRate;
+	}
+}
+
+/**
+ * @brief No byte is leaving any UART
+ *
+ * A byte coming in can not be seen: the serial module holds a level
+ * for a while after each one.
+ *
+ * @return YES when the clock may change or stop
+ */
+mp_bool_t mp_uart_quiet(void) {
+	mp_list_item_t *item;
+	mp_uart_t *uart;
+
+	for(item = __uarts.first; item; item = item->next) {
+		uart = item->user;
+		if(!(uart->regs->CR1 & USART_CR1_TE))
+			continue;
+		if((uart->regs->CR1 & USART_CR1_TXEIE) || !(uart->regs->SR & USART_SR_TC))
+			return(NO);
+	}
+	return(YES);
+}
+
+/**
+ * @brief Watch the RX pins on EXTI for the time of a Stop
+ *
+ * Stop gates the UART clocks: the start bit of the first byte wakes the
+ * core, that byte is usually lost. Pins whose EXTI line is taken are
+ * skipped.
+ *
+ * @param[in] arm YES before Stop, NO after
+ */
+void mp_uart_wake(mp_bool_t arm) {
+	mp_list_item_t *item;
+	mp_uart_t *uart;
+
+	for(item = __uarts.first; item; item = item->next) {
+		uart = item->user;
+		if(!uart->rxd_port || !(uart->regs->CR1 & USART_CR1_RE))
+			continue;
+		if(arm == YES)
+			uart->wakeArmed = mp_gpio_wake_arm(uart->rxd_port);
+		else if(uart->wakeArmed == YES) {
+			mp_gpio_wake_disarm(uart->rxd_port);
+			uart->wakeArmed = NO;
+		}
+	}
 }
 
 static void _mp_uart_interrupt(void *user) {

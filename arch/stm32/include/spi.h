@@ -68,6 +68,8 @@
 	);
 	mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options);
 	mp_ret_t mp_spi_close(mp_spi_t *spi);
+	void mp_spi_retime(void);
+	mp_bool_t mp_spi_quiet(void);
 
 	/* blocking: sends size bytes and drops what comes back */
 	void mp_spi_write(mp_spi_t *spi, unsigned char *input, int size);

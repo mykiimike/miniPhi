@@ -20,7 +20,8 @@
 
 /*
  * Home page. Whichever 3-axis sensor is present, as numbers and as a bubble
- * level, and the switch for SYSINFO_KEY_ACCEL.
+ * level, and the switch for SYSINFO_KEY_ACCEL. The accelerometers only run
+ * while this page is on a lit screen.
  */
 
 #include "../index.h"
@@ -165,7 +166,8 @@ static void _sysinfo_accel_values(sysinfo_t *sysinfo) {
 
 	mp_tui_switch_set(&sysinfo->screen.accelSwitch, sysinfo->accelEnabled == YES);
 	if(!axis) {
-		mp_tui_label_set(&sysinfo->screen.accelName, "%s", sysinfo->accelEnabled == YES ? "No accelerometer" : "Accelerometer off");
+		mp_tui_label_set(&sysinfo->screen.accelName, "%s", sysinfo->accelEnabled == NO ? "Accelerometer off" :
+			sysinfo->accelRunning == YES ? "No accelerometer" : "Starting");
 		mp_tui_label_set(&sysinfo->screen.accelX, "%s", "X  --");
 		mp_tui_label_set(&sysinfo->screen.accelY, "%s", "Y  --");
 		mp_tui_label_set(&sysinfo->screen.accelZ, "%s", "Z  --");
@@ -260,6 +262,10 @@ static void _sysinfo_accel_page(mp_tui_widget_t *page, void *user) {
 	mp_tui_columns_fit(layout);
 	sysinfo->screen.accelReady = 1;
 	_sysinfo_accel_values(sysinfo);
+
+	/* the page is only opened after this: the screen task starts the accelerometers then */
+	if(sysinfo->screen.task)
+		mp_task_wake(sysinfo->screen.task);
 }
 
 void _sysinfo_accel_open(sysinfo_t *sysinfo) {

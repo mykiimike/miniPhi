@@ -141,6 +141,8 @@ int mp_tui_init(mp_tui_t *ui, mp_tui_display_t *display, mp_tui_color_t *buffer,
 	ui->theme.titleBackground = MP_TUI_RGB(0x2A, 0x32, 0x40);
 	ui->theme.titleForeground = MP_TUI_RGB(0xFF, 0xFF, 0xFF);
 	ui->theme.font = &mp_tui_font_default;
+	ui->saver = MP_TUI_AWAKE;
+	ui->activeAt = mp_clock_ticks();
 
 	ui->root.type = &_mp_tui_root_class;
 	ui->root.tui = ui;
@@ -168,13 +170,24 @@ void mp_tui_refresh(mp_tui_t *ui) {
 	mp_tui_invalidate_rect(ui, &ui->root.screen);
 }
 
+static void _mp_tui_dirty(mp_tui_t *ui, const mp_tui_rect_t *area);
+
 void mp_tui_invalidate_rect(mp_tui_t *ui, const mp_tui_rect_t *rect) {
-	mp_tui_rect_t area, merged;
-	long best, cost;
-	int a, pick;
+	mp_tui_rect_t area;
 
 	if(!ui->display || !_mp_tui_intersect(rect, &ui->root.screen, &area))
 		return;
+	_mp_tui_dirty(ui, &area);
+
+	/* off, it waits for the screen to wake up */
+	if(ui->task && ui->saver != MP_TUI_OFF)
+		mp_task_wake(ui->task);
+}
+
+static void _mp_tui_dirty(mp_tui_t *ui, const mp_tui_rect_t *rect) {
+	mp_tui_rect_t area = *rect, merged;
+	long best, cost;
+	int a, pick;
 
 	for(a=0; a<ui->dirtyCount; a++) {
 		_mp_tui_union(&ui->dirty[a], &area, &merged);
@@ -337,6 +350,10 @@ int mp_tui_step(mp_tui_t *ui) {
 
 	if(ui->splash < 3 && _mp_tui_splash(ui))
 		return(1);
+
+	/* the dirty rectangles wait for the screen to wake up */
+	if(ui->saver == MP_TUI_OFF)
+		return(0);
 
 	if(!ui->drawing) {
 		if(ui->dirtyCount == 0)
@@ -680,6 +697,7 @@ static void _mp_tui_unpress(mp_tui_t *ui) {
 /* forgets what the pointer holds, before the widgets it points at go away */
 static void _mp_tui_release(mp_tui_t *ui) {
 	_mp_tui_unpress(ui);
+	ui->tapped = NULL;
 	ui->dragged = NULL;
 	ui->dragView = NULL;
 }
@@ -929,16 +947,31 @@ static void _mp_tui_arm_back(mp_tui_t *ui) {
 	mp_tui_invalidate(&ui->back.widget);
 }
 
-/* the finger is still on the button it went down on, with a little slack for a noisy panel */
-static int _mp_tui_held(mp_tui_t *ui, int x, int y) {
-	mp_tui_rect_t *area;
+/* with a little slack for a noisy panel */
+static int _mp_tui_within(mp_tui_rect_t *area, int x, int y) {
+	return(x >= area->x - 12 && y >= area->y - 12 && x < area->x + area->w + 12 && y < area->y + area->h + 12);
+}
 
+/* the finger is still on the button it went down on */
+static int _mp_tui_held(mp_tui_t *ui, int x, int y) {
 	if(!ui->pressed)
 		return(0);
 	if(ui->pressed == &ui->back)
 		return(_mp_tui_back_zone(ui, x, y));
-	area = &ui->pressed->widget.screen;
-	return(x >= area->x - 12 && y >= area->y - 12 && x < area->x + area->w + 12 && y < area->y + area->h + 12);
+	return(_mp_tui_within(&ui->pressed->widget.screen, x, y));
+}
+
+/* the nearest widget under the finger that takes events itself, outside a view or a draggable */
+static mp_tui_widget_t *_mp_tui_tappable(mp_tui_widget_t *target) {
+	for(; target; target = target->parent) {
+		if(target->flags & MP_TUI_DRAGGABLE)
+			return(NULL);
+		if(target->type == &mp_tui_view_class)
+			return(NULL);
+		if(target->type && target->type->event)
+			return(target);
+	}
+	return(NULL);
 }
 
 static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_t *in) {
@@ -960,6 +993,7 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 				break;
 			}
 			_mp_tui_unpress(ui);
+			ui->tapped = NULL;
 			target = _mp_tui_pick(&ui->root, in->x, in->y, NULL);
 			for(; target; target = target->parent) {
 				if(target->type == &mp_tui_button_class) {
@@ -969,6 +1003,8 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 					break;
 				}
 			}
+			if(!ui->pressed)
+				ui->tapped = _mp_tui_tappable(_mp_tui_pick(&ui->root, in->x, in->y, NULL));
 			break;
 
 		case MP_INPUT_CLICK:
@@ -978,13 +1014,14 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 				break;
 			}
 			_mp_tui_unpress(ui);
+			ui->tapped = NULL;
 			event.type = MP_TUI_EVENT_CLICK;
 			mp_tui_dispatch(ui, &event);
 			break;
 
 		case MP_INPUT_DRAG_START:
 			/* a finger always moves a little; that stays a press while it is on a button */
-			if(ui->pressed)
+			if(ui->pressed || ui->tapped)
 				break;
 			_mp_tui_release(ui);
 			target = _mp_tui_pick(&ui->root, in->x, in->y, NULL);
@@ -1012,6 +1049,18 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 					mp_tui_view_scroll(view, -dy);
 					break;
 				}
+			}
+			if(ui->tapped) {
+				int dy = in->y - in->startY;
+				int travel = dy < 0 ? -dy : dy;
+				mp_tui_view_t *view = _mp_tui_view_of(ui->tapped);
+
+				if(view && travel >= 20 && _mp_tui_view_max(view) > 0) {
+					ui->tapped = NULL;
+					ui->dragView = view;
+					mp_tui_view_scroll(view, -dy);
+				}
+				break;
 			}
 			if(ui->pressed) {
 				held = _mp_tui_held(ui, in->x, in->y);
@@ -1045,6 +1094,15 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 				}
 				break;
 			}
+			if(ui->tapped) {
+				target = ui->tapped;
+				ui->tapped = NULL;
+				if(_mp_tui_within(&target->screen, in->x, in->y)) {
+					event.type = MP_TUI_EVENT_CLICK;
+					_mp_tui_deliver(target, &event);
+				}
+				break;
+			}
 			if(ui->dragged) {
 				event.type = MP_TUI_EVENT_DROP;
 				event.source = ui->dragged;
@@ -1070,6 +1128,91 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 }
 #endif
 
+static void _mp_tui_backlight(mp_tui_t *ui, int percent) {
+	if(ui->display->backlight)
+		ui->display->backlight(ui->display, percent);
+}
+
+static void _mp_tui_doze(mp_tui_t *ui, int dozing) {
+#ifdef SUPPORT_COMMON_INPUT
+	mp_input_t *input = NULL;
+
+	if(!ui->kernel)
+		return;
+	while((input = mp_input_next(ui->kernel, input, ui)) != NULL)
+		mp_input_doze(input, dozing);
+#else
+	(void)ui;
+	(void)dozing;
+#endif
+}
+
+void mp_tui_wake(mp_tui_t *ui) {
+	ui->activeAt = mp_clock_ticks();
+	if(ui->saver == MP_TUI_AWAKE || !ui->display)
+		return;
+	if(ui->saver == MP_TUI_OFF) {
+		if(ui->display->power)
+			ui->display->power(ui->display, 1);
+		_mp_tui_doze(ui, 0);
+		ui->saver = MP_TUI_AWAKE;
+		mp_tui_refresh(ui);
+	}
+	ui->saver = MP_TUI_AWAKE;
+	_mp_tui_backlight(ui, 100);
+}
+
+int mp_tui_awake(mp_tui_t *ui) {
+	return(ui->saver != MP_TUI_OFF);
+}
+
+static unsigned long _mp_tui_saver(mp_tui_t *ui) {
+	unsigned long dim = MP_TUI_DIM_AFTER ? _mp_tui_ms((unsigned long)MP_TUI_DIM_AFTER * 1000UL) : 0;
+	unsigned long off = MP_TUI_OFF_AFTER ? _mp_tui_ms((unsigned long)MP_TUI_OFF_AFTER * 1000UL) : 0;
+	unsigned long idle;
+
+	if(!ui->display || ui->splash < 3 || (!ui->display->backlight && !ui->display->power))
+		return(0);
+	if(off && dim >= off)
+		dim = 0;
+
+	idle = mp_clock_ticks() - ui->activeAt;
+	if(ui->saver == MP_TUI_AWAKE && dim && idle >= dim) {
+		_mp_tui_backlight(ui, MP_TUI_DIM_LEVEL);
+		ui->saver = MP_TUI_DIMMED;
+	}
+	if(ui->saver != MP_TUI_OFF && off && idle >= off) {
+		_mp_tui_backlight(ui, 0);
+		if(ui->display->power)
+			ui->display->power(ui->display, 0);
+		_mp_tui_doze(ui, 1);
+		ui->saver = MP_TUI_OFF;
+	}
+
+	if(ui->saver == MP_TUI_AWAKE && dim)
+		return(dim - idle);
+	if(ui->saver != MP_TUI_OFF && off)
+		return(off - idle);
+	return(0);
+}
+
+unsigned long mp_tui_idle(mp_tui_t *ui) {
+	unsigned long wait = _mp_tui_saver(ui);
+#ifdef SUPPORT_COMMON_INPUT
+	mp_input_t *input = NULL;
+	unsigned long next;
+
+	if(ui->kernel) {
+		while((input = mp_input_next(ui->kernel, input, ui)) != NULL) {
+			next = mp_input_waiting(input);
+			if(next && (!wait || next < wait))
+				wait = next;
+		}
+	}
+#endif
+	return(wait);
+}
+
 void mp_tui_poll(mp_tui_t *ui) {
 #ifdef SUPPORT_COMMON_INPUT
 	mp_input_t *input = NULL;
@@ -1080,10 +1223,25 @@ void mp_tui_poll(mp_tui_t *ui) {
 	while((input = mp_input_next(ui->kernel, input, ui)) != NULL) {
 		if(input->width <= 0 || input->height <= 0)
 			mp_input_bounds(input, ui->display->width, ui->display->height);
+		if(!input->reader)
+			input->reader = ui->task;
 		while(mp_input_read(input, &event)) {
 			/* nothing to act on while the splash is up */
-			if(ui->splash >= 3)
-				_mp_tui_input(ui, input, &event);
+			if(ui->splash < 3)
+				continue;
+
+			mp_power_hold_for(ui->kernel, &ui->boost, MP_POWER_HIGH, MP_TUI_BOOST, "TUI");
+			if(ui->saver == MP_TUI_OFF)
+				ui->swallow = 1;
+			mp_tui_wake(ui);
+
+			/* the press that woke the screen ends with its release */
+			if(ui->swallow) {
+				if(event.type != MP_INPUT_DOWN && event.type != MP_INPUT_DRAG_START && event.type != MP_INPUT_DRAG)
+					ui->swallow = 0;
+				continue;
+			}
+			_mp_tui_input(ui, input, &event);
 		}
 	}
 #else

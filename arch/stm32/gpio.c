@@ -41,6 +41,17 @@ static mp_gpio_port_t *__exti[16];
 
 static void _mp_gpio_exti_dispatch(void *user);
 
+/* the debug port keeps its pins and pulls */
+static mp_bool_t _mp_gpio_debug(unsigned int port, unsigned int pin) {
+	if(port == 0 && (pin == 13 || pin == 14))
+		return(YES);
+#ifndef _SWD_ONLY
+	if((port == 0 && pin == 15) || (port == 1 && (pin == 3 || pin == 4)))
+		return(YES);
+#endif
+	return(NO);
+}
+
 void mp_gpio_init() {
 	unsigned int port, pin;
 
@@ -63,6 +74,10 @@ void mp_gpio_init() {
 			__ports[port][pin].port = port;
 			__ports[port][pin].pin = pin;
 			__ports[port][pin].base = __bases[port];
+
+			/* an analog pin has no input trigger to leak through */
+			if(_mp_gpio_debug(port, pin) == NO)
+				mp_gpio_mode(&__ports[port][pin], MP_GPIO_MODE_ANALOG);
 		}
 	}
 
@@ -96,6 +111,10 @@ mp_gpio_port_t *mp_gpio_handle(unsigned int port, unsigned int slot, char *who) 
 	gpio->reverse = NO;
 	gpio->callback = NULL;
 	gpio->user = NULL;
+
+	/* handed out as after reset, a floating input */
+	if(_mp_gpio_debug(port, slot) == NO)
+		mp_gpio_mode(gpio, MP_GPIO_MODE_INPUT);
 
 	return(gpio);
 }
@@ -140,8 +159,9 @@ mp_ret_t mp_gpio_release(mp_gpio_port_t *port) {
 	if(__exti[port->pin] == port)
 		mp_gpio_interrupt_unset(port);
 
-	/* back to floating input, the reset state */
-	mp_gpio_mode(port, MP_GPIO_MODE_INPUT);
+	/* analog until someone takes it */
+	if(_mp_gpio_debug(port->port, port->pin) == NO)
+		mp_gpio_mode(port, MP_GPIO_MODE_ANALOG);
 
 	port->used = NO;
 	port->who = NULL;
@@ -270,6 +290,29 @@ mp_ret_t mp_gpio_interrupt_unset(mp_gpio_port_t *port) {
 	MP_INTERRUPT_SAFE_END
 
 	return(TRUE);
+}
+
+/**
+ * @brief Let a falling edge on a pin wake the core from Stop
+ *
+ * For a pin owned by a peripheral, the RX of a UART: only an EXTI line
+ * survives Stop. The line has to be free.
+ *
+ * @param[in] port The pin
+ * @return YES when armed
+ */
+mp_bool_t mp_gpio_wake_arm(mp_gpio_port_t *port) {
+	if(__exti[port->pin])
+		return(NO);
+	if(mp_gpio_interrupt_set(port, NULL, NULL, "Wake") == FALSE)
+		return(NO);
+	mp_gpio_interrupt_hi2lo(port);
+	mp_gpio_interrupt_enable(port);
+	return(YES);
+}
+
+void mp_gpio_wake_disarm(mp_gpio_port_t *port) {
+	mp_gpio_interrupt_unset(port);
 }
 
 /* user is the line that set the vector, shared vectors scan their group */

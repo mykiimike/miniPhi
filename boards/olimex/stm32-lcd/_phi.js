@@ -17,11 +17,12 @@ export const phi = {
 		MP_MEM_SIZE: 8192,
 		MP_MEM_CHUNK: 64,
 		MP_TUI_TEXT_MAX: 96,
+		MP_CLOCK_LSE: true,
 	},
 	/* pins wired to something the firmware does not own yet */
 	reserved: [
-		{ pin: "pc14", who: "32.768 kHz crystal" },
-		{ pin: "pc15", who: "32.768 kHz crystal" },
+		{ pin: "pc14", who: "32.768 kHz crystal, RTC" },
+		{ pin: "pc15", who: "32.768 kHz crystal, RTC" },
 		{ pin: "pa11", who: "USB D-" },
 		{ pin: "pa12", who: "USB D+" },
 		{ pin: "pc8", who: "microSD DAT0" },
@@ -36,7 +37,7 @@ export const phi = {
 		{
 			driver: "ILI932X",
 			name: "lcd",
-			options: { gate: "FSMC", cs: "pd7", rs: "pe3", reset: "pe2", backlight: "pd13", backlightLow: true, orientation: "landscape" },
+			options: { gate: "FSMC", cs: "pd7", rs: "pe3", reset: "pe2", backlight: "pd13", backlightLow: true, backlightTimer: "TIM4", orientation: "landscape" },
 		},
 		{
 			driver: "RESISTIVE",

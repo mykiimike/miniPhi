@@ -134,12 +134,35 @@ mp_ret_t mp_i2c_open(mp_kernel_t *kernel, mp_i2c_t *i2c, mp_options_t *options, 
 	return(TRUE);
 }
 
+/* rounded up, so SCL never runs faster than asked */
+static void _mp_i2c_timing(mp_i2c_t *i2c) {
+	I2C_TypeDef *regs = i2c->regs;
+	unsigned long pclk = mp_gate_pclk(i2c->gate);
+	unsigned long mhz = pclk / 1000000UL;
+	uint32_t ccr;
+
+	regs->CR2 = (regs->CR2 & ~I2C_CR2_FREQ) | mhz;
+	if(i2c->frequency <= 100000UL) {
+		ccr = (pclk + 2 * i2c->frequency - 1) / (2 * i2c->frequency);
+		if(ccr < 4)
+			ccr = 4;
+		regs->TRISE = mhz + 1;
+	}
+	else {
+		ccr = (pclk + 3 * i2c->frequency - 1) / (3 * i2c->frequency);
+		if(ccr < 1)
+			ccr = 1;
+		ccr |= I2C_CCR_FS;
+		regs->TRISE = mhz * 300 / 1000 + 1;
+	}
+	regs->CCR = ccr;
+}
+
 mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 	I2C_TypeDef *regs = i2c->regs;
 	unsigned long pclk = mp_gate_pclk(i2c->gate);
 	unsigned long mhz = pclk / 1000000UL;
 	unsigned long frequency = 100000UL;
-	uint32_t ccr;
 	char *value;
 
 	value = mp_options_get(options, "frequency");
@@ -147,6 +170,7 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 		frequency = strtoul(value, NULL, 10);
 	if(frequency == 0 || frequency > 400000UL)
 		frequency = 400000UL;
+	i2c->frequency = frequency;
 
 	value = mp_options_get(options, "role");
 	if(value && mp_options_cmp(value, "slave") == TRUE) {
@@ -170,22 +194,8 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 
 	regs->CR1 = I2C_CR1_SWRST;
 	regs->CR1 = 0;
-	regs->CR2 = mhz;
-
-	if(frequency <= 100000UL) {
-		ccr = pclk / (2 * frequency);
-		if(ccr < 4)
-			ccr = 4;
-		regs->TRISE = mhz + 1;
-	}
-	else {
-		ccr = pclk / (3 * frequency);
-		if(ccr < 1)
-			ccr = 1;
-		ccr |= I2C_CCR_FS;
-		regs->TRISE = mhz * 300 / 1000 + 1;
-	}
-	regs->CCR = ccr;
+	regs->CR2 = 0;
+	_mp_i2c_timing(i2c);
 	regs->OAR1 = I2C_OAR1_BIT14;
 	regs->CR1 = I2C_CR1_PE;
 
@@ -206,6 +216,43 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 	mp_list_add_last(&__i2c, &i2c->item, i2c);
 
 	return(TRUE);
+}
+
+/**
+ * @brief Recompute the bus timing after APB1 changed
+ *
+ * The clock only changes while mp_i2c_quiet() holds.
+ */
+void mp_i2c_retime(void) {
+	mp_list_item_t *item;
+	mp_i2c_t *i2c;
+
+	for(item = __i2c.first; item; item = item->next) {
+		i2c = item->user;
+		MP_INTERRUPT_SAFE_BEGIN
+		/* FREQ, CCR and TRISE are only written with PE off */
+		i2c->regs->CR1 &= ~I2C_CR1_PE;
+		_mp_i2c_timing(i2c);
+		i2c->regs->CR1 |= I2C_CR1_PE;
+		MP_INTERRUPT_SAFE_END
+	}
+}
+
+/**
+ * @brief No transfer runs on any bus
+ *
+ * @return YES when the clock may change or stop
+ */
+mp_bool_t mp_i2c_quiet(void) {
+	mp_list_item_t *item;
+	mp_i2c_t *i2c;
+
+	for(item = __i2c.first; item; item = item->next) {
+		i2c = item->user;
+		if(i2c->phase != MP_I2C_PHASE_IDLE || (i2c->regs->SR2 & I2C_SR2_BUSY))
+			return(NO);
+	}
+	return(YES);
 }
 
 mp_ret_t mp_i2c_close(mp_i2c_t *i2c) {
