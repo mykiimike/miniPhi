@@ -295,8 +295,7 @@ mp_ret_t mp_gpio_interrupt_unset(mp_gpio_port_t *port) {
 }
 
 mp_bool_t mp_gpio_read(mp_gpio_port_t *port) {
-	mp_bool_t r = !(_GPIO_REG8(port, _GPIO_IN) & 0x10) ? ON : OFF;
-	return(r);
+	return(_GPIO_REG8(port, _GPIO_IN) & (1<<port->pin) ? ON : OFF);
 }
 
 
