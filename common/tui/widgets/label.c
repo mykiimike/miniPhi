@@ -21,6 +21,7 @@
 #include <mp.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #ifdef SUPPORT_COMMON_TUI
 
@@ -66,6 +67,99 @@ static void _mp_tui_label_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 }
 
 const mp_tui_class_t mp_tui_label_class = { "label", _mp_tui_label_draw, NULL };
+
+static int _mp_tui_fits(const mp_tui_font_t *font, const char *text, int count, int width) {
+	char probe[MP_TUI_TEXT_MAX];
+
+	if(count <= 0)
+		return(1);
+	if(count >= MP_TUI_TEXT_MAX)
+		count = MP_TUI_TEXT_MAX - 1;
+	memcpy(probe, text, (size_t)count);
+	probe[count] = '\0';
+	return(mp_tui_text_width(font, probe) <= width);
+}
+
+/* inserts newlines so each line fits; returns how many lines that is */
+static int _mp_tui_wrap(char *text, const mp_tui_font_t *font, int width) {
+	char src[MP_TUI_TEXT_MAX];
+	int from, lines, out;
+
+	if(!text || !text[0] || width < 1)
+		return(1);
+	if(_mp_tui_fits(font, text, (int)strlen(text), width))
+		return(1);
+
+	snprintf(src, sizeof(src), "%s", text);
+	text[0] = '\0';
+	from = 0;
+	out = 0;
+	lines = 0;
+	while(src[from] && out < MP_TUI_TEXT_MAX - 1) {
+		int at = from;
+		int space = -1;
+		int end, next, n;
+
+		while(src[at] && src[at] != '\n' && _mp_tui_fits(font, src + from, at - from + 1, width)) {
+			if(src[at] == ' ')
+				space = at;
+			at++;
+		}
+		if(!src[at] || src[at] == '\n') {
+			n = at - from;
+			if(out + n >= MP_TUI_TEXT_MAX)
+				n = MP_TUI_TEXT_MAX - out - 1;
+			memcpy(text + out, src + from, (size_t)n);
+			out += n;
+			text[out] = '\0';
+			lines++;
+			if(src[at] != '\n')
+				break;
+			if(out < MP_TUI_TEXT_MAX - 1) {
+				text[out++] = '\n';
+				text[out] = '\0';
+			}
+			from = at + 1;
+			continue;
+		}
+		if(space > from) {
+			end = space;
+			next = space + 1;
+		}
+		else if(at > from) {
+			end = at;
+			next = at;
+		}
+		else {
+			end = from + 1;
+			next = from + 1;
+		}
+		n = end - from;
+		if(out + n + 1 >= MP_TUI_TEXT_MAX)
+			break;
+		memcpy(text + out, src + from, (size_t)n);
+		out += n;
+		text[out++] = '\n';
+		text[out] = '\0';
+		lines++;
+		from = next;
+	}
+	return(lines > 0 ? lines : 1);
+}
+
+void mp_tui_label_wrap(mp_tui_label_t *label, mp_tui_widget_t *parent, int x, int *y, int w, int line, const mp_tui_font_t *font, const char *text) {
+	char wrapped[MP_TUI_TEXT_MAX];
+	int rows;
+
+	if(!font)
+		font = parent->tui->theme.font;
+	snprintf(wrapped, sizeof(wrapped), "%s", text ? text : "");
+	rows = _mp_tui_wrap(wrapped, font, w);
+	mp_tui_label(label, parent, x, *y, w, rows * (line > 0 ? line : 1), wrapped);
+	if(font != parent->tui->theme.font)
+		label->font = font;
+	*y += rows * (line > 0 ? line : 1);
+}
 
 void mp_tui_label(mp_tui_label_t *label, mp_tui_widget_t *parent, int x, int y, int w, int h, const char *text) {
 	label->font = NULL;

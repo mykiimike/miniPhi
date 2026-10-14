@@ -21,7 +21,7 @@
 /*
  * One directory per home page, and its sub-pages inside it. index.c is the list
  * screen.c calls; a new page is an index.c in its directory, two lines in
- * index.c and its source in _phi.js. text.c and sensor.c are shared by the pages.
+ * index.c and its source in _phi.js. sensor.c is shared by the pages.
  */
 
 #ifndef _MINIPHI_APP_SYSINFO_PAGES_H
@@ -32,9 +32,6 @@
 #ifdef SYSINFO_SCREEN
 
 #include <stdio.h>
-
-/** a label that wraps onto the next lines instead of being cut */
-void _sysinfo_text(mp_tui_label_t *label, mp_tui_widget_t *parent, int x, int *y, int w, int line, const mp_tui_font_t *font, const char *text);
 
 /** a temperature published beside an accelerometer: its name, a space, then anything */
 #ifdef SUPPORT_COMMON_SENSOR

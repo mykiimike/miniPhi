@@ -243,14 +243,14 @@ static void _sysinfo_accel_page(mp_tui_widget_t *page, void *user) {
 
 	y = 4;
 	w = right->rect.w;
-	_sysinfo_text(&sysinfo->screen.accelName, right, 0, &y, w, line, font, "");
+	mp_tui_label_wrap(&sysinfo->screen.accelName, right, 0, &y, w, line, font, "");
 	mp_tui_label_color(&sysinfo->screen.accelName, tui->theme.accent);
 	y += 4;
-	_sysinfo_text(&sysinfo->screen.accelX, right, 0, &y, w, line, font, "X");
-	_sysinfo_text(&sysinfo->screen.accelY, right, 0, &y, w, line, font, "Y");
-	_sysinfo_text(&sysinfo->screen.accelZ, right, 0, &y, w, line, font, "Z");
+	mp_tui_label_wrap(&sysinfo->screen.accelX, right, 0, &y, w, line, font, "X");
+	mp_tui_label_wrap(&sysinfo->screen.accelY, right, 0, &y, w, line, font, "Y");
+	mp_tui_label_wrap(&sysinfo->screen.accelZ, right, 0, &y, w, line, font, "Z");
 	y += 4;
-	_sysinfo_text(&sysinfo->screen.accelTemperature, right, 0, &y, w, line, font, "");
+	mp_tui_label_wrap(&sysinfo->screen.accelTemperature, right, 0, &y, w, line, font, "");
 	mp_tui_label_color(&sysinfo->screen.accelTemperature, tui->theme.muted);
 	y += 8;
 	mp_tui_switch(&sysinfo->screen.accelSwitch, right, 0, y, w, line + 10, "Enabled", sysinfo->accelEnabled == YES);

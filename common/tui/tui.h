@@ -420,6 +420,12 @@
 	void mp_tui_box(mp_tui_box_t *box, mp_tui_widget_t *parent, int x, int y, int w, int h, mp_tui_color_t color);
 
 	void mp_tui_label(mp_tui_label_t *label, mp_tui_widget_t *parent, int x, int y, int w, int h, const char *text);
+	/**
+	 * Like mp_tui_label(), but a line that does not fit w continues underneath
+	 * and *y moves down by the height it took. line is the step of one row.
+	 * font NULL measures with the theme font.
+	 */
+	void mp_tui_label_wrap(mp_tui_label_t *label, mp_tui_widget_t *parent, int x, int *y, int w, int line, const mp_tui_font_t *font, const char *text);
 	/** printf-like; redraws only when the text changes */
 	void mp_tui_label_set(mp_tui_label_t *label, const char *format, ...);
 	void mp_tui_label_font(mp_tui_label_t *label, const mp_tui_font_t *font);

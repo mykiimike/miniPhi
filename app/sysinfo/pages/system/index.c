@@ -250,17 +250,17 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	mp_tui_window(&sysinfo->screen.system, page, 4, y, width - 8, title + inner + 4, "System");
 	client = MP_TUI_WIDGET(&sysinfo->screen.system);
 	snprintf(text, sizeof(text), "Board  %s, app %s", PHI_BUILD_BOARD, PHI_BUILD_APP);
-	_sysinfo_text(&sysinfo->screen.board, client, 6, &inner, innerW, line, font, text);
+	mp_tui_label_wrap(&sysinfo->screen.board, client, 6, &inner, innerW, line, font, text);
 	snprintf(text, sizeof(text), "CPU    %s", kernel->mcuName ? kernel->mcuName : "unknown");
-	_sysinfo_text(&sysinfo->screen.cpu, client, 6, &inner, innerW, line, font, text);
+	mp_tui_label_wrap(&sysinfo->screen.cpu, client, 6, &inner, innerW, line, font, text);
 	snprintf(text, sizeof(text), "Clock  %lu.%02lu MHz", speed / 1000000, (speed / 10000) % 100);
-	_sysinfo_text(&sysinfo->screen.clock, client, 6, &inner, innerW, line, font, text);
+	mp_tui_label_wrap(&sysinfo->screen.clock, client, 6, &inner, innerW, line, font, text);
 	snprintf(text, sizeof(text), "Memory %lu KB flash, %lu KB RAM", PHI_BUILD_FLASH / 1024, PHI_BUILD_RAM / 1024);
-	_sysinfo_text(&sysinfo->screen.memory, client, 6, &inner, innerW, line, font, text);
+	mp_tui_label_wrap(&sysinfo->screen.memory, client, 6, &inner, innerW, line, font, text);
 	snprintf(text, sizeof(text), "Build  %s %s", __DATE__, __TIME__);
-	_sysinfo_text(&sysinfo->screen.build, client, 6, &inner, innerW, line, font, text);
+	mp_tui_label_wrap(&sysinfo->screen.build, client, 6, &inner, innerW, line, font, text);
 	snprintf(text, sizeof(text), "Target %s / %s / %s", PHI_BUILD_ARCH, PHI_BUILD_SERIES, PHI_BUILD_MCU);
-	_sysinfo_text(&sysinfo->screen.target, client, 6, &inner, innerW, line, font, text);
+	mp_tui_label_wrap(&sysinfo->screen.target, client, 6, &inner, innerW, line, font, text);
 	mp_tui_resize(&sysinfo->screen.system.widget, width - 8, title + inner + 4);
 	y += sysinfo->screen.system.widget.rect.h + 4;
 
@@ -286,9 +286,9 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 		else
 			snprintf(text, sizeof(text), "Size     %lu KB, page %lu KB",
 				info.size / 1024UL, (unsigned long)MP_FLASH_PAGE_SIZE / 1024UL);
-		_sysinfo_text(&sysinfo->screen.flashSize, client, 6, &inner, innerW, line, font, text);
+		mp_tui_label_wrap(&sysinfo->screen.flashSize, client, 6, &inner, innerW, line, font, text);
 		snprintf(text, sizeof(text), "Used     %lu / %lu KB", used, total);
-		_sysinfo_text(&sysinfo->screen.flashUsed, client, 6, &inner, innerW, line, font, text);
+		mp_tui_label_wrap(&sysinfo->screen.flashUsed, client, 6, &inner, innerW, line, font, text);
 		mp_tui_bar(&sysinfo->screen.flashBar, client, 6, inner + 2, innerW, barH, total > 0 ? (int)total : 1);
 		mp_tui_bar_set(&sysinfo->screen.flashBar, (int)used);
 		inner += line;
@@ -300,9 +300,9 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 				info.blank / 1024UL, info.freeAt);
 		else
 			snprintf(text, sizeof(text), "Free     none");
-		_sysinfo_text(&sysinfo->screen.flashFree, client, 6, &inner, innerW, line, font, text);
+		mp_tui_label_wrap(&sysinfo->screen.flashFree, client, 6, &inner, innerW, line, font, text);
 		_sysinfo_flash_state(state, sizeof(state));
-		_sysinfo_text(&sysinfo->screen.flashState, client, 6, &inner, innerW, line, font, state);
+		mp_tui_label_wrap(&sysinfo->screen.flashState, client, 6, &inner, innerW, line, font, state);
 #ifdef SUPPORT_COMMON_KFLASH
 		{
 			mp_kflash_state_t store;
@@ -313,7 +313,7 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 			else
 				snprintf(text, sizeof(text), "Store    %d key%s, %u/%u B at 0x%08lX",
 					store.keys, store.keys == 1 ? "" : "s", store.used, store.size, store.base);
-			_sysinfo_text(&sysinfo->screen.flashStore, client, 6, &inner, innerW, line, font, text);
+			mp_tui_label_wrap(&sysinfo->screen.flashStore, client, 6, &inner, innerW, line, font, text);
 		}
 #endif
 		mp_tui_resize(&sysinfo->screen.flash.widget, width - 8, title + inner + 4);
@@ -323,7 +323,7 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	inner = 2;
 	mp_tui_window(&sysinfo->screen.status, page, 4, y, width - 8, title + line * 4 + 6, "Status");
 	client = MP_TUI_WIDGET(&sysinfo->screen.status);
-	_sysinfo_text(&sysinfo->screen.uptime, client, 6, &inner, innerW, line, font, "Uptime");
+	mp_tui_label_wrap(&sysinfo->screen.uptime, client, 6, &inner, innerW, line, font, "Uptime");
 	mp_tui_label(&sysinfo->screen.tasks, client, 6, inner, 110, line, "Tasks");
 	mp_tui_bar(&sysinfo->screen.taskBar, client, 120, inner + 2, width - 140, line > 4 ? line - 4 : line, MP_TASK_MAX);
 	inner += line;
@@ -342,8 +342,8 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 		inner += line;
 	}
 #endif
-	_sysinfo_text(&sysinfo->screen.sensors[0], client, 6, &inner, innerW, line, font, "");
-	_sysinfo_text(&sysinfo->screen.sensors[1], client, 6, &inner, innerW, line, font, "");
+	mp_tui_label_wrap(&sysinfo->screen.sensors[0], client, 6, &inner, innerW, line, font, "");
+	mp_tui_label_wrap(&sysinfo->screen.sensors[1], client, 6, &inner, innerW, line, font, "");
 	mp_tui_label_color(&sysinfo->screen.sensors[0], tui->theme.muted);
 	mp_tui_label_color(&sysinfo->screen.sensors[1], tui->theme.muted);
 	mp_tui_resize(&sysinfo->screen.status.widget, width - 8, title + inner + 4);
