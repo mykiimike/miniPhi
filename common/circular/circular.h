@@ -60,6 +60,9 @@
 
 		volatile int totalSize;
 
+		/* MP_CIRCULAR_MAX_SIZE after init, an owner with bigger frames raises it */
+		int maxSize;
+
 		mp_circular_buffer_t * volatile first;
 		mp_circular_buffer_t * volatile last;
 

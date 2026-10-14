@@ -94,6 +94,7 @@ mp_ret_t mp_circular_init(mp_kernel_t *kernel, mp_circular_t *cir, mp_circular_i
 	memset(cir, 0, sizeof(*cir));
 
 	cir->kernel = kernel;
+	cir->maxSize = MP_CIRCULAR_MAX_SIZE;
 	cir->first = NULL;
 	cir->last = NULL;
 	cir->enabled = NO;
@@ -175,7 +176,7 @@ mp_circular_buffer_t *mp_circular_read(mp_circular_t *cir) {
  * @brief Queue data and turn the interrupt line on
  *
  * Nothing is queued when the pool is short, when the circular would
- * exceed @ref MP_CIRCULAR_MAX_SIZE, or when the call is nested into
+ * exceed cir->maxSize, or when the call is nested into
  * another write (printk() from an allocation failure).
  *
  * @param[in] cir Circular context
@@ -199,7 +200,7 @@ mp_ret_t mp_circular_write(mp_circular_t *cir, unsigned char *data, int size) {
 		return(FALSE);
 	cir->writing = YES;
 
-	if(size > MP_CIRCULAR_MAX_SIZE - cir->totalSize) {
+	if(size > cir->maxSize - cir->totalSize) {
 		cir->writing = NO;
 		return(FALSE);
 	}
@@ -263,7 +264,7 @@ mp_ret_t mp_circular_write(mp_circular_t *cir, unsigned char *data, int size) {
 void mp_circular_rxInterrupt(mp_circular_t *cir, unsigned char c) {
 	mp_circular_buffer_t *buffer;
 
-	if(cir->totalSize >= MP_CIRCULAR_MAX_SIZE)
+	if(cir->totalSize >= cir->maxSize)
 		return;
 
 	buffer = cir->last;
