@@ -23,16 +23,27 @@
 
 	#ifdef SUPPORT_COMMON_MEM
 
+		#include <stdint.h>
+
 		typedef struct mp_mem_chunk_s mp_mem_chunk_t;
 
-		#define MEM_CANARY 0xdeadbeef
+		/*
+		 * the canary right after the data tells a handed out chunk from a free one;
+		 * it is stored mixed with the chunk address and the key mp_mem_rekey() draws
+		 */
+		#define MEM_CANARY_USED 0xdeadbeefUL
+		#define MEM_CANARY_FREE 0xfeedfaceUL
 
 		struct mp_mem_chunk_s {
 			unsigned char data[MP_MEM_CHUNK];
 			unsigned long canary;
-			unsigned int id;
-			mp_list_item_t item;
+
+			/* next free chunk masked with the key, only meaningful while free */
+			uintptr_t next;
 		};
+
+		/* every byte of MP_MEM_SIZE that holds a whole chunk is used */
+		#define MP_MEM_CHUNKS ((int)(MP_MEM_SIZE / sizeof(mp_mem_chunk_t)))
 
 		/** chunks handed out, and how many mp_mem_erase() prepared */
 		typedef struct {
@@ -44,6 +55,7 @@
 		void *mp_mem_alloc(mp_kernel_t *kernel, int size);
 		void mp_mem_free(mp_kernel_t *kernel, void *ptr);
 		void mp_mem_state(mp_mem_state_t *state);
+		mp_ret_t mp_mem_rekey(mp_kernel_t *kernel);
 	#endif
 
 #endif

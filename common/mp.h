@@ -288,4 +288,5 @@
 	/* error codes for kpanic */
 	#define KPANIC_MEM_SIZE 1
 	#define KPANIC_MEM_OOM  2
+	#define KPANIC_MEM_CORRUPT 3
 #endif

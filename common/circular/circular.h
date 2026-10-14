@@ -25,7 +25,7 @@
 
 	#ifdef SUPPORT_COMMON_CIRCULAR
 
-	/* the trailing pointer leaves room for tail padding: mp_mem_alloc() wants size < MP_MEM_CHUNK */
+	/* the trailing pointer leaves room for the tail padding of the struct */
 	#define MP_CIRCULAR_BUFFER_SIZE \
 		((int)(MP_MEM_CHUNK-(sizeof(unsigned short)*2)-sizeof(void *)-sizeof(void *)))
 
@@ -52,7 +52,7 @@
 		unsigned char data[MP_CIRCULAR_BUFFER_SIZE];
 	};
 
-	typedef char mp_circular_buffer_fits_chunk_t[sizeof(mp_circular_buffer_t) < MP_MEM_CHUNK ? 1 : -1];
+	typedef char mp_circular_buffer_fits_chunk_t[sizeof(mp_circular_buffer_t) <= MP_MEM_CHUNK ? 1 : -1];
 
 	/* first, last and totalSize move under interrupt */
 	struct mp_circular_s {

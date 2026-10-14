@@ -2,7 +2,7 @@ export const phi = {
 	kind: "module",
 	name: "MEM",
 	label: "Memory pool",
-	description: "Fixed-size chunk allocator over a static pool. No fragmentation, no malloc().",
+	description: "Fixed-size chunk allocator over a static pool, catching double and stray frees and overruns. No fragmentation.",
 	define: "SUPPORT_COMMON_MEM",
 	sources: ["mem.c"],
 	headers: ["mem.h"],

@@ -52,6 +52,10 @@ static mp_bool_t _mp_rng_ready;
 static uint32_t _mp_rng_stir;
 static volatile unsigned long _mp_rng_draws;
 static unsigned long _mp_rng_seededAt;
+#ifdef SUPPORT_COMMON_MEM
+static mp_kernel_t *_mp_rng_kernel;
+static mp_bool_t _mp_rng_memKeyed;
+#endif
 
 static unsigned long _mp_rng_ticks(unsigned long ms) {
 	unsigned long hz = mp_clock_tick_hz();
@@ -142,6 +146,11 @@ static MP_TASK(_mp_rng_wake) {
 	}
 	_mp_rng_draws = 0;
 	_mp_rng_seededAt = mp_clock_ticks();
+#ifdef SUPPORT_COMMON_MEM
+	/* the memory canaries leave their boot key as soon as there is a secret */
+	if(_mp_rng_memKeyed == NO && mp_mem_rekey(_mp_rng_kernel) == TRUE)
+		_mp_rng_memKeyed = YES;
+#endif
 	mp_task_signal(task, MP_TASK_SIG_SLEEP);
 }
 
@@ -158,6 +167,10 @@ void mp_rng_start(mp_kernel_t *kernel) {
 	_mp_rng_ready = NO;
 	_mp_rng_stir = 0;
 	_mp_rng_draws = 0;
+#ifdef SUPPORT_COMMON_MEM
+	_mp_rng_kernel = kernel;
+	_mp_rng_memKeyed = NO;
+#endif
 	memset(&_mp_rng_drbg, 0, sizeof(_mp_rng_drbg));
 	_mp_rng_task = mp_task_create(&kernel->tasks, "RNG", _mp_rng_wake, NULL, _mp_rng_ticks(_MP_RNG_RETRY));
 	if(!_mp_rng_task)
