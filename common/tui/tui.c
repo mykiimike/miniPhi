@@ -1182,7 +1182,7 @@ static unsigned long _mp_tui_saver(mp_tui_t *ui) {
 		ui->saver = MP_TUI_DIMMED;
 	}
 	if(ui->saver != MP_TUI_OFF && off && idle >= off) {
-		_mp_tui_backlight(ui, 0);
+		_mp_tui_backlight(ui, MP_TUI_OFF_LEVEL);
 		if(ui->display->power)
 			ui->display->power(ui->display, 0);
 		_mp_tui_doze(ui, 1);
@@ -1231,6 +1231,9 @@ void mp_tui_poll(mp_tui_t *ui) {
 				continue;
 
 			mp_power_hold_for(ui->kernel, &ui->boost, MP_POWER_HIGH, MP_TUI_BOOST, "TUI");
+			/* a dimmed backlight chops, and the panel reads that as the finger moving */
+			if(ui->saver == MP_TUI_DIMMED && event.type == MP_INPUT_MOVE)
+				continue;
 			if(ui->saver == MP_TUI_OFF)
 				ui->swallow = 1;
 			mp_tui_wake(ui);

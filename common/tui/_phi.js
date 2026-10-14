@@ -43,6 +43,7 @@ export const phi = {
 		{ name: "MP_TUI_DIM_AFTER", label: "Dim the backlight after (0 never)", type: "number", unit: "s", default: 30, min: 0, max: 3600 },
 		{ name: "MP_TUI_OFF_AFTER", label: "Screen off after (0 never)", type: "number", unit: "s", default: 90, min: 0, max: 3600 },
 		{ name: "MP_TUI_DIM_LEVEL", label: "Dimmed backlight", type: "number", unit: "%", default: 15, min: 1, max: 100 },
+		{ name: "MP_TUI_OFF_LEVEL", label: "Backlight while off (0 dark)", type: "number", unit: "%", default: 15, min: 0, max: 100 },
 		{ name: "MP_TUI_BOOST", label: "HIGH level after an input", type: "number", unit: "ms", default: 300, min: 0, max: 5000 },
 	],
 }
