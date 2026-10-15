@@ -1,0 +1,30 @@
+export const phi = {
+	kind: "module",
+	name: "AES",
+	label: "AES",
+	description: "AES block cipher (FIPS 197), one block at a time through mp_cipher_update_block(). The key length picks AES-128, AES-192 or AES-256 (16, 24 or 32 bytes). Runs in software everywhere; when the series or the MCU declares an AES accelerator, the build adds its sources and MP_ARCH_AES, and a context runs on the hardware whenever the arch accepts it. The caller owns the context, so nothing is allocated.",
+	define: "SUPPORT_COMMON_CRYPTO_CIPHER_AES",
+	sources: ["aes.c"],
+	headers: ["aes.h"],
+	headerDir: "crypto",
+	settings: [
+		{
+			name: "MP_AES_BITS",
+			label: "Key size",
+			type: "enum",
+			values: ["128", "192", "256"],
+			labels: ["AES-128", "AES-192", "AES-256"],
+			default: "128",
+		},
+		{
+			name: "MP_AES_RAM",
+			label: "RAM",
+			type: "number",
+			unit: "bytes",
+			default: 512,
+			min: 256,
+			max: 4096,
+			ram: true,
+		},
+	],
+}

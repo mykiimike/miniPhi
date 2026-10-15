@@ -214,7 +214,7 @@ export function analyze(catalog, sel, exists) {
 			headers: accelerated[record.name].headers || [],
 		}))
 	/* the directory under common/crypto/ is the class: hash, mac, cipher, kdf, rng, sign */
-	const cryptoFamilyLabel = { hash: "Hash", mac: "MAC", cipher: "Cipher", kdf: "KDF", rng: "RNG", sign: "Signature" }
+	const cryptoFamilyLabel = { hash: "Hash", mac: "MAC", cipher: "Cipher", kdf: "KDF", rng: "RNG", sign: "Signature", mode: "Mode" }
 	const cryptoFamily = (dir) => {
 		const parts = (dir || "").split("/")
 		const at = parts.indexOf("crypto")

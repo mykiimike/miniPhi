@@ -176,7 +176,7 @@ export function toJs(value, indent = "") {
 
 function cryptoHardware(analysis) {
 	const items = analysis.crypto || []
-	const cryptoMax = 16
+	const cryptoMax = 24
 	const lines = [
 		"/* " + header + " */",
 		"/* crypto in this firmware, and the blocks the chip declares; included after mp.h */",

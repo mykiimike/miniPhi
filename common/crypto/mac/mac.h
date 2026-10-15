@@ -49,6 +49,9 @@
 		#ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
 			mp_blake2s_t blake2s;
 		#endif
+		#ifdef SUPPORT_COMMON_CRYPTO_MAC_POLY1305
+			mp_poly1305_t poly1305;
+		#endif
 			uint8_t none;
 		} ctx;
 	};

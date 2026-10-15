@@ -51,6 +51,7 @@ enum {
 	_MP_MAC_NONE = 0,
 	_MP_MAC_HMAC,
 	_MP_MAC_BLAKE2S,
+	_MP_MAC_POLY1305,
 };
 
 static char _mp_mac_upper(char c) {
@@ -106,6 +107,15 @@ mp_ret_t mp_mac_init(mp_mac_t *mac, const char *name, const void *key, unsigned 
 	}
 #endif
 
+#ifdef SUPPORT_COMMON_CRYPTO_MAC_POLY1305
+	rest = _mp_mac_after(name, "POLY1305");
+	if(rest && !*rest && mp_poly1305_init(&mac->ctx.poly1305, key, keylen) == TRUE) {
+		mac->kind = _MP_MAC_POLY1305;
+		mac->size = MP_POLY1305_SIZE;
+		return(TRUE);
+	}
+#endif
+
 	(void)rest;
 	memset(mac, 0, sizeof(*mac));
 	return(FALSE);
@@ -130,6 +140,11 @@ void mp_mac_update(mp_mac_t *mac, const void *data, unsigned int size) {
 #ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
 		case _MP_MAC_BLAKE2S:
 			mp_blake2s_update(&mac->ctx.blake2s, data, size);
+			break;
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_MAC_POLY1305
+		case _MP_MAC_POLY1305:
+			mp_poly1305_update(&mac->ctx.poly1305, data, size);
 			break;
 #endif
 		default:
@@ -160,6 +175,11 @@ unsigned int mp_mac_final(mp_mac_t *mac, uint8_t *tag) {
 #ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
 		case _MP_MAC_BLAKE2S:
 			mp_blake2s_final(&mac->ctx.blake2s, tag);
+			break;
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_MAC_POLY1305
+		case _MP_MAC_POLY1305:
+			size = mp_poly1305_final(&mac->ctx.poly1305, tag);
 			break;
 #endif
 		default:

@@ -180,6 +180,9 @@
 	#ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
 		#include <crypto/hmac.h>
 	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_MAC_POLY1305
+		#include <crypto/poly1305.h>
+	#endif
 	/* after the MACs: its context is a union of theirs */
 	#ifdef SUPPORT_COMMON_CRYPTO_MAC
 		#include <crypto/mac.h>
@@ -212,10 +215,31 @@
 	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_MLDSA
 		#include <crypto/mldsa.h>
 	#endif
-	/* after the algorithms: the index calls them by name */
-	#ifdef SUPPORT_COMMON_CRYPTO_SIGN
-		#include <crypto/sign.h>
-	#endif
+/* after the algorithms: the index calls them by name */
+#ifdef SUPPORT_COMMON_CRYPTO_SIGN
+	#include <crypto/sign.h>
+#endif
+
+#ifdef SUPPORT_COMMON_CRYPTO_CIPHER_AES
+	#include <crypto/aes.h>
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_CIPHER_CHACHA20
+	#include <crypto/chacha20.h>
+#endif
+/* after the algorithms: the index calls them by name */
+#ifdef SUPPORT_COMMON_CRYPTO_CIPHER
+	#include <crypto/cipher.h>
+#endif
+/* after the modes: the index calls them by name; a mode wraps a cipher */
+#ifdef SUPPORT_COMMON_CRYPTO_MODE_CHACHA20_POLY1305
+	#include <crypto/chacha20_poly1305.h>
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_MODE_CCM
+	#include <crypto/ccm.h>
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_MODE
+	#include <crypto/mode.h>
+#endif
 
 	#ifdef SUPPORT_DRV_BUTTON
 		#include <button/button.h>
