@@ -68,9 +68,9 @@
 		#define MP_TUI_DIM_LEVEL 15
 	#endif
 
-	/* backlight while off, in %: some USB ports cut their output under a few mA */
+	/* backlight while the screen is off, in %; 0 is dark */
 	#ifndef MP_TUI_OFF_LEVEL
-		#define MP_TUI_OFF_LEVEL 15
+		#define MP_TUI_OFF_LEVEL 0
 	#endif
 
 	/* ms the level stays HIGH after an input */
@@ -578,7 +578,7 @@
 
 	/**
 	 * Screen saver: dims after MP_TUI_DIM_AFTER s without input, turns the
-	 * panel off and the backlight down to MP_TUI_OFF_LEVEL % after
+	 * panel off and the backlight to MP_TUI_OFF_LEVEL % after
 	 * MP_TUI_OFF_AFTER s. Only with a
 	 * display that has backlight() or power(). Off, nothing is drawn and
 	 * the touch panel dozes; the first gesture only wakes the screen.

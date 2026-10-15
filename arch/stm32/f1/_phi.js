@@ -50,7 +50,7 @@ export const phi = {
 		{ name: "MP_CLOCK_ME_FREQ", label: "MEDIUM level clock", type: "enum", values: clocks, labels: clockLabels, default: "MHZ24_t" },
 		{ name: "MP_CLOCK_LE_FREQ", label: "LOW level clock (SLEEP runs HSI at 8 MHz)", type: "enum", values: clocks, labels: clockLabels, default: "MHZ8_t" },
 		{ name: "MP_CLOCK_HSE_HZ", label: "HSE crystal (0 runs on the internal 8 MHz HSI)", type: "number", unit: "Hz", default: 8000000, min: 0, max: 16000000 },
-		{ name: "MP_CLOCK_LSE", label: "32.768 kHz LSE crystal on PC14 / PC15: RTC and Stop at SLEEP", type: "bool", default: false },
+		{ name: "MP_CLOCK_LSE", label: "32.768 kHz LSE crystal on PC14 / PC15, for the RTC", type: "bool", default: false },
 		{ name: "_SWD_ONLY", label: "SWD only, frees PA15, PB3 and PB4 from JTAG", type: "bool", default: false },
 	],
 	reserved: [

@@ -18,6 +18,8 @@ export const phi = {
 		MP_MEM_CHUNK: 64,
 		MP_TUI_TEXT_MAX: 96,
 		MP_CLOCK_LSE: true,
+		/* off, the board loses power and a press cannot wake it; it stays dimmed */
+		MP_TUI_OFF_AFTER: 0,
 	},
 	/* pins wired to something the firmware does not own yet */
 	reserved: [

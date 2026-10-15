@@ -40,10 +40,9 @@ timers, FSMC banks, the ADC prescaler and SysTick are retimed.
 
 SysTick ticks at 1 kHz, so one tick is one ms. It is tickless: before WFI
 it is stretched to the next deadline, at most 2^24 core cycles. With
-MP_CLOCK_LSE, the RTC runs on the 32.768 kHz crystal at 1024 Hz and
-SLEEP can enter Stop when nothing is due for MP_POWER_STOP_MIN ms: the
-RTC alarm (EXTI 17), any armed EXTI line and the RX pins of the UARTs
-wake it up, then the ticks are caught up from the RTC.
+MP_CLOCK_LSE the RTC runs on the 32.768 kHz crystal at 1024 Hz. Stop is
+not entered: on the STM32-LCD it is followed by the board losing power,
+and a press no longer wakes it.
 
 @{
 */
@@ -377,6 +376,11 @@ static void _mp_clock_lse_poll(void) {
 /* masked, at SLEEP: HSI runs, HSE and the PLL are off */
 static mp_bool_t _mp_clock_stop(mp_kernel_t *kernel, unsigned long idle) {
 	unsigned long counts;
+
+	/* Stop is followed by the board losing power, and a press cannot wake it */
+	(void)kernel;
+	(void)idle;
+	return(NO);
 	unsigned long start;
 	unsigned long elapsed;
 	unsigned long left;
@@ -537,8 +541,7 @@ void mp_clock_reset(mp_kernel_t *kernel) {
 /**
  * @brief Sleep until the next deadline or an interrupt
  *
- * WFI with SysTick stretched; Stop at SLEEP when the bus is quiet and
- * nothing is due for MP_POWER_STOP_MIN ms.
+ * WFI with SysTick stretched. Stop stays off: it cuts this board.
  *
  * @param[in] kernel Kernel handler
  * @param[in] limit Ticks the sleep can not exceed, a hold expires then
@@ -572,8 +575,6 @@ void mp_clock_schedule(mp_kernel_t *kernel, unsigned long limit) {
  */
 const char *mp_clock_deep(void) {
 #ifdef MP_CLOCK_LSE
-	if(__rtc == YES)
-		return("Stop, RTC on LSE");
 	if(__lseWaiting == YES)
 		return("WFI, LSE starting");
 #endif
