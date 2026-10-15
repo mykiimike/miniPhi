@@ -153,6 +153,11 @@ struct sysinfo_s {
 		mp_tui_table_t cryptoTable;
 		mp_tui_cell_t cryptoCell[MP_CRYPTO_MAX][3];
 #endif
+#ifdef SUPPORT_COMMON_CRYPTO_SIGN
+		/** a signature: key and signature sizes, then the self-test */
+		mp_tui_label_t signInfo;
+		mp_tui_label_t signResult;
+#endif
 		/** die temperature and supply, the only sensors this page shows */
 		mp_tui_label_t sensors[2];
 		/** home entry "Power"; -1 until it is registered */

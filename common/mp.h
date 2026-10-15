@@ -188,6 +188,22 @@
 	#ifdef SUPPORT_COMMON_CRYPTO_RNG
 		#include <crypto/rng.h>
 	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_BN
+		#include <crypto/bn.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_ED25519
+		#include <crypto/ed25519.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_ECDSA_P256
+		#include <crypto/ecdsa_p256.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_RSA
+		#include <crypto/rsa.h>
+	#endif
+	/* after the algorithms: the index calls them by name */
+	#ifdef SUPPORT_COMMON_CRYPTO_SIGN
+		#include <crypto/sign.h>
+	#endif
 
 	#ifdef SUPPORT_DRV_BUTTON
 		#include <button/button.h>

@@ -176,17 +176,18 @@ export function toJs(value, indent = "") {
 
 function cryptoHardware(analysis) {
 	const items = analysis.crypto || []
+	const cryptoMax = 16
 	const lines = [
 		"/* " + header + " */",
 		"/* crypto in this firmware, and the blocks the chip declares; included after mp.h */",
 		"#ifndef _HAVE_GEN_CRYPTO_H",
 		"#define _HAVE_GEN_CRYPTO_H",
 		"",
-		"#define MP_CRYPTO_MAX 8",
+		"#define MP_CRYPTO_MAX " + cryptoMax,
 		"#define MP_CRYPTO_COUNT " + items.length,
 		"",
 	]
-	if (items.length > 8)
+	if (items.length > cryptoMax)
 		lines.push("#error more than MP_CRYPTO_MAX crypto entries", "")
 	lines.push(
 		"typedef struct mp_crypto_s {",

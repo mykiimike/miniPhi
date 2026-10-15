@@ -213,8 +213,8 @@ export function analyze(catalog, sel, exists) {
 			sources: accelerated[record.name].sources || [],
 			headers: accelerated[record.name].headers || [],
 		}))
-	/* the directory under common/crypto/ is the class: hash, mac, cipher, kdf, rng */
-	const cryptoFamilyLabel = { hash: "Hash", mac: "MAC", cipher: "Cipher", kdf: "KDF", rng: "RNG" }
+	/* the directory under common/crypto/ is the class: hash, mac, cipher, kdf, rng, sign */
+	const cryptoFamilyLabel = { hash: "Hash", mac: "MAC", cipher: "Cipher", kdf: "KDF", rng: "RNG", sign: "Signature" }
 	const cryptoFamily = (dir) => {
 		const parts = (dir || "").split("/")
 		const at = parts.indexOf("crypto")
@@ -549,6 +549,10 @@ export function analyze(catalog, sel, exists) {
 			issue("error", "target", toolchain.label + ": set " + item.name + ".", [{ variable: item.name }])
 		return { ...item, value }
 	})
+
+	const rsaBits = settingValue("MP_RSA_BITS")
+	if (rsaBits !== undefined && Number(rsaBits) % 64 !== 0)
+		issue("error", "kernel", "RSA modulus must be a multiple of 64 bits.", [{ setting: "MP_RSA_BITS" }])
 
 	const ramItems = settings
 		.filter((setting) => setting.ram && setting.valid)
