@@ -554,6 +554,12 @@ export function analyze(catalog, sel, exists) {
 	if (rsaBits !== undefined && Number(rsaBits) % 64 !== 0)
 		issue("error", "kernel", "RSA modulus must be a multiple of 64 bits.", [{ setting: "MP_RSA_BITS" }])
 
+	/* RSA and the post-quantum signature families are mutually exclusive */
+	const pqNames = ["LMS", "SLH", "MLDSA"]
+	const activePq = pqNames.filter((name) => moduleState.has(name))
+	if (moduleState.has("RSA") && activePq.length)
+		issue("error", "kernel", "RSA and post-quantum signatures (" + activePq.join(", ") + ") are mutually exclusive. Pick one family.", activePq.map((name) => ({ module: name })).concat([{ module: "RSA" }]))
+
 	const ramItems = settings
 		.filter((setting) => setting.ram && setting.valid)
 		.map((setting) => ({ label: setting.label, owner: setting.owner, bytes: Number(setting.value) }))

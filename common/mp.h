@@ -170,6 +170,9 @@
 	#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHA512
 		#include <crypto/sha512.h>
 	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHAKE
+		#include <crypto/shake.h>
+	#endif
 	/* after the algorithms: its context is a union of theirs */
 	#ifdef SUPPORT_COMMON_CRYPTO_HASH
 		#include <crypto/hash.h>
@@ -199,6 +202,15 @@
 	#endif
 	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_RSA
 		#include <crypto/rsa.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_LMS
+		#include <crypto/lms.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_SLH
+		#include <crypto/slh.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_MLDSA
+		#include <crypto/mldsa.h>
 	#endif
 	/* after the algorithms: the index calls them by name */
 	#ifdef SUPPORT_COMMON_CRYPTO_SIGN

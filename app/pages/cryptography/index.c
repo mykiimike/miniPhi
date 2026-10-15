@@ -149,6 +149,22 @@ static const uint8_t _sysinfo_rsa_sig[MP_RSA_SIG] = {
 };
 #endif
 
+/* verify-only vectors for the post-quantum schemes; see vectors.c */
+#if defined(SUPPORT_COMMON_CRYPTO_SIGN_LMS) && defined(MP_LMS_PUB)
+extern const uint8_t _sysinfo_lms_pub[MP_LMS_PUB];
+extern const uint8_t _sysinfo_lms_msg[131];
+extern const uint8_t _sysinfo_lms_sig[MP_LMS_SIG];
+#endif
+#if defined(SUPPORT_COMMON_CRYPTO_SIGN_SLH) && defined(MP_SLH_PK_SIZE)
+extern const uint8_t _sysinfo_slh_pub[MP_SLH_PK_SIZE];
+extern const uint8_t _sysinfo_slh_sig[MP_SLH_SIG_SIZE];
+#endif
+#if defined(SUPPORT_COMMON_CRYPTO_SIGN_MLDSA) && defined(MP_MLDSA_PK_SIZE) && (MP_MLDSA_SIG_SIZE == 2420)
+extern const uint8_t _sysinfo_mldsa_pub[MP_MLDSA_PK_SIZE];
+extern const uint8_t _sysinfo_mldsa_msg[7];
+extern const uint8_t _sysinfo_mldsa_sig[MP_MLDSA_SIG_SIZE];
+#endif
+
 static void _sysinfo_sign_test(sysinfo_t *sysinfo, const mp_sign_algo_t *algo) {
 	static uint8_t priv[32];
 	static uint8_t pub[64];
@@ -175,6 +191,27 @@ static void _sysinfo_sign_test(sysinfo_t *sysinfo, const mp_sign_algo_t *algo) {
 #else
 		stored = 0;
 #endif
+	}
+	else
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_SIGN_LMS
+	if(strcmp(algo->name, "LMS") == 0) {
+		vector = 1;
+		ok = mp_sign_verify(algo->name, _sysinfo_lms_pub, _sysinfo_lms_msg, sizeof(_sysinfo_lms_msg), _sysinfo_lms_sig, MP_LMS_SIG);
+	}
+	else
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_SIGN_SLH
+	if(strcmp(algo->name, "SLH") == 0) {
+		vector = 1;
+		ok = mp_sign_verify(algo->name, _sysinfo_slh_pub, msg, 7, _sysinfo_slh_sig, MP_SLH_SIG_SIZE);
+	}
+	else
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_SIGN_MLDSA
+	if(strcmp(algo->name, "MLDSA") == 0) {
+		vector = 1;
+		ok = mp_sign_verify(algo->name, _sysinfo_mldsa_pub, _sysinfo_mldsa_msg, sizeof(_sysinfo_mldsa_msg), _sysinfo_mldsa_sig, MP_MLDSA_SIG_SIZE);
 	}
 	else
 #endif
