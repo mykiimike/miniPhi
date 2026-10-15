@@ -113,14 +113,12 @@ static void _sysinfo_flash_state(char *text, size_t size) {
 
 #ifdef SUPPORT_COMMON_SENSOR
 static int _sysinfo_mcu_sensor(mp_kernel_t *kernel, mp_sensor_t *sensor) {
-	mp_list_item_t *item;
-	mp_sensor_t *axis;
+	mp_sensor_t *axis = NULL;
 
 	if(sensor->type != MP_SENSOR_TEMPERATURE && sensor->type != MP_SENSOR_VOLTAGE)
 		return(0);
-	for(item = kernel->sensors.list.first; item != NULL; item = item->next) {
-		axis = item->user;
-		if(axis->type == MP_SENSOR_3AXIS && _sysinfo_sensor_beside(axis, sensor))
+	while((axis = mp_sensor_next(kernel, axis)) != NULL) {
+		if(mp_sensor_axes(axis->type) == 3 && _sysinfo_sensor_beside(axis, sensor))
 			return(0);
 	}
 	return(1);
@@ -184,17 +182,18 @@ void _sysinfo_system_refresh(sysinfo_t *sysinfo) {
 
 #ifdef SUPPORT_COMMON_SENSOR
 	{
-		mp_list_item_t *item;
-		mp_sensor_t *sensor;
+		mp_sensor_t *sensor = NULL;
+		float v[3];
 
-		for(item = kernel->sensors.list.first; item != NULL && index < 2; item = item->next) {
-			sensor = item->user;
+		while(index < 2 && (sensor = mp_sensor_next(kernel, sensor)) != NULL) {
 			if(!_sysinfo_mcu_sensor(kernel, sensor))
 				continue;
-			if(sensor->type == MP_SENSOR_TEMPERATURE)
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.1f °C", sensor->idName, (double)sensor->temperature.result);
+			if(mp_sensor_read(sensor, v, NULL) != TRUE)
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: --", sensor->name);
+			else if(sensor->type == MP_SENSOR_TEMPERATURE)
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.1f °C", sensor->name, (double)v[0]);
 			else
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.3f V", sensor->idName, (double)sensor->voltage.result);
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.3f V", sensor->name, (double)v[0]);
 		}
 	}
 #endif

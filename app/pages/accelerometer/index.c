@@ -118,26 +118,12 @@ static void _sysinfo_level_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 
 static const mp_tui_class_t _sysinfo_level_class = { "level", _sysinfo_level_draw, NULL, NULL };
 
-static mp_sensor_t *_sysinfo_accel_find(mp_kernel_t *kernel) {
-	mp_list_item_t *item;
-	mp_sensor_t *sensor;
-
-	for(item = kernel->sensors.list.first; item != NULL; item = item->next) {
-		sensor = item->user;
-		if(sensor->type == MP_SENSOR_3AXIS)
-			return(sensor);
-	}
-	return(NULL);
-}
-
 static mp_sensor_t *_sysinfo_accel_temperature(mp_kernel_t *kernel, mp_sensor_t *axis) {
-	mp_list_item_t *item;
-	mp_sensor_t *sensor;
+	mp_sensor_t *sensor = NULL;
 
 	if(!axis)
 		return(NULL);
-	for(item = kernel->sensors.list.first; item != NULL; item = item->next) {
-		sensor = item->user;
+	while((sensor = mp_sensor_next(kernel, sensor)) != NULL) {
 		if(_sysinfo_sensor_beside(axis, sensor))
 			return(sensor);
 	}
@@ -159,15 +145,16 @@ static int _sysinfo_cg(float g) {
 }
 
 static void _sysinfo_accel_values(sysinfo_t *sysinfo) {
-	mp_sensor_t *axis = _sysinfo_accel_find(&sysinfo->kernel);
+	mp_sensor_t *axis = mp_sensor_find(&sysinfo->kernel, MP_SENSOR_ACCELEROMETER, NULL);
 	mp_sensor_t *temperature = _sysinfo_accel_temperature(&sysinfo->kernel, axis);
 	sysinfo_level_t *level = &sysinfo->screen.level;
+	float g[3], t[3];
 	int mx, my, mz;
 
 	mp_tui_switch_set(&sysinfo->screen.accelSwitch, sysinfo->accelEnabled == YES);
-	if(!axis) {
+	if(!axis || mp_sensor_read(axis, g, NULL) != TRUE) {
 		mp_tui_label_set(&sysinfo->screen.accelName, "%s", sysinfo->accelEnabled == NO ? "Accelerometer off" :
-			sysinfo->accelRunning == YES ? "No accelerometer" : "Starting");
+			axis ? axis->name : sysinfo->accelRunning == YES ? "No accelerometer" : "Starting");
 		mp_tui_label_set(&sysinfo->screen.accelX, "%s", "X  --");
 		mp_tui_label_set(&sysinfo->screen.accelY, "%s", "Y  --");
 		mp_tui_label_set(&sysinfo->screen.accelZ, "%s", "Z  --");
@@ -181,19 +168,19 @@ static void _sysinfo_accel_values(sysinfo_t *sysinfo) {
 		return;
 	}
 
-	mp_tui_label_set(&sysinfo->screen.accelName, "%s", axis->idName);
-	mp_tui_label_set(&sysinfo->screen.accelX, "X  % .2f g", (double)axis->axis3.x);
-	mp_tui_label_set(&sysinfo->screen.accelY, "Y  % .2f g", (double)axis->axis3.y);
-	mp_tui_label_set(&sysinfo->screen.accelZ, "Z  % .2f g", (double)axis->axis3.z);
-	if(temperature)
+	mp_tui_label_set(&sysinfo->screen.accelName, "%s", axis->name);
+	mp_tui_label_set(&sysinfo->screen.accelX, "X  % .2f g", (double)g[0]);
+	mp_tui_label_set(&sysinfo->screen.accelY, "Y  % .2f g", (double)g[1]);
+	mp_tui_label_set(&sysinfo->screen.accelZ, "Z  % .2f g", (double)g[2]);
+	if(temperature && mp_sensor_read(temperature, t, NULL) == TRUE)
 		mp_tui_label_set(&sysinfo->screen.accelTemperature, "%s  %.1f °C",
-			temperature->idName, (double)temperature->temperature.result);
+			temperature->name, (double)t[0]);
 	else
 		mp_tui_label_set(&sysinfo->screen.accelTemperature, "%s", "");
 
-	mx = _sysinfo_cg(axis->axis3.x);
-	my = _sysinfo_cg(axis->axis3.y);
-	mz = _sysinfo_cg(axis->axis3.z);
+	mx = _sysinfo_cg(g[0]);
+	my = _sysinfo_cg(g[1]);
+	mz = _sysinfo_cg(g[2]);
 	level->mz = mz;
 	if(mx == level->mx && my == level->my)
 		return;

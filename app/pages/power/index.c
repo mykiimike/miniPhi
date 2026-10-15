@@ -57,10 +57,10 @@ static int _sysinfo_power_sensor(mp_sensor_t *sensor) {
 static int _sysinfo_power_sensors(mp_kernel_t *kernel) {
 	int count = 0;
 #ifdef SUPPORT_COMMON_SENSOR
-	mp_list_item_t *item;
+	mp_sensor_t *sensor = NULL;
 
-	for(item = kernel->sensors.list.first; item != NULL; item = item->next)
-		if(_sysinfo_power_sensor(item->user))
+	while((sensor = mp_sensor_next(kernel, sensor)) != NULL)
+		if(_sysinfo_power_sensor(sensor))
 			count++;
 #endif
 	if(count > 8 - _SYSINFO_POWER_FIGURES)
@@ -137,18 +137,19 @@ static void _sysinfo_power_values(sysinfo_t *sysinfo) {
 	row = _SYSINFO_POWER_FIGURES;
 #ifdef SUPPORT_COMMON_SENSOR
 	{
-		mp_list_item_t *item;
-		mp_sensor_t *sensor;
+		mp_sensor_t *sensor = NULL;
+		float v[3];
 
-		for(item = kernel->sensors.list.first; item != NULL && row < _SYSINFO_POWER_FIGURES + sysinfo->screen.powerSensorRows; item = item->next) {
-			sensor = item->user;
+		while(row < _SYSINFO_POWER_FIGURES + sysinfo->screen.powerSensorRows && (sensor = mp_sensor_next(kernel, sensor)) != NULL) {
 			if(!_sysinfo_power_sensor(sensor))
 				continue;
-			mp_tui_table_set(table, row, 0, "%s", sensor->idName);
-			if(sensor->type == MP_SENSOR_VOLTAGE)
-				mp_tui_table_set(table, row, 1, "%.3f V", (double)sensor->voltage.result);
+			mp_tui_table_set(table, row, 0, "%s", sensor->name);
+			if(mp_sensor_read(sensor, v, NULL) != TRUE)
+				mp_tui_table_set(table, row, 1, "%s", "--");
+			else if(sensor->type == MP_SENSOR_VOLTAGE)
+				mp_tui_table_set(table, row, 1, "%.3f V", (double)v[0]);
 			else
-				mp_tui_table_set(table, row, 1, "%.1f mA", (double)sensor->current.result * 1000.0);
+				mp_tui_table_set(table, row, 1, "%.1f mA", (double)v[0] * 1000.0);
 			row++;
 		}
 	}

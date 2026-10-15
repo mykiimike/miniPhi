@@ -298,8 +298,7 @@ mp_ret_t mp_drv_MPL3115A2_acquisitionTimeStep(mp_drv_MPL3115A2_t *MPL3115A2, uns
 
 void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 	/* enable sensor */
-	if(MPL3115A2->sensor)
-		mp_sensor_unregister(MPL3115A2->kernel, MPL3115A2->sensor);
+	mp_sensor_unregister(MPL3115A2->kernel, &MPL3115A2->sensor);
 	MPL3115A2->sensor = mp_sensor_register(MPL3115A2->kernel, MP_SENSOR_BAROMETER, "Barometer");
 
 	MPL3115A2->settings &= ~(1<<7); //Clear ALT bit
@@ -322,10 +321,8 @@ void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 
 void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2) {
 	/* enable sensor */
-	if(MPL3115A2->sensor)
-		mp_sensor_unregister(MPL3115A2->kernel, MPL3115A2->sensor);
+	mp_sensor_unregister(MPL3115A2->kernel, &MPL3115A2->sensor);
 	MPL3115A2->sensor = mp_sensor_register(MPL3115A2->kernel, MP_SENSOR_ALTIMETER, "Altimeter");
-	MPL3115A2->sensor->altimeter.conversion = MP_SENSOR_ALTIMETER_FEET;
 
 	/* request command */
 	MPL3115A2->settings |= (1<<7); //Set ALT bit
@@ -413,8 +410,7 @@ void mp_drv_MPL3115A2_OSTimer(mp_drv_MPL3115A2_t *MPL3115A2, mp_drv_MPL3115A_OS_
 void mp_drv_MPL3115A2_enableTemperature(mp_drv_MPL3115A2_t *MPL3115A2) {
 
 	/* enable sensor */
-	if(MPL3115A2->temperature)
-		mp_sensor_unregister(MPL3115A2->kernel, MPL3115A2->sensor);
+	mp_sensor_unregister(MPL3115A2->kernel, &MPL3115A2->temperature);
 	MPL3115A2->temperature = mp_sensor_register(MPL3115A2->kernel, MP_SENSOR_TEMPERATURE, "Temperature");
 
 	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
@@ -452,8 +448,7 @@ void mp_drv_MPL3115A2_disableTemperature(mp_drv_MPL3115A2_t *MPL3115A2) {
 	unsigned char *src = ptr;
 
 	/* disable sensor */
-	if(MPL3115A2->temperature)
-		mp_sensor_unregister(MPL3115A2->kernel, MPL3115A2->sensor);
+	mp_sensor_unregister(MPL3115A2->kernel, &MPL3115A2->temperature);
 
 	/* Route DRDY INT to INT1 */
 	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
@@ -521,26 +516,20 @@ static void _mp_drv_MPL3115A2_readPressureControl(mp_regMaster_op_t *operand, mp
 
 	lsb &= 0x30; /* Bits 5/4 represent the fractional component */
 	lsb >>= 4; /* Get it right aligned */
-	float pressure_decimal = (float)lsb/4.0; /* Turn it into fraction */
+	float pressure_decimal = (float)lsb/4.0f; /* Turn it into fraction */
 
-	MPL3115A2->sensor->barometer.result = (float)pressure_whole + pressure_decimal;
-
-	mp_printk("Got pressure information: %f", MPL3115A2->sensor->barometer.result);
+	mp_sensor_publish(MPL3115A2->sensor, (float)pressure_whole + pressure_decimal);
 
 	mp_mem_free(MPL3115A2->kernel, operand->wait);
 }
 
 static void _mp_drv_MPL3115A2_readAltimeterControl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
-	float tempcsb = (operand->wait[2]>>4)/16.0;
+	float tempcsb = (operand->wait[2]>>4)/16.0f;
+	/* the chip gives metres */
 	float altitude = (float)(int16_t)((operand->wait[0] << 8) | operand->wait[1]) + tempcsb;
 
-	if(MPL3115A2->sensor->altimeter.conversion == MP_SENSOR_ALTIMETER_FEET)
-		MPL3115A2->sensor->altimeter.result = altitude;
-	else
-		MPL3115A2->sensor->altimeter.result = altitude/MP_SENSOR_ALTIMETER_FMC;
-
-	//mp_printk("Got altimeter information: %f", MPL3115A2->sensor->altimeter.result);
+	mp_sensor_publish(MPL3115A2->sensor, altitude);
 	mp_mem_free(MPL3115A2->kernel, operand->wait);
 }
 
@@ -570,13 +559,13 @@ static void _mp_drv_MPL3115A2_readTemperature(mp_regMaster_op_t *operand, mp_boo
 		 * shift the value over 4 spots to the right and divide by 16 (since
 		 * there are 16 values in 4-bits).
 		 */
-		float templsb = (lsb>>4)/16.0; //temp, fraction of a degree
+		float templsb = (lsb>>4)/16.0f; //temp, fraction of a degree
 
 		float temperature = (float)(msb + templsb);
 
 		if (negSign) temperature = 0 - temperature;
 
-		MPL3115A2->temperature->temperature.result = temperature;
+		mp_sensor_publish(MPL3115A2->temperature, temperature);
 
 		//mp_printk("Got temperature %f", temperature);
 	}

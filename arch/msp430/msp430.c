@@ -150,7 +150,7 @@ static void _set_machine_temperature(mp_kernel_t *kernel) {
 static void _unset_machine_temperature(mp_kernel_t *kernel) {
 #ifdef SUPPORT_COMMON_SENSOR
 #if defined(__msp430x54x) || defined(__msp430x54xA)
-	mp_sensor_unregister(kernel, kernel->arch.sensorMCU);
+	mp_sensor_unregister(kernel, &kernel->arch.sensorMCU);
 	mp_adc_remove(&kernel->arch.internalTemp);
 #endif
 #endif
@@ -169,8 +169,8 @@ static void _unset_machine_temperature(mp_kernel_t *kernel) {
 #if defined(__msp430x54x) || defined(__msp430x54xA)
 
 static void _processor_temp(mp_adc_t *adc) {
-    adc->kernel->arch.sensorMCU->temperature.result = (float)(((long)adc->result - _CALADC12_15V_30C) * (85 - 30)) /
-		(_CALADC12_15V_85C - _CALADC12_15V_30C) + 30.0f;
+	mp_sensor_publish(adc->kernel->arch.sensorMCU, (float)(((long)adc->result - _CALADC12_15V_30C) * (85 - 30)) /
+		(_CALADC12_15V_85C - _CALADC12_15V_30C) + 30.0f);
 }
 
 #endif

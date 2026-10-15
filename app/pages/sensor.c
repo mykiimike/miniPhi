@@ -25,13 +25,13 @@
 #include <string.h>
 
 int _sysinfo_sensor_beside(mp_sensor_t *axis, mp_sensor_t *sensor) {
-	int length = (int)strlen(axis->idName);
+	int length = (int)strlen(axis->name);
 
 	if(sensor->type != MP_SENSOR_TEMPERATURE || length <= 0)
 		return(0);
-	if(strncmp(sensor->idName, axis->idName, (size_t)length) != 0)
+	if(strncmp(sensor->name, axis->name, (size_t)length) != 0)
 		return(0);
-	return(sensor->idName[length] == '\0' || sensor->idName[length] == ' ');
+	return(sensor->name[length] == '\0' || sensor->name[length] == ' ');
 }
 
 #endif

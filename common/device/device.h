@@ -36,7 +36,7 @@
 		MP_DEVICE_DISPLAY,
 		/** face: mp_input_t, already listed on the kernel while open */
 		MP_DEVICE_TOUCH,
-		/** publishes MP_SENSOR_3AXIS sensors while open */
+		/** publishes MP_SENSOR_ACCELEROMETER sensors while open */
 		MP_DEVICE_ACCELEROMETER,
 		/** an output: mp_device_set() */
 		MP_DEVICE_LED,

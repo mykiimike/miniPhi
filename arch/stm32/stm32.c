@@ -149,16 +149,16 @@ void mp_machine_state_set(mp_kernel_t *kernel) {
 
 void mp_machine_state_unset(mp_kernel_t *kernel) {
 #ifdef SUPPORT_COMMON_SENSOR
-	if(kernel->arch.sensorMCU) {
-		mp_sensor_unregister(kernel, kernel->arch.sensorMCU);
-		kernel->arch.sensorMCU = NULL;
+	mp_sensor_unregister(kernel, &kernel->arch.sensorMCU);
+	if(kernel->arch.internalTemp.callback) {
 		mp_adc_remove(&kernel->arch.internalTemp);
+		kernel->arch.internalTemp.callback = NULL;
 	}
 
-	if(kernel->arch.sensorVDDA) {
-		mp_sensor_unregister(kernel, kernel->arch.sensorVDDA);
-		kernel->arch.sensorVDDA = NULL;
+	mp_sensor_unregister(kernel, &kernel->arch.sensorVDDA);
+	if(kernel->arch.internalVref.callback) {
 		mp_adc_remove(&kernel->arch.internalVref);
+		kernel->arch.internalVref.callback = NULL;
 	}
 #endif
 }
@@ -171,16 +171,14 @@ static void _mp_machine_vref(mp_adc_t *adc) {
 		return;
 
 	kernel->arch.vdda = _VREFINT * 4095.0f / (float)adc->result;
-	if(kernel->arch.sensorVDDA)
-		kernel->arch.sensorVDDA->voltage.result = kernel->arch.vdda;
+	mp_sensor_publish(kernel->arch.sensorVDDA, kernel->arch.vdda);
 }
 
 static void _mp_machine_temp(mp_adc_t *adc) {
 	mp_kernel_t *kernel = adc->kernel;
 	float vsense = (float)adc->result * kernel->arch.vdda / 4095.0f;
 
-	if(kernel->arch.sensorMCU)
-		kernel->arch.sensorMCU->temperature.result = (_TEMP_V25 - vsense) / _TEMP_SLOPE + 25.0f;
+	mp_sensor_publish(kernel->arch.sensorMCU, (_TEMP_V25 - vsense) / _TEMP_SLOPE + 25.0f);
 }
 #endif
 

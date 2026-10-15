@@ -549,7 +549,7 @@ void mp_drv_LSM9DS0_gWrite(
 void mp_drv_LSM9DS0_initGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
 
 	/* Register new gyro sensor */
-	LSM9DS0->gyro = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_3AXIS, "LSM9DS0 GYRO");
+	LSM9DS0->gyro = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_GYROSCOPE, "LSM9DS0 GYRO");
 
 	/* prepare gyro registers */
 	LSM9DS0->gReg1 = 0x0f;
@@ -569,8 +569,7 @@ void mp_drv_LSM9DS0_finiGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
 	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG4_G, 0x00);
 	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG5_G, 0x00);
 
-	if(LSM9DS0->gyro)
-		mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->gyro);
+	mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->gyro);
 }
 
 void mp_drv_LSM9DS0_setGyroScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_scale_t gScl) {
@@ -607,7 +606,7 @@ void mp_drv_LSM9DS0_setGyroODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_od
 
 void mp_drv_LSM9DS0_initMag(mp_drv_LSM9DS0_t *LSM9DS0) {
 	/* Register new magneto sensor */
-	LSM9DS0->magneto = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_3AXIS, "LSM9DS0 MAGNETO");
+	LSM9DS0->magneto = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_MAGNETOMETER, "LSM9DS0 MAGNETO");
 	LSM9DS0->temperature = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_TEMPERATURE, "LSM9DS0 TEMP");
 
 	/* prepare magneto registers */
@@ -629,10 +628,8 @@ void mp_drv_LSM9DS0_finiMag(mp_drv_LSM9DS0_t *LSM9DS0) {
 	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG4_XM, 0x00);
 	mp_drv_LSM9DS0_xmWrite(LSM9DS0, INT_CTRL_REG_M, 0x00);
 
-	if(LSM9DS0->magneto)
-		mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->magneto);
-	if(LSM9DS0->temperature)
-		mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->temperature);
+	mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->magneto);
+	mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->temperature);
 }
 
 void mp_drv_LSM9DS0_setMagScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_scale_t mScl) {
@@ -676,7 +673,7 @@ void mp_drv_LSM9DS0_setMagODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_odr_
 
 void mp_drv_LSM9DS0_initAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
 	/* Register new accelerometer sensor */
-	LSM9DS0->accelero = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_3AXIS, "LSM9DS0 ACCEL");
+	LSM9DS0->accelero = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_ACCELEROMETER, "LSM9DS0 ACCEL");
 
 	/* prepare accelerometer registers */
 	LSM9DS0->xmReg1 = 0x57;
@@ -694,9 +691,7 @@ void mp_drv_LSM9DS0_finiAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
 	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG2_XM, 0x00);
 	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG3_XM, 0x00);
 
-	if(LSM9DS0->accelero)
-		mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->accelero);
-	LSM9DS0->accelero = NULL;
+	mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->accelero);
 }
 
 void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_scale_t aScl, mp_bool_t calibrate) {
@@ -766,15 +761,15 @@ static void _mp_drv_LSM9DS0_calcgRes(mp_drv_LSM9DS0_t *LSM9DS0) {
 	// to calculate DPS/(ADC tick) based on that 2-bit value:
 	switch (LSM9DS0->gyro_scale) {
 		case G_SCALE_245DPS:
-			LSM9DS0->gRes = 245.0 / 32768.0;
+			LSM9DS0->gRes = 245.0f / 32768.0f;
 			break;
 
 		case G_SCALE_500DPS:
-			LSM9DS0->gRes = 500.0 / 32768.0;
+			LSM9DS0->gRes = 500.0f / 32768.0f;
 			break;
 
 		case G_SCALE_2000DPS:
-			LSM9DS0->gRes = 2000.0 / 32768.0;
+			LSM9DS0->gRes = 2000.0f / 32768.0f;
 			break;
 	}
 }
@@ -783,16 +778,16 @@ static void _mp_drv_LSM9DS0_calcaRes(mp_drv_LSM9DS0_t *LSM9DS0) {
 	// Possible accelerometer scales (and their register bit settings) are:
 	// 2 g (000), 4g (001), 6g (010) 8g (011), 16g (100). Here's a bit of an
 	// algorithm to calculate g/(ADC tick) based on that 3-bit value:
-	LSM9DS0->aRes = LSM9DS0->accel_scale == A_SCALE_16G ? 16.0 / 32768.0 :
-		(((float) LSM9DS0->accel_scale + 1.0) * 2.0) / 32768.0;
+	LSM9DS0->aRes = LSM9DS0->accel_scale == A_SCALE_16G ? 16.0f / 32768.0f :
+		(((float) LSM9DS0->accel_scale + 1.0f) * 2.0f) / 32768.0f;
 }
 
 static void _mp_drv_LSM9DS0_calcmRes(mp_drv_LSM9DS0_t *LSM9DS0) {
 	// Possible magnetometer scales (and their register bit settings) are:
 	// 2 Gs (00), 4 Gs (01), 8 Gs (10) 12 Gs (11). Here's a bit of an algorithm
 	// to calculate Gs/(ADC tick) based on that 2-bit value:
-	LSM9DS0->mRes = LSM9DS0->mag_scale == M_SCALE_2GS ? 2.0 / 32768.0 :
-		(float) (LSM9DS0->mag_scale << 2) / 32768.0;
+	LSM9DS0->mRes = LSM9DS0->mag_scale == M_SCALE_2GS ? 2.0f / 32768.0f :
+		(float) (LSM9DS0->mag_scale << 2) / 32768.0f;
 }
 
 static void _mp_drv_LSM9DS0_onCSGWhoIAm(mp_regMaster_op_t *operand, mp_bool_t terminate) {
@@ -824,16 +819,16 @@ static void _mp_drv_LSM9DS0_onWrite(mp_regMaster_op_t *operand, mp_bool_t termin
 static void _mp_drv_LSM9DS0_onGyroRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-	LSM9DS0->gyro->axis3.x = (LSM9DS0->gRes*(double)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->gbias[0];
-	LSM9DS0->gyro->axis3.y = (LSM9DS0->gRes*(double)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->gbias[1];
-	LSM9DS0->gyro->axis3.z = (LSM9DS0->gRes*(double)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->gbias[2];
+	mp_sensor_publish3(LSM9DS0->gyro,
+		LSM9DS0->gRes * (float)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]) - LSM9DS0->gbias[0],
+		LSM9DS0->gRes * (float)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]) - LSM9DS0->gbias[1],
+		LSM9DS0->gRes * (float)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]) - LSM9DS0->gbias[2]);
 
 	if(LSM9DS0->onGyroData)
 		LSM9DS0->onGyroData(LSM9DS0);
 
 	//if(init == 5) {
 		//mp_printk("%d", ((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]));
-	//mp_printk("LSM9DS0(%p) Gyro x=%f y=%f z=%f", LSM9DS0, LSM9DS0->gyro->axis3.x, LSM9DS0->gyro->axis3.y, LSM9DS0->gyro->axis3.z);
 	//init=0;
 	//}
 	//init++;
@@ -890,16 +885,16 @@ static void _mp_drv_LSM9DS0_onGyroCalibrationRead(mp_regMaster_op_t *operand, mp
 static void _mp_drv_LSM9DS0_onMagRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-	LSM9DS0->magneto->axis3.x = LSM9DS0->mRes*(double)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]);
-	LSM9DS0->magneto->axis3.y = LSM9DS0->mRes*(double)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]);
-	LSM9DS0->magneto->axis3.z = LSM9DS0->mRes*(double)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]);
+	mp_sensor_publish3(LSM9DS0->magneto,
+		LSM9DS0->mRes * (float)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]),
+		LSM9DS0->mRes * (float)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]),
+		LSM9DS0->mRes * (float)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]));
 
 	if(LSM9DS0->onMagData)
 		LSM9DS0->onMagData(LSM9DS0);
 
 	//if(init == 10) {
 		//mp_printk("%d", ((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]));
-	//mp_printk("LSM9DS0(%p) Magneto x=%f y=%f z=%f res=%f", LSM9DS0, LSM9DS0->magneto->axis3.x, LSM9DS0->magneto->axis3.y, LSM9DS0->magneto->axis3.z, LSM9DS0->mRes);
 	//init=0;
 	//}
 	//init++;
@@ -907,21 +902,24 @@ static void _mp_drv_LSM9DS0_onMagRead(mp_regMaster_op_t *operand, mp_bool_t term
 
 static void _mp_drv_LSM9DS0_onTemperatureRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
-	LSM9DS0->temperature->temperature.result = ((LSM9DS0->buffer[1] << 12) | LSM9DS0->buffer[0] << 4 ) >> 4;
+	/* 12 bits two's complement, 8 LSB per degree; the datasheet gives no zero, 25 C is the usual one */
+	int16_t raw = (int16_t)(((LSM9DS0->buffer[1] & 0x0f) << 12) | (LSM9DS0->buffer[0] << 4)) >> 4;
+
+	mp_sensor_publish(LSM9DS0->temperature, 25.0f + (float)raw / 8.0f);
 
 	if(LSM9DS0->onTempData)
 		LSM9DS0->onTempData(LSM9DS0);
 
-	//mp_printk("LSM9DS0(%p) Temperature %f C", LSM9DS0, LSM9DS0->temperature->temperature.result);
 }
 
 //int initAccel = 0;
 static void _mp_drv_LSM9DS0_onAccelRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-	LSM9DS0->accelero->axis3.x = (LSM9DS0->aRes*(double)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]))-LSM9DS0->abias[0];
-	LSM9DS0->accelero->axis3.y = (LSM9DS0->aRes*(double)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]))-LSM9DS0->abias[1];
-	LSM9DS0->accelero->axis3.z = (LSM9DS0->aRes*(double)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]))-LSM9DS0->abias[2];
+	mp_sensor_publish3(LSM9DS0->accelero,
+		LSM9DS0->aRes * (float)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]) - LSM9DS0->abias[0],
+		LSM9DS0->aRes * (float)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]) - LSM9DS0->abias[1],
+		LSM9DS0->aRes * (float)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]) - LSM9DS0->abias[2]);
 
 	if(LSM9DS0->onAccelData)
 		LSM9DS0->onAccelData(LSM9DS0);
@@ -930,7 +928,6 @@ static void _mp_drv_LSM9DS0_onAccelRead(mp_regMaster_op_t *operand, mp_bool_t te
 
 	//if(initAccel == 10) {
 		//mp_printk("%d", ((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]));
-	//mp_printk("LSM9DS0(%p) Accel x=%f y=%f z=%f", LSM9DS0, LSM9DS0->accelero->axis3.x, LSM9DS0->accelero->axis3.y, LSM9DS0->accelero->axis3.z);
 	//initAccel=0;
 	//}
 	//initAccel++;
@@ -1008,17 +1005,13 @@ MP_TASK(_mp_drv_LSM9DS0_ASR) {
 
 	/* receive regMaster shutdown */
 	if(task->signal == MP_TASK_SIG_STOP) {
-		if(LSM9DS0->gyro)
-			mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->gyro);
+		mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->gyro);
 
-		if(LSM9DS0->magneto)
-			mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->magneto);
+		mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->magneto);
 
-		if(LSM9DS0->temperature)
-			mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->temperature);
+		mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->temperature);
 
-		if(LSM9DS0->accelero)
-			mp_sensor_unregister(LSM9DS0->kernel, LSM9DS0->accelero);
+		mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->accelero);
 
 		/* acknowledging */
 		mp_task_signal(LSM9DS0->task, MP_TASK_SIG_DEAD);

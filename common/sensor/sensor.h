@@ -23,88 +23,62 @@
 #ifndef _HAVE_MP_COMMON_SENSOR_H
 	#define _HAVE_MP_COMMON_SENSOR_H
 
-	#define MP_COMMON_SENSOR_NAME_SIZE 19
-
 	typedef struct mp_sensor_handler_s mp_sensor_handler_t;
 	typedef struct mp_sensor_s mp_sensor_t;
 
+	/** what a sensor measures, and the unit it publishes in */
 	typedef enum {
-		MP_SENSOR_TEMPERATURE,
-		MP_SENSOR_BAROMETER,
-		MP_SENSOR_ALTIMETER,
-		MP_SENSOR_3AXIS,
-		MP_SENSOR_VOLTAGE,
-		MP_SENSOR_CURRENT,
+		MP_SENSOR_TEMPERATURE,		/**< degree Celsius */
+		MP_SENSOR_BAROMETER,		/**< pascal */
+		MP_SENSOR_ALTIMETER,		/**< metre */
+		MP_SENSOR_ACCELEROMETER,	/**< g, x y z */
+		MP_SENSOR_GYROSCOPE,		/**< degree per second, x y z */
+		MP_SENSOR_MAGNETOMETER,		/**< gauss, x y z */
+		MP_SENSOR_VOLTAGE,			/**< volt */
+		MP_SENSOR_CURRENT,			/**< ampere */
+		MP_SENSOR_TYPES
 	} mp_sensor_type_t;
 
-	typedef struct {
-		float result;
-	} mp_sensor_temperature_t;
-
-	typedef struct {
-		float result;
-	} mp_sensor_voltage_t;
-
-	typedef struct {
-		float result;
-	} mp_sensor_current_t;
-
-	typedef struct {
-		float x;
-		float y;
-		float z;
-	} mp_sensor_3axis_t;
-
-	typedef struct {
-		float result;
-	} mp_sensor_barometer_t;
-
-	typedef struct {
-#define MP_SENSOR_ALTIMETER_FEET  0
-#define MP_SENSOR_ALTIMETER_METER 1
-#define MP_SENSOR_ALTIMETER_FMC   0.30480
-
-		/** convert to feet or meter */
-		char conversion;
-
-		/** altimeter result */
-		float result;
-	} mp_sensor_altimeter_t;
+	/** a mp_sensor_find() type that matches every sensor */
+	#define MP_SENSOR_ANY MP_SENSOR_TYPES
 
 	struct mp_sensor_s {
-		unsigned short id;
-
-		char idName[MP_COMMON_SENSOR_NAME_SIZE];
+		/** kept, not copied: it must outlive the sensor */
+		const char *name;
 
 		mp_sensor_type_t type;
 
-		union {
-			mp_sensor_temperature_t temperature;
-			mp_sensor_barometer_t barometer;
-			mp_sensor_altimeter_t altimeter;
-			mp_sensor_voltage_t voltage;
-			mp_sensor_current_t current;
-			mp_sensor_3axis_t axis3;
-		};
+		/** YES once a value was published */
+		mp_bool_t valid;
+
+		/** clock ticks of the last publication */
+		unsigned long stamp;
+
+		/** value[0], or x y z; read them with mp_sensor_read() */
+		float value[3];
 
 		mp_list_item_t item;
 	};
 
-
-
 	struct mp_sensor_handler_s {
-		int lastId;
 		mp_list_t list;
 	};
 
 	void mp_sensor_init(mp_kernel_t *kernel);
-	void mp_sensor_flush(mp_kernel_t *kernel);
-	mp_sensor_t *mp_sensor_register(mp_kernel_t *kernel, mp_sensor_type_t type, char *name);
-	mp_ret_t mp_sensor_unregister(mp_kernel_t *kernel, mp_sensor_t *sensor);
-	mp_sensor_t *mp_sensor_search(mp_kernel_t *kernel, char *key);
+	void mp_sensor_fini(mp_kernel_t *kernel);
 
-	#define mp_sensor_fini mp_sensor_flush
+	mp_sensor_t *mp_sensor_register(mp_kernel_t *kernel, mp_sensor_type_t type, const char *name);
+	mp_ret_t mp_sensor_unregister(mp_kernel_t *kernel, mp_sensor_t **sensor);
+
+	void mp_sensor_publish(mp_sensor_t *sensor, float value);
+	void mp_sensor_publish3(mp_sensor_t *sensor, float x, float y, float z);
+	mp_ret_t mp_sensor_read(mp_sensor_t *sensor, float value[3], unsigned long *age);
+
+	mp_sensor_t *mp_sensor_next(mp_kernel_t *kernel, mp_sensor_t *after);
+	mp_sensor_t *mp_sensor_find(mp_kernel_t *kernel, mp_sensor_type_t type, const char *name);
+
+	int mp_sensor_axes(mp_sensor_type_t type);
+	const char *mp_sensor_unit(mp_sensor_type_t type);
 
 #endif
 #endif
-

@@ -198,6 +198,7 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 void mp_drv_TMP006_fini(mp_drv_TMP006_t *TMP006) {
 	mp_printk("Unloading TMP006 driver");
 
+	mp_sensor_unregister(TMP006->kernel, &TMP006->sensor);
 	mp_regMaster_fini(&TMP006->regMaster);
 }
 
@@ -373,11 +374,11 @@ static void _mp_drv_TMP006_onRawVoltage(mp_regMaster_op_t *operand, mp_bool_t te
 
 	float fVobj = (Vobj - Vos) + TMP006_C2*(Vobj-Vos)*(Vobj-Vos);
 
-	float Tobj = sqrt(sqrt(Tdie * Tdie * Tdie * Tdie + fVobj/S));
+	float Tobj = sqrtf(sqrtf(Tdie * Tdie * Tdie * Tdie + fVobj/S));
 
-	Tobj -= 273.15; // Kelvin -> *C
+	Tobj -= 273.15f; // Kelvin -> *C
 
-	TMP006->sensor->temperature.result = Tobj;
+	mp_sensor_publish(TMP006->sensor, Tobj);
 }
 
 

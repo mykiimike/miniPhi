@@ -331,22 +331,22 @@ static void _mp_drv_INA219_writeControl(mp_regMaster_op_t *operand, mp_bool_t te
 static void _mp_drv_INA219_busVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_INA219_t *INA219 = operand->user;
 
+	/* 4 mV per step above 3 status bits */
 	INA219->rawBusVoltage = ((INA219->rawBusVoltage >> 3) * 4);
-	INA219->busVoltage->voltage.result = INA219->rawBusVoltage;
-	mp_printk("_mp_drv_INA219_busVoltage %f", INA219->busVoltage->voltage.result);
+	mp_sensor_publish(INA219->busVoltage, (float)INA219->rawBusVoltage / 1000.0f);
 
 }
 
 static void _mp_drv_INA219_shuntVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_INA219_t *INA219 = operand->user;
-	INA219->shuntVoltage->voltage.result = INA219->rawShuntVoltage*0.01;
-	mp_printk("_mp_drv_INA219_shuntVoltage: %f", INA219->shuntVoltage->voltage.result);
+	/* signed, 10 uV per step */
+	mp_sensor_publish(INA219->shuntVoltage, (float)(int16_t)INA219->rawShuntVoltage * 0.00001f);
 }
 
 static void _mp_drv_INA219_current(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_INA219_t *INA219 = operand->user;
-	INA219->current->current.result = INA219->rawCurrent*0.001;
-	mp_printk("_mp_drv_INA219_current %f", INA219->current->current.result);
+	/* signed, 1 mA per step with the calibration the driver writes */
+	mp_sensor_publish(INA219->current, (float)(int16_t)INA219->rawCurrent * 0.001f);
 }
 
 
@@ -358,9 +358,9 @@ MP_TASK(_mp_drv_INA219_ASR) {
 	/* receive shutdown */
 	if(task->signal == MP_TASK_SIG_STOP) {
 
-		mp_sensor_unregister(INA219->kernel, INA219->busVoltage);
-		mp_sensor_unregister(INA219->kernel, INA219->shuntVoltage);
-		mp_sensor_unregister(INA219->kernel, INA219->current);
+		mp_sensor_unregister(INA219->kernel, &INA219->busVoltage);
+		mp_sensor_unregister(INA219->kernel, &INA219->shuntVoltage);
+		mp_sensor_unregister(INA219->kernel, &INA219->current);
 
 		mp_regMaster_fini(&INA219->regMaster);
 

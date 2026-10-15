@@ -325,32 +325,17 @@ static void _sysinfo_report(sysinfo_t *sysinfo) {
 
 #ifdef SUPPORT_COMMON_SENSOR
 	{
-		mp_list_item_t *item;
-		mp_sensor_t *sensor;
+		mp_sensor_t *sensor = NULL;
+		float v[3];
 
-		for(item = kernel->sensors.list.first; item != NULL; item = item->next) {
-			sensor = item->user;
-			switch(sensor->type) {
-				case MP_SENSOR_TEMPERATURE:
-					mp_printk("  %s: %.1f C", sensor->idName, (double)sensor->temperature.result);
-					break;
-				case MP_SENSOR_VOLTAGE:
-					mp_printk("  %s: %.3f V", sensor->idName, (double)sensor->voltage.result);
-					break;
-				case MP_SENSOR_CURRENT:
-					mp_printk("  %s: %.3f A", sensor->idName, (double)sensor->current.result);
-					break;
-				case MP_SENSOR_BAROMETER:
-					mp_printk("  %s: %.1f Pa", sensor->idName, (double)sensor->barometer.result);
-					break;
-				case MP_SENSOR_ALTIMETER:
-					mp_printk("  %s: %.1f", sensor->idName, (double)sensor->altimeter.result);
-					break;
-				case MP_SENSOR_3AXIS:
-					mp_printk("  %s: %.2f %.2f %.2f", sensor->idName,
-						(double)sensor->axis3.x, (double)sensor->axis3.y, (double)sensor->axis3.z);
-					break;
-			}
+		while((sensor = mp_sensor_next(kernel, sensor)) != NULL) {
+			if(mp_sensor_read(sensor, v, NULL) != TRUE)
+				mp_printk("  %s: --", sensor->name);
+			else if(mp_sensor_axes(sensor->type) == 3)
+				mp_printk("  %s: %.2f %.2f %.2f %s", sensor->name,
+					(double)v[0], (double)v[1], (double)v[2], mp_sensor_unit(sensor->type));
+			else
+				mp_printk("  %s: %.3f %s", sensor->name, (double)v[0], mp_sensor_unit(sensor->type));
 		}
 	}
 #endif

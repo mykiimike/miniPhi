@@ -138,12 +138,6 @@ static mp_ret_t _smb380_write(mp_drv_smb380_t *smb, unsigned char reg, unsigned 
 	return(mp_regMaster_write(&smb->regMaster, buf, 2, done, smb));
 }
 
-static void _smb380_drop(mp_drv_smb380_t *smb, mp_sensor_t *sensor) {
-	if(!sensor)
-		return;
-	mp_sensor_unregister(smb->kernel, sensor);
-	mp_mem_free(smb->kernel, sensor);
-}
 
 mp_ret_t mp_drv_smb380_init(mp_kernel_t *kernel, mp_drv_smb380_t *smb, mp_options_t *options, char *who) {
 	char *value;
@@ -236,8 +230,8 @@ void mp_drv_smb380_fini(mp_drv_smb380_t *smb) {
 		smb->irq = NULL;
 	}
 
-	_smb380_drop(smb, smb->accel);
-	_smb380_drop(smb, smb->temperature);
+	mp_sensor_unregister(smb->kernel, &smb->accel);
+	mp_sensor_unregister(smb->kernel, &smb->temperature);
 	smb->accel = NULL;
 	smb->temperature = NULL;
 }
@@ -289,23 +283,19 @@ static void _smb380_onRangeWritten(mp_regMaster_op_t *operand, mp_bool_t termina
 	if(terminate == YES)
 		return;
 
-	smb->accel = mp_sensor_register(smb->kernel, MP_SENSOR_3AXIS, "SMB380");
+	smb->accel = mp_sensor_register(smb->kernel, MP_SENSOR_ACCELEROMETER, "SMB380");
 	smb->temperature = mp_sensor_register(smb->kernel, MP_SENSOR_TEMPERATURE, "SMB380 Temp");
 	if(!smb->accel || !smb->temperature) {
-		_smb380_drop(smb, smb->accel);
-		_smb380_drop(smb, smb->temperature);
-		smb->accel = NULL;
-		smb->temperature = NULL;
+		mp_sensor_unregister(smb->kernel, &smb->accel);
+		mp_sensor_unregister(smb->kernel, &smb->temperature);
 		mp_printk("SMB380: can not register the sensors");
 		return;
 	}
 
 	smb->task = mp_task_create(&smb->kernel->tasks, "SMB380", _smb380_task, smb, smb->period);
 	if(!smb->task) {
-		_smb380_drop(smb, smb->accel);
-		_smb380_drop(smb, smb->temperature);
-		smb->accel = NULL;
-		smb->temperature = NULL;
+		mp_sensor_unregister(smb->kernel, &smb->accel);
+		mp_sensor_unregister(smb->kernel, &smb->temperature);
 		mp_printk("SMB380: can not create the sample task");
 		return;
 	}
@@ -328,14 +318,12 @@ static void _smb380_onSample(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	y = _smb380_axis(smb->raw[2], smb->raw[3]);
 	z = _smb380_axis(smb->raw[4], smb->raw[5]);
 
-	if(smb->accel) {
-		smb->accel->axis3.x = (float)x / (float)smb->countsPerG;
-		smb->accel->axis3.y = (float)y / (float)smb->countsPerG;
-		smb->accel->axis3.z = (float)z / (float)smb->countsPerG;
-	}
+	mp_sensor_publish3(smb->accel,
+		(float)x / (float)smb->countsPerG,
+		(float)y / (float)smb->countsPerG,
+		(float)z / (float)smb->countsPerG);
 	/* code 0x00 is -30 °C, and each step is 0.5 °C */
-	if(smb->temperature)
-		smb->temperature->temperature.result = (float)smb->raw[6] * 0.5f - 30.0f;
+	mp_sensor_publish(smb->temperature, (float)smb->raw[6] * 0.5f - 30.0f);
 }
 
 static MP_TASK(_smb380_task) {
