@@ -55,6 +55,8 @@ static void _smb380_onWake(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _smb380_onRange(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _smb380_onRangeWritten(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _smb380_onSample(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _smb380_onCtrl(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _smb380_ctrl(mp_drv_smb380_t *smb, unsigned char value);
 static MP_TASK(_smb380_task);
 
 static unsigned long _smb380_ticks(unsigned long ms) {
@@ -306,6 +308,29 @@ static void _smb380_onRangeWritten(mp_regMaster_op_t *operand, mp_bool_t termina
 		(unsigned int)_smb380_hz[smb->bandwidth]);
 }
 
+static void _smb380_ctrl(mp_drv_smb380_t *smb, unsigned char value) {
+	if(smb->busy == YES)
+		return;
+	smb->ctrl = value;
+	if(_smb380_write(smb, SMB380_REG_CTRL, value, _smb380_onCtrl) == TRUE)
+		smb->busy = YES;
+}
+
+static void _smb380_onCtrl(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_smb380_t *smb = operand->user;
+	unsigned char want = smb->asleep == YES ? 1 : 0;
+
+	mp_mem_free(smb->kernel, operand->reg);
+	smb->busy = NO;
+	if(terminate == YES || !smb->task)
+		return;
+	if(smb->ctrl != want) {
+		_smb380_ctrl(smb, want);
+		return;
+	}
+	mp_task_delay(smb->task, want ? MP_TASK_FOREVER : smb->period);
+}
+
 static void _smb380_onSample(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_smb380_t *smb = operand->user;
 	int x, y, z;
@@ -313,6 +338,10 @@ static void _smb380_onSample(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	smb->busy = NO;
 	if(terminate == YES)
 		return;
+	if(smb->asleep == YES) {
+		_smb380_ctrl(smb, 1);
+		return;
+	}
 
 	x = _smb380_axis(smb->raw[0], smb->raw[1]);
 	y = _smb380_axis(smb->raw[2], smb->raw[3]);
@@ -331,6 +360,11 @@ static MP_TASK(_smb380_task) {
 
 	if(task->signal == MP_TASK_SIG_STOP) {
 		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+	if(smb->asleep == YES) {
+		mp_task_delay(task, MP_TASK_FOREVER);
+		_smb380_ctrl(smb, 1);
 		return;
 	}
 	if(smb->busy == YES)
@@ -355,8 +389,20 @@ static void _smb380_device_close(void *self) {
 	mp_drv_smb380_fini(self);
 }
 
+/* 0 sleeps the chip until the screen comes back; the sensors stay registered */
+static void _smb380_device_set(void *self, int value) {
+	mp_drv_smb380_t *smb = self;
+	mp_bool_t asleep = value ? NO : YES;
+
+	if(!smb->task || smb->asleep == asleep)
+		return;
+	smb->asleep = asleep;
+	mp_task_delay(smb->task, asleep == YES ? MP_TASK_FOREVER : smb->period);
+	_smb380_ctrl(smb, asleep == YES ? 1 : 0);
+}
+
 const mp_device_driver_t mp_drv_smb380_device = {
-	"SMB380", MP_DEVICE_ACCELEROMETER, _smb380_device_open, _smb380_device_close, NULL, NULL
+	"SMB380", MP_DEVICE_ACCELEROMETER, _smb380_device_open, _smb380_device_close, NULL, _smb380_device_set
 };
 #endif
 

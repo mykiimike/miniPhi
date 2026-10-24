@@ -52,6 +52,10 @@
 		int countsPerG;
 		unsigned long period;
 		mp_bool_t busy;
+		/** the screen is off: the sample task waits and the chip sleeps */
+		mp_bool_t asleep;
+		/** last value written to the control register */
+		unsigned char ctrl;
 	};
 
 	mp_ret_t mp_drv_smb380_init(mp_kernel_t *kernel, mp_drv_smb380_t *smb, mp_options_t *options, char *who);

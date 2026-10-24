@@ -53,6 +53,8 @@
 		int brightness;
 		mp_power_hold_t dimmed;
 
+		/** option standby: the screen-off path may write STB */
+		mp_bool_t canStandby;
 		/** the panel is in standby, see mp_tui_display_t.power */
 		mp_bool_t standby;
 	};
@@ -60,7 +62,8 @@
 	/**
 	 * options: the fsmc bus ones, reset and backlight pins (both optional),
 	 * backlightLow, backlightTimer (the timer whose channel is the backlight
-	 * pin, to dim it), orientation (landscape, portrait, landscape-flipped,
+	 * pin, to dim it), standby (true lets the screen-off path power the
+	 * panel down), orientation (landscape, portrait, landscape-flipped,
 	 * portrait-flipped).
 	 */
 	mp_ret_t mp_drv_ili932x_init(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_options_t *options, char *who);

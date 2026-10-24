@@ -32,9 +32,11 @@ display coordinates onto them and sets the entry mode so the pixels of
 a window arrive row after row of the display.
 
 The backlight is a pin, or a PWM channel when backlightTimer names the
-timer of that pin: the TUI screen saver dims it. Timers stop in Stop, so
-a backlight between off and full holds the LOW power level. Off, the
-panel goes to standby: the TUI redraws everything when it comes back.
+timer of that pin: the TUI screen saver dims it, then turns it off.
+Timers stop in Stop, so a backlight between off and full holds the LOW
+power level. Standby (option standby) powers the panel down and the TUI
+redraws it on the way back. Left off, the glass stays up so a touch wakes
+the screen.
 
 @{
 */
@@ -200,6 +202,9 @@ static void _ili932x_backlight(mp_tui_display_t *display, int percent) {
 static void _ili932x_power(mp_tui_display_t *display, int on) {
 	mp_drv_ili932x_t *lcd = display->user;
 
+	if(lcd->canStandby == NO)
+		return;
+
 	if(on && lcd->standby == YES) {
 		_ili932x_reg(lcd, 0x0010, 0x17B0);
 		_ili932x_reg(lcd, 0x0011, 0x0137);
@@ -264,6 +269,9 @@ mp_ret_t mp_drv_ili932x_init(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_opti
 
 	memset(lcd, 0, sizeof(*lcd));
 	lcd->kernel = kernel;
+
+	value = mp_options_get(options, "standby");
+	lcd->canStandby = value && mp_options_cmp(value, "true") == TRUE ? YES : NO;
 
 	value = mp_options_get(options, "orientation");
 	for(index = 0; value && index < sizeof(_ili932x_orientations) / sizeof(_ili932x_orientations[0]); index++)

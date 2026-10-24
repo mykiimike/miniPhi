@@ -1133,6 +1133,18 @@ static void _mp_tui_backlight(mp_tui_t *ui, int percent) {
 		ui->display->backlight(ui->display, percent);
 }
 
+static void _mp_tui_rest(int on) {
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_t *device;
+	int rank;
+
+	for(rank = 0; (device = mp_device_find(MP_DEVICE_ACCELEROMETER, rank)) != NULL; rank++)
+		mp_device_set(device, on);
+#else
+	(void)on;
+#endif
+}
+
 static void _mp_tui_doze(mp_tui_t *ui, int dozing) {
 #ifdef SUPPORT_COMMON_INPUT
 	mp_input_t *input = NULL;
@@ -1155,6 +1167,7 @@ void mp_tui_wake(mp_tui_t *ui) {
 		if(ui->display->power)
 			ui->display->power(ui->display, 1);
 		_mp_tui_doze(ui, 0);
+		_mp_tui_rest(1);
 		ui->saver = MP_TUI_AWAKE;
 		mp_tui_refresh(ui);
 	}
@@ -1186,6 +1199,7 @@ static unsigned long _mp_tui_saver(mp_tui_t *ui) {
 		if(ui->display->power)
 			ui->display->power(ui->display, 0);
 		_mp_tui_doze(ui, 1);
+		_mp_tui_rest(0);
 		ui->saver = MP_TUI_OFF;
 	}
 
