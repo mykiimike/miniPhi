@@ -89,6 +89,10 @@ void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) 
 	mp_rng_start(kernel);
 #endif
 
+#ifdef SUPPORT_COMMON_USB
+	mp_usb_start(kernel);
+#endif
+
 	/* initialize logical machine state */
 	mp_state_init(kernel, &kernel->states);
 
@@ -117,6 +121,10 @@ void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) 
 void mp_kernel_fini(mp_kernel_t *kernel) {
 #ifdef SUPPORT_COMMON_CRYPTO_RNG
 	mp_rng_stop();
+#endif
+
+#ifdef SUPPORT_COMMON_USB
+	mp_usb_stop();
 #endif
 
 	/* terminate logical machine state */

@@ -52,6 +52,9 @@
 	unsigned long mp_clock_get_speed();
 	const char *mp_clock_name(mp_clock_freq_t clock);
 
+	/* YES when the PLL is up and its USB output is 48 MHz */
+	mp_bool_t mp_clock_usb48(void);
+
 	/* waits, in ticks (ms) with WFI between them, and busy in nanoseconds */
 	void mp_clock_delay(int delay);
 	void mp_clock_nanoDelay(unsigned long delay);

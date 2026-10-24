@@ -3,12 +3,12 @@ export const phi = {
 	name: "stm32-lcd",
 	vendor: "Olimex",
 	label: "Olimex STM32-LCD",
-	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. ILI9320 TFT on the FSMC (NE1, RS on A19), shown by the TUI. The 4-wire touch panel is on PC0 to PC3 (YD, YU, XL, XR). A Bosch SMB380 accelerometer is on I2C2 (PB10 SCL, PB11 SDA), its interrupt on PE4. No user LED: D1 to D4 are supply diodes.",
+	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. ILI9320 TFT on the FSMC (NE1, RS on A19), shown by the TUI. The 4-wire touch panel is on PC0 to PC3 (YD, YU, XL, XR). A Bosch SMB380 accelerometer is on I2C2 (PB10 SCL, PB11 SDA), its interrupt on PE4. No user LED: D1 to D4 are supply diodes. Flashed with the ARM-USB-OCD-H.",
 	arch: "stm32",
 	series: "f1",
 	mcu: "stm32f103ze",
 	toolchain: "gcc",
-	requires: ["ak-link"],
+	requires: ["arm-usb-ocd-h"],
 	app: "sysinfo",
 	defines: [],
 	modules: ["SERIAL", "SENSOR", "INPUT", "TUI", "KFLASH", "RSA"],
@@ -18,6 +18,8 @@ export const phi = {
 		MP_MEM_CHUNK: 64,
 		MP_TUI_TEXT_MAX: 96,
 		MP_CLOCK_LSE: true,
+		/* one device PHY; the System USB table keeps a row per slot */
+		MP_USB_PORT_MAX: 1,
 	},
 	/* pins wired to something the firmware does not own yet */
 	reserved: [

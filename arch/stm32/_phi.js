@@ -34,6 +34,7 @@ export const phi = {
 		"syscalls.c",
 		"timer.c",
 		"uart.c",
+		"usb.c",
 	],
 	buses: {
 		gpio: {

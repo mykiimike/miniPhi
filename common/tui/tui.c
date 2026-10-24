@@ -706,7 +706,7 @@ int mp_tui_app(mp_tui_t *ui, const char *name, mp_tui_app_build_t build, void *u
 	int index, home, line, h, y;
 	mp_tui_button_t *button;
 
-	if(!ui->display || !name || !name[0] || !build || ui->appCount >= MP_TUI_APP_MAX || ui->homeCount >= MP_TUI_APP_MAX)
+	if(!ui->display || !name || !name[0] || !build || ui->appCount >= MP_TUI_APP_MAX || ui->homeCount >= MP_TUI_HOME_MAX)
 		return(0);
 	if(!ui->shell)
 		_mp_tui_shell(ui);

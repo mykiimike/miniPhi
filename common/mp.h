@@ -155,6 +155,9 @@
 	#ifdef SUPPORT_COMMON_DEVICE
 		#include <device/device.h>
 	#endif
+	#ifdef SUPPORT_COMMON_USB
+		#include <usb/usb.h>
+	#endif
 	#ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
 		#include <crypto/blake2s.h>
 	#endif
@@ -308,6 +311,11 @@
 #ifdef SUPPORT_COMMON_INPUT
 		/** every mp_input_t, see mp_input_next() */
 		mp_list_t inputs;
+#endif
+
+#ifdef SUPPORT_COMMON_USB
+		/** PHY ports, see mp_usb_at() */
+		mp_list_t usbs;
 #endif
 
 #ifdef SUPPORT_COMMON_KFLASH

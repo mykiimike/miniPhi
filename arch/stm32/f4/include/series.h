@@ -388,6 +388,8 @@
 		TIM6_IRQn = 54,
 		TIM7_IRQn = 55,
 		USART6_IRQn = 71,
+		OTG_FS_IRQn = 67,
+		OTG_HS_IRQn = 77,
 	} IRQn_Type;
 
 	#define MP_ARCH_IRQ_COUNT 82

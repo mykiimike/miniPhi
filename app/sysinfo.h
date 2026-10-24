@@ -139,6 +139,14 @@ struct sysinfo_s {
 		mp_tui_label_t deviceCount;
 		mp_tui_table_t deviceTable;
 		mp_tui_cell_t deviceCell[MP_DEVICE_MAX][3];
+#ifdef SUPPORT_COMMON_USB
+		int usbIndex;
+		int usbReady;
+		mp_tui_button_t usbButton;
+		mp_tui_label_t usbCount;
+		mp_tui_table_t usbTable;
+		mp_tui_cell_t usbCell[MP_USB_PORT_MAX][4];
+#endif
 		/** class page, then the algorithm; the detail says if that one is accelerated */
 		int cryptoClass;
 		int cryptoDetail;

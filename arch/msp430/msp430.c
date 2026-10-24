@@ -175,3 +175,9 @@ static void _processor_temp(mp_adc_t *adc) {
 
 #endif
 #endif
+
+#ifdef SUPPORT_COMMON_USB
+void mp_usb_arch_register(mp_kernel_t *kernel) {
+	(void)kernel;
+}
+#endif

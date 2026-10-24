@@ -208,6 +208,8 @@
 	#define RCC_CFGR_PLLSRC   (1UL << 16)
 	#define RCC_CFGR_PLLMUL   (15UL << 18)
 	#define RCC_CFGR_PLLXTPRE (1UL << 17)
+	/* 0: PLL / 1.5 (72 MHz -> 48), 1: PLL (48 MHz) */
+	#define RCC_CFGR_USBPRE   (1UL << 22)
 	#define RCC_BDCR_LSEON    (1UL << 0)
 	#define RCC_BDCR_LSERDY   (1UL << 1)
 	#define RCC_BDCR_RTCSEL   (3UL << 8)
@@ -388,6 +390,9 @@
 		USART2_IRQn = 38,
 		USART3_IRQn = 39,
 		EXTI15_10_IRQn = 40,
+		/* USB_HP shares CAN1 TX, USB_LP shares CAN1 RX0 */
+		USB_HP_CAN1_TX_IRQn = 19,
+		USB_LP_CAN1_RX0_IRQn = 20,
 		RTCAlarm_IRQn = 41,
 		TIM8_UP_IRQn = 44,
 		TIM5_IRQn = 50,

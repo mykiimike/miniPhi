@@ -47,6 +47,10 @@ void _sysinfo_tasks_open(sysinfo_t *sysinfo);
 void _sysinfo_tasks_refresh(sysinfo_t *sysinfo);
 void _sysinfo_devices_open(sysinfo_t *sysinfo);
 void _sysinfo_devices_refresh(sysinfo_t *sysinfo);
+#ifdef SUPPORT_COMMON_USB
+void _sysinfo_usb_open(sysinfo_t *sysinfo);
+void _sysinfo_usb_refresh(sysinfo_t *sysinfo);
+#endif
 void _sysinfo_crypto_open(sysinfo_t *sysinfo);
 void _sysinfo_crypto_refresh(sysinfo_t *sysinfo);
 void _sysinfo_power_open(sysinfo_t *sysinfo);

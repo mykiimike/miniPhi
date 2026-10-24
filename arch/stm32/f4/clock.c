@@ -316,6 +316,11 @@ mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
 		_mp_clock_plan(level, &plan);
 
 	if(_mp_clock_same(&plan, &__plan) == NO) {
+#ifdef SUPPORT_COMMON_USB
+		/* retiming the PLL drops the 48 MHz the armed PHY is using */
+		if(mp_usb_needs_clock() == YES)
+			return(FALSE);
+#endif
 		_mp_clock_apply(kernel, &plan);
 		_mp_clock_tick_retime();
 		mp_uart_retime();
@@ -537,6 +542,16 @@ const char *mp_clock_name(mp_clock_freq_t clock) {
 		case MHZ168_t: return("168 MHz");
 		default: return("16 MHz");
 	}
+}
+
+mp_bool_t mp_clock_usb48(void) {
+	uint32_t q;
+
+	/* PLLQ is chosen so VCO / Q is 48 MHz when the VCO is a multiple of 48 */
+	if(__plan.sw != 2 || (__plan.plln % 48) != 0)
+		return(NO);
+	q = __plan.plln / 48;
+	return(q >= 2 && q <= 15 ? YES : NO);
 }
 
 void mp_clock_delay(int delay) {

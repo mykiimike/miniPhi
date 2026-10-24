@@ -217,6 +217,16 @@ static void _sysinfo_on_devices(mp_tui_button_t *button) {
 	mp_tui_enter(&sysinfo->screen.tui, sysinfo->screen.devicesIndex);
 }
 
+#ifdef SUPPORT_COMMON_USB
+static void _sysinfo_on_usb(mp_tui_button_t *button) {
+	sysinfo_t *sysinfo = button->user;
+
+	if(!sysinfo || sysinfo->screen.usbIndex < 0)
+		return;
+	mp_tui_enter(&sysinfo->screen.tui, sysinfo->screen.usbIndex);
+}
+#endif
+
 static void _sysinfo_logo_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 	mp_tui_draw_bitmap(draw, &mp_tui_logo, widget->screen.x, widget->screen.y, widget->screen.w, widget->screen.h);
 }
@@ -364,7 +374,16 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	sysinfo->screen.devicesButton.chevron = 1;
 	sysinfo->screen.devicesButton.onPress = _sysinfo_on_devices;
 	sysinfo->screen.devicesButton.user = sysinfo;
-	y += line + 18 + 8;
+	y += line + 18 + 6;
+
+#ifdef SUPPORT_COMMON_USB
+	mp_tui_button(&sysinfo->screen.usbButton, page, 12, y, width - 24, line + 18, "USB");
+	sysinfo->screen.usbButton.chevron = 1;
+	sysinfo->screen.usbButton.onPress = _sysinfo_on_usb;
+	sysinfo->screen.usbButton.user = sysinfo;
+	y += line + 18 + 6;
+#endif
+	y += 2;
 
 	/* under the panels when the page is full, on the bottom edge when it fits */
 	if(y + line * 2 < page->rect.h)

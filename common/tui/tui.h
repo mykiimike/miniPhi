@@ -50,8 +50,13 @@
 		#define MP_TUI_DIRTY_MAX 4
 	#endif
 
+	#ifndef MP_TUI_HOME_MAX
+		#define MP_TUI_HOME_MAX 8
+	#endif
+
+	/* sub-pages share this list and have no home button */
 	#ifndef MP_TUI_APP_MAX
-		#define MP_TUI_APP_MAX 8
+		#define MP_TUI_APP_MAX 12
 	#endif
 
 	/* screen saver, in seconds without input; 0 never */
@@ -309,7 +314,7 @@
 			void *user;
 		} app[MP_TUI_APP_MAX];
 		mp_tui_label_t homeTitle;
-		mp_tui_button_t homeButton[MP_TUI_APP_MAX];
+		mp_tui_button_t homeButton[MP_TUI_HOME_MAX];
 		mp_tui_page_t page;
 		mp_tui_button_t back;
 		mp_tui_label_t pageTitle;

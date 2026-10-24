@@ -350,6 +350,23 @@ static void _sysinfo_report(sysinfo_t *sysinfo) {
 		mp_power_name(kernel->power.level), (mp_clock_level_hz(kernel->power.level) + 500000UL) / 1000000UL,
 		(unsigned int)kernel->power.load, kernel->power.wakeups, kernel->power.deep);
 
+#ifdef SUPPORT_COMMON_USB
+	{
+		int n;
+
+		for(n = 0; n < mp_usb_count(); n++) {
+			mp_usb_port_t *port = mp_usb_at(n);
+
+			mp_printk("  usb %s lock %s, %s, %s%s%s",
+				port->name, mp_usb_lock_name(port->fixed),
+				mp_usb_role_name(port->role),
+				port->fault == YES ? "fault" : mp_usb_link_name(port->link),
+				port->speed == MP_USB_SPEED_NONE || port->fault == YES ? "" : ", ",
+				port->speed == MP_USB_SPEED_NONE || port->fault == YES ? "" : mp_usb_speed_name(port->speed));
+		}
+	}
+#endif
+
 #ifdef SUPPORT_COMMON_SENSOR
 	{
 		mp_sensor_t *sensor = NULL;

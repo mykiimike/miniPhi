@@ -219,6 +219,13 @@ static void _mp_clock_apply(mp_kernel_t *kernel, const _mp_clock_plan_t *plan) {
 	__sysclk = plan->hz;
 	__pclk1 = plan->hz > _APB1_MAX_HZ ? plan->hz / 2 : plan->hz;
 	__pclk2 = plan->hz;
+#ifdef SUPPORT_COMMON_USB
+	/* 72 MHz PLL / 1.5, or the 48 MHz PLL itself */
+	if(__sysclk == 48000000UL)
+		RCC->CFGR |= RCC_CFGR_USBPRE;
+	else
+		RCC->CFGR &= ~RCC_CFGR_USBPRE;
+#endif
 	__plan = *plan;
 	kernel->arch.sysclk = plan->hz;
 	kernel->arch.hse = plan->hse;
@@ -273,6 +280,11 @@ mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
 		_mp_clock_plan(level, &plan);
 
 	if(_mp_clock_same(&plan, &__plan) == NO) {
+#ifdef SUPPORT_COMMON_USB
+		/* retiming the PLL drops the 48 MHz the armed PHY is using */
+		if(mp_usb_needs_clock() == YES)
+			return(FALSE);
+#endif
 		_mp_clock_apply(kernel, &plan);
 		_mp_clock_tick_retime();
 		mp_uart_retime();
@@ -639,6 +651,12 @@ const char *mp_clock_name(mp_clock_freq_t clock) {
 	if((unsigned int)clock >= sizeof(__names) / sizeof(__names[0]))
 		return("unknown");
 	return(__names[clock]);
+}
+
+mp_bool_t mp_clock_usb48(void) {
+	if(__plan.sw != 2)
+		return(NO);
+	return(__plan.hz == 48000000UL || __plan.hz == 72000000UL ? YES : NO);
 }
 
 void mp_clock_delay(int delay) {
