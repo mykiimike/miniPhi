@@ -121,6 +121,14 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 
 	MP_INTERRUPT_SAFE_BEGIN
 
+#if defined(STM32F407xx)
+	mp_gpio_mode(spi->simo, MP_GPIO_MODE_AF);
+	mp_gpio_mode(spi->clk, MP_GPIO_MODE_AF);
+	mp_gpio_mode(spi->somi, MP_GPIO_MODE_AF);
+	mp_gpio_af(spi->simo, 5);
+	mp_gpio_af(spi->clk, 5);
+	mp_gpio_af(spi->somi, 5);
+#else
 	if(cr1 & SPI_CR1_MSTR) {
 		mp_gpio_mode(spi->simo, MP_GPIO_MODE_AF);
 		mp_gpio_mode(spi->clk, MP_GPIO_MODE_AF);
@@ -131,6 +139,7 @@ mp_ret_t mp_spi_setup(mp_spi_t *spi, mp_options_t *options) {
 		mp_gpio_mode(spi->clk, MP_GPIO_MODE_INPUT);
 		mp_gpio_mode(spi->somi, MP_GPIO_MODE_AF);
 	}
+#endif
 
 	spi->regs->CR1 = 0;
 	spi->regs->CR2 = 0;

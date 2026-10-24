@@ -21,8 +21,10 @@
 #ifndef _HAVE_STM32_FLASH_H
 	#define _HAVE_STM32_FLASH_H
 
-	/* high density and XL erase 2 KB at a time, the others 1 KB */
-	#if defined(STM32F10X_HD) || defined(STM32F10X_XL)
+	/* F407 sectors start at 16 KB. High density and XL erase 2 KB, the others 1 KB. */
+	#if defined(STM32F407xx)
+		#define MP_FLASH_PAGE_SIZE 16384UL
+	#elif defined(STM32F10X_HD) || defined(STM32F10X_XL)
 		#define MP_FLASH_PAGE_SIZE 2048UL
 	#else
 		#define MP_FLASH_PAGE_SIZE 1024UL

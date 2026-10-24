@@ -92,8 +92,14 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 	}
 
 	mp_gpio_mode(uart->txd_port, MP_GPIO_MODE_AF);
+#if defined(STM32F407xx)
+	mp_gpio_mode(uart->rxd_port, MP_GPIO_MODE_AF);
+	mp_gpio_af(uart->txd_port, uart->regs == USART1 || uart->regs == USART2 || uart->regs == USART3 ? 7 : 8);
+	mp_gpio_af(uart->rxd_port, uart->regs == USART1 || uart->regs == USART2 || uart->regs == USART3 ? 7 : 8);
+#else
 	mp_gpio_mode(uart->rxd_port, MP_GPIO_MODE_INPUT_PULL);
-	uart->rxd_port->base->BSRR = 1UL << uart->rxd_port->pin;
+#endif
+	mp_gpio_pull_up(uart->rxd_port);
 
 	value = mp_options_get(options, "rts");
 	if(value) {
@@ -117,7 +123,7 @@ mp_ret_t mp_uart_open(mp_kernel_t *kernel, mp_uart_t *uart, mp_options_t *option
 		}
 		/* pulled up: without a peer, nothing leaves */
 		mp_gpio_mode(uart->cts_port, MP_GPIO_MODE_INPUT_PULL);
-		uart->cts_port->base->BSRR = 1UL << uart->cts_port->pin;
+		mp_gpio_pull_up(uart->cts_port);
 		if(mp_gpio_interrupt_set(uart->cts_port, _mp_uart_cts, uart, who) == FALSE) {
 			mp_uart_close(uart);
 			return(FALSE);

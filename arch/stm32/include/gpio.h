@@ -63,6 +63,12 @@
 
 	mp_ret_t mp_gpio_direction(mp_gpio_port_t *port, mp_gpio_direction_t direction);
 	void mp_gpio_mode(mp_gpio_port_t *port, mp_gpio_mode_t mode);
+
+	/* alternate function number: no-op on the F1, AFR on the F4 */
+	void mp_gpio_af(mp_gpio_port_t *port, unsigned int af);
+
+	/* pull-up: ODR on the F1, PUPDR on the F4 */
+	void mp_gpio_pull_up(mp_gpio_port_t *port);
 	mp_bool_t mp_gpio_read(mp_gpio_port_t *port);
 	void mp_gpio_set(mp_gpio_port_t *port);
 	void mp_gpio_unset(mp_gpio_port_t *port);
@@ -77,6 +83,18 @@
 	void mp_gpio_wake_disarm(mp_gpio_port_t *port);
 
 	#define mp_gpio_raw_read(port) ((port)->base->IDR & (1UL << (port)->pin))
+
+	static inline void mp_gpio_pin_set(GPIO_TypeDef *base, unsigned int pin) {
+		base->BSRR = 1UL << pin;
+	}
+
+	static inline void mp_gpio_pin_reset(GPIO_TypeDef *base, unsigned int pin) {
+		#if defined(STM32F407xx)
+			base->BSRR = 1UL << (pin + 16);
+		#else
+			base->BRR = 1UL << pin;
+		#endif
+	}
 
 	static inline void mp_gpio_interrupt_enable(mp_gpio_port_t *port) {
 		EXTI->IMR |= 1UL << port->pin;

@@ -34,6 +34,13 @@
 		MHZ56_t,
 		MHZ64_t,
 		MHZ72_t,
+		/* appended: the F1 clock table indexes the values above */
+		MHZ12_t,
+		MHZ84_t,
+		MHZ96_t,
+		MHZ120_t,
+		MHZ144_t,
+		MHZ168_t,
 	} mp_clock_freq_t;
 
 	mp_ret_t mp_clock_init(mp_kernel_t *kernel);

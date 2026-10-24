@@ -33,6 +33,9 @@ static GPIO_TypeDef * const __bases[MP_ARCH_GPIO_PORTS] = {
 #if MP_ARCH_GPIO_PORTS > 4
 	GPIOE, GPIOF, GPIOG,
 #endif
+#if MP_ARCH_GPIO_PORTS > 7
+	GPIOH,
+#endif
 };
 static mp_gpio_port_t __ports[MP_ARCH_GPIO_PORTS][16];
 
@@ -52,9 +55,31 @@ static mp_bool_t _mp_gpio_debug(unsigned int port, unsigned int pin) {
 	return(NO);
 }
 
+/* the oscillator owns these pins; an analog mode would take them */
+static mp_bool_t _mp_gpio_oscillator(unsigned int port, unsigned int pin) {
+#if defined(STM32F407xx)
+	if(port == 7 && pin <= 1)
+		return(YES);
+#ifdef MP_CLOCK_LSE
+	if(port == 2 && (pin == 14 || pin == 15))
+		return(YES);
+#endif
+#else
+	(void)port;
+	(void)pin;
+#endif
+	return(NO);
+}
+
 void mp_gpio_init() {
 	unsigned int port, pin;
 
+#if defined(STM32F407xx)
+	RCC->AHB1ENR |= (1UL << MP_ARCH_GPIO_PORTS) - 1;
+	RCC->APB2ENR |= RCC_APB2_SYSCFG;
+	(void)RCC->AHB1ENR;
+	(void)RCC->APB2ENR;
+#else
 	RCC->APB2ENR |= RCC_APB2_AFIO | RCC_APB2_IOPA | RCC_APB2_IOPB | RCC_APB2_IOPC | RCC_APB2_IOPD;
 #if MP_ARCH_GPIO_PORTS > 4
 	RCC->APB2ENR |= RCC_APB2_IOPE | RCC_APB2_IOPF | RCC_APB2_IOPG;
@@ -64,6 +89,7 @@ void mp_gpio_init() {
 #ifdef _SWD_ONLY
 	/* keeps SW-DP, gives PA15, PB3 and PB4 back */
 	AFIO->MAPR = (AFIO->MAPR & ~AFIO_MAPR_SWJ_CFG) | AFIO_MAPR_SWJ_SWD;
+#endif
 #endif
 
 	memset(__ports, 0, sizeof(__ports));
@@ -76,7 +102,7 @@ void mp_gpio_init() {
 			__ports[port][pin].base = __bases[port];
 
 			/* an analog pin has no input trigger to leak through */
-			if(_mp_gpio_debug(port, pin) == NO)
+			if(_mp_gpio_debug(port, pin) == NO && _mp_gpio_oscillator(port, pin) == NO)
 				mp_gpio_mode(&__ports[port][pin], MP_GPIO_MODE_ANALOG);
 		}
 	}
@@ -172,12 +198,60 @@ mp_ret_t mp_gpio_release(mp_gpio_port_t *port) {
 }
 
 void mp_gpio_mode(mp_gpio_port_t *port, mp_gpio_mode_t mode) {
+#if defined(STM32F407xx)
+	unsigned int shift = port->pin * 2;
+	uint32_t moder = 0;
+	uint32_t otype = 0;
+	uint32_t pupd = 0;
+
+	switch(mode) {
+		case MP_GPIO_MODE_ANALOG: moder = 3; break;
+		case MP_GPIO_MODE_INPUT: break;
+		case MP_GPIO_MODE_INPUT_PULL: pupd = 1; break;
+		case MP_GPIO_MODE_OUTPUT: moder = 1; break;
+		case MP_GPIO_MODE_OUTPUT_OD: moder = 1; otype = 1; break;
+		case MP_GPIO_MODE_AF: moder = 2; break;
+		case MP_GPIO_MODE_AF_OD: moder = 2; otype = 1; break;
+	}
+
+	MP_INTERRUPT_SAFE_BEGIN
+	port->base->MODER = (port->base->MODER & ~(3UL << shift)) | (moder << shift);
+	port->base->OTYPER = (port->base->OTYPER & ~(1UL << port->pin)) | (otype << port->pin);
+	port->base->OSPEEDR = (port->base->OSPEEDR & ~(3UL << shift)) | (2UL << shift);
+	port->base->PUPDR = (port->base->PUPDR & ~(3UL << shift)) | (pupd << shift);
+	MP_INTERRUPT_SAFE_END
+#else
 	volatile uint32_t *cr = port->pin < 8 ? &port->base->CRL : &port->base->CRH;
 	unsigned int shift = (port->pin & 7) * 4;
 
 	MP_INTERRUPT_SAFE_BEGIN
 	*cr = (*cr & ~(0xFUL << shift)) | ((uint32_t)mode << shift);
 	MP_INTERRUPT_SAFE_END
+#endif
+}
+
+void mp_gpio_af(mp_gpio_port_t *port, unsigned int af) {
+#if defined(STM32F407xx)
+	volatile uint32_t *afr = port->pin < 8 ? &port->base->AFRL : &port->base->AFRH;
+	unsigned int shift = (port->pin & 7) * 4;
+
+	MP_INTERRUPT_SAFE_BEGIN
+	*afr = (*afr & ~(0xFUL << shift)) | ((af & 0xF) << shift);
+	MP_INTERRUPT_SAFE_END
+#else
+	(void)port;
+	(void)af;
+#endif
+}
+
+void mp_gpio_pull_up(mp_gpio_port_t *port) {
+#if defined(STM32F407xx)
+	unsigned int shift = port->pin * 2;
+
+	port->base->PUPDR = (port->base->PUPDR & ~(3UL << shift)) | (1UL << shift);
+#else
+	port->base->BSRR = 1UL << port->pin;
+#endif
 }
 
 mp_ret_t mp_gpio_direction(mp_gpio_port_t *port, mp_gpio_direction_t direction) {
@@ -198,23 +272,23 @@ mp_bool_t mp_gpio_read(mp_gpio_port_t *port) {
 
 void mp_gpio_set(mp_gpio_port_t *port) {
 	if(port->reverse == YES)
-		port->base->BRR = 1UL << port->pin;
+		mp_gpio_pin_reset(port->base, port->pin);
 	else
-		port->base->BSRR = 1UL << port->pin;
+		mp_gpio_pin_set(port->base, port->pin);
 }
 
 void mp_gpio_unset(mp_gpio_port_t *port) {
 	if(port->reverse == YES)
-		port->base->BSRR = 1UL << port->pin;
+		mp_gpio_pin_set(port->base, port->pin);
 	else
-		port->base->BRR = 1UL << port->pin;
+		mp_gpio_pin_reset(port->base, port->pin);
 }
 
 void mp_gpio_turn(mp_gpio_port_t *port) {
 	if(port->base->ODR & (1UL << port->pin))
-		port->base->BRR = 1UL << port->pin;
+		mp_gpio_pin_reset(port->base, port->pin);
 	else
-		port->base->BSRR = 1UL << port->pin;
+		mp_gpio_pin_set(port->base, port->pin);
 }
 
 static int _mp_gpio_exti_irq(unsigned int line) {
@@ -254,7 +328,11 @@ mp_ret_t mp_gpio_interrupt_set(mp_gpio_port_t *port, mp_interrupt_cb_t in, void 
 	__exti[line] = port;
 
 	/* route the line to this port, rising edge, masked until enabled */
+#if defined(STM32F407xx)
+	SYSCFG->EXTICR[reg] = (SYSCFG->EXTICR[reg] & ~(0xFUL << shift)) | ((uint32_t)port->port << shift);
+#else
 	AFIO->EXTICR[reg] = (AFIO->EXTICR[reg] & ~(0xFUL << shift)) | ((uint32_t)port->port << shift);
+#endif
 	EXTI->IMR &= ~(1UL << line);
 	EXTI->RTSR |= 1UL << line;
 	EXTI->FTSR &= ~(1UL << line);

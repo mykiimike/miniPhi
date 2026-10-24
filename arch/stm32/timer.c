@@ -296,11 +296,23 @@ mp_ret_t mp_timer_pwm_create(mp_timer_t *timer, mp_pwm_t *pwm, mp_options_t *opt
 	}
 	pwm->channel = channel;
 
+#if defined(STM32F407xx)
+	{
+		unsigned int af = 2;
+
+		if(mp_options_cmp(timer->gate->portDevice, "TIM1") == TRUE || mp_options_cmp(timer->gate->portDevice, "TIM2") == TRUE)
+			af = 1;
+		else if(mp_options_cmp(timer->gate->portDevice, "TIM8") == TRUE)
+			af = 3;
+		mp_gpio_af(pwm->gpio, af);
+	}
+#else
 	if(timer->remapped == NO && map->mask) {
 		MP_INTERRUPT_SAFE_BEGIN
 		AFIO->MAPR = (AFIO->MAPR & ~(map->mask | AFIO_MAPR_SWJ_CFG)) | map->remap | _SWJ;
 		MP_INTERRUPT_SAFE_END
 	}
+#endif
 	timer->remap = map->remap;
 	timer->remapped = YES;
 

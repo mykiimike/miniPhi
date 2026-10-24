@@ -31,7 +31,14 @@ away from the code and call these outside of interrupt handlers.
 @{
 */
 
+#if defined(STM32F407xx)
+static int __flashSector = -1;
+#endif
+
 static void _mp_flash_unlock(void) {
+#if defined(STM32F407xx)
+	__flashSector = -1;
+#endif
 	if(FLASH->CR & FLASH_CR_LOCK) {
 		FLASH->KEYR = FLASH_KEY1;
 		FLASH->KEYR = FLASH_KEY2;
@@ -47,18 +54,50 @@ static mp_ret_t _mp_flash_wait(void) {
 
 	while(FLASH->SR & FLASH_SR_BSY);
 	sr = FLASH->SR;
+#if defined(STM32F407xx)
+	FLASH->SR = FLASH_SR_EOP | FLASH_SR_ERR;
+	return(sr & FLASH_SR_ERR ? FALSE : TRUE);
+#else
 	FLASH->SR = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPRTERR;
 	return(sr & (FLASH_SR_PGERR | FLASH_SR_WRPRTERR) ? FALSE : TRUE);
+#endif
 }
+
+#if defined(STM32F407xx)
+/* sectors 0-3 are 16 KB, 4 is 64 KB, 5-11 are 128 KB */
+static int _mp_flash_sector(mp_flash_addr_t address) {
+	unsigned long off = address - MP_FLASH_ORIGIN;
+
+	if(off < 0x10000UL)
+		return((int)(off / 0x4000UL));
+	if(off < 0x20000UL)
+		return(4);
+	return(5 + (int)((off - 0x20000UL) / 0x20000UL));
+}
+#endif
 
 static mp_ret_t _mp_flash_erase_page(mp_flash_addr_t address) {
 	mp_ret_t ret;
 
+#if defined(STM32F407xx)
+	int sector = _mp_flash_sector(address);
+
+	/* a 16 KB step can land in a sector that was just erased */
+	if(sector == __flashSector)
+		return(TRUE);
+	__flashSector = sector;
+
+	FLASH->CR = (FLASH->CR & ~(FLASH_CR_SNB | FLASH_CR_PSIZE)) | FLASH_CR_SER | FLASH_CR_PSIZE_16 | ((uint32_t)sector << 3);
+	FLASH->CR |= FLASH_CR_STRT;
+	ret = _mp_flash_wait();
+	FLASH->CR &= ~(FLASH_CR_SER | FLASH_CR_SNB | FLASH_CR_PSIZE);
+#else
 	FLASH->CR |= FLASH_CR_PER;
 	FLASH->AR = address;
 	FLASH->CR |= FLASH_CR_STRT;
 	ret = _mp_flash_wait();
 	FLASH->CR &= ~FLASH_CR_PER;
+#endif
 	return(ret);
 }
 
@@ -102,14 +141,22 @@ static mp_ret_t _mp_flash_program(mp_flash_addr_t address, const unsigned char *
 	uint16_t half;
 	int a;
 
+#if defined(STM32F407xx)
+	FLASH->CR = (FLASH->CR & ~FLASH_CR_PSIZE) | FLASH_CR_PG | FLASH_CR_PSIZE_16;
+#else
 	FLASH->CR |= FLASH_CR_PG;
+#endif
 	for(a=0; a<size && ret == TRUE; a+=2) {
 		half = data[a];
 		half |= (a + 1 < size ? data[a + 1] : 0xFF) << 8;
 		*(volatile uint16_t *)(address + a) = half;
 		ret = _mp_flash_wait();
 	}
+#if defined(STM32F407xx)
+	FLASH->CR &= ~(FLASH_CR_PG | FLASH_CR_PSIZE);
+#else
 	FLASH->CR &= ~FLASH_CR_PG;
+#endif
 	return(ret);
 }
 

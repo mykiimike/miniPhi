@@ -61,12 +61,18 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │       ├── adc.c  gpio.c  uart.c  spi.c  i2c.c  timer.c  flash.c  gate.c  interrupt.c
 │       ├── syscalls.c        newlib hooks, _sbrk bounded by HEAP_SIZE
 │       ├── include/          arch headers, linked as build/include/arch/
-│       └── f1/
+│       ├── f1/
 │           ├── _phi.js       kind series: STM32F103T8 and STM32F103ZE, pins, gates, clock
 │           ├── startup.c     vector table, Reset_Handler        (boot)
 │           ├── clock.c       power levels, tickless SysTick, WFI, Stop on the RTC  (boot)
 │           ├── include/series.h   F1 registers and IRQ numbers, as build/include/arch/series.h
 │           └── ld/           stm32f103x8.ld (64 KB), stm32f103xe.ld (512 KB)
+│       └── f4/
+│           ├── _phi.js       kind series: STM32F407ZG, pins, gates, 168 MHz clocks
+│           ├── startup.c     vector table, Reset_Handler        (boot)
+│           ├── clock.c       PLL, tickless SysTick, WFI         (boot)
+│           ├── include/series.h   F4 registers and IRQ numbers, as build/include/arch/series.h
+│           └── ld/stm32f407xg.ld  1 MB flash, 128 KB system SRAM
 │
 ├── drivers/
 │   ├── led/                  _phi.js + led.c + led.h
@@ -94,6 +100,8 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
     │   │   └── flash.sh      program, verify, reset (STM32F1 and STM32F4)
     │   ├── msp430-5438-stk/
     │   │   └── _phi.js       kind board: target, app, modules, drivers, devices
+    │   ├── stm32-e407/
+    │   │   └── _phi.js       STM32F407ZG, console on UEXT USART6, LED on PC13, ARM-USB-OCD-H
     │   └── stm32-lcd/
     │       └── _phi.js       STM32F103ZE, console on UEXT USART1, TFT not driven yet
     └── artekit/
@@ -350,6 +358,8 @@ The arch copies the MSP430 API: same functions, same options, same `mp_uart_t` o
 - The clock changes at run time with the power level. The bus dividers follow, and a peripheral that keeps its clock settings registers itself so it can be retimed. A switch waits while I2C, SPI or a UART transmits.
 - Unused pins are analog inputs from boot, the lowest leakage, except the debug ones; a released pin goes back to analog. The ADC is only powered while a conversion runs.
 - The MCU name comes from DBGMCU_IDCODE, which the F1 only returns while a debugger is attached. Without one, sysinfo prints the flash size only.
+
+The F4 series records the STM32F407ZG (1 MB flash, 128 KB system SRAM, 64 KB CCM left out of the linker script) and the gates at their reset alternate. Its clock runs HIGH, MEDIUM and LOW from the PLL (or the HSE crystal when the level matches it) and SLEEP from the 16 MHz HSI, with tickless WFI. GPIO, EXTI, USART, SPI, I2C, the basic timers and ADC1 share the F1 drivers and branch where the registers differ: MODER instead of CRL, SYSCFG instead of AFIO, no ADC calibration, sector erase. Flash programming, SPI and I2C alternate functions, and timer alternate functions compile; there is no CCM, Ethernet, USB, SD, HASH or CRYP driver. The Olimex STM32-E407 selects this series, puts the console on USART6 (PC6 TX, PC7 RX) and the green LED on PC13, and reserves the crystal, Ethernet, USB and microSD pins.
 
 The F1 series reserves the JTAG pins (PA13, PA14, PA15, PB3, PB4). `_SWD_ONLY` gives PA15, PB3 and PB4 back, but the firmware then turns JTAG off at boot, and the AK-LINK, which has no SWD, has to connect with SRST held (`reset_config srst_only connect_assert_srst`).
 

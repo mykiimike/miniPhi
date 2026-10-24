@@ -63,7 +63,7 @@ mp_ret_t mp_adc_create(mp_kernel_t *kernel, mp_adc_t *adc, mp_options_t *options
 	if(!value || (value[0] != 'A' && value[0] != 'a'))
 		return(FALSE);
 	channel = atoi(value + 1);
-	if(channel < 0 || channel > MP_ADC_CHANNEL_VREF)
+	if(channel < 0 || channel > MP_ADC_CHANNEL_MAX)
 		return(FALSE);
 	adc->channelId = channel;
 
@@ -172,12 +172,20 @@ static void __auto_init(mp_kernel_t *kernel) {
 	RCC->APB2ENR |= RCC_APB2_ADC1;
 	(void)RCC->APB2ENR;
 
-	/* longest sample time on every channel: the temperature sensor wants 17.1 us */
+	/* longest sample time on every channel: the temperature sensor wants it */
+#if defined(STM32F407xx)
+	ADC1->SMPR1 = 0x07FFFFFF;
+#else
 	ADC1->SMPR1 = 0x00FFFFFF;
+#endif
 	ADC1->SMPR2 = 0x3FFFFFFF;
 	ADC1->SQR1 = 0;
 	ADC1->CR1 = 0;
+#if defined(STM32F407xx)
+	ADC1->CR2 = 0;
+#else
 	ADC1->CR2 = ADC_CR2_EXTSEL_SW | ADC_CR2_EXTTRIG;
+#endif
 
 	mp_interrupt_set(ADC1_2_IRQn, _mp_adc_interrupt, NULL, "ADC1");
 
@@ -200,17 +208,23 @@ static void __auto_fini(mp_kernel_t *kernel) {
 	__kernel = NULL;
 }
 
-/* from off: tSTAB is 1 us, the temperature sensor wants 10 us, then calibrate */
+/* from off: the temperature sensor wants 10 us. The F1 then calibrates; the F4 has no calibration. */
 static void _mp_adc_power(void) {
 	if(ADC1->CR2 & ADC_CR2_ADON)
 		return;
 
+#if defined(STM32F407xx)
+	ADC_Common->CCR |= ADC_CCR_TSVREFE;
+	ADC1->CR2 = ADC_CR2_ADON;
+	mp_clock_nanoDelay(10000);
+#else
 	ADC1->CR2 = ADC_CR2_EXTSEL_SW | ADC_CR2_EXTTRIG | ADC_CR2_TSVREFE | ADC_CR2_ADON;
 	mp_clock_nanoDelay(10000);
 	ADC1->CR2 |= ADC_CR2_RSTCAL;
 	while(ADC1->CR2 & ADC_CR2_RSTCAL);
 	ADC1->CR2 |= ADC_CR2_CAL;
 	while(ADC1->CR2 & ADC_CR2_CAL);
+#endif
 }
 
 /**
@@ -219,8 +233,27 @@ static void _mp_adc_power(void) {
  * The clock calls it with interrupts masked, before the core sleeps.
  */
 void mp_adc_idle(void) {
-	if(__isInit == YES && __selected_channel == NULL && (ADC1->CR2 & ADC_CR2_ADON))
+	if(__isInit == YES && __selected_channel == NULL && (ADC1->CR2 & ADC_CR2_ADON)) {
+#if defined(STM32F407xx)
+		ADC1->CR2 &= ~ADC_CR2_ADON;
+		ADC_Common->CCR &= ~ADC_CCR_TSVREFE;
+#else
 		ADC1->CR2 &= ~(ADC_CR2_ADON | ADC_CR2_TSVREFE);
+#endif
+	}
+}
+
+void mp_adc_prescale(unsigned long pclk2) {
+#if defined(STM32F407xx)
+	/* ADCPRE: 00 is PCLK2/2, 01 is /4. 84 MHz needs /4. */
+	uint32_t pre = pclk2 / 2 > 36000000UL ? (1UL << 16) : 0;
+
+	RCC->APB2ENR |= RCC_APB2_ADC1;
+	(void)RCC->APB2ENR;
+	ADC_Common->CCR = (ADC_Common->CCR & ~ADC_CCR_ADCPRE) | pre;
+#else
+	(void)pclk2;
+#endif
 }
 
 /**
@@ -253,7 +286,7 @@ int mp_adc_convert(int channel) {
 	int result;
 	int busy = 0;
 
-	if(__isInit == NO || channel < 0 || channel > MP_ADC_CHANNEL_VREF)
+	if(__isInit == NO || channel < 0 || channel > MP_ADC_CHANNEL_MAX)
 		return(-1);
 
 	/* the controller and the end-of-conversion interrupt must not run this one */

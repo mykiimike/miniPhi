@@ -88,13 +88,13 @@ static void _mp_i2c_recover(mp_i2c_t *i2c) {
 	mp_clock_nanoDelay(5000);
 
 	for(a=0; a<9 && !mp_gpio_raw_read(i2c->sda); a++) {
-		i2c->clk->base->BRR = 1UL << i2c->clk->pin;
+		mp_gpio_pin_reset(i2c->clk->base, i2c->clk->pin);
 		mp_clock_nanoDelay(5000);
 		i2c->clk->base->BSRR = 1UL << i2c->clk->pin;
 		mp_clock_nanoDelay(5000);
 	}
 
-	i2c->sda->base->BRR = 1UL << i2c->sda->pin;
+	mp_gpio_pin_reset(i2c->sda->base, i2c->sda->pin);
 	mp_clock_nanoDelay(5000);
 	i2c->sda->base->BSRR = 1UL << i2c->sda->pin;
 	mp_clock_nanoDelay(5000);
@@ -191,6 +191,10 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 
 	mp_gpio_mode(i2c->sda, MP_GPIO_MODE_AF_OD);
 	mp_gpio_mode(i2c->clk, MP_GPIO_MODE_AF_OD);
+#if defined(STM32F407xx)
+	mp_gpio_af(i2c->sda, 4);
+	mp_gpio_af(i2c->clk, 4);
+#endif
 
 	regs->CR1 = I2C_CR1_SWRST;
 	regs->CR1 = 0;

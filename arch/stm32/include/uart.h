@@ -74,7 +74,7 @@
 	/* RTS low: the peer may send */
 	static inline void mp_uart_enable_rx(mp_uart_t *uart) {
 		if(uart->rts_port)
-			uart->rts_port->base->BRR = 1UL << uart->rts_port->pin;
+			mp_gpio_pin_reset(uart->rts_port->base, uart->rts_port->pin);
 	}
 
 	/* RTS high: the peer stops after the byte it is sending, a few more with a FIFO */

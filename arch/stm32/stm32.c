@@ -52,18 +52,22 @@ static const char *_mp_machine_density(uint32_t devId) {
 }
 
 static void _mp_machine_name(mp_kernel_t *kernel) {
-	const char *density;
 	uint32_t idcode;
 
-	/* reads 0 without a debugger on most F1 revisions (errata 2.3) */
+	/* reads 0 without a debugger on most F1 revisions (errata 2.3). The F407 returns it always. */
 	idcode = DBGMCU_IDCODE;
-	density = _mp_machine_density(idcode & 0xFFF);
+#if defined(STM32F407xx)
+	snprintf(kernel->arch.mcuName, sizeof(kernel->arch.mcuName), "STM32F407ZG, %u KB flash, rev %04lX",
+		(unsigned int)FLASH_SIZE_KB, (unsigned long)(idcode >> 16));
+#else
+	const char *density = _mp_machine_density(idcode & 0xFFF);
 
 	if(density)
 		snprintf(kernel->arch.mcuName, sizeof(kernel->arch.mcuName), "STM32F1 %s, %u KB flash, rev %04lX",
 			density, (unsigned int)FLASH_SIZE_KB, (unsigned long)(idcode >> 16));
 	else
 		snprintf(kernel->arch.mcuName, sizeof(kernel->arch.mcuName), "STM32F1, %u KB flash", (unsigned int)FLASH_SIZE_KB);
+#endif
 
 	kernel->mcuVendor = "STMicroelectronics";
 	kernel->mcuName = kernel->arch.mcuName;
@@ -128,7 +132,11 @@ void mp_machine_state_set(mp_kernel_t *kernel) {
 		{ NULL, NULL }
 	};
 	mp_options_t temp[] = {
+#if defined(STM32F407xx)
+		{ "channel", "A18" },
+#else
 		{ "channel", "A16" },
+#endif
 		{ "delay", "5000" },
 		{ NULL, NULL }
 	};
@@ -170,15 +178,35 @@ static void _mp_machine_vref(mp_adc_t *adc) {
 	if(adc->result <= 0)
 		return;
 
+#if defined(STM32F407xx)
+	/* VREFINT_CAL is the raw reading at VDDA = 3.3 V */
+	unsigned int cal = *(volatile uint16_t *)0x1FFF7A2A;
+
+	kernel->arch.vdda = cal ? 3.3f * (float)cal / (float)adc->result : 1.21f * 4095.0f / (float)adc->result;
+#else
 	kernel->arch.vdda = _VREFINT * 4095.0f / (float)adc->result;
+#endif
 	mp_sensor_publish(kernel->arch.sensorVDDA, kernel->arch.vdda);
 }
 
 static void _mp_machine_temp(mp_adc_t *adc) {
 	mp_kernel_t *kernel = adc->kernel;
+#if defined(STM32F407xx)
+	unsigned int cal1 = *(volatile uint16_t *)0x1FFF7A2C;
+	unsigned int cal2 = *(volatile uint16_t *)0x1FFF7A2E;
+	float scaled = (float)adc->result * kernel->arch.vdda / 3.3f;
+	float temp;
+
+	if(cal2 > cal1)
+		temp = 30.0f + (scaled - (float)cal1) * 80.0f / (float)(cal2 - cal1);
+	else
+		temp = 25.0f;
+	mp_sensor_publish(kernel->arch.sensorMCU, temp);
+#else
 	float vsense = (float)adc->result * kernel->arch.vdda / 4095.0f;
 
 	mp_sensor_publish(kernel->arch.sensorMCU, (_TEMP_V25 - vsense) / _TEMP_SLOPE + 25.0f);
+#endif
 }
 #endif
 

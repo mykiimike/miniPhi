@@ -21,9 +21,17 @@
 #ifndef _HAVE_STM32_ADC_H
 	#define _HAVE_STM32_ADC_H
 
-	/* ADC1 channel 16 is the die temperature, 17 the 1.20 V reference */
-	#define MP_ADC_CHANNEL_TEMP  16
-	#define MP_ADC_CHANNEL_VREF  17
+	/* F1: channel 16 is the die temperature, 17 the 1.20 V reference.
+	   F4: channel 17 is VREFINT, 18 the temperature sensor. */
+	#if defined(STM32F407xx)
+		#define MP_ADC_CHANNEL_TEMP  18
+		#define MP_ADC_CHANNEL_VREF  17
+		#define MP_ADC_CHANNEL_MAX   18
+	#else
+		#define MP_ADC_CHANNEL_TEMP  16
+		#define MP_ADC_CHANNEL_VREF  17
+		#define MP_ADC_CHANNEL_MAX   17
+	#endif
 
 	typedef struct mp_adc_s mp_adc_t;
 
@@ -72,5 +80,8 @@
 
 	void mp_adc_idle(void);
 	mp_bool_t mp_adc_quiet(void);
+
+	/* keeps the ADC clock at or under 36 MHz. The F1 sets this in the clock tree. */
+	void mp_adc_prescale(unsigned long pclk2);
 
 #endif
