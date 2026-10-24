@@ -50,6 +50,8 @@ void _sysinfo_devices_refresh(sysinfo_t *sysinfo);
 #ifdef SUPPORT_COMMON_USB
 void _sysinfo_usb_open(sysinfo_t *sysinfo);
 void _sysinfo_usb_refresh(sysinfo_t *sysinfo);
+/** wires a USB link change to wake the screen, like a touch */
+void _sysinfo_usb_watch(sysinfo_t *sysinfo);
 #endif
 void _sysinfo_crypto_open(sysinfo_t *sysinfo);
 void _sysinfo_crypto_refresh(sysinfo_t *sysinfo);

@@ -84,4 +84,27 @@ void _sysinfo_usb_refresh(sysinfo_t *sysinfo) {
 		_sysinfo_usb_values(sysinfo);
 }
 
+/* a plug or an unplug wakes the panel the way a touch does */
+static void _sysinfo_usb_on_link(mp_usb_port_t *port) {
+	sysinfo_t *sysinfo = port->user;
+
+	if(!sysinfo || sysinfo->screen.ready == NO)
+		return;
+	mp_tui_wake(&sysinfo->screen.tui);
+	if(sysinfo->screen.task)
+		mp_task_wake(sysinfo->screen.task);
+}
+
+void _sysinfo_usb_watch(sysinfo_t *sysinfo) {
+	int count = mp_usb_count();
+	int n;
+
+	for(n = 0; n < count; n++) {
+		mp_usb_port_t *port = mp_usb_at(n);
+
+		if(port)
+			mp_usb_on_link(port, _sysinfo_usb_on_link, sysinfo);
+	}
+}
+
 #endif

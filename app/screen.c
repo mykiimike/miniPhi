@@ -117,6 +117,10 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 #endif
 	_sysinfo_touch_run(sysinfo, YES);
 
+#ifdef SUPPORT_COMMON_USB
+	_sysinfo_usb_watch(sysinfo);
+#endif
+
 	sysinfo->screen.ready = YES;
 	mp_tui_attach(kernel, tui, "TUI");
 	sysinfo->screen.task = mp_task_create(&kernel->tasks, "Screen", _sysinfo_screen, sysinfo, _sysinfo_ticks(250));

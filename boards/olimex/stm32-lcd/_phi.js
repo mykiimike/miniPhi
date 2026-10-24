@@ -27,6 +27,7 @@ export const phi = {
 		{ pin: "pc15", who: "32.768 kHz crystal, RTC" },
 		{ pin: "pa11", who: "USB D-" },
 		{ pin: "pa12", who: "USB D+" },
+		{ pin: "pd3", who: "USB pull-up" },
 		{ pin: "pc8", who: "microSD DAT0" },
 		{ pin: "pc9", who: "microSD DAT1" },
 		{ pin: "pc10", who: "microSD DAT2" },

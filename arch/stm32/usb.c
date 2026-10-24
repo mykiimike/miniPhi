@@ -30,7 +30,8 @@
 The F103 has one device controller and is locked to device. The F407
 lists OTG FS and OTG HS, both free. OTG HS uses the on-chip full-speed
 PHY (PB14, PB15), not ULPI. Pins are taken only when a role is armed.
-No endpoints: the interrupt reports reset, connect, suspend and fault.
+No endpoints: the interrupt reports reset, connect, disconnect, suspend
+and fault.
 
 @{
 */
@@ -43,18 +44,31 @@ typedef struct {
 	uint32_t bit;
 	char *dm;
 	char *dp;
+	char *disc;
 	unsigned int af;
 	mp_gpio_port_t *dmPin;
 	mp_gpio_port_t *dpPin;
+	mp_gpio_port_t *discPin;
 	mp_usb_role_t role;
+	volatile unsigned char live;
+	volatile unsigned char bus;
+	volatile unsigned char se0;
 } mp_usb_hw_t;
 
 static mp_ret_t _mp_usb_set_role(mp_usb_port_t *port, mp_usb_role_t role);
 static mp_ret_t _mp_usb_connect(mp_usb_port_t *port, mp_bool_t on);
+#if !defined(STM32F407xx)
+static void _mp_usb_poll(mp_usb_port_t *port);
+#endif
 
 static const mp_usb_ops_t _mp_usb_ops = {
 	_mp_usb_set_role,
 	_mp_usb_connect,
+#if defined(STM32F407xx)
+	NULL,
+#else
+	_mp_usb_poll,
+#endif
 };
 
 static volatile uint32_t *_mp_usb_reg(mp_usb_hw_t *hw, uint32_t offset) {
@@ -85,6 +99,11 @@ static void _mp_usb_pins_release(mp_usb_hw_t *hw) {
 		mp_gpio_release(hw->dpPin);
 		hw->dpPin = NULL;
 	}
+	if(hw->discPin) {
+		mp_gpio_set(hw->discPin);
+		mp_gpio_release(hw->discPin);
+		hw->discPin = NULL;
+	}
 }
 
 static mp_ret_t _mp_usb_pins(mp_usb_port_t *port) {
@@ -109,6 +128,16 @@ static mp_ret_t _mp_usb_pins(mp_usb_port_t *port) {
 	mp_gpio_mode(hw->dmPin, MP_GPIO_MODE_INPUT);
 	mp_gpio_mode(hw->dpPin, MP_GPIO_MODE_INPUT);
 #endif
+	if(hw->disc) {
+		hw->discPin = mp_gpio_text_handle(hw->disc, port->name);
+		if(!hw->discPin) {
+			_mp_usb_pins_release(hw);
+			return(FALSE);
+		}
+		/* high turns the board PNP off; set it before the pin becomes an output */
+		mp_gpio_set(hw->discPin);
+		mp_gpio_direction(hw->discPin, MP_GPIO_OUTPUT);
+	}
 	return(TRUE);
 }
 
@@ -326,16 +355,71 @@ static mp_ret_t _mp_usb_pull(mp_usb_port_t *port, mp_bool_t on) {
 
 #define _CNTR 0x40
 #define _ISTR 0x44
+#define _FNR  0x48
 #define _FRES   (1UL << 0)
 #define _PDWN   (1UL << 1)
+#define _LPMODE (1UL << 2)
+#define _FSUSP  (1UL << 3)
+#define _ESOFM  (1UL << 8)
+#define _SOFM   (1UL << 9)
 #define _RESETM (1UL << 10)
 #define _SUSPM  (1UL << 11)
 #define _WKUPM  (1UL << 12)
+#define _ESOF   (1UL << 8)
+#define _SOF    (1UL << 9)
 #define _RESETF (1UL << 10)
 #define _SUSPF  (1UL << 11)
 #define _WKUPF  (1UL << 12)
+#define _RXDM   (1UL << 14)
+#define _RXDP   (1UL << 15)
+/* FNR[15:14]: 0 SE0, 1 K (D-), 2 J (D+), 3 SE1 */
+#define _LINE_SE0 0
+#define _LINE_K   1
+#define _LINE_J   2
+#define _MASK_OFF (_FSUSP | _LPMODE | _ESOFM | _SOFM | _SUSPM | _RESETM | _WKUPM)
+#define _MASK_IDLE (_FSUSP | _RESETM | _WKUPM)
+#define _MASK_RUN  (_RESETM | _WKUPM | _SUSPM)
+/* 20 ms samples; a bus reset is shorter than this */
+#define _SE0_GONE 8
 
 static void _mp_usb_irq(void *user);
+
+/* write 0 to clear; read-modify-write drops a flag that sets in between */
+static void _mp_usb_istr_clr(volatile uint32_t *istr, uint32_t bits) {
+	*istr = (uint16_t)~(uint16_t)bits;
+}
+
+static void _mp_usb_mask(mp_usb_hw_t *hw, uint32_t mask) {
+	volatile uint32_t *cntr = _mp_usb_reg(hw, _CNTR);
+
+	MP_INTERRUPT_SAFE_BEGIN
+	*cntr = (*cntr & ~_MASK_OFF) | mask;
+	MP_INTERRUPT_SAFE_END
+}
+
+static int _mp_usb_line(mp_usb_hw_t *hw) {
+	return((int)((*_mp_usb_reg(hw, _FNR) & (_RXDP | _RXDM)) >> 14));
+}
+
+static void _mp_usb_host(mp_usb_port_t *port) {
+	mp_usb_hw_t *hw = port->hw;
+
+	hw->bus = 0;
+	hw->se0 = 0;
+	_mp_usb_mask(hw, _MASK_RUN);
+	mp_usb_event(port, MP_USB_EVENT_RESET, MP_USB_SPEED_FULL);
+	mp_usb_event(port, MP_USB_EVENT_CONNECT, MP_USB_SPEED_FULL);
+}
+
+static void _mp_usb_unplug(mp_usb_port_t *port) {
+	mp_usb_hw_t *hw = port->hw;
+
+	hw->bus = 0;
+	hw->se0 = 0;
+	/* pull-up stays; the next host reset is still visible */
+	_mp_usb_mask(hw, _MASK_IDLE);
+	mp_usb_event(port, MP_USB_EVENT_DISCONNECT, MP_USB_SPEED_NONE);
+}
 
 static void _mp_usb_core_down(mp_usb_hw_t *hw) {
 	if(hw->role != MP_USB_ROLE_NONE) {
@@ -367,21 +451,70 @@ static void _mp_usb_irq(void *user) {
 	mp_usb_port_t *port = user;
 	mp_usb_hw_t *hw = port->hw;
 	volatile uint32_t *istr = _mp_usb_reg(hw, _ISTR);
-	uint32_t got = *istr;
+	uint32_t got;
+	int line;
 
+	if(hw->live == 0 || (*_mp_usb_reg(hw, _CNTR) & _PDWN)) {
+		*istr = 0;
+		return;
+	}
+
+	got = *istr;
+	/* reset released: a host arrived (or re-arrived) */
 	if(got & _RESETF) {
-		*istr &= ~_RESETF;
-		mp_usb_event(port, MP_USB_EVENT_RESET, MP_USB_SPEED_FULL);
-		mp_usb_event(port, MP_USB_EVENT_CONNECT, MP_USB_SPEED_FULL);
+		_mp_usb_istr_clr(istr, _RESETF | _SUSPF | _WKUPF | _ESOF);
+		_mp_usb_host(port);
+		return;
+	}
+	line = _mp_usb_line(hw);
+	if(line != _LINE_SE0) {
+		hw->bus = 1;
+		hw->se0 = 0;
 	}
 	if(got & _SUSPF) {
-		*istr &= ~_SUSPF;
-		mp_usb_event(port, MP_USB_EVENT_SUSPEND, port->speed);
+		_mp_usb_istr_clr(istr, _SUSPF);
+		/* no endpoints: a host that stops SOF has left; the pull-up stays */
+		_mp_usb_unplug(port);
 	}
 	if(got & _WKUPF) {
-		*istr &= ~_WKUPF;
-		mp_usb_event(port, MP_USB_EVENT_RESUME, port->speed);
+		_mp_usb_istr_clr(istr, _WKUPF);
+		/* a reset or a resume reached the port while it was idle */
+		_mp_usb_host(port);
 	}
+}
+
+static void _mp_usb_poll(mp_usb_port_t *port) {
+	mp_usb_hw_t *hw = port->hw;
+	volatile uint32_t *istr;
+	int line;
+	int gone = 0;
+
+	if(hw->live == 0 || hw->role != MP_USB_ROLE_DEVICE)
+		return;
+
+	istr = _mp_usb_reg(hw, _ISTR);
+	if(*istr & _RESETF) {
+		_mp_usb_istr_clr(istr, _RESETF | _SUSPF | _WKUPF | _ESOF);
+		_mp_usb_host(port);
+		return;
+	}
+	/* a held suspend freezes the line bits; WKUP reports a change */
+	if(*_mp_usb_reg(hw, _CNTR) & _FSUSP)
+		return;
+	MP_INTERRUPT_SAFE_BEGIN
+	line = _mp_usb_line(hw);
+	if(line != _LINE_SE0) {
+		hw->bus = 1;
+		hw->se0 = 0;
+	}
+	else if(hw->bus) {
+		if(hw->se0 < _SE0_GONE)
+			hw->se0++;
+		gone = hw->se0 >= _SE0_GONE;
+	}
+	MP_INTERRUPT_SAFE_END
+	if(gone)
+		_mp_usb_unplug(port);
 }
 
 static mp_ret_t _mp_usb_pull(mp_usb_port_t *port, mp_bool_t on) {
@@ -390,13 +523,27 @@ static mp_ret_t _mp_usb_pull(mp_usb_port_t *port, mp_bool_t on) {
 	if(hw->role != MP_USB_ROLE_DEVICE)
 		return(FALSE);
 	if(on == YES) {
+		/* PD3 low turns on the board 1.5k; the PHY pull-up comes out of power-down */
+		if(hw->discPin)
+			mp_gpio_unset(hw->discPin);
+		/* FRES itself sets RESET; clear it before the masks, or boot looks like a host */
 		*_mp_usb_reg(hw, _CNTR) = _FRES;
 		mp_clock_delay(1);
-		*_mp_usb_reg(hw, _CNTR) = _RESETM | _SUSPM | _WKUPM;
+		*_mp_usb_reg(hw, _CNTR) = 0;
 		*_mp_usb_reg(hw, _ISTR) = 0;
+		hw->bus = 0;
+		hw->se0 = 0;
+		hw->live = 1;
+		_mp_usb_mask(hw, _MASK_IDLE);
 	}
-	else
+	else {
+		hw->live = 0;
+		hw->bus = 0;
+		hw->se0 = 0;
+		if(hw->discPin)
+			mp_gpio_set(hw->discPin);
 		*_mp_usb_reg(hw, _CNTR) = _PDWN;
+	}
 	return(TRUE);
 }
 
@@ -406,6 +553,9 @@ static void _mp_usb_off(mp_usb_port_t *port) {
 	mp_usb_hw_t *hw = port->hw;
 
 	_mp_usb_core_down(hw);
+	hw->live = 0;
+	hw->bus = 0;
+	hw->se0 = 0;
 	_mp_usb_pins_release(hw);
 }
 
@@ -465,7 +615,7 @@ static mp_ret_t _mp_usb_connect(mp_usb_port_t *port, mp_bool_t on) {
 
 static void _mp_usb_add(mp_kernel_t *kernel, mp_usb_port_t *port, mp_usb_hw_t *hw,
 	char *name, uint32_t base, int irq, volatile uint32_t *enr, volatile uint32_t *rst,
-	uint32_t bit, char *dm, char *dp, unsigned int af, mp_usb_caps_t caps, mp_usb_role_t fixed) {
+	uint32_t bit, char *dm, char *dp, char *disc, unsigned int af, mp_usb_caps_t caps, mp_usb_role_t fixed) {
 
 	if(port->kernel)
 		return;
@@ -477,6 +627,7 @@ static void _mp_usb_add(mp_kernel_t *kernel, mp_usb_port_t *port, mp_usb_hw_t *h
 	hw->bit = bit;
 	hw->dm = dm;
 	hw->dp = dp;
+	hw->disc = disc;
 	hw->af = af;
 	if(mp_usb_port_add(kernel, port, name, caps, fixed, &_mp_usb_ops, hw) != TRUE)
 		mp_printk("USB: %s not listed", name);
@@ -489,17 +640,17 @@ void mp_usb_arch_register(mp_kernel_t *kernel) {
 
 	_mp_usb_add(kernel, &port[0], &hw[0], "otg-fs", 0x50000000, OTG_FS_IRQn,
 		&RCC->AHB2ENR, &RCC->AHB2RSTR, 1UL << 7,
-		"pa11", "pa12", 10, MP_USB_CAP_DEVICE | MP_USB_CAP_HOST, MP_USB_ROLE_NONE);
+		"pa11", "pa12", NULL, 10, MP_USB_CAP_DEVICE | MP_USB_CAP_HOST, MP_USB_ROLE_NONE);
 	_mp_usb_add(kernel, &port[1], &hw[1], "otg-hs", 0x40040000, OTG_HS_IRQn,
 		&RCC->AHB1ENR, &RCC->AHB1RSTR, 1UL << 29,
-		"pb14", "pb15", 12, MP_USB_CAP_DEVICE | MP_USB_CAP_HOST, MP_USB_ROLE_NONE);
+		"pb14", "pb15", NULL, 12, MP_USB_CAP_DEVICE | MP_USB_CAP_HOST, MP_USB_ROLE_NONE);
 #else
 	static mp_usb_port_t port;
 	static mp_usb_hw_t hw;
 
 	_mp_usb_add(kernel, &port, &hw, "usb", 0x40005C00, USB_LP_CAN1_RX0_IRQn,
 		&RCC->APB1ENR, &RCC->APB1RSTR, 1UL << 23,
-		"pa11", "pa12", 0, MP_USB_CAP_DEVICE, MP_USB_ROLE_DEVICE);
+		"pa11", "pa12", "pd3", 0, MP_USB_CAP_DEVICE, MP_USB_ROLE_DEVICE);
 #endif
 }
 

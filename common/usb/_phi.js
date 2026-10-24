@@ -2,7 +2,7 @@ export const phi = {
 	kind: "module",
 	name: "USB",
 	label: "USB",
-	description: "PHY ports of the chip, listed at boot with no role yet. caps is what the silicon can do. A port may be locked to device or host; the others stay free. The PHY stays off, and its pins stay free, until a role is chosen. One task applies connect, reset, suspend and fault events. No endpoints and no classes.",
+	description: "PHY ports of the chip, listed at boot. caps is what the silicon can do. A port may be locked to device or host; the others stay free and off. A lock is armed in that role, and a device lock raises the pull-up so a host reset shows on the link. One task applies connect, disconnect, reset, suspend and fault events. No endpoints and no classes.",
 	define: "SUPPORT_COMMON_USB",
 	sources: ["usb.c"],
 	headers: ["usb.h"],

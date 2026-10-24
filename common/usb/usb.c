@@ -84,12 +84,59 @@ static void _mp_usb_apply(mp_usb_port_t *port, mp_usb_event_t event, mp_usb_spee
 			break;
 	}
 
-	if(port->onLink && (port->link != link || port->speed != was || port->fault != fault))
+	if(port->link == link && port->speed == was && port->fault == fault)
+		return;
+	mp_printk("usb %s %s%s%s", port->name,
+		port->fault == YES ? "fault" : mp_usb_link_name(port->link),
+		port->speed == MP_USB_SPEED_NONE || port->fault == YES ? "" : ", ",
+		port->speed == MP_USB_SPEED_NONE || port->fault == YES ? "" : mp_usb_speed_name(port->speed));
+	if(port->onLink)
 		port->onLink(port);
+}
+
+static unsigned long _mp_usb_ms(unsigned long ms) {
+	unsigned long hz = mp_clock_tick_hz();
+	unsigned long ticks;
+
+	if(hz == 0 || ms == 0)
+		return(1);
+	ticks = (ms / 1000) * hz + ((ms % 1000) * hz) / 1000;
+	return(ticks ? ticks : 1);
+}
+
+static void _mp_usb_drain(void) {
+	mp_list_item_t *item;
+
+	for(item = _mp_usb_kernel->usbs.first; item != NULL; item = item->next) {
+		mp_usb_port_t *port = item->user;
+
+		while(port->qCount) {
+			unsigned char at;
+			mp_usb_event_t event;
+			mp_usb_speed_t speed;
+
+			MP_INTERRUPT_SAFE_BEGIN
+			at = port->qHead;
+			event = port->queue[at].event;
+			speed = port->queue[at].speed;
+			port->qHead = (unsigned char)((port->qHead + 1) % MP_USB_EVENTS);
+			port->qCount--;
+			MP_INTERRUPT_SAFE_END
+			_mp_usb_apply(port, event, speed);
+		}
+	}
+}
+
+/* the host is on the line: keep sampling so its departure is seen */
+static int _mp_usb_hot(mp_usb_port_t *port) {
+	if(port->ops->poll == NULL || port->connect != YES)
+		return(0);
+	return(port->link == MP_USB_LINK_CONNECTED || port->link == MP_USB_LINK_RESET);
 }
 
 static MP_TASK(_mp_usb_task_run) {
 	mp_list_item_t *item;
+	int watch = 0;
 
 	if(task->signal == MP_TASK_SIG_STOP) {
 		task->signal = MP_TASK_SIG_DEAD;
@@ -97,27 +144,24 @@ static MP_TASK(_mp_usb_task_run) {
 	}
 
 	if(_mp_usb_kernel) {
+		_mp_usb_drain();
 		for(item = _mp_usb_kernel->usbs.first; item != NULL; item = item->next) {
 			mp_usb_port_t *port = item->user;
 
-			while(port->qCount) {
-				unsigned char at;
-				mp_usb_event_t event;
-				mp_usb_speed_t speed;
-
-				MP_INTERRUPT_SAFE_BEGIN
-				at = port->qHead;
-				event = port->queue[at].event;
-				speed = port->queue[at].speed;
-				port->qHead = (unsigned char)((port->qHead + 1) % MP_USB_EVENTS);
-				port->qCount--;
-				MP_INTERRUPT_SAFE_END
-				_mp_usb_apply(port, event, speed);
-			}
+			if(_mp_usb_hot(port))
+				port->ops->poll(port);
 		}
+		_mp_usb_drain();
+		for(item = _mp_usb_kernel->usbs.first; item != NULL; item = item->next)
+			if(_mp_usb_hot(item->user))
+				watch = 1;
 	}
 
-	mp_task_signal(task, MP_TASK_SIG_SLEEP);
+	/* 20 ms: the F103 counts several SE0 samples before it calls the cable gone */
+	if(watch)
+		mp_task_delay(task, _mp_usb_ms(20));
+	else
+		mp_task_signal(task, MP_TASK_SIG_SLEEP);
 }
 
 static void _mp_usb_idle(mp_usb_port_t *port) {
@@ -125,6 +169,22 @@ static void _mp_usb_idle(mp_usb_port_t *port) {
 	port->fault = NO;
 	port->speed = MP_USB_SPEED_NONE;
 	port->link = port->role == MP_USB_ROLE_NONE ? MP_USB_LINK_OFF : MP_USB_LINK_DISCONNECTED;
+}
+
+/* a lock is the role; the pull-up lets a host reset show up on the link */
+static void _mp_usb_arm_locked(void) {
+	mp_list_item_t *item;
+
+	for(item = _mp_usb_kernel->usbs.first; item != NULL; item = item->next) {
+		mp_usb_port_t *port = item->user;
+
+		if(port->fixed == MP_USB_ROLE_NONE)
+			continue;
+		if(mp_usb_set_role(port, port->fixed) != TRUE)
+			continue;
+		if(port->fixed == MP_USB_ROLE_DEVICE)
+			mp_usb_connect(port, YES);
+	}
 }
 
 void mp_usb_start(mp_kernel_t *kernel) {
@@ -143,6 +203,7 @@ void mp_usb_start(mp_kernel_t *kernel) {
 		return;
 	}
 	mp_task_signal(_mp_usb_task, MP_TASK_SIG_SLEEP);
+	_mp_usb_arm_locked();
 }
 
 void mp_usb_stop(void) {

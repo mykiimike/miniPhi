@@ -95,6 +95,11 @@
 		 * Host: port power. FALSE while the PHY is off.
 		 */
 		mp_ret_t (*connect)(mp_usb_port_t *port, mp_bool_t on);
+		/**
+		 * Called from the USB task while the link is up.
+		 * NULL when removal is reported from the interrupt alone.
+		 */
+		void (*poll)(mp_usb_port_t *port);
 	};
 
 	struct mp_usb_port_s {
@@ -133,6 +138,7 @@
 	/**
 	 * Published by the arch for each PHY the chip has. The port starts
 	 * off. fixed is DEVICE or HOST when that is the only legal role.
+	 * mp_usb_start() then arms a lock, and raises the pull-up of a device lock.
 	 */
 	mp_ret_t mp_usb_port_add(mp_kernel_t *kernel, mp_usb_port_t *port, char *name,
 		mp_usb_caps_t caps, mp_usb_role_t fixed, const mp_usb_ops_t *ops, void *hw);
