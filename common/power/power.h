@@ -89,6 +89,9 @@
 		/** highest floor of the live holds */
 		mp_power_level_t floor;
 
+		/** YES: the screen saver may turn the backlight fully off */
+		mp_bool_t hibernate;
+
 		/** busy share of the last window, in % */
 		unsigned char load;
 
@@ -131,6 +134,13 @@
 	void mp_power_release(mp_kernel_t *kernel, mp_power_hold_t *hold);
 
 	void mp_power_fix(mp_kernel_t *kernel, mp_power_level_t level);
+
+	/**
+	 * Authorize hibernate. Off, the screen saver stops at the dimmed
+	 * backlight, which holds the reduced supply. On, it turns the screen off.
+	 */
+	void mp_power_hibernate(mp_kernel_t *kernel, mp_bool_t on);
+	mp_bool_t mp_power_hibernating(mp_kernel_t *kernel);
 	mp_power_level_t mp_power_level(mp_kernel_t *kernel);
 	mp_bool_t mp_power_deep(mp_kernel_t *kernel);
 	const char *mp_power_name(mp_power_level_t level);

@@ -1194,18 +1194,29 @@ static unsigned long _mp_tui_saver(mp_tui_t *ui) {
 		_mp_tui_backlight(ui, MP_TUI_DIM_LEVEL);
 		ui->saver = MP_TUI_DIMMED;
 	}
-	if(ui->saver != MP_TUI_OFF && off && idle >= off) {
-		_mp_tui_backlight(ui, MP_TUI_OFF_LEVEL);
+	/* a dark panel can drop the draw enough that a USB port cuts the 5 V */
+	if(ui->kernel && mp_power_hibernating(ui->kernel) == YES) {
+		if(ui->saver != MP_TUI_OFF && off && idle >= off) {
+			_mp_tui_backlight(ui, MP_TUI_OFF_LEVEL);
+			if(ui->display->power)
+				ui->display->power(ui->display, 0);
+			_mp_tui_doze(ui, 1);
+			_mp_tui_rest(0);
+			ui->saver = MP_TUI_OFF;
+		}
+	} else if(ui->saver == MP_TUI_OFF) {
 		if(ui->display->power)
-			ui->display->power(ui->display, 0);
-		_mp_tui_doze(ui, 1);
-		_mp_tui_rest(0);
-		ui->saver = MP_TUI_OFF;
+			ui->display->power(ui->display, 1);
+		_mp_tui_doze(ui, 0);
+		_mp_tui_rest(1);
+		ui->saver = MP_TUI_DIMMED;
+		mp_tui_refresh(ui);
+		_mp_tui_backlight(ui, MP_TUI_DIM_LEVEL);
 	}
 
 	if(ui->saver == MP_TUI_AWAKE && dim)
 		return(dim - idle);
-	if(ui->saver != MP_TUI_OFF && off)
+	if(ui->saver != MP_TUI_OFF && off && ui->kernel && mp_power_hibernating(ui->kernel) == YES)
 		return(off - idle);
 	return(0);
 }

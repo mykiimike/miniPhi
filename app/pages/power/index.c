@@ -20,9 +20,9 @@
 
 /*
  * Home page. The switch that gives the level to the governor or pins it at
- * HIGH, the level and its clock, a table of the figures (load, wake ups,
- * switches, deep sleeps, supply sensors), who holds a level, and a table of
- * the time spent at each level.
+ * HIGH, the switch that authorizes hibernate, the level and its clock, a
+ * table of the figures (load, wake ups, switches, deep sleeps, supply
+ * sensors), who holds a level, and a table of the time spent at each level.
  */
 
 #include "../index.h"
@@ -110,6 +110,7 @@ static void _sysinfo_power_values(sysinfo_t *sysinfo) {
 	int level, row;
 
 	mp_tui_switch_set(&sysinfo->screen.powerSwitch, power->fixed == MP_POWER_AUTO);
+	mp_tui_switch_set(&sysinfo->screen.powerHibernate, sysinfo->hibernate == YES);
 
 	hz = mp_clock_level_hz(power->level);
 	mp_tui_label_set(&sysinfo->screen.powerLevel, "%s, %lu.%lu MHz", mp_power_name(power->level),
@@ -183,6 +184,13 @@ static void _sysinfo_on_governor(mp_tui_switch_t *sw) {
 	_sysinfo_power_values(sysinfo);
 }
 
+static void _sysinfo_on_hibernate(mp_tui_switch_t *sw) {
+	sysinfo_t *sysinfo = sw->user;
+
+	_sysinfo_hibernate_enable(sysinfo, sw->on ? YES : NO);
+	_sysinfo_power_values(sysinfo);
+}
+
 static void _sysinfo_power_page(mp_tui_widget_t *page, void *user) {
 	sysinfo_t *sysinfo = user;
 	mp_tui_t *tui = page->tui;
@@ -196,6 +204,11 @@ static void _sysinfo_power_page(mp_tui_widget_t *page, void *user) {
 	mp_tui_switch(&sysinfo->screen.powerSwitch, page, 8, y, w, line + 10, "Governor", sysinfo->kernel.power.fixed == MP_POWER_AUTO);
 	sysinfo->screen.powerSwitch.onChange = _sysinfo_on_governor;
 	sysinfo->screen.powerSwitch.user = sysinfo;
+	y += line + 14;
+
+	mp_tui_switch(&sysinfo->screen.powerHibernate, page, 8, y, w, line + 10, "Hibernate", sysinfo->hibernate == YES);
+	sysinfo->screen.powerHibernate.onChange = _sysinfo_on_hibernate;
+	sysinfo->screen.powerHibernate.user = sysinfo;
 	y += line + 14;
 
 	mp_tui_label_wrap(&sysinfo->screen.powerLevel, page, 8, &y, w, line, font, "");

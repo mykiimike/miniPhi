@@ -34,6 +34,8 @@
 
 /* kept in flash when KFLASH is on; a bool, YES by default */
 #define SYSINFO_KEY_ACCEL "sysinfo.accelerometers"
+/* kept in flash when KFLASH is on; a bool, NO by default: the screen may go dark */
+#define SYSINFO_KEY_HIBERNATE "sysinfo.hibernate"
 
 /* the devices come from common/device: sysinfo never names a driver */
 #ifdef SUPPORT_COMMON_TUI
@@ -66,7 +68,11 @@ struct sysinfo_s {
 #ifdef SUPPORT_COMMON_KFLASH
 	mp_kflash_var_t accelVar;
 	mp_bool_t accelListened;
+	mp_kflash_var_t hibernateVar;
+	mp_bool_t hibernateListened;
 #endif
+	/** SYSINFO_KEY_HIBERNATE: the screen saver may turn the backlight fully off */
+	mp_bool_t hibernate;
 
 	/** the first two LEDs of the board; NULL when it has fewer */
 	struct {
@@ -164,6 +170,7 @@ struct sysinfo_s {
 		int powerIndex;
 		int powerReady;
 		mp_tui_switch_t powerSwitch;
+		mp_tui_switch_t powerHibernate;
 		mp_tui_label_t powerLevel;
 		mp_tui_label_t powerGovernor;
 		/** figures, then the supply sensors found when the page was built */
@@ -209,6 +216,8 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo);
 
 /** stores SYSINFO_KEY_ACCEL; the accelerometers follow when the store tells sysinfo */
 void _sysinfo_accel_enable(sysinfo_t *sysinfo, mp_bool_t on);
+/** stores SYSINFO_KEY_HIBERNATE; the saver follows when the store tells sysinfo */
+void _sysinfo_hibernate_enable(sysinfo_t *sysinfo, mp_bool_t on);
 /** opens or closes the accelerometers after accelEnabled or the screen changed */
 void _sysinfo_accel_apply(sysinfo_t *sysinfo);
 /** YES without a screen; with one, while the Accelerometer page is on and lit */

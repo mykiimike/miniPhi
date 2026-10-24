@@ -116,6 +116,13 @@ static void _sysinfo_accel_changed(mp_kflash_var_t *var) {
 	mp_printk("%s %s", var->key, sysinfo->accelEnabled == YES ? "on" : "off");
 	_sysinfo_accel_apply(sysinfo);
 }
+
+static void _sysinfo_hibernate_changed(mp_kflash_var_t *var) {
+	sysinfo_t *sysinfo = var->user;
+
+	mp_power_hibernate(&sysinfo->kernel, sysinfo->hibernate);
+	mp_printk("%s %s", var->key, sysinfo->hibernate == YES ? "on" : "off");
+}
 #endif
 
 void _sysinfo_accel_enable(sysinfo_t *sysinfo, mp_bool_t on) {
@@ -126,6 +133,16 @@ void _sysinfo_accel_enable(sysinfo_t *sysinfo, mp_bool_t on) {
 #endif
 	sysinfo->accelEnabled = on ? YES : NO;
 	_sysinfo_accel_apply(sysinfo);
+}
+
+void _sysinfo_hibernate_enable(sysinfo_t *sysinfo, mp_bool_t on) {
+#ifdef SUPPORT_COMMON_KFLASH
+	if(mp_kflash_set_bool(&sysinfo->kernel, SYSINFO_KEY_HIBERNATE, on) == TRUE)
+		return;
+	mp_printk("%s: the flash did not take it, until the next reset only", SYSINFO_KEY_HIBERNATE);
+#endif
+	sysinfo->hibernate = on ? YES : NO;
+	mp_power_hibernate(&sysinfo->kernel, sysinfo->hibernate);
 }
 
 static void _sysinfo_op_set(void *user) {
@@ -139,9 +156,15 @@ static void _sysinfo_op_set(void *user) {
 		SYSINFO_KEY_ACCEL, &sysinfo->accelEnabled, YES, _sysinfo_accel_changed, sysinfo);
 	if(sysinfo->accelListened == FALSE)
 		sysinfo->accelEnabled = YES;
+	sysinfo->hibernateListened = mp_kflash_listen_bool(&sysinfo->kernel, &sysinfo->hibernateVar,
+		SYSINFO_KEY_HIBERNATE, &sysinfo->hibernate, NO, _sysinfo_hibernate_changed, sysinfo);
+	if(sysinfo->hibernateListened == FALSE)
+		sysinfo->hibernate = NO;
 #else
 	sysinfo->accelEnabled = YES;
+	sysinfo->hibernate = NO;
 #endif
+	mp_power_hibernate(&sysinfo->kernel, sysinfo->hibernate);
 
 	if(mp_serial_open(&sysinfo->kernel, &sysinfo->serial, console, "Console") == FALSE) {
 		_sysinfo_screen_open(sysinfo);
@@ -184,6 +207,10 @@ static void _sysinfo_op_unset(void *user) {
 	if(sysinfo->accelListened == YES) {
 		mp_kflash_unlisten(&sysinfo->kernel, &sysinfo->accelVar);
 		sysinfo->accelListened = NO;
+	}
+	if(sysinfo->hibernateListened == YES) {
+		mp_kflash_unlisten(&sysinfo->kernel, &sysinfo->hibernateVar);
+		sysinfo->hibernateListened = NO;
 	}
 #endif
 

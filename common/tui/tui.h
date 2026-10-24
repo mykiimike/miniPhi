@@ -577,11 +577,13 @@
 	void mp_tui_detach(mp_tui_t *ui);
 
 	/**
-	 * Screen saver: dims after MP_TUI_DIM_AFTER s without input, turns the
-	 * backlight to MP_TUI_OFF_LEVEL % after MP_TUI_OFF_AFTER s and, when
-	 * the display provides it, powers the panel down. Only with a display
-	 * that has backlight() or power(). Off, nothing is drawn, accelerometers
-	 * sleep, and the touch panel dozes; the first gesture only wakes the screen.
+	 * Screen saver: dims after MP_TUI_DIM_AFTER s without input. After
+	 * MP_TUI_OFF_AFTER s it turns the backlight to MP_TUI_OFF_LEVEL % and,
+	 * when the display provides it, powers the panel down, but only while
+	 * mp_power_hibernating() is YES. Otherwise it stays dimmed, which holds
+	 * the reduced supply. Only with a display that has backlight() or
+	 * power(). Off, nothing is drawn, accelerometers sleep, and the touch
+	 * panel dozes; the first gesture only wakes the screen.
 	 */
 	void mp_tui_wake(mp_tui_t *ui);
 	int mp_tui_awake(mp_tui_t *ui);

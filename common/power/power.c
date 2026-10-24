@@ -163,6 +163,29 @@ void mp_power_fix(mp_kernel_t *kernel, mp_power_level_t level) {
 }
 
 /**
+ * @brief Authorize the screen to turn fully off
+ *
+ * Off, the saver stays at the dimmed backlight. That duty holds the reduced
+ * supply, so the governor cannot reach Sleep. On, the saver may go dark.
+ *
+ * @param[in] kernel Kernel handler
+ * @param[in] on YES to allow it
+ */
+void mp_power_hibernate(mp_kernel_t *kernel, mp_bool_t on) {
+	kernel->power.hibernate = on ? YES : NO;
+}
+
+/**
+ * @brief Whether hibernate is authorized
+ *
+ * @param[in] kernel Kernel handler
+ * @return YES when the screen may turn fully off
+ */
+mp_bool_t mp_power_hibernating(mp_kernel_t *kernel) {
+	return(kernel->power.hibernate);
+}
+
+/**
  * @brief Level the clock runs at
  *
  * @param[in] kernel Kernel handler
