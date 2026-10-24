@@ -89,6 +89,9 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │
 └── boards/                   one directory per vendor, then one per product
     ├── olimex/
+    │   ├── arm-usb-ocd-h/
+    │   │   ├── _phi.js       kind probe: make flash through OpenOCD
+    │   │   └── flash.sh      program, verify, reset (STM32F1 and STM32F4)
     │   ├── msp430-5438-stk/
     │   │   └── _phi.js       kind board: target, app, modules, drivers, devices
     │   └── stm32-lcd/
