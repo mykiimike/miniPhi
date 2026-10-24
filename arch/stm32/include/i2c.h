@@ -96,6 +96,8 @@ into the right register sequence. Master only.
 	/* options: frequency in Hz (100000 by default, 400000 for fast mode) */
 	mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options);
 	mp_ret_t mp_i2c_close(mp_i2c_t *i2c);
+	/** clock the bus free and rearm the peripheral; the pins stay claimed */
+	void mp_i2c_reset(mp_i2c_t *i2c);
 
 	void mp_i2c_enable_rx(mp_i2c_t *i2c);
 	void mp_i2c_disable_rx(mp_i2c_t *i2c);

@@ -181,6 +181,9 @@ void mp_spi_retime(void) {
 /**
  * @brief No frame is shifting and no interrupt waits on one
  *
+ * DMA stays requested between packets, and BSY is clear in that gap.
+ * Retiming there drops a byte and the rest of the frame is shifted.
+ *
  * @return YES when the clock may change or stop
  */
 mp_bool_t mp_spi_quiet(void) {
@@ -190,6 +193,8 @@ mp_bool_t mp_spi_quiet(void) {
 	for(item = __spi.first; item; item = item->next) {
 		spi = item->user;
 		if(spi->ie || (spi->regs->SR & SPI_SR_BSY))
+			return(NO);
+		if(spi->regs->CR2 & (SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN))
 			return(NO);
 	}
 	return(YES);

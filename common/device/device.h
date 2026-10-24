@@ -31,6 +31,21 @@
 	 * interface of the class.
 	 */
 
+	/**
+	 * One frame from an MP_DEVICE_CAMERA.
+	 * pixels stays put for the life of the device. Each byte is the 14-bit sample
+	 * stretched across the range of the previous frame.
+	 * sequence is even when pixels is a complete frame and odd while the
+	 * driver is writing it. Read sequence, then pixels, then sequence again,
+	 * and keep the copy only when both reads match and are even.
+	 */
+	typedef struct {
+		const unsigned char *pixels;
+		unsigned short width;
+		unsigned short height;
+		unsigned long sequence;
+	} mp_camera_frame_t;
+
 	typedef enum {
 		/** face: mp_tui_display_t */
 		MP_DEVICE_DISPLAY,
@@ -40,6 +55,8 @@
 		MP_DEVICE_ACCELEROMETER,
 		/** an output: mp_device_set() */
 		MP_DEVICE_LED,
+		/** face: mp_camera_frame_t */
+		MP_DEVICE_CAMERA,
 	} mp_device_class_t;
 
 	typedef struct mp_device_driver_s mp_device_driver_t;
@@ -63,6 +80,13 @@
 		void *self;
 		mp_options_t *options;
 		mp_bool_t opened;
+		/**
+		 * Identity read from the chip. NULL until the driver registers it.
+		 * The driver keeps the text; these point at it.
+		 */
+		const char *model;
+		const char *serial;
+		const char *version;
 	};
 
 	#ifndef MP_DEVICE_MAX
@@ -82,6 +106,14 @@
 	/** NULL while closed or when the class has no face */
 	void *mp_device_face(mp_device_t *device);
 	void mp_device_set(mp_device_t *device, int value);
+
+	/**
+	 * Register a model, a serial number and a software version read from the chip.
+	 * self is the driver object passed to open. The strings are not copied, so
+	 * they must stay valid after this returns. NULL or "" leaves that field unknown.
+	 * A driver calls this again as it learns each one.
+	 */
+	void mp_device_identify(void *self, const char *model, const char *serial, const char *version);
 
 #endif
 #endif

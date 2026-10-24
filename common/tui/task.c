@@ -32,12 +32,22 @@ static MP_TASK(_mp_tui_task) {
 		return;
 	}
 	mp_tui_poll(ui);
-	if(mp_tui_step(ui)) {
-		/* the splash sets its own wait */
-		if(ui->splash >= 3)
+	if(ui->splash < 3) {
+		if(mp_tui_step(ui)) {
+			mp_task_signal(task, MP_TASK_SIG_OK);
+			return;
+		}
+	} else if(mp_tui_pending(ui)) {
+		int burst = 0;
+
+		/* several bands per wake: one band per tick made a tall picture crawl */
+		while(burst < 8 && mp_tui_step(ui))
+			burst++;
+		if(mp_tui_pending(ui)) {
 			task->delay = 1;
-		mp_task_signal(task, MP_TASK_SIG_OK);
-		return;
+			mp_task_signal(task, MP_TASK_SIG_OK);
+			return;
+		}
 	}
 
 	/* an input or an invalidation wakes it before */

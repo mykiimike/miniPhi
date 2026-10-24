@@ -77,27 +77,42 @@ static mp_bool_t _mp_i2c_poll(volatile uint32_t *reg, uint32_t mask, mp_bool_t s
 	return(YES);
 }
 
-/* frees SDA when a slave was cut mid byte: up to 9 clocks on SCL, then a STOP */
+/* one edge, long enough for the analog filter to follow the pin */
+static void _mp_i2c_edge(mp_gpio_port_t *pin, int high) {
+	if(high)
+		pin->base->BSRR = 1UL << pin->pin;
+	else
+		mp_gpio_pin_reset(pin->base, pin->pin);
+	mp_clock_nanoDelay(5000);
+}
+
+/*
+ * A slave cut mid-byte needs clocks to release SDA. On the F1 the analog
+ * filter can also stick, and then START never raises SB: SWRST does not
+ * clear it, a transition on each pin does.
+ */
 static void _mp_i2c_recover(mp_i2c_t *i2c) {
 	int a;
 
-	i2c->sda->base->BSRR = 1UL << i2c->sda->pin;
-	i2c->clk->base->BSRR = 1UL << i2c->clk->pin;
+	if(i2c->regs)
+		i2c->regs->CR1 &= ~I2C_CR1_PE;
+
+	_mp_i2c_edge(i2c->sda, 1);
+	_mp_i2c_edge(i2c->clk, 1);
 	mp_gpio_mode(i2c->sda, MP_GPIO_MODE_OUTPUT_OD);
 	mp_gpio_mode(i2c->clk, MP_GPIO_MODE_OUTPUT_OD);
-	mp_clock_nanoDelay(5000);
+	_mp_i2c_edge(i2c->sda, 1);
+	_mp_i2c_edge(i2c->clk, 1);
 
 	for(a=0; a<9 && !mp_gpio_raw_read(i2c->sda); a++) {
-		mp_gpio_pin_reset(i2c->clk->base, i2c->clk->pin);
-		mp_clock_nanoDelay(5000);
-		i2c->clk->base->BSRR = 1UL << i2c->clk->pin;
-		mp_clock_nanoDelay(5000);
+		_mp_i2c_edge(i2c->clk, 0);
+		_mp_i2c_edge(i2c->clk, 1);
 	}
 
-	mp_gpio_pin_reset(i2c->sda->base, i2c->sda->pin);
-	mp_clock_nanoDelay(5000);
-	i2c->sda->base->BSRR = 1UL << i2c->sda->pin;
-	mp_clock_nanoDelay(5000);
+	_mp_i2c_edge(i2c->sda, 0);
+	_mp_i2c_edge(i2c->clk, 0);
+	_mp_i2c_edge(i2c->clk, 1);
+	_mp_i2c_edge(i2c->sda, 1);
 }
 
 mp_ret_t mp_i2c_init() {
@@ -222,6 +237,42 @@ mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options) {
 	return(TRUE);
 }
 
+void mp_i2c_reset(mp_i2c_t *i2c) {
+	I2C_TypeDef *regs;
+
+	if(!i2c || !i2c->regs || !i2c->sda || !i2c->clk)
+		return;
+	regs = i2c->regs;
+	_mp_i2c_recover(i2c);
+
+	MP_INTERRUPT_SAFE_BEGIN
+
+	mp_gpio_mode(i2c->sda, MP_GPIO_MODE_AF_OD);
+	mp_gpio_mode(i2c->clk, MP_GPIO_MODE_AF_OD);
+#if defined(STM32F407xx)
+	mp_gpio_af(i2c->sda, 4);
+	mp_gpio_af(i2c->clk, 4);
+#endif
+
+	regs->CR1 = I2C_CR1_SWRST;
+	regs->CR1 = 0;
+	regs->CR2 = 0;
+	_mp_i2c_timing(i2c);
+	regs->OAR1 = I2C_OAR1_BIT14;
+	regs->CR1 = I2C_CR1_PE;
+
+	i2c->phase = MP_I2C_PHASE_IDLE;
+	i2c->stopArmed = NO;
+	i2c->txEnabled = NO;
+	i2c->rxEnabled = NO;
+	i2c->mode = 1;
+	i2c->wire = 1;
+
+	MP_INTERRUPT_SAFE_END
+
+	_mp_i2c_irq_update(i2c);
+}
+
 /**
  * @brief Recompute the bus timing after APB1 changed
  *
@@ -326,6 +377,11 @@ void mp_i2c_txStart(mp_i2c_t *i2c) {
 	/* a STOP from the previous transfer may still be on its way out */
 	if(i2c->phase == MP_I2C_PHASE_IDLE)
 		_mp_i2c_poll(&regs->CR1, I2C_CR1_STOP, NO);
+	/* STOPF left set blocks the next START and holds the event line */
+	if(regs->SR1 & I2C_SR1_STOPF) {
+		(void)regs->SR1;
+		regs->CR1 |= I2C_CR1_PE;
+	}
 
 	i2c->wire = i2c->mode;
 	i2c->stopArmed = NO;
@@ -411,6 +467,14 @@ static void _mp_i2c_event(void *user) {
 	I2C_TypeDef *regs = i2c->regs;
 	uint32_t sr1 = regs->SR1;
 	mp_bool_t armed;
+
+	/* a leftover STOPF re-enters this interrupt forever and starves the DMA */
+	if(sr1 & I2C_SR1_STOPF) {
+		regs->CR1 = (regs->CR1 | I2C_CR1_PE) & ~I2C_CR1_START;
+		if(i2c->phase == MP_I2C_PHASE_ADDRESS)
+			regs->CR1 |= I2C_CR1_START;
+		return;
+	}
 
 	if(i2c->phase == MP_I2C_PHASE_ADDRESS) {
 		if(sr1 & I2C_SR1_SB)

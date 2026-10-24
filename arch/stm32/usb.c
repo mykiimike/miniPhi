@@ -57,6 +57,8 @@ typedef struct {
 
 static mp_ret_t _mp_usb_set_role(mp_usb_port_t *port, mp_usb_role_t role);
 static mp_ret_t _mp_usb_connect(mp_usb_port_t *port, mp_bool_t on);
+static void _mp_usb_clock_stop(mp_usb_port_t *port);
+static void _mp_usb_clock_start(mp_usb_port_t *port);
 #if !defined(STM32F407xx)
 static void _mp_usb_poll(mp_usb_port_t *port);
 #endif
@@ -69,6 +71,8 @@ static const mp_usb_ops_t _mp_usb_ops = {
 #else
 	_mp_usb_poll,
 #endif
+	_mp_usb_clock_stop,
+	_mp_usb_clock_start,
 };
 
 static volatile uint32_t *_mp_usb_reg(mp_usb_hw_t *hw, uint32_t offset) {
@@ -351,6 +355,28 @@ static mp_ret_t _mp_usb_pull(mp_usb_port_t *port, mp_bool_t on) {
 	return(FALSE);
 }
 
+static void _mp_usb_clock_stop(mp_usb_port_t *port) {
+	mp_usb_hw_t *hw = port->hw;
+
+	if(hw->role == MP_USB_ROLE_NONE)
+		return;
+	*_mp_usb_reg(hw, 0x008) = 0;
+	*_mp_usb_reg(hw, _PCGCCTL) = 1UL | 2UL;
+	hw->live = 0;
+}
+
+static void _mp_usb_clock_start(mp_usb_port_t *port) {
+	mp_usb_hw_t *hw = port->hw;
+	mp_usb_role_t role = hw->role;
+
+	if(role == MP_USB_ROLE_NONE || mp_clock_usb48() == NO)
+		return;
+	if(_mp_usb_core(port, role) != TRUE)
+		return;
+	if(port->connect == YES)
+		_mp_usb_pull(port, YES);
+}
+
 #else
 
 #define _CNTR 0x40
@@ -377,7 +403,8 @@ static mp_ret_t _mp_usb_pull(mp_usb_port_t *port, mp_bool_t on) {
 #define _LINE_K   1
 #define _LINE_J   2
 #define _MASK_OFF (_FSUSP | _LPMODE | _ESOFM | _SOFM | _SUSPM | _RESETM | _WKUPM)
-#define _MASK_IDLE (_FSUSP | _RESETM | _WKUPM)
+/* no WKUPM: a floating D- with the pull-up on would wake the CPU forever */
+#define _MASK_IDLE (_FSUSP | _RESETM)
 #define _MASK_RUN  (_RESETM | _WKUPM | _SUSPM)
 /* 20 ms samples; a bus reset is shorter than this */
 #define _SE0_GONE 8
@@ -473,14 +500,11 @@ static void _mp_usb_irq(void *user) {
 	}
 	if(got & _SUSPF) {
 		_mp_usb_istr_clr(istr, _SUSPF);
-		/* no endpoints: a host that stops SOF has left; the pull-up stays */
+		/* no endpoints: the host has stopped SOF, so the link is idle */
 		_mp_usb_unplug(port);
 	}
-	if(got & _WKUPF) {
+	if(got & _WKUPF)
 		_mp_usb_istr_clr(istr, _WKUPF);
-		/* a reset or a resume reached the port while it was idle */
-		_mp_usb_host(port);
-	}
 }
 
 static void _mp_usb_poll(mp_usb_port_t *port) {
@@ -545,6 +569,27 @@ static mp_ret_t _mp_usb_pull(mp_usb_port_t *port, mp_bool_t on) {
 		*_mp_usb_reg(hw, _CNTR) = _PDWN;
 	}
 	return(TRUE);
+}
+
+static void _mp_usb_clock_stop(mp_usb_port_t *port) {
+	mp_usb_hw_t *hw = port->hw;
+
+	if(hw->role != MP_USB_ROLE_DEVICE)
+		return;
+	hw->live = 0;
+	hw->bus = 0;
+	hw->se0 = 0;
+	/* the external pull-up goes off so a parked PHY is not a dead device */
+	if(hw->discPin)
+		mp_gpio_set(hw->discPin);
+	*_mp_usb_reg(hw, _CNTR) = _PDWN | _FRES;
+	*_mp_usb_reg(hw, _ISTR) = 0;
+}
+
+static void _mp_usb_clock_start(mp_usb_port_t *port) {
+	if(mp_clock_usb48() == NO || port->connect != YES)
+		return;
+	_mp_usb_pull(port, YES);
 }
 
 #endif

@@ -21,16 +21,17 @@
 /*
  * Opens the first display of the board, then the pages in pages/. The console
  * is a keyboard for the TUI; j, k and b stand for down, up and back. The task
- * refreshes the live figures every 250 ms, 50 ms on the Accelerometer page and
- * every second while the screen is off; a byte on the console wakes it.
+ * refreshes the live figures every 250 ms, 50 ms on the Accelerometer page,
+ * 20 ms while a camera picture is on screen, and every second while the screen is off.
+ * A byte on the console wakes it.
  */
 
 #include "pages/index.h"
 
 #ifdef SYSINFO_SCREEN
 
-/* one display row is enough; more rows mean fewer, longer writes */
-#define SYSINFO_SCREEN_ROWS 8
+/* four rows: eight no longer fit once the Lepton frame is in RAM */
+#define SYSINFO_SCREEN_ROWS 4
 
 static mp_tui_color_t _sysinfo_pixels[320 * SYSINFO_SCREEN_ROWS];
 
@@ -89,6 +90,19 @@ static void _sysinfo_touch_run(sysinfo_t *sysinfo, mp_bool_t on) {
 	}
 }
 
+/* shutdown closes a camera the picture page left open */
+static void _sysinfo_camera_run(sysinfo_t *sysinfo, mp_bool_t on) {
+	mp_device_t *device;
+	int rank;
+
+	for(rank = 0; (device = mp_device_find(MP_DEVICE_CAMERA, rank)) != NULL; rank++) {
+		if(on == YES)
+			mp_device_open(&sysinfo->kernel, device);
+		else
+			mp_device_close(device);
+	}
+}
+
 void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 	mp_kernel_t *kernel = &sysinfo->kernel;
 	mp_tui_t *tui = &sysinfo->screen.tui;
@@ -140,6 +154,7 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 	mp_input_fini(&sysinfo->screen.keys);
 #endif
 	_sysinfo_touch_run(sysinfo, NO);
+	_sysinfo_camera_run(sysinfo, NO);
 	mp_tui_fini(&sysinfo->screen.tui);
 	mp_device_close(sysinfo->screen.display);
 	sysinfo->screen.display = NULL;
@@ -166,6 +181,8 @@ static unsigned long _sysinfo_screen_period(sysinfo_t *sysinfo) {
 		return(1000);
 	if(_sysinfo_accel_page_on(sysinfo) == YES)
 		return(50);
+	if(sysinfo->screen.cameraView >= 0 && sysinfo->screen.tui.opened == sysinfo->screen.cameraView)
+		return(20);
 	return(250);
 }
 

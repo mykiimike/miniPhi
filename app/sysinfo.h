@@ -52,6 +52,16 @@ typedef struct {
 
 typedef struct sysinfo_s sysinfo_t;
 
+#ifdef SYSINFO_SCREEN
+/** at most this many cameras on the Camera page */
+#define SYSINFO_CAMERA_MAX 4
+/** the picture of the camera that is open; owner is the app */
+typedef struct {
+	mp_tui_widget_t widget;
+	sysinfo_t *owner;
+} sysinfo_camera_view_t;
+#endif
+
 struct sysinfo_s {
 	mp_kernel_t kernel;
 
@@ -139,6 +149,8 @@ struct sysinfo_s {
 		mp_tui_label_t deviceCount;
 		mp_tui_table_t deviceTable;
 		mp_tui_cell_t deviceCell[MP_DEVICE_MAX][3];
+		/** model, serial and software version registered by open devices */
+		mp_tui_label_t deviceInfo;
 #ifdef SUPPORT_COMMON_USB
 		int usbIndex;
 		int usbReady;
@@ -201,6 +213,15 @@ struct sysinfo_s {
 		mp_tui_label_t accelTemperature;
 		mp_tui_switch_t accelSwitch;
 #endif
+		/** home entry "Camera", then the picture of the picked one; -1 until registered */
+		int cameraIndex;
+		int cameraView;
+		int cameraPick;
+		unsigned long cameraSequence;
+		mp_tui_button_t cameraButton[SYSINFO_CAMERA_MAX];
+		/** model, serial, software version, then the temperature */
+		mp_tui_label_t cameraState;
+		sysinfo_camera_view_t cameraPicture;
 	} screen;
 #endif
 };

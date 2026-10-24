@@ -403,15 +403,46 @@ void mp_usb_event(mp_usb_port_t *port, mp_usb_event_t event, mp_usb_speed_t spee
 	mp_task_wake(_mp_usb_task);
 }
 
-mp_bool_t mp_usb_needs_clock(void) {
+static void _mp_usb_park(mp_usb_port_t *port) {
+	if(port->ops->clock_stop)
+		port->ops->clock_stop(port);
+	/* a stale reset must not mark the link up after the PHY was stopped */
+	_mp_usb_flush(port);
+	port->speed = MP_USB_SPEED_NONE;
+	port->fault = NO;
+	if(port->link != MP_USB_LINK_OFF)
+		port->link = MP_USB_LINK_DISCONNECTED;
+}
+
+static void _mp_usb_unpark(mp_usb_port_t *port) {
+	if(port->ops->clock_start)
+		port->ops->clock_start(port);
+}
+
+void mp_usb_clock_stop(void) {
 	mp_list_item_t *item;
 
 	if(!_mp_usb_kernel)
-		return(NO);
-	for(item = _mp_usb_kernel->usbs.first; item != NULL; item = item->next)
-		if(((mp_usb_port_t *)item->user)->role != MP_USB_ROLE_NONE)
-			return(YES);
-	return(NO);
+		return;
+	for(item = _mp_usb_kernel->usbs.first; item != NULL; item = item->next) {
+		mp_usb_port_t *port = item->user;
+
+		if(port->role != MP_USB_ROLE_NONE)
+			_mp_usb_park(port);
+	}
+}
+
+void mp_usb_clock_start(void) {
+	mp_list_item_t *item;
+
+	if(!_mp_usb_kernel)
+		return;
+	for(item = _mp_usb_kernel->usbs.first; item != NULL; item = item->next) {
+		mp_usb_port_t *port = item->user;
+
+		if(port->role != MP_USB_ROLE_NONE)
+			_mp_usb_unpark(port);
+	}
 }
 
 /**@}*/

@@ -317,9 +317,7 @@ mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
 
 	if(_mp_clock_same(&plan, &__plan) == NO) {
 #ifdef SUPPORT_COMMON_USB
-		/* retiming the PLL drops the 48 MHz the armed PHY is using */
-		if(mp_usb_needs_clock() == YES)
-			return(FALSE);
+		mp_usb_clock_stop();
 #endif
 		_mp_clock_apply(kernel, &plan);
 		_mp_clock_tick_retime();
@@ -328,6 +326,9 @@ mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
 		mp_spi_retime();
 		mp_timer_retime();
 		mp_fsmc_retime(__sysclk);
+#ifdef SUPPORT_COMMON_USB
+		mp_usb_clock_start();
+#endif
 	}
 	return(TRUE);
 }

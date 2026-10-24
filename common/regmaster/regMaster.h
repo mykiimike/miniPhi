@@ -63,6 +63,9 @@
 		/** Activate swap */
 		mp_bool_t swap;
 
+		/** The slave NACKed or the bus failed: the callback is told to stop */
+		mp_bool_t nack;
+
 		/** Linked items */
 		mp_list_item_t item;
 	};
@@ -121,6 +124,8 @@
 		char *who
 	);
 	void mp_regMaster_fini(mp_regMaster_t *cirr);
+	/** fail the transfer in flight so its callback runs and the bus can start again */
+	void mp_regMaster_cancel(mp_regMaster_t *cirr);
 	mp_ret_t mp_regMaster_readExt(
 		mp_regMaster_t *cirr,
 		unsigned char *reg, int regSize,

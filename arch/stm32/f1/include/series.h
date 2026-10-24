@@ -217,6 +217,7 @@
 	#define RCC_BDCR_RTCEN    (1UL << 15)
 	#define RCC_BDCR_BDRST    (1UL << 16)
 
+	#define RCC_AHB_DMA1      (1UL << 0)
 	#define RCC_AHB_FSMC      (1UL << 8)
 
 	#define RCC_APB2_AFIO     (1UL << 0)
@@ -309,6 +310,8 @@
 	#define SPI_CR1_LSBFIRST (1UL << 7)
 	#define SPI_CR1_SSI      (1UL << 8)
 	#define SPI_CR1_SSM      (1UL << 9)
+	#define SPI_CR2_RXDMAEN  (1UL << 0)
+	#define SPI_CR2_TXDMAEN  (1UL << 1)
 	#define SPI_CR2_RXNEIE   (1UL << 6)
 	#define SPI_CR2_TXEIE    (1UL << 7)
 	#define SPI_SR_RXNE      (1UL << 0)
@@ -329,6 +332,7 @@
 	#define I2C_SR1_SB       (1UL << 0)
 	#define I2C_SR1_ADDR     (1UL << 1)
 	#define I2C_SR1_BTF      (1UL << 2)
+	#define I2C_SR1_STOPF    (1UL << 4)
 	#define I2C_SR1_RXNE     (1UL << 6)
 	#define I2C_SR1_TXE      (1UL << 7)
 	#define I2C_SR1_BERR     (1UL << 8)
@@ -374,6 +378,8 @@
 		EXTI2_IRQn = 8,
 		EXTI3_IRQn = 9,
 		EXTI4_IRQn = 10,
+		/* SPI2_RX. SPI2_TX is channel 5 and is not armed: the RX count is the packet */
+		DMA1_Channel4_IRQn = 14,
 		ADC1_2_IRQn = 18,
 		EXTI9_5_IRQn = 23,
 		TIM1_UP_IRQn = 25,

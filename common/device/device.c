@@ -58,11 +58,20 @@ mp_device_t *mp_device_named(const char *name) {
 	return(NULL);
 }
 
+static const char *_mp_device_text(const char *text) {
+	if(!text || !text[0])
+		return(NULL);
+	return(text);
+}
+
 mp_ret_t mp_device_open(mp_kernel_t *kernel, mp_device_t *device) {
 	if(!device)
 		return(FALSE);
 	if(device->opened == YES)
 		return(TRUE);
+	device->model = NULL;
+	device->serial = NULL;
+	device->version = NULL;
 	if(device->driver->open(kernel, device->self, device->options, device->name) == FALSE)
 		return(FALSE);
 	device->opened = YES;
@@ -86,6 +95,21 @@ void mp_device_set(mp_device_t *device, int value) {
 	if(!device || device->opened == NO || !device->driver->set)
 		return;
 	device->driver->set(device->self, value);
+}
+
+void mp_device_identify(void *self, const char *model, const char *serial, const char *version) {
+	int index;
+
+	if(!self)
+		return;
+	for(index = 0; index < MP_DEVICE_COUNT; index++) {
+		if(_mp_devices[index].self != self)
+			continue;
+		_mp_devices[index].model = _mp_device_text(model);
+		_mp_devices[index].serial = _mp_device_text(serial);
+		_mp_devices[index].version = _mp_device_text(version);
+		return;
+	}
 }
 
 #endif

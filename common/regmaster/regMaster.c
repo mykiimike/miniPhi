@@ -274,6 +274,22 @@ void mp_regMaster_fini(mp_regMaster_t *cirr) {
 		cirr->disableTX(cirr);
 }
 
+void mp_regMaster_cancel(mp_regMaster_t *cirr) {
+	mp_regMaster_op_t *operand;
+
+	if(!cirr || !cirr->asr)
+		return;
+
+	mp_interrupt_disable();
+	while(cirr->pending.first) {
+		operand = cirr->pending.first->user;
+		operand->nack = YES;
+		mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
+	}
+	mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
+	mp_interrupt_enable();
+}
+
 
 
 /**
@@ -425,6 +441,16 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 	if(!operand)
 		return;
 
+	/* a NACK leaves the operand pending, and the ASR would restart it forever */
+	if(flag == MP_I2C_FL_NACK) {
+		operand->nack = YES;
+		mp_list_switch_last(&cirr->executing, &cirr->pending, &operand->item);
+		mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
+		cirr->disableRX(cirr);
+		cirr->disableTX(cirr);
+		return;
+	}
+
 	/* send registers */
 	if(operand->state == MP_REGMASTER_STATE_TX && flag == MP_I2C_FL_TX) {
 
@@ -439,6 +465,8 @@ static void _mp_regMaster_i2c_interrupt(mp_i2c_t *i2c, mp_i2c_flag_t flag) {
 
 				cirr->enableRX(cirr);
 				cirr->disableTX(cirr);
+				/* the repeated START is sent by the ASR, not from this interrupt */
+				mp_task_signal(cirr->asr, MP_TASK_SIG_PENDING);
 			}
 			/* no need to read */
 			else {
@@ -525,7 +553,6 @@ MP_TASK(mp_regMaster_asr) {
 	mp_regMaster_t *cirr = task->user;
 	mp_regMaster_op_t *cur;
 	mp_regMaster_op_t *next;
-	int canSleep = 0;
 
 	/* receive regMaster shutdown */
 	if(task->signal == MP_TASK_SIG_STOP) {
@@ -573,34 +600,29 @@ MP_TASK(mp_regMaster_asr) {
 	mp_interrupt_disable();
 
 	/* FIFO pop */
-	if(cirr->executing.first) {
+	while(cirr->executing.first) {
 		cur = cirr->executing.first->user;
 
 		/* execute callback in asr mode */
 		if(cur->callback)
-			cur->callback(cur, FALSE);
+			cur->callback(cur, cur->nack);
 
 		/* remove completely the buffer */
 		mp_list_remove(&cirr->executing, &cur->item);
 		mp_mem_free(cirr->kernel, cur);
-
-		/* more element */
 	}
-	else
-		canSleep++;
 
-	/* pending request activate interruption */
+	/*
+	 * Start the transfer and sleep. Staying pending would run this task on
+	 * every kernel pass, once per byte on the wire. The interrupt wakes it
+	 * for a repeated START and when the operand is done.
+	 */
 	if(cirr->pending.first) {
 		cur = cirr->pending.first->user;
-
-		/* protocol asr */
 		cirr->asrCallback(cirr, cur);
 	}
-	else
-		canSleep++;
 
-	if(canSleep == 2)
-		mp_task_signal(cirr->asr, MP_TASK_SIG_SLEEP);
+	mp_task_signal(cirr->asr, MP_TASK_SIG_SLEEP);
 
 	mp_interrupt_enable();
 }

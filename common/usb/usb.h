@@ -100,6 +100,10 @@
 		 * NULL when removal is reported from the interrupt alone.
 		 */
 		void (*poll)(mp_usb_port_t *port);
+		/** Power the PHY down across a clock change. No link event. */
+		void (*clock_stop)(mp_usb_port_t *port);
+		/** Bring an armed PHY back when the tree has a 48 MHz USB clock. */
+		void (*clock_start)(mp_usb_port_t *port);
 	};
 
 	struct mp_usb_port_s {
@@ -163,8 +167,7 @@
 	/**
 	 * Arm the PHY in that role, or MP_USB_ROLE_NONE to turn it off.
 	 * FALSE when the role is not in caps, when it breaks a lock, or
-	 * when the arch refuses (no 48 MHz clock, pins taken). While any
-	 * port is armed the clock tree does not change.
+	 * when the arch refuses (no 48 MHz clock, pins taken).
 	 */
 	mp_ret_t mp_usb_set_role(mp_usb_port_t *port, mp_usb_role_t role);
 	mp_ret_t mp_usb_connect(mp_usb_port_t *port, mp_bool_t on);
@@ -178,8 +181,12 @@
 	 */
 	void mp_usb_event(mp_usb_port_t *port, mp_usb_event_t event, mp_usb_speed_t speed);
 
-	/** YES while a port is armed: the arch keeps the current clock */
-	mp_bool_t mp_usb_needs_clock(void);
+	/**
+	 * Park every armed PHY for a clock-tree change, then bring back
+	 * those the new tree can still clock. Neither one reports a link event.
+	 */
+	void mp_usb_clock_stop(void);
+	void mp_usb_clock_start(void);
 
 	/** the selected arch lists its PHYs, or none */
 	void mp_usb_arch_register(mp_kernel_t *kernel);

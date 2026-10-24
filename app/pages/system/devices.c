@@ -19,28 +19,51 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Sub-page of System: the board devices, their class and whether they are open.
+ * Sub-page of System: each board device, then the model and serial it registered.
+ * The software version is the line under the table. While this page is open each
+ * camera is started, so the chip can be asked.
  */
 
 #include "../index.h"
 
 #ifdef SYSINFO_SCREEN
 
-static const char *_sysinfo_device_class(mp_device_class_t type) {
-	switch(type) {
-		case MP_DEVICE_DISPLAY: return("display");
-		case MP_DEVICE_TOUCH: return("touch");
-		case MP_DEVICE_ACCELEROMETER: return("accelerometer");
-		case MP_DEVICE_LED: return("led");
-		default: return("?");
-	}
+static const mp_tui_column_t _sysinfo_device_columns[] = {
+	{ "Device", 76, MP_TUI_ALIGN_LEFT },
+	{ "Model", 0, MP_TUI_ALIGN_LEFT },
+	{ "Serial", 128, MP_TUI_ALIGN_LEFT },
+};
+
+static int _sysinfo_device_line(char *text, int n, const char *line) {
+	int wrote;
+
+	if(!line || !line[0] || n >= MP_TUI_TEXT_MAX - 1)
+		return(n);
+	wrote = snprintf(text + n, (size_t)(MP_TUI_TEXT_MAX - n), "%s%s", n ? "\n" : "", line);
+	if(wrote < 0 || n + wrote >= MP_TUI_TEXT_MAX)
+		return(MP_TUI_TEXT_MAX - 1);
+	return(n + wrote);
 }
 
-static const mp_tui_column_t _sysinfo_device_columns[] = {
-	{ "Device", 0, MP_TUI_ALIGN_LEFT },
-	{ "Class", 120, MP_TUI_ALIGN_LEFT },
-	{ "State", 64, MP_TUI_ALIGN_LEFT },
-};
+static void _sysinfo_devices_identity(sysinfo_t *sysinfo) {
+	char text[MP_TUI_TEXT_MAX];
+	int count = mp_device_count();
+	int n = 0;
+	int i;
+
+	text[0] = 0;
+	if(count > MP_DEVICE_MAX)
+		count = MP_DEVICE_MAX;
+	for(i = 0; i < count; i++) {
+		mp_device_t *device = mp_device_at(i);
+
+		if(!device->version)
+			continue;
+		n = _sysinfo_device_line(text, n, device->name);
+		n = _sysinfo_device_line(text, n, device->version);
+	}
+	mp_tui_label_set(&sysinfo->screen.deviceInfo, "%s", text);
+}
 
 static void _sysinfo_devices_values(sysinfo_t *sysinfo) {
 	int count = mp_device_count();
@@ -55,8 +78,8 @@ static void _sysinfo_devices_values(sysinfo_t *sysinfo) {
 		mp_device_t *device = mp_device_at(n);
 
 		mp_tui_table_set(&sysinfo->screen.deviceTable, n, 0, "%s", device->name);
-		mp_tui_table_set(&sysinfo->screen.deviceTable, n, 1, "%s", _sysinfo_device_class(device->driver->type));
-		mp_tui_table_set(&sysinfo->screen.deviceTable, n, 2, "%s", device->opened == YES ? "open" : "closed");
+		mp_tui_table_set(&sysinfo->screen.deviceTable, n, 1, "%s", device->model ? device->model : "");
+		mp_tui_table_set(&sysinfo->screen.deviceTable, n, 2, "%s", device->serial ? device->serial : "");
 	}
 }
 
@@ -72,6 +95,14 @@ static void _sysinfo_devices_page(mp_tui_widget_t *page, void *user) {
 		_sysinfo_device_columns, 3, &sysinfo->screen.deviceCell[0][0], MP_DEVICE_MAX);
 	sysinfo->screen.devicesReady = 1;
 	_sysinfo_devices_values(sysinfo);
+	{
+		mp_tui_widget_t *table = &sysinfo->screen.deviceTable.widget;
+		int y = table->rect.y + table->rect.h + 8;
+
+		mp_tui_label(&sysinfo->screen.deviceInfo, page, 8, y, width, line * 3, "");
+		mp_tui_label_color(&sysinfo->screen.deviceInfo, page->tui->theme.muted);
+		_sysinfo_devices_identity(sysinfo);
+	}
 }
 
 void _sysinfo_devices_open(sysinfo_t *sysinfo) {
@@ -83,8 +114,10 @@ void _sysinfo_devices_open(sysinfo_t *sysinfo) {
 }
 
 void _sysinfo_devices_refresh(sysinfo_t *sysinfo) {
-	if(sysinfo->screen.devicesReady && sysinfo->screen.tui.opened == sysinfo->screen.devicesIndex)
+	if(sysinfo->screen.devicesReady && sysinfo->screen.tui.opened == sysinfo->screen.devicesIndex) {
 		_sysinfo_devices_values(sysinfo);
+		_sysinfo_devices_identity(sysinfo);
+	}
 }
 
 #endif

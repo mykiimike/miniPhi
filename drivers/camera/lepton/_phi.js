@@ -1,0 +1,22 @@
+export const phi = {
+	kind: "driver",
+	name: "LEPTON",
+	label: "FLIR Lepton",
+	description: "FLIR Lepton thermal module on the v1.3 breakout. Video is VoSPI (SPI mode 3, chip select around each 164-byte packet). Commands are I2C at 0x2A: boot status and the sensor temperature. The face is one 80x60 frame, each byte the top 8 bits of the 14-bit sample. A Lepton 2.",
+	define: "SUPPORT_DRV_LEPTON",
+	sources: ["lepton.c"],
+	headers: ["lepton.h"],
+	requires: ["SENSOR", "REGMASTER", "DEVICE"],
+	device: { struct: "mp_drv_lepton_t", ops: "mp_drv_lepton_device" },
+	options: [
+		{ name: "spiGate", label: "SPI", type: "gate", gateKind: "spi", required: true },
+		{ name: "simo", label: "MOSI", type: "pin", required: true },
+		{ name: "somi", label: "MISO", type: "pin", required: true },
+		{ name: "sck", label: "SCK", type: "pin", required: true },
+		{ name: "cs", label: "Chip select", type: "pin", required: true },
+		{ name: "i2cGate", label: "I2C", type: "gate", gateKind: "i2c", required: true },
+		{ name: "sda", label: "SDA", type: "pin", required: true },
+		{ name: "scl", label: "SCL", type: "pin", required: true },
+		{ name: "address", label: "I2C address", type: "enum", values: ["0x2A"], default: "0x2A" },
+	],
+}

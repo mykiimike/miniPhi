@@ -40,6 +40,8 @@ int _sysinfo_sensor_beside(mp_sensor_t *axis, mp_sensor_t *sensor);
 
 void _sysinfo_accel_open(sysinfo_t *sysinfo);
 void _sysinfo_accel_refresh(sysinfo_t *sysinfo);
+void _sysinfo_camera_open(sysinfo_t *sysinfo);
+void _sysinfo_camera_refresh(sysinfo_t *sysinfo);
 /** 0 when the System page could not be registered */
 int _sysinfo_system_open(sysinfo_t *sysinfo);
 void _sysinfo_system_refresh(sysinfo_t *sysinfo);

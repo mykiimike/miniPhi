@@ -283,6 +283,9 @@
 	#ifdef SUPPORT_DRV_SMB380
 		#include <smb380/smb380.h>
 	#endif
+	#ifdef SUPPORT_DRV_LEPTON
+		#include <lepton/lepton.h>
+	#endif
 
 	#define MP_KERNEL_VERSION "2.0.0"
 
