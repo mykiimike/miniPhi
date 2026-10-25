@@ -312,12 +312,12 @@ static void _sysinfo_crypto_buttons(mp_tui_widget_t *page, sysinfo_t *sysinfo, i
 				continue;
 			first[slot] = n;
 		}
-		mp_tui_button(&sysinfo->screen.cryptoButton[slot], page, 8, y, width, h,
+		mp_tui_button(&sysinfo->screen.menu.crypto[slot], page, 8, y, width, h,
 			matchFamily ? mp_crypto[n].label : mp_crypto[n].familyLabel);
-		sysinfo->screen.cryptoButton[slot].chevron = 1;
-		sysinfo->screen.cryptoButton[slot].onPress = onPress;
-		sysinfo->screen.cryptoButton[slot].user = sysinfo;
-		sysinfo->screen.cryptoButton[slot].id = n;
+		sysinfo->screen.menu.crypto[slot].chevron = 1;
+		sysinfo->screen.menu.crypto[slot].onPress = onPress;
+		sysinfo->screen.menu.crypto[slot].user = sysinfo;
+		sysinfo->screen.menu.crypto[slot].id = n;
 		y += h + 6;
 		slot++;
 	}

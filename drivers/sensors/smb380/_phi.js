@@ -2,7 +2,7 @@ export const phi = {
 	kind: "driver",
 	name: "SMB380",
 	label: "Bosch SMB380",
-	description: "Bosch SMB380 triaxial accelerometer and temperature sensor on I2C. The slave address is 0x38; 0x39 is the same chip with SDO held high.",
+	description: "Bosch SMB380 triaxial accelerometer and temperature sensor on I2C. The slave address is 0x38; 0x39 is the same chip with SDO held high. The chip has no serial of its own: the board names the model, and both measures use the MCU unique id as their serial.",
 	define: "SUPPORT_DRV_SMB380",
 	sources: ["smb380.c"],
 	headers: ["smb380.h"],
@@ -10,6 +10,7 @@ export const phi = {
 	requires: ["DEVICE", "REGMASTER"],
 	device: { struct: "mp_drv_smb380_t", ops: "mp_drv_smb380_device" },
 	options: [
+		{ name: "model", label: "Model", type: "text", required: true },
 		{
 			name: "address",
 			label: "I2C address",

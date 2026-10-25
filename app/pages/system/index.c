@@ -186,14 +186,22 @@ void _sysinfo_system_refresh(sysinfo_t *sysinfo) {
 		float v[3];
 
 		while(index < 2 && (sensor = mp_device_measure_next(kernel, sensor)) != NULL) {
+			const char *label;
+
 			if(!_sysinfo_mcu_sensor(kernel, sensor))
 				continue;
-			if(mp_device_measure_read(sensor->instance, v, NULL) != TRUE)
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: --", sensor->address);
+			if(sensor->label && sensor->label[0])
+				label = sensor->label;
 			else if(sensor->class == MP_DEVICE_TEMPERATURE)
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.1f °C", sensor->address, (double)v[0]);
+				label = "Temperature";
 			else
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.3f V", sensor->address, (double)v[0]);
+				label = "Voltage";
+			if(mp_device_measure_read(sensor->instance, v, NULL) != TRUE)
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: --", label);
+			else if(sensor->class == MP_DEVICE_TEMPERATURE)
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.1f °C", label, (double)v[0]);
+			else
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.3f V", label, (double)v[0]);
 		}
 	}
 #endif
@@ -264,7 +272,14 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	inner = 2;
 	mp_tui_window(&sysinfo->screen.system, page, 4, y, width - 8, title + inner + 4, "System");
 	client = MP_TUI_WIDGET(&sysinfo->screen.system);
-	snprintf(text, sizeof(text), "Board  %s, app %s", PHI_BUILD_BOARD, PHI_BUILD_APP);
+	{
+		const char *serial = mp_machine_serial();
+
+		if(serial)
+			snprintf(text, sizeof(text), "Board  %s, app %s, serial %s", PHI_BUILD_BOARD, PHI_BUILD_APP, serial);
+		else
+			snprintf(text, sizeof(text), "Board  %s, app %s", PHI_BUILD_BOARD, PHI_BUILD_APP);
+	}
 	mp_tui_label_wrap(&sysinfo->screen.board, client, 6, &inner, innerW, line, font, text);
 	snprintf(text, sizeof(text), "CPU    %s", kernel->mcuName ? kernel->mcuName : "unknown");
 	mp_tui_label_wrap(&sysinfo->screen.cpu, client, 6, &inner, innerW, line, font, text);
@@ -370,7 +385,7 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	sysinfo->screen.taskManager.user = sysinfo;
 	y += line + 18 + 6;
 
-	mp_tui_button(&sysinfo->screen.devicesButton, page, 12, y, width - 24, line + 18, "Devices");
+	mp_tui_button(&sysinfo->screen.devicesButton, page, 12, y, width - 24, line + 18, "Drivers");
 	sysinfo->screen.devicesButton.chevron = 1;
 	sysinfo->screen.devicesButton.onPress = _sysinfo_on_devices;
 	sysinfo->screen.devicesButton.user = sysinfo;

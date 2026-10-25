@@ -19,9 +19,9 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Sub-page of System: each board device, then the model and serial it registered.
- * The software version is the line under the table. While this page is open each
- * camera is started, so the chip can be asked.
+ * Sub-page of System: one row per driver that registered, then a board
+ * driver whose open() ran and that has no registration of its own.
+ * A driver that has not registered stays off this page.
  */
 
 #include "../index.h"
@@ -29,58 +29,69 @@
 #ifdef SYSINFO_SCREEN
 
 static const mp_tui_column_t _sysinfo_device_columns[] = {
-	{ "Device", 76, MP_TUI_ALIGN_LEFT },
-	{ "Model", 0, MP_TUI_ALIGN_LEFT },
-	{ "Serial", 128, MP_TUI_ALIGN_LEFT },
+	{ "Driver", 108, MP_TUI_ALIGN_LEFT },
+	{ "Description", 0, MP_TUI_ALIGN_LEFT },
+	{ "Version", 56, MP_TUI_ALIGN_LEFT },
 };
 
-static int _sysinfo_device_line(char *text, int n, const char *line) {
-	int wrote;
-
-	if(!line || !line[0] || n >= MP_TUI_TEXT_MAX - 1)
-		return(n);
-	wrote = snprintf(text + n, (size_t)(MP_TUI_TEXT_MAX - n), "%s%s", n ? "\n" : "", line);
-	if(wrote < 0 || n + wrote >= MP_TUI_TEXT_MAX)
-		return(MP_TUI_TEXT_MAX - 1);
-	return(n + wrote);
+static void _sysinfo_driver_row(sysinfo_t *sysinfo, int row, const char *name, const char *description, const char *version) {
+	mp_tui_table_set(&sysinfo->screen.deviceTable, row, 0, "%s", name ? name : "");
+	mp_tui_table_set(&sysinfo->screen.deviceTable, row, 1, "%s", description ? description : "");
+	mp_tui_table_set(&sysinfo->screen.deviceTable, row, 2, "%s", version ? version : "");
 }
 
-static void _sysinfo_devices_identity(sysinfo_t *sysinfo) {
-	char text[MP_TUI_TEXT_MAX];
-	int count = mp_device_count();
-	int n = 0;
-	int i;
+static mp_bool_t _sysinfo_driver_self(sysinfo_t *sysinfo, void *self) {
+	int count;
+	int n;
 
-	text[0] = 0;
-	if(count > MP_DEVICE_MAX)
-		count = MP_DEVICE_MAX;
-	for(i = 0; i < count; i++) {
-		mp_device_t *device = mp_device_at(i);
+	if(!self)
+		return(NO);
+	count = mp_device_driver_count(&sysinfo->kernel);
+	for(n = 0; n < count; n++) {
+		mp_device_driver_t *driver = mp_device_driver_at(&sysinfo->kernel, n);
 
-		if(!device->version)
-			continue;
-		n = _sysinfo_device_line(text, n, device->name);
-		n = _sysinfo_device_line(text, n, device->version);
+		if(driver && driver->self == self)
+			return(YES);
 	}
-	mp_tui_label_set(&sysinfo->screen.deviceInfo, "%s", text);
+	return(NO);
 }
 
 static void _sysinfo_devices_values(sysinfo_t *sysinfo) {
-	int count = mp_device_count();
-	int n;
+	const mp_device_ops_t *seen[MP_DEVICE_MAX];
+	int seenCount = 0;
+	int drivers = mp_device_driver_count(&sysinfo->kernel);
+	int row = 0;
+	int i;
 
-	if(count > MP_DEVICE_MAX)
-		count = MP_DEVICE_MAX;
-	mp_tui_table_rows(&sysinfo->screen.deviceTable, count);
-	mp_tui_label_set(&sysinfo->screen.deviceCount, "%d / %d", count, MP_DEVICE_MAX);
+	mp_tui_table_rows(&sysinfo->screen.deviceTable, MP_DEVICE_MAX);
 
-	for(n = 0; n < count; n++) {
-		mp_device_t *device = mp_device_at(n);
+	for(i = 0; i < drivers && row < MP_DEVICE_MAX; i++) {
+		mp_device_driver_t *driver = mp_device_driver_at(&sysinfo->kernel, i);
 
-		mp_tui_table_set(&sysinfo->screen.deviceTable, n, 0, "%s", device->name);
-		mp_tui_table_set(&sysinfo->screen.deviceTable, n, 1, "%s", device->model ? device->model : "");
-		mp_tui_table_set(&sysinfo->screen.deviceTable, n, 2, "%s", device->serial ? device->serial : "");
+		if(!driver)
+			continue;
+		_sysinfo_driver_row(sysinfo, row, driver->name, driver->description, driver->version);
+		row++;
 	}
+	for(i = 0; i < mp_device_count() && row < MP_DEVICE_MAX; i++) {
+		mp_device_t *device = mp_device_at(i);
+		int s;
+
+		if(!device || device->opened == NO || !device->driver)
+			continue;
+		if(_sysinfo_driver_self(sysinfo, device->self) == YES)
+			continue;
+		for(s = 0; s < seenCount; s++)
+			if(seen[s] == device->driver)
+				break;
+		if(s < seenCount)
+			continue;
+		seen[seenCount++] = device->driver;
+		_sysinfo_driver_row(sysinfo, row, device->driver->name, device->driver->description, device->driver->version);
+		row++;
+	}
+	mp_tui_table_rows(&sysinfo->screen.deviceTable, row);
+	mp_tui_label_set(&sysinfo->screen.deviceCount, "%d loaded", row);
 }
 
 static void _sysinfo_devices_page(mp_tui_widget_t *page, void *user) {
@@ -95,28 +106,19 @@ static void _sysinfo_devices_page(mp_tui_widget_t *page, void *user) {
 		_sysinfo_device_columns, 3, &sysinfo->screen.deviceCell[0][0], MP_DEVICE_MAX);
 	sysinfo->screen.devicesReady = 1;
 	_sysinfo_devices_values(sysinfo);
-	{
-		mp_tui_widget_t *table = &sysinfo->screen.deviceTable.widget;
-		int y = table->rect.y + table->rect.h + 8;
-
-		mp_tui_label(&sysinfo->screen.deviceInfo, page, 8, y, width, line * 3, "");
-		mp_tui_label_color(&sysinfo->screen.deviceInfo, page->tui->theme.muted);
-		_sysinfo_devices_identity(sysinfo);
-	}
 }
 
 void _sysinfo_devices_open(sysinfo_t *sysinfo) {
 	mp_tui_t *tui = &sysinfo->screen.tui;
 
 	sysinfo->screen.devicesIndex = -1;
-	if(mp_tui_child(tui, "Devices", _sysinfo_devices_page, sysinfo))
+	if(mp_tui_child(tui, "Drivers", _sysinfo_devices_page, sysinfo))
 		sysinfo->screen.devicesIndex = tui->appCount - 1;
 }
 
 void _sysinfo_devices_refresh(sysinfo_t *sysinfo) {
 	if(sysinfo->screen.devicesReady && sysinfo->screen.tui.opened == sysinfo->screen.devicesIndex) {
 		_sysinfo_devices_values(sysinfo);
-		_sysinfo_devices_identity(sysinfo);
 	}
 }
 

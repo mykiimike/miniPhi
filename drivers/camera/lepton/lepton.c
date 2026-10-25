@@ -46,6 +46,8 @@
 #define LEPTON_PHASE_BOOT 0
 #define LEPTON_PHASE_SYNC 1
 #define LEPTON_PHASE_RUN 2
+/* nobody takes the frame: chip select high, only CCI runs */
+#define LEPTON_PHASE_IDLE 3
 
 #define LEPTON_REG_STATUS 0x0002
 #define LEPTON_REG_COMMAND 0x0004
@@ -65,25 +67,12 @@
 #define LEPTON_CMD_PART 0x481C
 #define LEPTON_CMD_VERSION 0x4820
 
-#define LEPTON_STEP_IDLE 0
-#define LEPTON_STEP_STATUS 1
-#define LEPTON_STEP_LENGTH 2
-#define LEPTON_STEP_COMMAND 3
-#define LEPTON_STEP_RESULT 4
-#define LEPTON_STEP_DATA 5
+/* half an I2C clock: about 100 kHz */
+#define LEPTON_I2C_HALF 5000UL
 
-#define LEPTON_OP_BOOT 0
-#define LEPTON_OP_GET 1
+/* survives close, so Devices > Camera keeps the chip name */
+static char _lepton_kept[33];
 
-#define LEPTON_IDENT_SERIAL 0
-#define LEPTON_IDENT_PART 1
-#define LEPTON_IDENT_VERSION 2
-#define LEPTON_IDENT_DONE 3
-
-static void _lepton_onCci(mp_regMaster_op_t *operand, mp_bool_t terminate);
-static void _lepton_next(mp_drv_lepton_t *lep);
-static mp_bool_t _lepton_read(mp_drv_lepton_t *lep, unsigned short reg, int n);
-static mp_bool_t _lepton_write(mp_drv_lepton_t *lep, unsigned short reg, unsigned short value);
 static MP_TASK(_lepton_task);
 
 static unsigned long _lepton_ticks(unsigned long ms) {
@@ -118,63 +107,181 @@ static unsigned char _lepton_address(char *text) {
 	return((unsigned char)value);
 }
 
+/*
+ * CCI is driven by hand on the sda and scl pins. On the F103xC/D/E the FSMC
+ * of the screen holds PB7, the I2C1 SDA, high while its clock runs
+ * (ES0340 2.3.9), so the I2C1 peripheral never gets an answer. One whole
+ * command runs inside one pass of this task with the FSMC stopped; no other
+ * task can draw meanwhile. A released line is an input with its pull-up.
+ */
+static void _lepton_line(mp_gpio_port_t *pin, int high) {
+	if(high) {
+		mp_gpio_set(pin);
+		mp_gpio_mode(pin, MP_GPIO_MODE_INPUT_PULL);
+	}
+	else {
+		mp_gpio_mode(pin, MP_GPIO_MODE_OUTPUT_OD);
+		mp_gpio_unset(pin);
+	}
+	mp_clock_nanoDelay(LEPTON_I2C_HALF);
+}
+
+/* the module may hold scl low while it prepares the byte */
+static int _lepton_scl_high(mp_drv_lepton_t *lep) {
+	int spin;
+
+	_lepton_line(lep->scl, 1);
+	for(spin = 0; spin < 4000 && !mp_gpio_raw_read(lep->scl); spin++)
+		mp_clock_nanoDelay(LEPTON_I2C_HALF);
+	return(mp_gpio_raw_read(lep->scl) ? 1 : 0);
+}
+
+static void _lepton_i2c_start(mp_drv_lepton_t *lep) {
+	_lepton_line(lep->sda, 1);
+	_lepton_scl_high(lep);
+	_lepton_line(lep->sda, 0);
+	_lepton_line(lep->scl, 0);
+}
+
+static void _lepton_i2c_stop(mp_drv_lepton_t *lep) {
+	_lepton_line(lep->sda, 0);
+	_lepton_scl_high(lep);
+	_lepton_line(lep->sda, 1);
+}
+
+/* 1 when the module acknowledged */
+static int _lepton_i2c_put(mp_drv_lepton_t *lep, unsigned char byte) {
+	int bit;
+	int ack;
+
+	for(bit = 7; bit >= 0; bit--) {
+		_lepton_line(lep->sda, (byte >> bit) & 1);
+		if(!_lepton_scl_high(lep))
+			return(0);
+		_lepton_line(lep->scl, 0);
+	}
+	_lepton_line(lep->sda, 1);
+	if(!_lepton_scl_high(lep))
+		return(0);
+	ack = mp_gpio_raw_read(lep->sda) ? 0 : 1;
+	_lepton_line(lep->scl, 0);
+	return(ack);
+}
+
+/* 0 when the module held the clock too long; the transfer is then dropped */
+static int _lepton_i2c_get(mp_drv_lepton_t *lep, unsigned char *byte, int more) {
+	int bit;
+
+	*byte = 0;
+	_lepton_line(lep->sda, 1);
+	for(bit = 0; bit < 8; bit++) {
+		if(!_lepton_scl_high(lep))
+			return(0);
+		*byte = (unsigned char)((*byte << 1) | (mp_gpio_raw_read(lep->sda) ? 1 : 0));
+		_lepton_line(lep->scl, 0);
+	}
+	_lepton_line(lep->sda, more ? 0 : 1);
+	if(!_lepton_scl_high(lep))
+		return(0);
+	_lepton_line(lep->scl, 0);
+	_lepton_line(lep->sda, 1);
+	return(1);
+}
+
+/* reg is sent first, most significant byte first, then n bytes come back */
+static int _lepton_cci_read(mp_drv_lepton_t *lep, unsigned short reg, unsigned char *dst, int n) {
+	int i;
+
+	_lepton_i2c_start(lep);
+	if(!_lepton_i2c_put(lep, (unsigned char)(lep->address << 1)) ||
+		!_lepton_i2c_put(lep, (unsigned char)(reg >> 8)) ||
+		!_lepton_i2c_put(lep, (unsigned char)reg)) {
+		_lepton_i2c_stop(lep);
+		return(0);
+	}
+	_lepton_i2c_start(lep);
+	if(!_lepton_i2c_put(lep, (unsigned char)((lep->address << 1) | 1))) {
+		_lepton_i2c_stop(lep);
+		return(0);
+	}
+	for(i = 0; i < n; i++) {
+		if(!_lepton_i2c_get(lep, &dst[i], i + 1 < n)) {
+			_lepton_i2c_stop(lep);
+			return(0);
+		}
+	}
+	_lepton_i2c_stop(lep);
+	return(1);
+}
+
+static int _lepton_cci_write(mp_drv_lepton_t *lep, unsigned short reg, unsigned short value) {
+	int ok;
+
+	_lepton_i2c_start(lep);
+	ok = _lepton_i2c_put(lep, (unsigned char)(lep->address << 1)) &&
+		_lepton_i2c_put(lep, (unsigned char)(reg >> 8)) &&
+		_lepton_i2c_put(lep, (unsigned char)reg) &&
+		_lepton_i2c_put(lep, (unsigned char)(value >> 8)) &&
+		_lepton_i2c_put(lep, (unsigned char)value);
+	_lepton_i2c_stop(lep);
+	return(ok);
+}
+
 static unsigned short _lepton_word(unsigned char *raw) {
 	return((unsigned short)((raw[0] << 8) | raw[1]));
 }
 
-static mp_bool_t _lepton_read(mp_drv_lepton_t *lep, unsigned short reg, int n) {
-	if(n < 1)
-		n = 1;
-	if(n > (int)sizeof(lep->cciRx))
-		n = (int)sizeof(lep->cciRx);
-	lep->cciReg[0] = (unsigned char)(reg >> 8);
-	lep->cciReg[1] = (unsigned char)reg;
-	lep->busy = YES;
-	if(mp_regMaster_read(
-		&lep->regMaster, lep->cciReg, 2, lep->cciRx, n, _lepton_onCci, lep
-	) == FALSE) {
-		lep->busy = NO;
-		lep->step = LEPTON_STEP_IDLE;
-		return(FALSE);
+/* status until not busy; 0 when the module does not answer or stays busy */
+static int _lepton_cci_idle(mp_drv_lepton_t *lep, unsigned short *status, int polls) {
+	unsigned char raw[2];
+
+	while(polls-- > 0) {
+		if(!_lepton_cci_read(lep, LEPTON_REG_STATUS, raw, 2))
+			return(0);
+		*status = _lepton_word(raw);
+		if(!(*status & LEPTON_STATUS_BUSY))
+			return(1);
+		mp_clock_nanoDelay(100000UL);
 	}
-	return(TRUE);
+	return(0);
 }
 
-static mp_bool_t _lepton_write(mp_drv_lepton_t *lep, unsigned short reg, unsigned short value) {
-	lep->cciTx[0] = (unsigned char)(reg >> 8);
-	lep->cciTx[1] = (unsigned char)reg;
-	lep->cciTx[2] = (unsigned char)(value >> 8);
-	lep->cciTx[3] = (unsigned char)value;
-	lep->busy = YES;
-	if(mp_regMaster_write(&lep->regMaster, lep->cciTx, 4, _lepton_onCci, lep) == FALSE) {
-		lep->busy = NO;
-		lep->step = LEPTON_STEP_IDLE;
-		return(FALSE);
+/*
+ * One GET, as the SDK does it: wait not busy, write the word count, write
+ * the command, wait not busy, check the error byte, read the data words
+ * into cciRx. 1 when the answer is there.
+ */
+static int _lepton_cci_get(mp_drv_lepton_t *lep, unsigned short cmd, int words) {
+	unsigned short status = 0;
+	mp_bool_t fsmc;
+	int ok = 0;
+
+	if(words * 2 > (int)sizeof(lep->cciRx))
+		return(0);
+	fsmc = mp_fsmc_pause();
+	if(_lepton_cci_idle(lep, &status, 10) &&
+		_lepton_cci_write(lep, LEPTON_REG_LENGTH, (unsigned short)words) &&
+		_lepton_cci_write(lep, LEPTON_REG_COMMAND, cmd) &&
+		_lepton_cci_idle(lep, &status, 200) &&
+		!(status & 0xFF00))
+		ok = _lepton_cci_read(lep, LEPTON_REG_DATA, lep->cciRx, words * 2);
+	_lepton_line(lep->sda, 1);
+	_lepton_line(lep->scl, 1);
+	mp_fsmc_resume(fsmc);
+	if(!ok && lep->gaveUp == NO) {
+		mp_printk("Lepton: command 0x%04x status 0x%04x", (unsigned int)cmd, (unsigned int)status);
+		lep->gaveUp = YES;
 	}
-	return(TRUE);
+	return(ok);
 }
 
-static void _lepton_begin(mp_drv_lepton_t *lep, unsigned char op) {
-	lep->op = op;
-	lep->step = LEPTON_STEP_STATUS;
-	lep->poll = 0;
-	if(_lepton_read(lep, LEPTON_REG_STATUS, 2) == FALSE)
-		lep->step = LEPTON_STEP_IDLE;
-}
+static int _lepton_filled(const unsigned char *raw, int n) {
+	int i;
 
-static void _lepton_get(mp_drv_lepton_t *lep, unsigned short cmd, int words) {
-	lep->cciCmd = cmd;
-	lep->cciWords = (unsigned char)words;
-	_lepton_begin(lep, LEPTON_OP_GET);
-}
-
-/* an identity command that failed is skipped; temperature is tried again later */
-static void _lepton_done(mp_drv_lepton_t *lep) {
-	lep->step = LEPTON_STEP_IDLE;
-	if(lep->cciCmd != LEPTON_CMD_FPA && lep->ident < LEPTON_IDENT_DONE)
-		lep->ident++;
-	if(lep->ident < LEPTON_IDENT_DONE)
-		_lepton_next(lep);
+	for(i = 0; i < n; i++)
+		if(raw[i])
+			return(1);
+	return(0);
 }
 
 static int _lepton_text(char *dst, int cap, const unsigned char *raw, int n, int swap) {
@@ -196,49 +303,109 @@ static int _lepton_text(char *dst, int cap, const unsigned char *raw, int n, int
 	return(o);
 }
 
-static int _lepton_dash(const char *text) {
-	while(*text) {
-		if(*text == '-')
-			return(1);
+/* the OEM string somewhere in the buffer; a swapped word does not start with 500- */
+static const char *_lepton_part_at(const char *text) {
+	if(!text)
+		return(NULL);
+	while(text[0]) {
+		if(text[0] == '5' && text[1] == '0' && text[2] == '0' && text[3] == '-')
+			return(text);
 		text++;
 	}
-	return(0);
+	return(NULL);
 }
 
-static void _lepton_take_serial(mp_drv_lepton_t *lep) {
+/* FLIR OEM part numbers (datasheet 500-0659-00-09 and the current FLIR list) */
+static const struct {
+	const char *part;
+	const char *name;
+} _lepton_names[] = {
+	{ "500-0643-00", "FLIR Lepton 1.5" },
+	{ "500-0643-01", "FLIR Lepton 1.5" },
+	{ "500-0690-00", "FLIR Lepton 1.6" },
+	{ "500-0659-00", "FLIR Lepton 2" },
+	{ "500-0659-01", "FLIR Lepton 2" },
+	{ "500-0763-01", "FLIR Lepton 2.5" },
+	{ "500-0726-01", "FLIR Lepton 3" },
+	{ "500-0758-03", "FLIR Lepton 3.1R" },
+	{ "500-0771-01", "FLIR Lepton 3.5" },
+	{ "500-0771-FS1", "FLIR Lepton FS1" },
+	{ "500-1387-00", "FLIR Lepton UW" },
+	{ "500-1395-00", "FLIR Lepton XDS" }
+};
+
+/* a part number the table does not know is still a Lepton */
+static const char *_lepton_name(const char *part) {
 	int i;
 
+	if(!part || !part[0])
+		return(NULL);
+	for(i = 0; i < (int)(sizeof(_lepton_names) / sizeof(_lepton_names[0])); i++) {
+		size_t n = strlen(_lepton_names[i].part);
+
+		if(strncmp(part, _lepton_names[i].part, n) == 0 && (part[n] == 0 || part[n] == '-' || part[n] == ' '))
+			return(_lepton_names[i].name);
+	}
+	return("FLIR Lepton");
+}
+
+/* the module's own name, part, serial and version. The board option is not a name. */
+static void _lepton_identity(mp_drv_lepton_t *lep) {
+	const char *model = _lepton_kept[0] ? _lepton_kept : (lep->model[0] ? lep->model : NULL);
+	const char *serial = lep->serial[0] ? lep->serial : NULL;
+	const char *version = lep->version[0] ? lep->version : NULL;
+
+	if(model)
+		lep->label = _lepton_name(model);
+	if(!lep->label)
+		return;
+	mp_device_identify(lep, lep->label, model, serial, version);
+	/* load is NULL, so loaded stays NO; the driver is still registered */
+	if(model && lep->binding.kernel == lep->kernel &&
+		mp_device_registry_register(&lep->binding, &lep->tempDev, MP_DEVICE_TEMPERATURE, 0, &lep->temperature, model, serial ? serial : lep->askedSerial, version))
+		lep->tempDev.label = lep->label;
+}
+
+static int _lepton_take_serial(mp_drv_lepton_t *lep) {
+	int i;
+
+	if(_lepton_filled(lep->cciRx, 8) == 0)
+		return(0);
 	for(i = 0; i < 8; i++)
 		snprintf(lep->serial + i * 2, 3, "%02x", lep->cciRx[i]);
 	lep->serial[16] = 0;
 	mp_printk("Lepton serial %s", lep->serial);
-	mp_device_identify(lep, lep->model, lep->serial, lep->version);
+	_lepton_identity(lep);
+	return(1);
 }
 
-static void _lepton_take_part(mp_drv_lepton_t *lep) {
+static int _lepton_take_part(mp_drv_lepton_t *lep) {
 	char swapped[33];
 	char plain[33];
+	const char *plainAt;
+	const char *swappedAt;
 	const char *use;
 
 	_lepton_text(swapped, (int)sizeof(swapped), lep->cciRx, 32, 1);
 	_lepton_text(plain, (int)sizeof(plain), lep->cciRx, 32, 0);
-	if(_lepton_dash(swapped))
-		use = swapped;
-	else if(_lepton_dash(plain))
+	plainAt = _lepton_part_at(plain);
+	swappedAt = _lepton_part_at(swapped);
+	if(plainAt == plain)
 		use = plain;
-	else if(swapped[0])
+	else if(swappedAt == swapped)
 		use = swapped;
 	else
-		use = plain;
+		use = plainAt ? plainAt : swappedAt;
+	if(!use)
+		return(0);
+	snprintf(_lepton_kept, sizeof(_lepton_kept), "%s", use);
 	snprintf(lep->model, sizeof(lep->model), "%s", use);
-	if(lep->model[0])
-		mp_printk("Lepton model %s", lep->model);
-	else
-		mp_printk("Lepton model empty");
-	mp_device_identify(lep, lep->model, lep->serial, lep->version);
+	mp_printk("Lepton model %s", lep->model);
+	_lepton_identity(lep);
+	return(1);
 }
 
-static void _lepton_take_version(mp_drv_lepton_t *lep) {
+static int _lepton_take_version(mp_drv_lepton_t *lep) {
 	const unsigned char *raw = lep->cciRx;
 
 	/*
@@ -249,94 +416,8 @@ static void _lepton_take_version(mp_drv_lepton_t *lep) {
 	snprintf(lep->version, sizeof(lep->version), "gpp %u.%u.%u  dsp %u.%u.%u",
 		raw[1], raw[0], raw[3], raw[2], raw[5], raw[4]);
 	mp_printk("Lepton version %s", lep->version);
-	mp_device_identify(lep, lep->model, lep->serial, lep->version);
-}
-
-static void _lepton_onCci(mp_regMaster_op_t *operand, mp_bool_t terminate) {
-	mp_drv_lepton_t *lep = operand->user;
-	unsigned short status;
-	unsigned short kelvin;
-
-	lep->busy = NO;
-	if(terminate == YES) {
-		lep->step = LEPTON_STEP_IDLE;
-		return;
-	}
-
-	switch(lep->step) {
-		case LEPTON_STEP_STATUS:
-			status = _lepton_word(lep->cciRx);
-			if(status & LEPTON_STATUS_BOOT)
-				lep->booted = YES;
-			if(status & LEPTON_STATUS_BUSY) {
-				if(++lep->poll < 8 && _lepton_read(lep, LEPTON_REG_STATUS, 2) == TRUE)
-					return;
-				lep->step = LEPTON_STEP_IDLE;
-				return;
-			}
-			if(lep->op != LEPTON_OP_GET) {
-				lep->step = LEPTON_STEP_IDLE;
-				return;
-			}
-			lep->step = LEPTON_STEP_LENGTH;
-			if(_lepton_write(lep, LEPTON_REG_LENGTH, lep->cciWords) == FALSE)
-				lep->step = LEPTON_STEP_IDLE;
-			return;
-
-		case LEPTON_STEP_LENGTH:
-			lep->step = LEPTON_STEP_COMMAND;
-			if(_lepton_write(lep, LEPTON_REG_COMMAND, lep->cciCmd) == FALSE)
-				lep->step = LEPTON_STEP_IDLE;
-			return;
-
-		case LEPTON_STEP_COMMAND:
-			lep->poll = 0;
-			lep->step = LEPTON_STEP_RESULT;
-			if(_lepton_read(lep, LEPTON_REG_STATUS, 2) == FALSE)
-				lep->step = LEPTON_STEP_IDLE;
-			return;
-
-		case LEPTON_STEP_RESULT:
-			status = _lepton_word(lep->cciRx);
-			if(status & LEPTON_STATUS_BOOT)
-				lep->booted = YES;
-			if(status & LEPTON_STATUS_BUSY) {
-				if(++lep->poll < 40 && _lepton_read(lep, LEPTON_REG_STATUS, 2) == TRUE)
-					return;
-				lep->step = LEPTON_STEP_IDLE;
-				return;
-			}
-			if(status & 0xFF00) {
-				mp_printk("Lepton: command 0x%04x status 0x%04x",
-					(unsigned int)lep->cciCmd, (unsigned int)status);
-				_lepton_done(lep);
-				return;
-			}
-			lep->step = LEPTON_STEP_DATA;
-			if(_lepton_read(lep, LEPTON_REG_DATA, (int)lep->cciWords * 2) == FALSE)
-				lep->step = LEPTON_STEP_IDLE;
-			return;
-
-		case LEPTON_STEP_DATA:
-			if(lep->cciCmd == LEPTON_CMD_SERIAL)
-				_lepton_take_serial(lep);
-			else if(lep->cciCmd == LEPTON_CMD_PART)
-				_lepton_take_part(lep);
-			else if(lep->cciCmd == LEPTON_CMD_VERSION)
-				_lepton_take_version(lep);
-			else if(lep->cciCmd == LEPTON_CMD_FPA) {
-				kelvin = _lepton_word(lep->cciRx);
-				/* the word is kelvin times 100; a cold module is still above 200 K */
-				if(lep->tempDev.driver && kelvin >= 20000 && kelvin <= 40000)
-					mp_device_measure_publish(&lep->temperature, (float)kelvin / 100.0f - 273.15f);
-			}
-			_lepton_done(lep);
-			return;
-
-		default:
-			lep->step = LEPTON_STEP_IDLE;
-			return;
-	}
+	_lepton_identity(lep);
+	return(1);
 }
 
 #define LEPTON_DMA_IDLE 0
@@ -680,37 +761,51 @@ static mp_bool_t _lepton_frame(mp_drv_lepton_t *lep, mp_task_t *task) {
 	return(YES);
 }
 
-static void _lepton_next(mp_drv_lepton_t *lep) {
-	if(lep->ident == LEPTON_IDENT_SERIAL)
-		_lepton_get(lep, LEPTON_CMD_SERIAL, 4);
-	else if(lep->ident == LEPTON_IDENT_PART)
-		_lepton_get(lep, LEPTON_CMD_PART, 16);
-	else if(lep->ident == LEPTON_IDENT_VERSION)
-		_lepton_get(lep, LEPTON_CMD_VERSION, 4);
-}
+/* once a second: what is still unknown of the identity, then the temperature */
+static void _lepton_cci(mp_drv_lepton_t *lep, unsigned long now) {
+	unsigned short kelvin;
 
-static void _lepton_temp(mp_drv_lepton_t *lep) {
-	unsigned long now = mp_clock_ticks();
-	unsigned long period = _lepton_ticks(1000);
-
-	if(lep->tempAt && (long)(now - lep->tempAt) < (long)period)
+	if(lep->tempAt && (long)(now - lep->tempAt) < (long)_lepton_ticks(1000))
 		return;
 	lep->tempAt = now;
-	_lepton_get(lep, LEPTON_CMD_FPA, 1);
-}
-
-static void _lepton_query(mp_drv_lepton_t *lep) {
-	if(lep->step != LEPTON_STEP_IDLE || lep->busy == YES)
-		return;
-	if(lep->ident < LEPTON_IDENT_DONE) {
-		_lepton_next(lep);
+	if(!lep->model[0]) {
+		if(!lep->serial[0] && _lepton_cci_get(lep, LEPTON_CMD_SERIAL, 4))
+			_lepton_take_serial(lep);
+		if(_lepton_cci_get(lep, LEPTON_CMD_PART, 16))
+			_lepton_take_part(lep);
 		return;
 	}
-	_lepton_temp(lep);
+	if(!lep->version[0]) {
+		if(_lepton_cci_get(lep, LEPTON_CMD_VERSION, 4))
+			_lepton_take_version(lep);
+		return;
+	}
+	if(!_lepton_cci_get(lep, LEPTON_CMD_FPA, 1))
+		return;
+	kelvin = _lepton_word(lep->cciRx);
+	/* the word is kelvin times 100; a cold module is still above 200 K */
+	if(lep->tempDev.driver && kelvin >= 20000 && kelvin <= 40000)
+		mp_device_measure_publish(&lep->temperature, (float)kelvin / 100.0f - 273.15f);
+}
+
+/* the driver of the temperature; the device itself waits for the part number */
+static void _lepton_publish(mp_drv_lepton_t *lep) {
+	static const mp_device_driver_ops_t ops = {
+		"camera/lepton", "FLIR Lepton", "1.0.0",
+		(unsigned int)(1u << MP_DEVICE_TEMPERATURE),
+		NULL, NULL, NULL, NULL, NULL
+	};
+
+	if(lep->binding.kernel != lep->kernel && mp_device_driver_register(lep->kernel, &lep->binding, &ops, lep, NULL) != TRUE)
+		mp_printk("Lepton: can not register the temperature");
+	_lepton_identity(lep);
+	mp_printk("Lepton ready");
 }
 
 static MP_TASK(_lepton_task) {
 	mp_drv_lepton_t *lep = task->user;
+	unsigned long now;
+	int watched;
 
 	if(task->signal == MP_TASK_SIG_STOP) {
 		_lepton_dma_stop(lep);
@@ -718,47 +813,51 @@ static MP_TASK(_lepton_task) {
 		return;
 	}
 
-	/*
-	 * A status read that never calls back used to sit here forever, so the
-	 * picture and the identity never started. Drop that transfer and run
-	 * the video anyway; the next pass asks the chip again.
-	 */
-	if(lep->step != LEPTON_STEP_IDLE || lep->busy == YES) {
-		if(++lep->tries >= 20) {
-			lep->tries = 0;
-			if(lep->gaveUp == NO) {
-				mp_printk("Lepton: I2C stalled");
-				lep->gaveUp = YES;
-			}
-			mp_i2c_reset(&lep->i2c);
-			mp_regMaster_cancel(&lep->regMaster);
-		}
-	}
-	else {
-		lep->tries = 0;
-		if(lep->booted == NO)
-			_lepton_begin(lep, LEPTON_OP_BOOT);
-		else
-			_lepton_query(lep);
-	}
-
+	now = mp_clock_ticks();
 	if(lep->phase == LEPTON_PHASE_BOOT) {
-		lep->phase = LEPTON_PHASE_SYNC;
-		{
-			static const mp_device_driver_ops_t ops = {
-				"camera/lepton", "FLIR Lepton", "1.0.0",
-				(unsigned int)(1u << MP_DEVICE_TEMPERATURE),
-				NULL, NULL, NULL, NULL, NULL
-			};
-
-			if(mp_device_driver_register(lep->kernel, &lep->binding, &ops, lep, NULL) == TRUE)
-				mp_device_registry_register(&lep->binding, &lep->tempDev, MP_DEVICE_TEMPERATURE, 0, &lep->temperature, "lepton", "fpa", NULL);
-			if(!lep->tempDev.driver)
-				mp_printk("Lepton: can not register the temperature");
-		}
-		mp_printk("Lepton ready");
+		lep->phase = LEPTON_PHASE_IDLE;
+		lep->bootAt = now;
+		mp_gpio_set(lep->cs);
+		_lepton_publish(lep);
+		mp_task_delay(task, _lepton_ticks(185));
+		return;
 	}
 
+	/*
+	 * No command while frames stream: a command in the middle of VoSPI
+	 * left the module busy for good, and only its power brings it back.
+	 */
+	watched = lep->watchAt && (long)(now - lep->watchAt) < (long)_lepton_ticks(500);
+#ifdef SUPPORT_COMMON_DMA
+	if(!watched && (lep->dmaUse == NO || lep->dmaOn == NO))
+#else
+	if(!watched)
+#endif
+		_lepton_cci(lep, now);
+	/* a module that never answers on I2C is still listed, under the family name */
+	if(!lep->label && (long)(now - lep->bootAt) > (long)_lepton_ticks(6000)) {
+		lep->label = "FLIR Lepton";
+		mp_printk("Lepton: no part number on I2C");
+		_lepton_identity(lep);
+	}
+
+	/* video only while someone takes the frame */
+	if(!watched) {
+#ifdef SUPPORT_COMMON_DMA
+		if(lep->dmaUse == YES && lep->dmaOn == YES)
+			_lepton_dma_finish(lep, LEPTON_DMA_FAIL);
+		if(lep->dmaUse == YES)
+			lep->dmaResult = LEPTON_DMA_IDLE;
+#endif
+		mp_gpio_set(lep->cs);
+		lep->phase = LEPTON_PHASE_IDLE;
+		mp_task_delay(task, _lepton_ticks(100));
+		return;
+	}
+	if(lep->phase == LEPTON_PHASE_IDLE)
+		lep->phase = LEPTON_PHASE_SYNC;
+
+	/* chip select high long enough for the module to resync, then frames */
 	if(lep->phase == LEPTON_PHASE_SYNC) {
 		mp_gpio_set(lep->cs);
 		lep->phase = LEPTON_PHASE_RUN;
@@ -775,6 +874,7 @@ static MP_TASK(_lepton_task) {
 		}
 		if(lep->dmaResult == LEPTON_DMA_OK) {
 			lep->dmaResult = LEPTON_DMA_IDLE;
+			lep->booted = YES;
 			if(lep->frame.sequence == 2)
 				mp_printk("Lepton frame");
 			/* the screen paints this frame in bands before the next read replaces it */
@@ -807,6 +907,7 @@ static MP_TASK(_lepton_task) {
 		return;
 	}
 
+	lep->booted = YES;
 	if(lep->frame.sequence == 2)
 		mp_printk("Lepton frame");
 	/* the screen paints this frame in bands before the next read replaces it */
@@ -828,39 +929,37 @@ static mp_ret_t _lepton_bus(mp_kernel_t *kernel, mp_drv_lepton_t *lep, mp_option
 		{ "role", "master" },
 		{ NULL, NULL }
 	};
-	mp_options_t i2cOpen[] = {
-		{ "gate", mp_options_get(options, "i2cGate") },
-		{ "sda", mp_options_get(options, "sda") },
-		{ "clk", mp_options_get(options, "scl") },
-		{ NULL, NULL }
-	};
-	mp_options_t i2cSetup[] = {
-		{ "frequency", "100000" },
-		{ "role", "master" },
-		{ NULL, NULL }
-	};
-
 	if(mp_spi_open(kernel, &lep->spi, spiOpen, who) == FALSE)
 		return(FALSE);
 	if(mp_spi_setup(&lep->spi, spiSetup) == FALSE)
 		return(FALSE);
 
-	if(mp_i2c_open(kernel, &lep->i2c, i2cOpen, who) == FALSE)
-		return(FALSE);
-	if(mp_i2c_setup(&lep->i2c, i2cSetup) == FALSE)
-		return(FALSE);
-	mp_i2c_setSlaveAddress(&lep->i2c, lep->address);
-
-	if(mp_regMaster_init_i2c(kernel, &lep->regMaster, &lep->i2c, lep, "Lepton I2C") == FALSE) {
-		mp_printk("Lepton: can not start regMaster");
+	lep->sda = mp_gpio_text_handle(mp_options_get(options, "sda"), "Lepton SDA");
+	lep->scl = mp_gpio_text_handle(mp_options_get(options, "scl"), "Lepton SCL");
+	if(!lep->sda || !lep->scl) {
+		mp_printk("Lepton: need sda and scl");
 		return(FALSE);
 	}
+	_lepton_line(lep->sda, 1);
+	_lepton_line(lep->scl, 1);
 	return(TRUE);
 }
 
 mp_ret_t mp_drv_lepton_init(mp_kernel_t *kernel, mp_drv_lepton_t *lep, mp_options_t *options, char *who) {
+	const char *model;
+	const char *serial;
+
 	memset(lep, 0, sizeof(*lep));
 	lep->kernel = kernel;
+	model = mp_device_option(options, "model");
+	serial = mp_machine_serial();
+	if(!model || !serial) {
+		mp_printk("Lepton: model is required, and the board serial");
+		return(FALSE);
+	}
+	lep->askedModel = model;
+	lep->askedSerial = serial;
+	_lepton_identity(lep);
 	lep->address = _lepton_address(mp_options_get(options, "address"));
 	lep->frame.pixels = lep->pixels;
 	lep->frame.width = MP_DRV_LEPTON_WIDTH;
@@ -904,10 +1003,17 @@ void mp_drv_lepton_fini(mp_drv_lepton_t *lep) {
 		lep->task = NULL;
 	}
 
-	lep->busy = NO;
-	mp_regMaster_fini(&lep->regMaster);
-	mp_i2c_close(&lep->i2c);
 	mp_spi_close(&lep->spi);
+	if(lep->sda) {
+		mp_gpio_mode(lep->sda, MP_GPIO_MODE_INPUT);
+		mp_gpio_release(lep->sda);
+		lep->sda = NULL;
+	}
+	if(lep->scl) {
+		mp_gpio_mode(lep->scl, MP_GPIO_MODE_INPUT);
+		mp_gpio_release(lep->scl);
+		lep->scl = NULL;
+	}
 
 	if(lep->cs) {
 		mp_gpio_set(lep->cs);
@@ -928,14 +1034,21 @@ static void _lepton_device_close(void *self) {
 	mp_drv_lepton_fini(self);
 }
 
+/* taking the frame is what keeps the video running */
 static void *_lepton_device_face(void *self) {
 	mp_drv_lepton_t *lep = self;
 
+	lep->watchAt = mp_clock_ticks();
+	if(!lep->watchAt)
+		lep->watchAt = 1;
+	if(lep->phase == LEPTON_PHASE_IDLE && lep->task)
+		mp_task_wake(lep->task);
 	return(&lep->frame);
 }
 
 const mp_device_ops_t mp_drv_lepton_device = {
-	"LEPTON", MP_DEVICE_CAMERA, _lepton_device_open, _lepton_device_close, _lepton_device_face, NULL
+	"LEPTON", MP_DEVICE_CAMERA, _lepton_device_open, _lepton_device_close, _lepton_device_face, NULL,
+	"FLIR Lepton", "1.0.0"
 };
 #endif
 

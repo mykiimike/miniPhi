@@ -27,8 +27,10 @@
 	 * The interrupt pin is claimed when the board wires it; samples
 	 * are polled, so the pin does not have to be connected.
 	 *
-	 * options: the i2c bus ones, address (0x38 or 0x39), range (2, 4
-	 * or 8 g), bandwidth (25 to 1500 Hz), period in ms, int (optional).
+	 * options: model (required). The chip has no serial, so both measures
+	 * use the MCU unique id from mp_machine_serial(). The i2c
+	 * bus ones, address (0x38 or 0x39), range (2, 4 or 8 g), bandwidth
+	 * (25 to 1500 Hz), period in ms, int (optional).
 	 */
 
 	typedef struct mp_drv_smb380_s mp_drv_smb380_t;
@@ -45,6 +47,10 @@
 		mp_device_registry_t tempDev;
 		mp_device_measure_t accel;
 		mp_device_measure_t temperature;
+
+		/** model from the board; serial is the MCU unique id */
+		const char *model;
+		const char *serial;
 
 		unsigned char address;
 		unsigned char range;

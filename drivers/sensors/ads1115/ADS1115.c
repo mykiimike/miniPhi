@@ -141,7 +141,8 @@ mp_ret_t mp_drv_ADS1115_init(mp_kernel_t *kernel, mp_drv_ADS1115_t *ADS1115, mp_
 		};
 
 		mp_device_driver_register(kernel, &ADS1115->binding, &ops, ADS1115, NULL);
-		mp_device_registry_register(&ADS1115->binding, &ADS1115->voltDev, MP_DEVICE_VOLTAGE, 0, &ADS1115->voltage, "ads1115", "ain", NULL);
+		if(mp_device_registry_register(&ADS1115->binding, &ADS1115->voltDev, MP_DEVICE_VOLTAGE, 0, &ADS1115->voltage, "ads1115", "ain", NULL))
+			ADS1115->voltDev.label = "TI ADS1115";
 	}
 
 	return(TRUE);

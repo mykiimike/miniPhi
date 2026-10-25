@@ -53,8 +53,6 @@ typedef struct {
 typedef struct sysinfo_s sysinfo_t;
 
 #ifdef SYSINFO_SCREEN
-/** at most this many cameras on the Camera page */
-#define SYSINFO_CAMERA_MAX 4
 /** the picture of the camera that is open; owner is the app */
 typedef struct {
 	mp_tui_widget_t widget;
@@ -152,8 +150,6 @@ struct sysinfo_s {
 		mp_tui_label_t deviceCount;
 		mp_tui_table_t deviceTable;
 		mp_tui_cell_t deviceCell[MP_DEVICE_MAX][3];
-		/** model, serial and software version registered by open devices */
-		mp_tui_label_t deviceInfo;
 #ifdef SUPPORT_COMMON_USB
 		int usbIndex;
 		int usbReady;
@@ -167,7 +163,14 @@ struct sysinfo_s {
 		int cryptoDetail;
 		int cryptoPick;
 		const char *cryptoFamily;
-		mp_tui_button_t cryptoButton[MP_CRYPTO_MAX];
+		/**
+		 * Buttons of whichever list is on screen. Cryptography and Devices
+		 * are never built together: opening one clears the page and fills these again.
+		 */
+		union {
+			mp_tui_button_t crypto[MP_CRYPTO_MAX];
+			mp_tui_button_t device[MP_CRYPTO_MAX];
+		} menu;
 		mp_tui_label_t cryptoState;
 #ifdef SUPPORT_COMMON_CRYPTO_RNG
 		/** RNG class page: the generator, a fresh number every 500 ms, then the algorithms */
@@ -204,8 +207,14 @@ struct sysinfo_s {
 		mp_tui_table_t powerLevels;
 		mp_tui_cell_t powerLevelCell[MP_POWER_LEVELS][4];
 #ifdef SUPPORT_COMMON_DEVICE
-		/** home entry "Accelerometer"; -1 until it is registered */
-		int accelIndex;
+		/** home entry Devices, then the category, then the device; -1 until registered */
+		int devIndex;
+		int devList;
+		int devView;
+		int devClass;
+		int devRank;
+		char devTitle[32];
+		/** accelerometer view: the bubble, the axes, the companion temperature, the switch */
 		int accelReady;
 		mp_tui_columns_t accelLayout;
 		sysinfo_level_t level;
@@ -215,16 +224,11 @@ struct sysinfo_s {
 		mp_tui_label_t accelZ;
 		mp_tui_label_t accelTemperature;
 		mp_tui_switch_t accelSwitch;
-#endif
-		/** home entry "Camera", then the picture of the picked one; -1 until registered */
-		int cameraIndex;
-		int cameraView;
-		int cameraPick;
+		/** camera view */
 		unsigned long cameraSequence;
-		mp_tui_button_t cameraButton[SYSINFO_CAMERA_MAX];
-		/** model, serial, software version, then the temperature */
 		mp_tui_label_t cameraState;
 		sysinfo_camera_view_t cameraPicture;
+#endif
 	} screen;
 #endif
 };

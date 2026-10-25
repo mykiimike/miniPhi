@@ -98,7 +98,8 @@ static void _led_device_set(void *self, int value) {
 }
 
 const mp_device_ops_t mp_drv_led_device = {
-	"LED", MP_DEVICE_LED, _led_device_open, _led_device_close, NULL, _led_device_set
+	"LED", MP_DEVICE_LED, _led_device_open, _led_device_close, NULL, _led_device_set,
+	"GPIO LED", "1.0.0"
 };
 #endif
 

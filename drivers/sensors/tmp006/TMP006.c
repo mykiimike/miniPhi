@@ -162,7 +162,8 @@ mp_device_measure_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TM
 		};
 
 		mp_device_driver_register(kernel, &TMP006->binding, &ops, TMP006, NULL);
-		mp_device_registry_register(&TMP006->binding, &TMP006->tempDev, MP_DEVICE_TEMPERATURE, 0, &TMP006->sensor, "tmp006", "obj", NULL);
+		if(mp_device_registry_register(&TMP006->binding, &TMP006->tempDev, MP_DEVICE_TEMPERATURE, 0, &TMP006->sensor, "tmp006", "obj", NULL))
+			TMP006->tempDev.label = "TI TMP006";
 	}
 
 	mp_printk("TMP006(%p): Initializing", TMP006);

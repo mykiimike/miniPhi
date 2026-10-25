@@ -100,6 +100,10 @@
 		void *(*face)(void *self);
 		/** optional: 0 is off, anything else on */
 		void (*set)(void *self, int value);
+		/** catalog text. NULL when this driver has none. */
+		const char *description;
+		/** this driver's own version, not the chip behind it. NULL when it has none. */
+		const char *version;
 	};
 
 	struct mp_device_s {
@@ -111,8 +115,10 @@
 		mp_bool_t opened;
 		/**
 		 * Identity read from the chip. NULL until the driver registers it.
-		 * The driver keeps the text; these point at it.
+		 * The driver keeps the text; these point at it. label is the name for
+		 * people ("FLIR Lepton 2"); a device without one is not listed.
 		 */
+		const char *label;
 		const char *model;
 		const char *serial;
 		const char *version;
@@ -272,6 +278,11 @@
 		void *instance;
 		/** driver's text, not copied. NULL when the driver gave none. Not part of the address. */
 		const char *version;
+		/**
+		 * Name of the device for people ("Bosch SMB380"), set by its driver right
+		 * after register. Not copied. The address stays the machine name.
+		 */
+		const char *label;
 		char address[MP_DEVICE_ADDRESS];
 		/** YES while a scan of this driver has not registered it again */
 		mp_bool_t stale;
@@ -549,8 +560,8 @@
 	 * alt, power, humidity, illuminance, orientation, gyro, mag). The driver owns the
 	 * struct, registers it as the device instance, and publishes into it from a task
 	 * or an interrupt. A reader takes a coherent copy with mp_device_measure_read.
-	 * The name, the type and the kernel link of the old mp_sensor_t are gone: the
-	 * device address and class carry them.
+	 * The type and the kernel link of the old mp_sensor_t are gone: the class
+	 * and the address carry them. label is the caption, not the device name.
 	 */
 	typedef struct mp_device_measure_s mp_device_measure_t;
 
@@ -610,12 +621,24 @@
 	void mp_device_set(mp_device_t *device, int value);
 
 	/**
-	 * Register a model, a serial number and a software version read from the chip.
-	 * self is the driver object passed to open. The strings are not copied, so
-	 * they must stay valid after this returns. NULL or "" leaves that field unknown.
+	 * One option's text. NULL when it is missing or empty.
+	 * The pointer refers to the option text.
+	 */
+	const char *mp_device_option(mp_options_t *options, const char *key);
+	/**
+	 * The model and serial options a board device must give its driver.
+	 * FALSE when either is missing. The pointers refer to the option text.
+	 */
+	mp_ret_t mp_device_options_identity(mp_options_t *options, const char **model, const char **serial);
+
+	/**
+	 * Register the name, model, serial number and software version of the chip.
+	 * label is the name for people, model the address field. self is the driver
+	 * object passed to open. The strings are not copied, so they must stay valid
+	 * after this returns. NULL or "" leaves that field unknown.
 	 * A driver calls this again as it learns each one.
 	 */
-	void mp_device_identify(void *self, const char *model, const char *serial, const char *version);
+	void mp_device_identify(void *self, const char *label, const char *model, const char *serial, const char *version);
 
 #endif
 #endif

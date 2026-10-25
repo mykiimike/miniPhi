@@ -28,10 +28,14 @@
 	 * rises in that completion, so the CPU can draw meanwhile. Otherwise the
 	 * task clocks the packet itself.
 	 * CCI on I2C reads the FLIR serial, the part number and the software version
-	 * once the module has booted, then publishes the FPA temperature in °C.
+	 * as soon as the driver is open, then publishes the FPA temperature in °C.
+	 * The device name comes from that part number ("FLIR Lepton 2"), never
+	 * from the board option. VoSPI runs only while the frame is being taken.
 	 * The frame lives in the device, not on the heap.
 	 *
-	 * options: spiGate, simo, somi, sck, cs, i2cGate, sda, scl, address (0x2A).
+	 * options: model (required, not published). The serial shown is the
+	 * module's own once CCI returns it. spiGate, simo, somi, sck, cs,
+	 * sda, scl, address (0x2A).
 	 */
 
 	#define MP_DRV_LEPTON_WIDTH 80
@@ -42,9 +46,10 @@
 	struct mp_drv_lepton_s {
 		mp_kernel_t *kernel;
 		mp_spi_t spi;
-		mp_i2c_t i2c;
-		mp_regMaster_t regMaster;
 		mp_gpio_port_t *cs;
+		/** CCI, driven by hand: the FSMC holds PB7 while its clock runs */
+		mp_gpio_port_t *sda;
+		mp_gpio_port_t *scl;
 		mp_task_t *task;
 		mp_device_driver_t binding;
 		mp_device_registry_t tempDev;
@@ -55,29 +60,26 @@
 		unsigned char packet[164];
 
 		unsigned char address;
-		/** boot poll, then video */
+		/** boot, idle while nobody takes the frame, sync, video */
 		unsigned char phase;
-		unsigned char tries;
 		mp_bool_t booted;
+		/** YES once a failed command was reported */
 		mp_bool_t gaveUp;
-
-		/** one CCI transaction at a time */
-		unsigned char step;
-		unsigned char op;
-		unsigned char poll;
-		mp_bool_t busy;
-		unsigned char cciReg[2];
-		unsigned char cciTx[4];
+		/** data words of the last CCI answer */
 		unsigned char cciRx[32];
-		/** command in flight, and how many 16-bit words it returns */
-		unsigned short cciCmd;
-		unsigned char cciWords;
-		/** 0 serial, 1 part number, 2 software version, then temperature */
-		unsigned char ident;
+		/** model from the board, and the MCU unique id, until the module answers */
+		const char *askedModel;
+		const char *askedSerial;
 		char model[33];
 		char serial[17];
 		char version[40];
+		/** product name from the part number ("FLIR Lepton 2"); NULL until known */
+		const char *label;
+		/** last CCI round: identity until known, then the temperature */
 		unsigned long tempAt;
+		unsigned long bootAt;
+		/** last time the frame was taken; video stops half a second after */
+		unsigned long watchAt;
 		/** raw ends of the frame being read, and the stretch used to store it */
 		unsigned short seenMin;
 		unsigned short seenMax;

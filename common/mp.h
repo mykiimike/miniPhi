@@ -98,6 +98,11 @@
 	const char *mp_clock_deep(void);
 	void mp_machine_state_set(mp_kernel_t *kernel);
 	void mp_machine_state_unset(mp_kernel_t *kernel);
+	/**
+	 * The unique id of this chip, lowercase hex, or NULL when the chip has none.
+	 * The text stays valid. A part with no serial of its own uses it as its serial.
+	 */
+	const char *mp_machine_serial(void);
 
 	#define MP_KERNEL_KPANIC 0
 	#define MP_KERNEL_BOOT   1

@@ -271,7 +271,14 @@ static mp_bool_t _sysinfo_line(sysinfo_t *sysinfo, int line) {
 			break;
 
 		case 3:
-			mp_printk("Board      %s, app %s", PHI_BUILD_BOARD, PHI_BUILD_APP);
+			{
+				const char *serial = mp_machine_serial();
+
+				if(serial)
+					mp_printk("Board      %s, app %s, serial %s", PHI_BUILD_BOARD, PHI_BUILD_APP, serial);
+				else
+					mp_printk("Board      %s, app %s", PHI_BUILD_BOARD, PHI_BUILD_APP);
+			}
 			break;
 
 		case 4:
@@ -338,6 +345,41 @@ static mp_bool_t _sysinfo_line(sysinfo_t *sysinfo, int line) {
 	return(YES);
 }
 
+#ifdef SUPPORT_COMMON_DEVICE
+/* same digits as printf %.Nf, without the malloc that resets the chip when it fails */
+static void _sysinfo_fixed(char *dst, int cap, float value, int decimals) {
+	int scale = 1;
+	int n, whole, frac;
+	int neg;
+
+	if(!dst || cap < 2)
+		return;
+	if(decimals < 0)
+		decimals = 0;
+	if(decimals > 3)
+		decimals = 3;
+	for(n = 0; n < decimals; n++)
+		scale *= 10;
+	neg = value < 0.0f;
+	if(neg)
+		value = -value;
+	whole = (int)value;
+	frac = (int)((value - (float)whole) * (float)scale + 0.5f);
+	if(frac >= scale) {
+		frac -= scale;
+		whole++;
+	}
+	if(decimals == 0)
+		snprintf(dst, (size_t)cap, "%s%d", neg ? "-" : "", whole);
+	else if(decimals == 1)
+		snprintf(dst, (size_t)cap, "%s%d.%d", neg ? "-" : "", whole, frac);
+	else if(decimals == 2)
+		snprintf(dst, (size_t)cap, "%s%d.%02d", neg ? "-" : "", whole, frac);
+	else
+		snprintf(dst, (size_t)cap, "%s%d.%03d", neg ? "-" : "", whole, frac);
+}
+#endif
+
 static void _sysinfo_report(sysinfo_t *sysinfo) {
 	mp_kernel_t *kernel = &sysinfo->kernel;
 	unsigned long hz = mp_clock_tick_hz();
@@ -373,13 +415,20 @@ static void _sysinfo_report(sysinfo_t *sysinfo) {
 		float v[3];
 
 		while((sensor = mp_device_measure_next(kernel, sensor)) != NULL) {
+			char a[16], b[16], c[16];
+
 			if(mp_device_measure_read(sensor->instance, v, NULL) != TRUE)
 				mp_printk("  %s: --", sensor->address);
-			else if(mp_device_measure_axes(sensor->class) == 3)
-				mp_printk("  %s: %.2f %.2f %.2f %s", sensor->address,
-					(double)v[0], (double)v[1], (double)v[2], mp_device_measure_unit(sensor->class));
-			else
-				mp_printk("  %s: %.3f %s", sensor->address, (double)v[0], mp_device_measure_unit(sensor->class));
+			else if(mp_device_measure_axes(sensor->class) == 3) {
+				_sysinfo_fixed(a, (int)sizeof(a), v[0], 2);
+				_sysinfo_fixed(b, (int)sizeof(b), v[1], 2);
+				_sysinfo_fixed(c, (int)sizeof(c), v[2], 2);
+				mp_printk("  %s: %s %s %s %s", sensor->address, a, b, c, mp_device_measure_unit(sensor->class));
+			}
+			else {
+				_sysinfo_fixed(a, (int)sizeof(a), v[0], 3);
+				mp_printk("  %s: %s %s", sensor->address, a, mp_device_measure_unit(sensor->class));
+			}
 		}
 	}
 #endif

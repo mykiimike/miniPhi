@@ -188,4 +188,24 @@ void mp_fsmc_retime(unsigned long hclk) {
 	}
 }
 
+mp_bool_t mp_fsmc_pause(void) {
+#if defined(RCC_AHBENR_FSMCEN)
+	if(!(RCC->AHBENR & RCC_AHBENR_FSMCEN))
+		return(NO);
+	RCC->AHBENR &= ~RCC_AHBENR_FSMCEN;
+	return(YES);
+#else
+	return(NO);
+#endif
+}
+
+void mp_fsmc_resume(mp_bool_t running) {
+#if defined(RCC_AHBENR_FSMCEN)
+	if(running == YES)
+		RCC->AHBENR |= RCC_AHBENR_FSMCEN;
+#else
+	(void)running;
+#endif
+}
+
 /**@}*/

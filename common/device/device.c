@@ -32,6 +32,7 @@ void mp_device_init(mp_kernel_t *kernel) {
 		return;
 	for(index = 0; index < MP_DEVICE_COUNT; index++) {
 		_mp_devices[index].opened = NO;
+		_mp_devices[index].label = NULL;
 		_mp_devices[index].model = NULL;
 		_mp_devices[index].serial = NULL;
 		_mp_devices[index].version = NULL;
@@ -94,16 +95,52 @@ static const char *_mp_device_text(const char *text) {
 	return(text);
 }
 
+const char *mp_device_option(mp_options_t *options, const char *key) {
+	mp_options_t *option;
+
+	if(!options || !key)
+		return(NULL);
+	for(option = options; option->key && option->value; option++)
+		if(strcmp(option->key, key) == 0 && option->value[0])
+			return(option->value);
+	return(NULL);
+}
+
+mp_ret_t mp_device_options_identity(mp_options_t *options, const char **model, const char **serial) {
+	const char *gotModel;
+	const char *gotSerial;
+
+	if(model)
+		*model = NULL;
+	if(serial)
+		*serial = NULL;
+	if(!options || !model || !serial)
+		return(FALSE);
+	gotModel = mp_device_option(options, "model");
+	gotSerial = mp_device_option(options, "serial");
+	if(!gotModel || !gotSerial)
+		return(FALSE);
+	*model = gotModel;
+	*serial = gotSerial;
+	return(TRUE);
+}
+
 mp_ret_t mp_device_open(mp_kernel_t *kernel, mp_device_t *device) {
 	if(!kernel || !device)
 		return(FALSE);
 	if(device->opened == YES)
 		return(TRUE);
+	device->label = NULL;
 	device->model = NULL;
 	device->serial = NULL;
 	device->version = NULL;
-	if(device->driver->open(kernel, device->self, device->options, device->name) == FALSE)
+	if(device->driver->open(kernel, device->self, device->options, device->name) == FALSE) {
+		device->label = NULL;
+		device->model = NULL;
+		device->serial = NULL;
+		device->version = NULL;
 		return(FALSE);
+	}
 	device->opened = YES;
 	return(TRUE);
 }
@@ -127,7 +164,7 @@ void mp_device_set(mp_device_t *device, int value) {
 	device->driver->set(device->self, value);
 }
 
-void mp_device_identify(void *self, const char *model, const char *serial, const char *version) {
+void mp_device_identify(void *self, const char *label, const char *model, const char *serial, const char *version) {
 	int index;
 
 	if(!self)
@@ -135,6 +172,7 @@ void mp_device_identify(void *self, const char *model, const char *serial, const
 	for(index = 0; index < MP_DEVICE_COUNT; index++) {
 		if(_mp_devices[index].self != self)
 			continue;
+		_mp_devices[index].label = _mp_device_text(label);
 		_mp_devices[index].model = _mp_device_text(model);
 		_mp_devices[index].serial = _mp_device_text(serial);
 		_mp_devices[index].version = _mp_device_text(version);

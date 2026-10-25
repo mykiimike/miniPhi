@@ -45,6 +45,10 @@
 		mp_drv_ili932x_orientation_t orientation;
 		/** register 0x00: 0x9320 or 0x9325 */
 		uint16_t id;
+		/** ili9320 or ili9325, kept for mp_device_identify */
+		char part[8];
+		/** mp_machine_serial(); the panel has none of its own */
+		const char *serial;
 
 		/** backlightTimer: the pin is a PWM channel */
 		mp_bool_t dimmable;
@@ -60,11 +64,12 @@
 	};
 
 	/**
-	 * options: the fsmc bus ones, reset and backlight pins (both optional),
-	 * backlightLow, backlightTimer (the timer whose channel is the backlight
-	 * pin, to dim it), standby (true lets the screen-off path power the
-	 * panel down), orientation (landscape, portrait, landscape-flipped,
-	 * portrait-flipped).
+	 * options: model (required). The panel has no serial, so the serial is
+	 * the chip unique id from mp_machine_serial(). Also the fsmc bus ones, reset and backlight
+	 * pins (both optional), backlightLow, backlightTimer (the timer whose
+	 * channel is the backlight pin, to dim it), standby (true lets the
+	 * screen-off path power the panel down), orientation (landscape,
+	 * portrait, landscape-flipped, portrait-flipped).
 	 */
 	mp_ret_t mp_drv_ili932x_init(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_options_t *options, char *who);
 	mp_ret_t mp_drv_ili932x_fini(mp_drv_ili932x_t *lcd);

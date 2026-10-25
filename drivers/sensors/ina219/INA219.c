@@ -136,6 +136,10 @@ mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_opt
 		mp_device_registry_register(&INA219->binding, &INA219->shuntDev, MP_DEVICE_VOLTAGE, 1, &INA219->shuntVoltage, "ina219", "shunt", NULL);
 		mp_device_registry_register(&INA219->binding, &INA219->currDev, MP_DEVICE_CURRENT, 0, &INA219->current, "ina219", "i", NULL);
 		mp_device_registry_register(&INA219->binding, &INA219->powerDev, MP_DEVICE_POWER, 0, &INA219->power, "ina219", "p", NULL);
+		INA219->busDev.label = "TI INA219 bus";
+		INA219->shuntDev.label = "TI INA219 shunt";
+		INA219->currDev.label = "TI INA219";
+		INA219->powerDev.label = "TI INA219";
 	}
 
 	mp_printk("INA219(%p): Initializing", INA219);

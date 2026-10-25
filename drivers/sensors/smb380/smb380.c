@@ -142,12 +142,23 @@ static mp_ret_t _smb380_write(mp_drv_smb380_t *smb, unsigned char reg, unsigned 
 
 
 mp_ret_t mp_drv_smb380_init(mp_kernel_t *kernel, mp_drv_smb380_t *smb, mp_options_t *options, char *who) {
+	const char *model;
+	const char *serial;
 	char *value;
 	int period;
 	mp_ret_t ret;
 
 	memset(smb, 0, sizeof(*smb));
 	smb->kernel = kernel;
+	model = mp_device_option(options, "model");
+	serial = mp_machine_serial();
+	if(!model || !serial) {
+		mp_printk("SMB380: model is required, and the board serial");
+		return(FALSE);
+	}
+	smb->model = model;
+	smb->serial = serial;
+	mp_device_identify(smb, "Bosch SMB380", smb->model, smb->serial, NULL);
 	smb->address = _smb380_address(mp_options_get(options, "address"));
 	smb->range = _smb380_range(mp_options_get(options, "range"));
 	smb->bandwidth = _smb380_bandwidth(mp_options_get(options, "bandwidth"));
@@ -290,23 +301,19 @@ static void _smb380_onRangeWritten(mp_regMaster_op_t *operand, mp_bool_t termina
 			(unsigned int)((1u << MP_DEVICE_ACCELEROMETER) | (1u << MP_DEVICE_TEMPERATURE)),
 			NULL, NULL, NULL, NULL, NULL
 		};
-		char serial[3];
-		static const char *hex = "0123456789abcdef";
-
-		serial[0] = hex[(smb->address >> 4) & 0xf];
-		serial[1] = hex[smb->address & 0xf];
-		serial[2] = 0;
 		memset(&smb->accel, 0, sizeof(smb->accel));
 		memset(&smb->temperature, 0, sizeof(smb->temperature));
 		if(mp_device_driver_register(smb->kernel, &smb->binding, &ops, smb, NULL) == FALSE ||
-			!mp_device_registry_register(&smb->binding, &smb->accelDev, MP_DEVICE_ACCELEROMETER, 0, &smb->accel, "02", serial, NULL) ||
-			!mp_device_registry_register(&smb->binding, &smb->tempDev, MP_DEVICE_TEMPERATURE, 0, &smb->temperature, "02", serial, NULL)) {
+			!mp_device_registry_register(&smb->binding, &smb->accelDev, MP_DEVICE_ACCELEROMETER, 0, &smb->accel, smb->model, smb->serial, NULL) ||
+			!mp_device_registry_register(&smb->binding, &smb->tempDev, MP_DEVICE_TEMPERATURE, 0, &smb->temperature, smb->model, smb->serial, NULL)) {
 			mp_device_registry_unregister(&smb->accelDev);
 			mp_device_registry_unregister(&smb->tempDev);
 			mp_device_driver_unregister(smb->kernel, &smb->binding);
 			mp_printk("SMB380: can not register the sensors");
 			return;
 		}
+		smb->accelDev.label = "Bosch SMB380";
+		smb->tempDev.label = "Bosch SMB380";
 	}
 
 	smb->task = mp_task_create(&smb->kernel->tasks, "SMB380", _smb380_task, smb, smb->period);
@@ -418,7 +425,8 @@ static void _smb380_device_set(void *self, int value) {
 }
 
 const mp_device_ops_t mp_drv_smb380_device = {
-	"SMB380", MP_DEVICE_ACCELEROMETER, _smb380_device_open, _smb380_device_close, NULL, _smb380_device_set
+	"SMB380", MP_DEVICE_ACCELEROMETER, _smb380_device_open, _smb380_device_close, NULL, _smb380_device_set,
+	"Bosch SMB380", "1.0.0"
 };
 #endif
 

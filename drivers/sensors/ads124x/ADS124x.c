@@ -238,7 +238,9 @@ mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_
 		model = ADS124X->version == _TI_ADS1248 ? "ads1248" :
 			ADS124X->version == _TI_ADS1247 ? "ads1247" : "ads1246";
 		mp_device_driver_register(kernel, &ADS124X->binding, &ops, ADS124X, NULL);
-		mp_device_registry_register(&ADS124X->binding, &ADS124X->voltDev, MP_DEVICE_VOLTAGE, 0, &ADS124X->voltage, model, "adc", NULL);
+		if(mp_device_registry_register(&ADS124X->binding, &ADS124X->voltDev, MP_DEVICE_VOLTAGE, 0, &ADS124X->voltage, model, "adc", NULL))
+			ADS124X->voltDev.label = ADS124X->version == _TI_ADS1248 ? "TI ADS1248" :
+				ADS124X->version == _TI_ADS1247 ? "TI ADS1247" : "TI ADS1246";
 	}
 
 	/* turn on the device */

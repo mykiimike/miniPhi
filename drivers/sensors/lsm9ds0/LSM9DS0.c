@@ -566,6 +566,7 @@ void mp_drv_LSM9DS0_initGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
 
 	/* Register new gyro sensor */
 	mp_device_registry_register(&LSM9DS0->binding, &LSM9DS0->gyroDev, MP_DEVICE_GYROSCOPE, 0, &LSM9DS0->gyro, "lsm9ds0", "gyro", NULL);
+	LSM9DS0->gyroDev.label = "ST LSM9DS0";
 
 	/* prepare gyro registers */
 	LSM9DS0->gReg1 = 0x0f;
@@ -624,6 +625,8 @@ void mp_drv_LSM9DS0_initMag(mp_drv_LSM9DS0_t *LSM9DS0) {
 	/* Register new magneto sensor */
 	mp_device_registry_register(&LSM9DS0->binding, &LSM9DS0->magDev, MP_DEVICE_MAGNETOMETER, 0, &LSM9DS0->magneto, "lsm9ds0", "mag", NULL);
 	mp_device_registry_register(&LSM9DS0->binding, &LSM9DS0->tempDev, MP_DEVICE_TEMPERATURE, 0, &LSM9DS0->temperature, "lsm9ds0", "temp", NULL);
+	LSM9DS0->magDev.label = "ST LSM9DS0";
+	LSM9DS0->tempDev.label = "ST LSM9DS0";
 
 	/* prepare magneto registers */
 	LSM9DS0->xmReg5 = 0x94;
@@ -690,6 +693,7 @@ void mp_drv_LSM9DS0_setMagODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_odr_
 void mp_drv_LSM9DS0_initAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
 	/* Register new accelerometer sensor */
 	mp_device_registry_register(&LSM9DS0->binding, &LSM9DS0->accelDev, MP_DEVICE_ACCELEROMETER, 0, &LSM9DS0->accelero, "lsm9ds0", "accel", NULL);
+	LSM9DS0->accelDev.label = "ST LSM9DS0";
 
 	/* prepare accelerometer registers */
 	LSM9DS0->xmReg1 = 0x57;

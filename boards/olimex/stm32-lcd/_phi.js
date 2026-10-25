@@ -50,12 +50,12 @@ export const phi = {
 		{
 			driver: "ILI932X",
 			name: "lcd",
-			options: { gate: "FSMC", cs: "pd7", rs: "pe3", reset: "pe2", backlight: "pd13", backlightLow: true, backlightTimer: "TIM4", orientation: "landscape" },
+			options: { gate: "FSMC", cs: "pd7", rs: "pe3", reset: "pe2", backlight: "pd13", backlightLow: true, backlightTimer: "TIM4", orientation: "landscape", model: "ili932x" },
 		},
 		{
 			driver: "SMB380",
 			name: "accel",
-			options: { gate: "I2C2", sda: "pb11", clk: "pb10", int: "pe4", address: "0x38", range: "2", bandwidth: "25" },
+			options: { gate: "I2C2", sda: "pb11", clk: "pb10", int: "pe4", address: "0x38", range: "2", bandwidth: "25", model: "smb380" },
 		},
 		{
 			driver: "LEPTON",
@@ -63,6 +63,7 @@ export const phi = {
 			options: {
 				spiGate: "SPI2", simo: "pb15", somi: "pb14", sck: "pb13", cs: "pb12",
 				i2cGate: "I2C1", sda: "pb7", scl: "pb6",
+				model: "lepton",
 			},
 		},
 	],

@@ -88,10 +88,10 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │   ├── screen.c              the display: open, close, console keys
 │   ├── sysinfo.h
 │   └── pages/                one directory per home page; index.c is the list
-│       ├── accelerometer/index.c
+│       ├── devices/          index.c, accel.c and camera.c: categories, then a device
 │       ├── cryptography/index.c   home page: class, then algorithm, then acceleration
 │       ├── power/index.c     home page: level, load, wake ups, holds, time per level
-│       └── system/           index.c, tasks.c and devices.c are its sub-pages
+│       └── system/           index.c, tasks.c and drivers.c are its sub-pages
 │
 └── boards/                   one directory per vendor, then one per product
     ├── olimex/

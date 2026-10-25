@@ -131,6 +131,25 @@ int main(void) {
 	mp_device_registry_t *light;
 	char self;
 
+	{
+		mp_options_t named[] = {
+			{ "model", "smb380" },
+			{ "serial", "stm32-lcd" },
+			{ NULL, NULL }
+		};
+		mp_options_t bare[] = {
+			{ "model", "smb380" },
+			{ NULL, NULL }
+		};
+		const char *model = NULL;
+		const char *serial = NULL;
+
+		expect(mp_device_options_identity(named, &model, &serial) == TRUE, "model and serial");
+		expect(model && strcmp(model, "smb380") == 0, "model text");
+		expect(serial && strcmp(serial, "stm32-lcd") == 0, "serial text");
+		expect(mp_device_options_identity(bare, &model, &serial) == FALSE, "serial required");
+		expect(mp_device_options_identity(NULL, &model, &serial) == FALSE, "no options");
+	}
 	memset(&kernel, 0, sizeof(kernel));
 	memset(&imu, 0, sizeof(imu));
 	memset(&other, 0, sizeof(other));

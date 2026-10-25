@@ -19,9 +19,9 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Home page. Whichever 3-axis sensor is present, as numbers and as a bubble
- * level, and the switch for SYSINFO_KEY_ACCEL. The accelerometers only run
- * while this page is on a lit screen.
+ * Accelerometer view of Devices. Numbers and a bubble level, and the switch
+ * for SYSINFO_KEY_ACCEL. The accelerometers only run while this view is on
+ * a lit screen.
  */
 
 #include "../index.h"
@@ -51,8 +51,12 @@ static int _sysinfo_isqrt(int n) {
 
 static void _sysinfo_disc(mp_tui_draw_t *draw, int cx, int cy, int radius, mp_tui_color_t color) {
 	int dy, span;
+	int y0 = draw->clip.y;
+	int y1 = draw->clip.y + draw->clip.h;
 
 	for(dy = -radius; dy <= radius; dy++) {
+		if(cy + dy < y0 || cy + dy >= y1)
+			continue;
 		span = _sysinfo_isqrt(radius * radius - dy * dy);
 		mp_tui_draw_hline(draw, cx - span, cy + dy, span * 2 + 1, color);
 	}
@@ -60,10 +64,14 @@ static void _sysinfo_disc(mp_tui_draw_t *draw, int cx, int cy, int radius, mp_tu
 
 static void _sysinfo_ring(mp_tui_draw_t *draw, int cx, int cy, int radius, mp_tui_color_t color) {
 	int dy, span;
+	int y0 = draw->clip.y;
+	int y1 = draw->clip.y + draw->clip.h;
 
 	if(radius < 1)
 		return;
 	for(dy = -radius; dy <= radius; dy++) {
+		if(cy + dy < y0 || cy + dy >= y1)
+			continue;
 		span = _sysinfo_isqrt(radius * radius - dy * dy);
 		mp_tui_draw_hline(draw, cx - span, cy + dy, 2, color);
 		if(span > 1)
@@ -145,16 +153,21 @@ static int _sysinfo_cg(float g) {
 }
 
 static void _sysinfo_accel_values(sysinfo_t *sysinfo) {
-	mp_device_registry_t *axis = mp_device_registry_find(&sysinfo->kernel, MP_DEVICE_ACCELEROMETER, 0);
-	mp_device_registry_t *temperature = _sysinfo_accel_temperature(&sysinfo->kernel, axis);
+	mp_device_registry_t *axis = NULL;
+	mp_device_t *legacy = NULL;
+	mp_device_registry_t *temperature;
 	sysinfo_level_t *level = &sysinfo->screen.level;
+	char caption[32];
 	float g[3], t[3];
 	int mx, my, mz;
 
+	_sysinfo_dev_current(sysinfo, &axis, &legacy);
+	temperature = _sysinfo_accel_temperature(&sysinfo->kernel, axis);
+	_sysinfo_dev_caption(sysinfo, axis, legacy, caption, (int)sizeof(caption));
 	mp_tui_switch_set(&sysinfo->screen.accelSwitch, sysinfo->accelEnabled == YES);
 	if(!axis || mp_device_measure_read(axis->instance, g, NULL) != TRUE) {
 		mp_tui_label_set(&sysinfo->screen.accelName, "%s", sysinfo->accelEnabled == NO ? "Accelerometer off" :
-			axis ? axis->address : sysinfo->accelRunning == YES ? "No accelerometer" : "Starting");
+			axis ? caption : sysinfo->accelRunning == YES ? "No accelerometer" : "Starting");
 		mp_tui_label_set(&sysinfo->screen.accelX, "%s", "X  --");
 		mp_tui_label_set(&sysinfo->screen.accelY, "%s", "Y  --");
 		mp_tui_label_set(&sysinfo->screen.accelZ, "%s", "Z  --");
@@ -168,13 +181,17 @@ static void _sysinfo_accel_values(sysinfo_t *sysinfo) {
 		return;
 	}
 
-	mp_tui_label_set(&sysinfo->screen.accelName, "%s", axis->address);
-	mp_tui_label_set(&sysinfo->screen.accelX, "X  % .2f g", (double)g[0]);
-	mp_tui_label_set(&sysinfo->screen.accelY, "Y  % .2f g", (double)g[1]);
-	mp_tui_label_set(&sysinfo->screen.accelZ, "Z  % .2f g", (double)g[2]);
-	if(temperature && mp_device_measure_read(temperature->instance, t, NULL) == TRUE)
-		mp_tui_label_set(&sysinfo->screen.accelTemperature, "%s  %.1f °C",
-			temperature->address, (double)t[0]);
+	mp_tui_label_set(&sysinfo->screen.accelName, "%s", caption);
+	_sysinfo_format_fixed(caption, (int)sizeof(caption), g[0], 2, YES);
+	mp_tui_label_set(&sysinfo->screen.accelX, "X  %s g", caption);
+	_sysinfo_format_fixed(caption, (int)sizeof(caption), g[1], 2, YES);
+	mp_tui_label_set(&sysinfo->screen.accelY, "Y  %s g", caption);
+	_sysinfo_format_fixed(caption, (int)sizeof(caption), g[2], 2, YES);
+	mp_tui_label_set(&sysinfo->screen.accelZ, "Z  %s g", caption);
+	if(temperature && mp_device_measure_read(temperature->instance, t, NULL) == TRUE) {
+		_sysinfo_format_fixed(caption, (int)sizeof(caption), t[0], 1, NO);
+		mp_tui_label_set(&sysinfo->screen.accelTemperature, "%s °C", caption);
+	}
 	else
 		mp_tui_label_set(&sysinfo->screen.accelTemperature, "%s", "");
 
@@ -203,8 +220,7 @@ static const mp_tui_column_spec_t _sysinfo_accel_layout[] = {
 	{ 0, 120 },
 };
 
-static void _sysinfo_accel_page(mp_tui_widget_t *page, void *user) {
-	sysinfo_t *sysinfo = user;
+void _sysinfo_dev_accel_build(mp_tui_widget_t *page, sysinfo_t *sysinfo) {
 	mp_tui_t *tui = page->tui;
 	const mp_tui_font_t *font = tui->theme.font;
 	mp_tui_columns_t *layout = &sysinfo->screen.accelLayout;
@@ -255,28 +271,9 @@ static void _sysinfo_accel_page(mp_tui_widget_t *page, void *user) {
 		mp_task_wake(sysinfo->screen.task);
 }
 
-void _sysinfo_accel_open(sysinfo_t *sysinfo) {
-	mp_tui_t *tui = &sysinfo->screen.tui;
-
-	sysinfo->screen.accelIndex = -1;
-	if(mp_tui_app(tui, "Accelerometer", _sysinfo_accel_page, sysinfo))
-		sysinfo->screen.accelIndex = tui->appCount - 1;
-}
-
-void _sysinfo_accel_refresh(sysinfo_t *sysinfo) {
-	/* System's widgets do not exist until that page is opened, and must not gate this one */
-	if(sysinfo->screen.accelReady && sysinfo->screen.tui.opened == sysinfo->screen.accelIndex)
+void _sysinfo_dev_accel_refresh(sysinfo_t *sysinfo) {
+	if(sysinfo->screen.accelReady && _sysinfo_dev_accel_shown(sysinfo) == YES)
 		_sysinfo_accel_values(sysinfo);
-}
-
-#else
-
-void _sysinfo_accel_open(sysinfo_t *sysinfo) {
-	(void)sysinfo;
-}
-
-void _sysinfo_accel_refresh(sysinfo_t *sysinfo) {
-	(void)sysinfo;
 }
 
 #endif

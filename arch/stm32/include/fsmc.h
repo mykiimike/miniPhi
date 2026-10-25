@@ -54,6 +54,14 @@
 	mp_ret_t mp_fsmc_close(mp_fsmc_t *fsmc);
 	void mp_fsmc_retime(unsigned long hclk);
 
+	/**
+	 * ES0340 2.3.9: on the F103xC/D/E a running FSMC holds PB7 (I2C1 SDA)
+	 * high. Stop its clock around a transfer on those pins; no bank may be
+	 * touched meanwhile. Returns YES when it was running, for mp_fsmc_resume.
+	 */
+	mp_bool_t mp_fsmc_pause(void);
+	void mp_fsmc_resume(mp_bool_t running);
+
 	static inline void mp_fsmc_write_cmd(mp_fsmc_t *fsmc, uint16_t value) {
 		*fsmc->cmd = value;
 	}

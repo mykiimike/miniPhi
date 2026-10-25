@@ -19,17 +19,18 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Home page. One button per camera. Opening one runs that camera and draws
- * its frame while the picture page stays on screen. Each sample is drawn
- * as a 2x2 block, centered under the header. The model, the serial number,
- * the software version and the temperature are drawn over it. A band is
- * filled even while the next frame is being read, or the clear behind it
- * leaves a line across the picture.
+ * Camera view of Devices. Taking the frame while the view is on screen is
+ * what runs the video. Each sample is a 2x2 block when the page has room,
+ * otherwise one pixel per sample. The part number, serial, software version
+ * and temperature the driver published sit under the picture; the title is
+ * the device name. A band is filled even while the next frame is being
+ * read, or the clear behind it leaves a line across the picture.
  */
 
 #include "../index.h"
 
 #ifdef SYSINFO_SCREEN
+#ifdef SUPPORT_COMMON_DEVICE
 
 static int _sysinfo_camera_name(const char *a, const char *b) {
 	if(!a || !b)
@@ -48,21 +49,20 @@ static int _sysinfo_camera_name(const char *a, const char *b) {
 	return(*a == *b);
 }
 
-static void _sysinfo_camera_hold(sysinfo_t *sysinfo, mp_bool_t on) {
-	mp_device_t *want = NULL;
-	mp_device_t *device;
-	int rank;
+static mp_device_t *_sysinfo_camera_device(sysinfo_t *sysinfo) {
+	mp_device_registry_t *reg = NULL;
+	mp_device_t *legacy = NULL;
 
-	if(on == YES)
-		want = mp_device_find(MP_DEVICE_CAMERA, sysinfo->screen.cameraPick);
-	for(rank = 0; (device = mp_device_find(MP_DEVICE_CAMERA, rank)) != NULL; rank++) {
-		if(device == want) {
-			if(device->opened == NO && mp_device_open(&sysinfo->kernel, device) == TRUE)
-				sysinfo->screen.cameraSequence = 0;
-		}
-		else if(device->opened == YES)
-			mp_device_close(device);
-	}
+	_sysinfo_dev_current(sysinfo, &reg, &legacy);
+	return(legacy);
+}
+
+/* the camera stays open from boot; taking its frame is what runs the video */
+static void _sysinfo_camera_hold(sysinfo_t *sysinfo) {
+	mp_device_t *device = _sysinfo_camera_device(sysinfo);
+
+	if(device && device->opened == NO && mp_device_open(&sysinfo->kernel, device) == TRUE)
+		sysinfo->screen.cameraSequence = 0;
 }
 
 #ifdef SUPPORT_COMMON_DEVICE
@@ -93,9 +93,9 @@ static void _sysinfo_camera_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 	mp_camera_frame_t *frame;
 	const unsigned char *pixels;
 	unsigned long sequence;
-	int width, height, left, top, row, col, row0, row1;
+	int width, height, scale, left, top, row, col, row0, row1;
 
-	device = sysinfo ? mp_device_find(MP_DEVICE_CAMERA, sysinfo->screen.cameraPick) : NULL;
+	device = sysinfo ? _sysinfo_camera_device(sysinfo) : NULL;
 	frame = device && device->opened == YES ? mp_device_face(device) : NULL;
 	sequence = frame ? frame->sequence : 0;
 	if(!frame || sequence == 0 || !frame->pixels || !frame->width || !frame->height)
@@ -104,10 +104,11 @@ static void _sysinfo_camera_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 	pixels = frame->pixels;
 	width = frame->width;
 	height = frame->height;
-	left = widget->screen.x + (widget->screen.w - width * 2) / 2;
-	top = widget->screen.y + (widget->screen.h - height * 2) / 2;
-	row0 = (draw->clip.y - top) / 2;
-	row1 = (draw->clip.y + draw->clip.h - 1 - top) / 2 + 1;
+	scale = widget->screen.w >= width * 2 && widget->screen.h >= height * 2 ? 2 : 1;
+	left = widget->screen.x + (widget->screen.w - width * scale) / 2;
+	top = widget->screen.y + (widget->screen.h - height * scale) / 2;
+	row0 = (draw->clip.y - top) / scale;
+	row1 = (draw->clip.y + draw->clip.h - 1 - top) / scale + 1;
 	if(row0 < 0)
 		row0 = 0;
 	if(row1 > height)
@@ -119,7 +120,7 @@ static void _sysinfo_camera_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 		for(col = 0; col < width; col++) {
 			unsigned char sample = line[col];
 
-			mp_tui_draw_fill(draw, left + col * 2, top + row * 2, 2, 2, MP_TUI_RGB(sample, sample, sample));
+			mp_tui_draw_fill(draw, left + col * scale, top + row * scale, scale, scale, MP_TUI_RGB(sample, sample, sample));
 		}
 	}
 }
@@ -142,10 +143,10 @@ static void _sysinfo_camera_values(sysinfo_t *sysinfo) {
 	mp_camera_frame_t *frame;
 	unsigned long sequence;
 
-	if(sysinfo->screen.cameraView < 0 || sysinfo->screen.tui.opened != sysinfo->screen.cameraView)
+	if(_sysinfo_dev_camera_shown(sysinfo) == NO)
 		return;
-	_sysinfo_camera_hold(sysinfo, YES);
-	device = mp_device_find(MP_DEVICE_CAMERA, sysinfo->screen.cameraPick);
+	_sysinfo_camera_hold(sysinfo);
+	device = _sysinfo_camera_device(sysinfo);
 	if(!device || device->opened == NO) {
 		mp_tui_label_set(&sysinfo->screen.cameraState, "");
 		return;
@@ -173,7 +174,10 @@ static void _sysinfo_camera_values(sysinfo_t *sysinfo) {
 			char degrees[16];
 
 			if(temperature && mp_device_measure_read(temperature->instance, value, NULL) == TRUE) {
-				snprintf(degrees, sizeof(degrees), "%.1f °C", (double)value[0]);
+				char num[8];
+
+				_sysinfo_format_fixed(num, (int)sizeof(num), value[0], 1, NO);
+				snprintf(degrees, sizeof(degrees), "%s °C", num);
 				n = _sysinfo_camera_line(text, n, degrees);
 			}
 		}
@@ -182,117 +186,42 @@ static void _sysinfo_camera_values(sysinfo_t *sysinfo) {
 	}
 }
 
-static void _sysinfo_camera_view_page(mp_tui_widget_t *page, void *user) {
-	sysinfo_t *sysinfo = user;
+void _sysinfo_dev_camera_build(mp_tui_widget_t *page, sysinfo_t *sysinfo) {
 	const mp_tui_font_t *font = page->tui->theme.font;
 	int line = font->lineHeight + 1;
-	int width = page->rect.w - 16;
-	int y = 8;
-	int imgW = 160;
-	int imgH = 120;
+	int caption = line * 4;
+	int gap = 6;
+	int avail = page->rect.h - caption - gap;
+	int scale = 2;
+	int imgW;
+	int imgH;
 	int x;
+	int y = 0;
 	sysinfo_camera_view_t *picture = &sysinfo->screen.cameraPicture;
-	mp_device_t *device;
-	mp_camera_frame_t *frame;
 
-	_sysinfo_camera_hold(sysinfo, YES);
-	device = mp_device_find(MP_DEVICE_CAMERA, sysinfo->screen.cameraPick);
-	frame = device && device->opened == YES ? mp_device_face(device) : NULL;
-	if(frame && frame->width && frame->height) {
-		imgW = (int)frame->width * 2;
-		imgH = (int)frame->height * 2;
-	}
+	if(avail < 60)
+		avail = page->rect.h > 60 ? page->rect.h - gap : page->rect.h;
+	if(60 * scale > avail || 80 * scale > page->rect.w)
+		scale = 1;
+	imgW = 80 * scale;
+	imgH = 60 * scale;
 	if(imgW > page->rect.w)
 		imgW = page->rect.w;
-	if(imgH > page->rect.h)
-		imgH = page->rect.h;
 	x = (page->rect.w - imgW) / 2;
-	y = (page->rect.h - imgH) / 2;
-	if(y < 8)
-		y = 8;
+	if(page->rect.h > imgH + gap + caption)
+		y = (page->rect.h - imgH - gap - caption) / 2;
 
 	picture->owner = sysinfo;
 	mp_tui_widget_init(&picture->widget, &_sysinfo_camera_class, page, x, y, imgW, imgH);
-	mp_tui_label(&sysinfo->screen.cameraState, page, 8, 8, width, line * 4, "");
-	mp_tui_label_color(&sysinfo->screen.cameraState, page->tui->theme.muted);
+	mp_tui_label(&sysinfo->screen.cameraState, page, 4, y + imgH + gap, page->rect.w - 8, caption, "");
+	mp_tui_label_align(&sysinfo->screen.cameraState, MP_TUI_ALIGN_CENTER);
 	_sysinfo_camera_values(sysinfo);
 }
 
-static void _sysinfo_on_camera(mp_tui_button_t *button) {
-	sysinfo_t *sysinfo = button->user;
-	mp_device_t *device;
-	int pick = button->id;
-
-	if(!sysinfo || sysinfo->screen.cameraView < 0)
-		return;
-	device = mp_device_find(MP_DEVICE_CAMERA, pick);
-	if(!device)
-		return;
-	sysinfo->screen.cameraPick = pick;
-	sysinfo->screen.cameraSequence = 0;
-	sysinfo->screen.tui.app[sysinfo->screen.cameraView].name = device->name;
-	mp_tui_enter(&sysinfo->screen.tui, sysinfo->screen.cameraView);
-}
-
-static void _sysinfo_camera_page(mp_tui_widget_t *page, void *user) {
-	sysinfo_t *sysinfo = user;
-	const mp_tui_font_t *font = page->tui->theme.font;
-	int line = font->lineHeight + 1;
-	int width = page->rect.w - 16;
-	int h = line + 18;
-	int y = 8;
-	int count = 0;
-	int rank;
-	mp_device_t *device;
-
-	for(rank = 0; count < SYSINFO_CAMERA_MAX && (device = mp_device_find(MP_DEVICE_CAMERA, rank)) != NULL; rank++) {
-		mp_tui_button(&sysinfo->screen.cameraButton[count], page, 8, y, width, h, device->name);
-		sysinfo->screen.cameraButton[count].chevron = 1;
-		sysinfo->screen.cameraButton[count].onPress = _sysinfo_on_camera;
-		sysinfo->screen.cameraButton[count].user = sysinfo;
-		sysinfo->screen.cameraButton[count].id = rank;
-		y += h + 6;
-		count++;
-	}
-	if(count == 0) {
-		mp_tui_label(&sysinfo->screen.cameraState, page, 8, 12, width, line, "No camera");
-		mp_tui_label_color(&sysinfo->screen.cameraState, page->tui->theme.muted);
-	}
-}
-
-void _sysinfo_camera_open(sysinfo_t *sysinfo) {
-	mp_tui_t *tui = &sysinfo->screen.tui;
-
-	sysinfo->screen.cameraIndex = -1;
-	sysinfo->screen.cameraView = -1;
-	sysinfo->screen.cameraPick = 0;
-	sysinfo->screen.cameraSequence = 0;
-	if(mp_tui_app(tui, "Camera", _sysinfo_camera_page, sysinfo))
-		sysinfo->screen.cameraIndex = tui->appCount - 1;
-	if(mp_tui_child(tui, "Camera", _sysinfo_camera_view_page, sysinfo))
-		sysinfo->screen.cameraView = tui->appCount - 1;
-}
-
-/* the Devices page opens each camera so the chip can register its identity */
-static void _sysinfo_camera_identify(sysinfo_t *sysinfo) {
-	mp_device_t *device;
-	int rank;
-
-	for(rank = 0; (device = mp_device_find(MP_DEVICE_CAMERA, rank)) != NULL; rank++) {
-		if(device->opened == NO)
-			mp_device_open(&sysinfo->kernel, device);
-	}
-}
-
-void _sysinfo_camera_refresh(sysinfo_t *sysinfo) {
-	int devices = sysinfo->screen.devicesReady && sysinfo->screen.tui.opened == sysinfo->screen.devicesIndex;
-
-	if(sysinfo->screen.cameraView >= 0 && sysinfo->screen.tui.opened == sysinfo->screen.cameraView)
+void _sysinfo_dev_camera_refresh(sysinfo_t *sysinfo) {
+	if(_sysinfo_dev_camera_shown(sysinfo) == YES)
 		_sysinfo_camera_values(sysinfo);
-	else if(devices)
-		_sysinfo_camera_identify(sysinfo);
-	else
-		_sysinfo_camera_hold(sysinfo, NO);
 }
 
+#endif
 #endif

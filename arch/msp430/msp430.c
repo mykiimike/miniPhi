@@ -89,6 +89,11 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	return(TRUE);
 }
 
+const char *mp_machine_serial(void) {
+	/* 0x1A04 is the part number, shared by every chip of that model */
+	return(NULL);
+}
+
 mp_ret_t mp_machine_fini(mp_kernel_t *kernel) {
 
 	/* terminate SPI */
@@ -150,7 +155,8 @@ static void _set_machine_temperature(mp_kernel_t *kernel) {
 		mp_adc_create(kernel, &kernel->arch.internalTemp, options, "MCU temperature");
 		mp_device_driver_register(kernel, &_mp_arch_sensors, &ops, kernel, NULL);
 		kernel->arch.sensorMCU = &_mp_arch_temp;
-		mp_device_registry_register(&_mp_arch_sensors, &_mp_arch_tempDev, MP_DEVICE_TEMPERATURE, 0, &_mp_arch_temp, "msp430", "mcu", NULL);
+		if(mp_device_registry_register(&_mp_arch_sensors, &_mp_arch_tempDev, MP_DEVICE_TEMPERATURE, 0, &_mp_arch_temp, "msp430", "mcu", NULL))
+			_mp_arch_tempDev.label = "MSP430 Internal";
 
 		kernel->arch.internalTemp.callback = _processor_temp;
 	}

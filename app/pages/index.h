@@ -36,12 +36,24 @@
 /** a temperature published by the same driver as a 3-axis measure */
 #ifdef SUPPORT_COMMON_DEVICE
 int _sysinfo_measure_beside(mp_device_registry_t *axis, mp_device_registry_t *other);
+/** fixed digits, no printf %f. sign YES leaves a leading space when positive */
+void _sysinfo_format_fixed(char *dst, int cap, float value, int decimals, mp_bool_t sign);
 #endif
 
-void _sysinfo_accel_open(sysinfo_t *sysinfo);
-void _sysinfo_accel_refresh(sysinfo_t *sysinfo);
-void _sysinfo_camera_open(sysinfo_t *sysinfo);
-void _sysinfo_camera_refresh(sysinfo_t *sysinfo);
+void _sysinfo_dev_open(sysinfo_t *sysinfo);
+void _sysinfo_dev_refresh(sysinfo_t *sysinfo);
+/** YES while the open device is an accelerometer, so the chip runs only then */
+mp_bool_t _sysinfo_dev_accel_shown(sysinfo_t *sysinfo);
+/** YES while the open device is a camera, so the picture is redrawn quickly */
+mp_bool_t _sysinfo_dev_camera_shown(sysinfo_t *sysinfo);
+#ifdef SUPPORT_COMMON_DEVICE
+void _sysinfo_dev_current(sysinfo_t *sysinfo, mp_device_registry_t **reg, mp_device_t **legacy);
+void _sysinfo_dev_caption(sysinfo_t *sysinfo, mp_device_registry_t *reg, mp_device_t *legacy, char *dst, int cap);
+void _sysinfo_dev_accel_build(mp_tui_widget_t *page, sysinfo_t *sysinfo);
+void _sysinfo_dev_accel_refresh(sysinfo_t *sysinfo);
+void _sysinfo_dev_camera_build(mp_tui_widget_t *page, sysinfo_t *sysinfo);
+void _sysinfo_dev_camera_refresh(sysinfo_t *sysinfo);
+#endif
 /** 0 when the System page could not be registered */
 int _sysinfo_system_open(sysinfo_t *sysinfo);
 void _sysinfo_system_refresh(sysinfo_t *sysinfo);

@@ -264,11 +264,20 @@ static mp_gpio_port_t *_ili932x_output(mp_options_t *options, char *key, char *w
 }
 
 mp_ret_t mp_drv_ili932x_init(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_options_t *options, char *who) {
+	const char *model;
+	const char *serial;
 	char *value;
 	unsigned int index;
 
 	memset(lcd, 0, sizeof(*lcd));
 	lcd->kernel = kernel;
+	model = mp_device_option(options, "model");
+	serial = mp_machine_serial();
+	if(!model || !serial) {
+		mp_printk("ILI932x: model is required, and the board serial");
+		return(FALSE);
+	}
+	lcd->serial = serial;
 
 	value = mp_options_get(options, "standby");
 	lcd->canStandby = value && mp_options_cmp(value, "true") == TRUE ? YES : NO;
@@ -328,6 +337,8 @@ mp_ret_t mp_drv_ili932x_init(mp_kernel_t *kernel, mp_drv_ili932x_t *lcd, mp_opti
 
 	mp_drv_ili932x_backlight(lcd, YES);
 
+	snprintf(lcd->part, sizeof(lcd->part), "ili%04x", (unsigned int)lcd->id);
+	mp_device_identify(lcd, lcd->id == 0x9320 ? "Ilitek ILI9320" : "Ilitek ILI9325", lcd->part, lcd->serial, NULL);
 	mp_printk("ILI%04x %dx%d %s called %s", lcd->id, lcd->display.width, lcd->display.height,
 		_ili932x_orientations[lcd->orientation], who);
 	return(TRUE);
@@ -377,7 +388,8 @@ static void *_ili932x_device_face(void *self) {
 }
 
 const mp_device_ops_t mp_drv_ili932x_device = {
-	"ILI932X", MP_DEVICE_DISPLAY, _ili932x_device_open, _ili932x_device_close, _ili932x_device_face, NULL
+	"ILI932X", MP_DEVICE_DISPLAY, _ili932x_device_open, _ili932x_device_close, _ili932x_device_face, NULL,
+	"ILI9320 / ILI9325 TFT", "1.0.0"
 };
 #endif
 

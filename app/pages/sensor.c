@@ -28,4 +28,37 @@ int _sysinfo_measure_beside(mp_device_registry_t *axis, mp_device_registry_t *ot
 	return(other->driver == axis->driver && other->class == MP_DEVICE_TEMPERATURE);
 }
 
+/* integer digits only: printf %f mallocs, and a failed malloc resets the chip */
+void _sysinfo_format_fixed(char *dst, int cap, float value, int decimals, mp_bool_t sign) {
+	int scale = 1;
+	int n, whole, frac;
+	int neg;
+
+	if(!dst || cap < 2)
+		return;
+	if(decimals < 0)
+		decimals = 0;
+	if(decimals > 3)
+		decimals = 3;
+	for(n = 0; n < decimals; n++)
+		scale *= 10;
+	neg = value < 0.0f;
+	if(neg)
+		value = -value;
+	whole = (int)value;
+	frac = (int)((value - (float)whole) * (float)scale + 0.5f);
+	if(frac >= scale) {
+		frac -= scale;
+		whole++;
+	}
+	if(decimals == 0)
+		snprintf(dst, (size_t)cap, "%s%d", neg ? "-" : sign == YES ? " " : "", whole);
+	else if(decimals == 1)
+		snprintf(dst, (size_t)cap, "%s%d.%d", neg ? "-" : sign == YES ? " " : "", whole, frac);
+	else if(decimals == 2)
+		snprintf(dst, (size_t)cap, "%s%d.%02d", neg ? "-" : sign == YES ? " " : "", whole, frac);
+	else
+		snprintf(dst, (size_t)cap, "%s%d.%03d", neg ? "-" : sign == YES ? " " : "", whole, frac);
+}
+
 #endif

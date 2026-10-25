@@ -78,6 +78,22 @@ static void _mp_machine_name(mp_kernel_t *kernel) {
 	kernel->mcuName = kernel->arch.mcuName;
 }
 
+const char *mp_machine_serial(void) {
+	static char text[25];
+	const volatile unsigned long *id;
+
+	if(text[0])
+		return(text);
+	/* 96-bit unique id. F1: RM0008, 0x1FFFF7E8. F4: RM0090, 0x1FFF7A10. */
+#if defined(STM32F407xx)
+	id = (const volatile unsigned long *)0x1FFF7A10;
+#else
+	id = (const volatile unsigned long *)0x1FFFF7E8;
+#endif
+	snprintf(text, sizeof(text), "%08lx%08lx%08lx", id[0], id[1], id[2]);
+	return(text);
+}
+
 mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	_mp_machine_name(kernel);
 
@@ -154,7 +170,7 @@ void mp_machine_state_set(mp_kernel_t *kernel) {
 
 		if(haveVref == TRUE || haveTemp == TRUE) {
 			static const mp_device_driver_ops_t ops = {
-				"arch/stm32", "STM32 internal ADC", "1.0.0",
+				"arch/stm32", "STM32 microcontroller", "1.0.0",
 				(unsigned int)((1u << MP_DEVICE_TEMPERATURE) | (1u << MP_DEVICE_VOLTAGE)),
 				NULL, NULL, NULL, NULL, NULL
 			};
@@ -163,12 +179,15 @@ void mp_machine_state_set(mp_kernel_t *kernel) {
 		}
 		if(haveVref == TRUE) {
 			kernel->arch.sensorVDDA = &_mp_arch_volt;
-			mp_device_registry_register(&_mp_arch_sensors, &_mp_arch_voltDev, MP_DEVICE_VOLTAGE, 0, &_mp_arch_volt, "stm32", "vdda", NULL);
+			/* the die is the board: its unique id is the serial */
+			if(mp_device_registry_register(&_mp_arch_sensors, &_mp_arch_voltDev, MP_DEVICE_VOLTAGE, 0, &_mp_arch_volt, "stm32", mp_machine_serial(), NULL))
+				_mp_arch_voltDev.label = "STM32 VDDA";
 			kernel->arch.internalVref.callback = _mp_machine_vref;
 		}
 		if(haveTemp == TRUE) {
 			kernel->arch.sensorMCU = &_mp_arch_temp;
-			mp_device_registry_register(&_mp_arch_sensors, &_mp_arch_tempDev, MP_DEVICE_TEMPERATURE, 0, &_mp_arch_temp, "stm32", "mcu", NULL);
+			if(mp_device_registry_register(&_mp_arch_sensors, &_mp_arch_tempDev, MP_DEVICE_TEMPERATURE, 0, &_mp_arch_temp, "stm32", mp_machine_serial(), NULL))
+				_mp_arch_tempDev.label = "STM32 Internal";
 			kernel->arch.internalTemp.callback = _mp_machine_temp;
 		}
 	}

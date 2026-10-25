@@ -434,6 +434,7 @@ mp_ret_t mp_resistive_init(mp_kernel_t *kernel, mp_resistive_t *panel) {
 		mp_device_driver_unregister(kernel, &panel->binding);
 		return(FALSE);
 	}
+	panel->touch.label = "Resistive touch";
 
 	if((unsigned)panel->orientation >= sizeof(_mp_resistive_orientation) / sizeof(_mp_resistive_orientation[0]))
 		panel->orientation = MP_RESISTIVE_LANDSCAPE;

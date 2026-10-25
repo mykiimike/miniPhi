@@ -48,7 +48,7 @@ mp_ret_t mp_board_resistive(mp_kernel_t *kernel) {
 	_mp_board_touch.yMin = 250;
 	_mp_board_touch.yMax = 3850;
 	_mp_board_touch.model = "resistive";
-	_mp_board_touch.serial = "stm32-lcd";
+	_mp_board_touch.serial = mp_machine_serial();
 	_mp_board_touch.period = 20;
 	_mp_board_touch.idle = 100;
 	_mp_board_touch.doze = 50;

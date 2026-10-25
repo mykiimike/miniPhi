@@ -21,7 +21,7 @@
 /*
  * Opens the first display of the board, then the pages in pages/. The console
  * is a keyboard for the TUI; j, k and b stand for down, up and back. The task
- * refreshes the live figures every 250 ms, 50 ms on the Accelerometer page,
+ * refreshes the live figures every 250 ms, 50 ms on an accelerometer,
  * 20 ms while a camera picture is on screen, and every second while the screen is off.
  * A byte on the console wakes it.
  */
@@ -101,7 +101,23 @@ static void _sysinfo_touch_run(sysinfo_t *sysinfo, mp_bool_t on) {
 #endif
 }
 
-/* shutdown closes a camera the picture page left open */
+/* each board device is loaded once so its driver names it; a camera stays loaded */
+static void _sysinfo_devices_load(sysinfo_t *sysinfo) {
+	int n;
+
+	for(n = 0; n < mp_device_count(); n++) {
+		mp_device_t *device = mp_device_at(n);
+
+		if(!device || device->opened == YES)
+			continue;
+		if(mp_device_open(&sysinfo->kernel, device) == FALSE)
+			continue;
+		if(device->driver->type != MP_DEVICE_CAMERA)
+			mp_device_close(device);
+	}
+}
+
+/* shutdown closes the cameras loaded at open */
 static void _sysinfo_camera_run(sysinfo_t *sysinfo, mp_bool_t on) {
 	mp_device_t *device;
 	int rank;
@@ -141,6 +157,7 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 		mp_device_input_init(kernel, &sysinfo->screen.keys, MP_DEVICE_INPUT_CAP_KEYS, "Console");
 #endif
 	_sysinfo_touch_run(sysinfo, YES);
+	_sysinfo_devices_load(sysinfo);
 
 #ifdef SUPPORT_COMMON_USB
 	_sysinfo_usb_watch(sysinfo);
@@ -173,12 +190,7 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 }
 
 static mp_bool_t _sysinfo_accel_page_on(sysinfo_t *sysinfo) {
-#ifdef SUPPORT_COMMON_DEVICE
-	return(sysinfo->screen.accelIndex >= 0 && sysinfo->screen.tui.opened == sysinfo->screen.accelIndex ? YES : NO);
-#else
-	(void)sysinfo;
-	return(NO);
-#endif
+	return(_sysinfo_dev_accel_shown(sysinfo));
 }
 
 mp_bool_t _sysinfo_accel_shown(sysinfo_t *sysinfo) {
@@ -192,7 +204,7 @@ static unsigned long _sysinfo_screen_period(sysinfo_t *sysinfo) {
 		return(1000);
 	if(_sysinfo_accel_page_on(sysinfo) == YES)
 		return(50);
-	if(sysinfo->screen.cameraView >= 0 && sysinfo->screen.tui.opened == sysinfo->screen.cameraView)
+	if(_sysinfo_dev_camera_shown(sysinfo) == YES)
 		return(20);
 	return(250);
 }
