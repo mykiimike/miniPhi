@@ -107,6 +107,7 @@ mp_device_registry_t *mp_device_registry_register(mp_device_driver_t *driver, mp
 		device->version = ver;
 		device->index = (short)index;
 		device->stale = NO;
+		/* label and commands belong to the driver; a refresh must not clear them */
 		return(device);
 	}
 

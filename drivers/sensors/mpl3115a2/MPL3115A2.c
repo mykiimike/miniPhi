@@ -311,7 +311,8 @@ mp_ret_t mp_drv_MPL3115A2_acquisitionTimeStep(mp_drv_MPL3115A2_t *MPL3115A2, uns
 void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 	/* enable sensor */
 	mp_device_registry_unregister(&MPL3115A2->pressDev);
-	mp_device_registry_register(&MPL3115A2->binding, &MPL3115A2->pressDev, MP_DEVICE_BAROMETER, 0, &MPL3115A2->sensor, "mpl3115a2", "baro", NULL);
+	if(mp_device_registry_register(&MPL3115A2->binding, &MPL3115A2->pressDev, MP_DEVICE_BAROMETER, 0, &MPL3115A2->sensor, "mpl3115a2", "baro", NULL))
+		MPL3115A2->pressDev.label = "Freescale MPL3115A2";
 
 	MPL3115A2->settings &= ~(1<<7); //Clear ALT bit
 	MPL3115A2->readerControl = _mp_drv_MPL3115A2_readPressureControl;
@@ -334,7 +335,8 @@ void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2) {
 	/* enable sensor */
 	mp_device_registry_unregister(&MPL3115A2->pressDev);
-	mp_device_registry_register(&MPL3115A2->binding, &MPL3115A2->pressDev, MP_DEVICE_ALTIMETER, 0, &MPL3115A2->sensor, "mpl3115a2", "alt", NULL);
+	if(mp_device_registry_register(&MPL3115A2->binding, &MPL3115A2->pressDev, MP_DEVICE_ALTIMETER, 0, &MPL3115A2->sensor, "mpl3115a2", "alt", NULL))
+		MPL3115A2->pressDev.label = "Freescale MPL3115A2";
 
 	/* request command */
 	MPL3115A2->settings |= (1<<7); //Set ALT bit
@@ -423,7 +425,8 @@ void mp_drv_MPL3115A2_enableTemperature(mp_drv_MPL3115A2_t *MPL3115A2) {
 
 	/* enable sensor */
 	mp_device_registry_unregister(&MPL3115A2->tempDev);
-	mp_device_registry_register(&MPL3115A2->binding, &MPL3115A2->tempDev, MP_DEVICE_TEMPERATURE, 0, &MPL3115A2->temperature, "mpl3115a2", "temp", NULL);
+	if(mp_device_registry_register(&MPL3115A2->binding, &MPL3115A2->tempDev, MP_DEVICE_TEMPERATURE, 0, &MPL3115A2->temperature, "mpl3115a2", "temp", NULL))
+		MPL3115A2->tempDev.label = "Freescale MPL3115A2";
 
 	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
 	unsigned char *src = ptr;
@@ -497,6 +500,8 @@ static void _mp_drv_MPL3115A2_onWhoIAm(mp_regMaster_op_t *operand, mp_bool_t ter
 	mp_drv_MPL3115A2_t *MPL3115A2 = operand->user;
 	if(MPL3115A2->whoIam != 0xc4) {
 		mp_printk("MPL3115A2(%p): Got who iam %x (bad), terminating", operand->user, MPL3115A2->whoIam);
+		mp_device_registry_unregister(&MPL3115A2->pressDev);
+		mp_device_registry_unregister(&MPL3115A2->tempDev);
 		mp_regMaster_fini(&MPL3115A2->regMaster);
 	}
 	else

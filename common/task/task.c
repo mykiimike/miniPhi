@@ -127,6 +127,13 @@ static void _mp_task_soon(mp_task_handler_t *hdl, unsigned long at) {
 	}
 }
 
+/* FOREVER added to the last check wraps into the past, so the kernel would never sleep */
+static void _mp_task_arm(mp_task_handler_t *hdl, mp_task_t *task) {
+	if(task->delay == MP_TASK_FOREVER)
+		return;
+	_mp_task_soon(hdl, task->check + task->delay);
+}
+
 /**
  * @brief Change the state of a task
  *
@@ -151,7 +158,7 @@ void mp_task_signal(mp_task_t *task, mp_task_signal_t signal) {
 
 	task->signal = signal;
 	if(signal == MP_TASK_SIG_OK || signal == MP_TASK_SIG_STOP)
-		_mp_task_soon(hdl, task->check + task->delay);
+		_mp_task_arm(hdl, task);
 	MP_INTERRUPT_SAFE_END
 }
 
@@ -273,7 +280,7 @@ mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
 
 		if(seek->signal == MP_TASK_SIG_OK || seek->signal == MP_TASK_SIG_STOP) {
 			MP_INTERRUPT_SAFE_BEGIN
-			_mp_task_soon(hdl, seek->check + seek->delay);
+			_mp_task_arm(hdl, seek);
 			MP_INTERRUPT_SAFE_END
 		}
 		seek = next;

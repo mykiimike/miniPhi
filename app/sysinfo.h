@@ -256,7 +256,7 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo);
 void _sysinfo_accel_enable(sysinfo_t *sysinfo, mp_bool_t on);
 /** stores SYSINFO_KEY_HIBERNATE; the saver follows when the store tells sysinfo */
 void _sysinfo_hibernate_enable(sysinfo_t *sysinfo, mp_bool_t on);
-/** opens or closes the accelerometers after accelEnabled or the screen changed */
+/** sleeps or wakes the accelerometers after accelEnabled or the screen changed */
 void _sysinfo_accel_apply(sysinfo_t *sysinfo);
 /** YES without a screen; with one, while the Accelerometer page is on and lit */
 mp_bool_t _sysinfo_accel_shown(sysinfo_t *sysinfo);

@@ -351,7 +351,10 @@
 		mp_tui_saver_t saver;
 		unsigned long activeAt;
 		int swallow;
+		/** HIGH for MP_TUI_BOOST after an input */
 		mp_power_hold_t boost;
+		/** MEDIUM while the screen is up, so the governor does not sit in Sleep */
+		mp_power_hold_t rest;
 
 		/** covers the display while shown; hidden until mp_tui_fullscreen() */
 		mp_tui_widget_t fullscreen;

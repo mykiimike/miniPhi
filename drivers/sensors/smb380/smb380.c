@@ -112,6 +112,37 @@ static unsigned char _smb380_range(char *text) {
 	return(0);
 }
 
+static void _smb380_driver(mp_drv_smb380_t *smb) {
+	static const mp_device_driver_ops_t ops = {
+		"sensor/smb380", "Bosch SMB380", "1.0.0",
+		(unsigned int)((1u << MP_DEVICE_ACCELEROMETER) | (1u << MP_DEVICE_TEMPERATURE)),
+		NULL, NULL, NULL, NULL, NULL
+	};
+
+	if(smb->binding.kernel == smb->kernel)
+		return;
+	if(mp_device_driver_register(smb->kernel, &smb->binding, &ops, smb, NULL) != TRUE)
+		mp_printk("SMB380: can not register the driver");
+}
+
+/* the measures wait until the chip id matches; a miss leaves the driver with none */
+static void _smb380_sensors(mp_drv_smb380_t *smb) {
+	if(smb->binding.kernel != smb->kernel)
+		return;
+	memset(&smb->accel, 0, sizeof(smb->accel));
+	memset(&smb->temperature, 0, sizeof(smb->temperature));
+	if(!mp_device_registry_register(&smb->binding, &smb->accelDev, MP_DEVICE_ACCELEROMETER, 0, &smb->accel, smb->model, smb->serial, NULL) ||
+		!mp_device_registry_register(&smb->binding, &smb->tempDev, MP_DEVICE_TEMPERATURE, 0, &smb->temperature, smb->model, smb->serial, NULL)) {
+		mp_device_registry_unregister(&smb->accelDev);
+		mp_device_registry_unregister(&smb->tempDev);
+		mp_printk("SMB380: can not register the sensors");
+		return;
+	}
+	smb->accelDev.label = "Bosch SMB380";
+	smb->tempDev.label = "Bosch SMB380";
+	mp_device_identify(smb, "Bosch SMB380", smb->model, smb->serial, NULL);
+}
+
 static unsigned char _smb380_bandwidth(char *text) {
 	unsigned int index;
 
@@ -158,7 +189,6 @@ mp_ret_t mp_drv_smb380_init(mp_kernel_t *kernel, mp_drv_smb380_t *smb, mp_option
 	}
 	smb->model = model;
 	smb->serial = serial;
-	mp_device_identify(smb, "Bosch SMB380", smb->model, smb->serial, NULL);
 	smb->address = _smb380_address(mp_options_get(options, "address"));
 	smb->range = _smb380_range(mp_options_get(options, "range"));
 	smb->bandwidth = _smb380_bandwidth(mp_options_get(options, "bandwidth"));
@@ -215,6 +245,8 @@ mp_ret_t mp_drv_smb380_init(mp_kernel_t *kernel, mp_drv_smb380_t *smb, mp_option
 		smb->irq = NULL;
 		return(FALSE);
 	}
+
+	_smb380_driver(smb);
 
 	/* the register address is one byte; its high bit stays 0 */
 	mp_regMaster_read(
@@ -295,35 +327,20 @@ static void _smb380_onRangeWritten(mp_regMaster_op_t *operand, mp_bool_t termina
 	if(terminate == YES)
 		return;
 
-	{
-		static const mp_device_driver_ops_t ops = {
-			"sensor/smb380", "Bosch SMB380", "1.0.0",
-			(unsigned int)((1u << MP_DEVICE_ACCELEROMETER) | (1u << MP_DEVICE_TEMPERATURE)),
-			NULL, NULL, NULL, NULL, NULL
-		};
-		memset(&smb->accel, 0, sizeof(smb->accel));
-		memset(&smb->temperature, 0, sizeof(smb->temperature));
-		if(mp_device_driver_register(smb->kernel, &smb->binding, &ops, smb, NULL) == FALSE ||
-			!mp_device_registry_register(&smb->binding, &smb->accelDev, MP_DEVICE_ACCELEROMETER, 0, &smb->accel, smb->model, smb->serial, NULL) ||
-			!mp_device_registry_register(&smb->binding, &smb->tempDev, MP_DEVICE_TEMPERATURE, 0, &smb->temperature, smb->model, smb->serial, NULL)) {
-			mp_device_registry_unregister(&smb->accelDev);
-			mp_device_registry_unregister(&smb->tempDev);
-			mp_device_driver_unregister(smb->kernel, &smb->binding);
-			mp_printk("SMB380: can not register the sensors");
-			return;
-		}
-		smb->accelDev.label = "Bosch SMB380";
-		smb->tempDev.label = "Bosch SMB380";
-	}
+	_smb380_sensors(smb);
+	if(!smb->accelDev.driver)
+		return;
 
-	smb->task = mp_task_create(&smb->kernel->tasks, "SMB380", _smb380_task, smb, smb->period);
+	smb->task = mp_task_create(&smb->kernel->tasks, "SMB380", _smb380_task, smb,
+		smb->asleep == YES ? MP_TASK_FOREVER : smb->period);
 	if(!smb->task) {
-		mp_device_registry_unregister(&smb->accelDev);
-		mp_device_registry_unregister(&smb->tempDev);
-		mp_device_driver_unregister(smb->kernel, &smb->binding);
 		mp_printk("SMB380: can not create the sample task");
+		if(smb->asleep == YES)
+			_smb380_ctrl(smb, 1);
 		return;
 	}
+	if(smb->asleep == YES)
+		_smb380_ctrl(smb, 1);
 
 	mp_printk("SMB380 at 0x%02x, +/- %u g, %u Hz",
 		smb->address,
@@ -412,14 +429,22 @@ static void _smb380_device_close(void *self) {
 	mp_drv_smb380_fini(self);
 }
 
-/* 0 sleeps the chip until the screen comes back; the sensors stay registered */
+/* 0 sleeps the chip. The task may not exist yet; the flag is kept either way. */
 static void _smb380_device_set(void *self, int value) {
 	mp_drv_smb380_t *smb = self;
 	mp_bool_t asleep = value ? NO : YES;
 
-	if(!smb->task || smb->asleep == asleep)
+	if(smb->asleep == asleep)
 		return;
 	smb->asleep = asleep;
+	if(asleep == YES) {
+		MP_INTERRUPT_SAFE_BEGIN
+		smb->accel.valid = NO;
+		smb->temperature.valid = NO;
+		MP_INTERRUPT_SAFE_END
+	}
+	if(!smb->task)
+		return;
 	mp_task_delay(smb->task, asleep == YES ? MP_TASK_FOREVER : smb->period);
 	_smb380_ctrl(smb, asleep == YES ? 1 : 0);
 }

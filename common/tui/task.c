@@ -60,6 +60,8 @@ static MP_TASK(_mp_tui_task) {
 
 int mp_tui_attach(mp_kernel_t *kernel, mp_tui_t *ui, char *who) {
 	ui->kernel = kernel;
+	if(ui->saver == MP_TUI_AWAKE)
+		mp_power_hold(kernel, &ui->rest, MP_POWER_MEDIUM, "Screen");
 	if(ui->task)
 		return(1);
 	ui->task = mp_task_create(&kernel->tasks, who, _mp_tui_task, ui, 1);
@@ -70,8 +72,10 @@ int mp_tui_attach(mp_kernel_t *kernel, mp_tui_t *ui, char *who) {
 void mp_tui_detach(mp_tui_t *ui) {
 	if(!ui->task)
 		return;
-	if(ui->kernel)
+	if(ui->kernel) {
 		mp_power_release(ui->kernel, &ui->boost);
+		mp_power_release(ui->kernel, &ui->rest);
+	}
 	mp_task_destroy(ui->task);
 	ui->task = NULL;
 }

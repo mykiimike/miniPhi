@@ -32,6 +32,9 @@
 	 * The device name comes from that part number ("FLIR Lepton 2"), never
 	 * from the board option. VoSPI runs only while the frame is being taken.
 	 * The frame lives in the device, not on the heap.
+	 * The registered camera announces ffc, polarity, agc, agc-policy and freeze.
+	 * A command is queued and sent on CCI only while VoSPI is stopped: a
+	 * command during a frame leaves the module busy until power is cycled.
 	 *
 	 * options: model (required, not published). The serial shown is the
 	 * module's own once CCI returns it. spiGate, simo, somi, sck, cs,
@@ -53,6 +56,7 @@
 		mp_task_t *task;
 		mp_device_driver_t binding;
 		mp_device_registry_t tempDev;
+		mp_device_registry_t camDev;
 		mp_device_measure_t temperature;
 
 		mp_camera_frame_t frame;
@@ -67,6 +71,23 @@
 		mp_bool_t gaveUp;
 		/** data words of the last CCI answer */
 		unsigned char cciRx[32];
+		/** one CCI command waiting until VoSPI is stopped; a second is refused */
+		mp_bool_t cmdPending;
+		unsigned short cmdWord;
+		unsigned char cmdWords;
+		unsigned short cmdData[2];
+		/** -1 is an action; otherwise which value to keep once the command succeeds */
+		int cmdKind;
+		int cmdArg;
+		/** YES once that command succeeded. get stays FALSE until then */
+		mp_bool_t polaritySet;
+		int polarity;
+		mp_bool_t agcSet;
+		int agc;
+		mp_bool_t policySet;
+		int policy;
+		mp_bool_t freezeSet;
+		int freeze;
 		/** model from the board, and the MCU unique id, until the module answers */
 		const char *askedModel;
 		const char *askedSerial;

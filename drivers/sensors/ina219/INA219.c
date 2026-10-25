@@ -170,6 +170,12 @@ mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_opt
 void mp_drv_INA219_fini(mp_drv_INA219_t *INA219) {
 	mp_printk("Unloading INA219 driver");
 
+	mp_device_registry_unregister(&INA219->busDev);
+	mp_device_registry_unregister(&INA219->shuntDev);
+	mp_device_registry_unregister(&INA219->currDev);
+	mp_device_registry_unregister(&INA219->powerDev);
+	mp_device_driver_unregister(INA219->kernel, &INA219->binding);
+
 	if(INA219->task)
 		mp_task_destroy(INA219->task);
 }

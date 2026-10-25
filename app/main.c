@@ -86,15 +86,31 @@ static void _sysinfo_onBoot(void *user) {
 	mp_kernel_state(&sysinfo->kernel, SYSINFO_OP);
 }
 
-/* opens or closes every accelerometer of the board */
+/* 0 sleeps the chip. The driver stays registered; close is for shutdown. */
 static void _sysinfo_accel_run(sysinfo_t *sysinfo, mp_bool_t on) {
 	mp_device_t *device;
 	int rank;
 
 	for(rank = 0; (device = mp_device_find(MP_DEVICE_ACCELEROMETER, rank)) != NULL; rank++) {
-		if(on == YES)
-			mp_device_open(&sysinfo->kernel, device);
-		else
+		if(on == YES) {
+			if(device->opened == NO && mp_device_open(&sysinfo->kernel, device) == FALSE)
+				continue;
+			mp_device_set(device, 1);
+		}
+		else if(device->opened == YES)
+			mp_device_set(device, 0);
+	}
+}
+
+/* the screen has let go of its devices; this closes whatever is still open */
+static void _sysinfo_devices_shutdown(sysinfo_t *sysinfo) {
+	int n;
+
+	(void)sysinfo;
+	for(n = 0; n < mp_device_count(); n++) {
+		mp_device_t *device = mp_device_at(n);
+
+		if(device && device->opened == YES)
 			mp_device_close(device);
 	}
 }
@@ -198,11 +214,11 @@ static void _sysinfo_op_unset(void *user) {
 		sysinfo->task = NULL;
 	}
 
-	_sysinfo_screen_close(sysinfo);
-	_sysinfo_morse_stop(sysinfo);
-
 	_sysinfo_accel_run(sysinfo, NO);
 	sysinfo->accelRunning = NO;
+	_sysinfo_screen_close(sysinfo);
+	_sysinfo_morse_stop(sysinfo);
+	_sysinfo_devices_shutdown(sysinfo);
 #ifdef SUPPORT_COMMON_KFLASH
 	if(sysinfo->accelListened == YES) {
 		mp_kflash_unlisten(&sysinfo->kernel, &sysinfo->accelVar);

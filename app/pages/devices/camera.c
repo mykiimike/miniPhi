@@ -53,9 +53,25 @@ static int _sysinfo_camera_name(const char *a, const char *b) {
 static mp_device_t *_sysinfo_camera_device(sysinfo_t *sysinfo) {
 	mp_device_registry_t *reg = NULL;
 	mp_device_t *legacy = NULL;
+	void *self;
+	int n;
+	int count;
 
 	_sysinfo_dev_current(sysinfo, &reg, &legacy);
-	return(legacy);
+	if(legacy)
+		return(legacy);
+	/* the registered camera hides the board device; the frame is still its face */
+	if(!reg || reg->class != MP_DEVICE_CAMERA || !reg->driver || !reg->driver->self)
+		return(NULL);
+	self = reg->driver->self;
+	count = mp_device_count();
+	for(n = 0; n < count; n++) {
+		mp_device_t *device = mp_device_at(n);
+
+		if(device && device->self == self)
+			return(device);
+	}
+	return(NULL);
 }
 
 /* the camera stays open from boot; taking its frame is what runs the video */

@@ -165,7 +165,7 @@ static void _sysinfo_accel_values(sysinfo_t *sysinfo) {
 	temperature = _sysinfo_accel_temperature(&sysinfo->kernel, axis);
 	_sysinfo_dev_caption(sysinfo, axis, legacy, caption, (int)sizeof(caption));
 	mp_tui_switch_set(&sysinfo->screen.accelSwitch, sysinfo->accelEnabled == YES);
-	if(!axis || mp_device_measure_read(axis->instance, g, NULL) != TRUE) {
+	if(sysinfo->accelEnabled == NO || !axis || mp_device_measure_read(axis->instance, g, NULL) != TRUE) {
 		mp_tui_label_set(&sysinfo->screen.accelName, "%s", sysinfo->accelEnabled == NO ? "Accelerometer off" :
 			axis ? caption : sysinfo->accelRunning == YES ? "No accelerometer" : "Starting");
 		mp_tui_label_set(&sysinfo->screen.accelX, "%s", "X  --");

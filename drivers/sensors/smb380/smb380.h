@@ -61,7 +61,7 @@
 		int countsPerG;
 		unsigned long period;
 		mp_bool_t busy;
-		/** the screen is off: the sample task waits and the chip sleeps */
+		/** set(0): the sample task waits and the chip sleeps; the sensors stay registered */
 		mp_bool_t asleep;
 		/** last value written to the control register */
 		unsigned char ctrl;

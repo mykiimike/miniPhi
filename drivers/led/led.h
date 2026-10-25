@@ -32,6 +32,13 @@
 
 		/** in some bad case the set/unset must be reverted */
 		mp_bool_t reverted;
+
+#ifdef SUPPORT_COMMON_DEVICE
+		mp_kernel_t *kernel;
+		mp_device_driver_t binding;
+		mp_device_registry_t device;
+		mp_device_led_t face;
+#endif
 	};
 
 	mp_ret_t mp_drv_led_init(mp_kernel_t *kernel, mp_drv_led_t *led, mp_options_t *options, char *who);

@@ -267,6 +267,40 @@
 	 */
 	typedef struct mp_device_registry_s mp_device_registry_t;
 
+	/**
+	 * What a command expects in its text.
+	 * NONE is an action. SELECT uses choice. INT and FLOAT use min and max,
+	 * and max < min means the number is not bounded.
+	 */
+	typedef enum {
+		MP_DEVICE_ARG_NONE = 0,   /* an action, no value */
+		MP_DEVICE_ARG_BOOL,
+		MP_DEVICE_ARG_INT,
+		MP_DEVICE_ARG_FLOAT,
+		MP_DEVICE_ARG_SELECT,
+	} mp_device_arg_t;
+
+	typedef struct {
+		mp_device_arg_t arg;
+		union { int on; long integer; float number; int index; } as;
+	} mp_device_value_t;
+
+	/**
+	 * One command. The driver owns a static table ended by name == NULL.
+	 * label NULL is shown as name. choice is NULL-terminated, for a SELECT.
+	 * unit is NULL when the value has none. get is NULL when it cannot be read back.
+	 */
+	typedef struct mp_device_command_s {
+		const char *name;      /* machine name, e.g. "ffc", "polarity" */
+		const char *label;     /* for people; NULL falls back to name */
+		mp_device_arg_t arg;
+		float min, max;        /* INT and FLOAT; max < min means unbounded */
+		const char *const *choice; /* SELECT, NULL-terminated */
+		const char *unit;      /* NULL when none */
+		mp_ret_t (*set)(mp_device_registry_t *device, const mp_device_value_t *value);
+		mp_ret_t (*get)(mp_device_registry_t *device, mp_device_value_t *value); /* NULL when it can't be read back */
+	} mp_device_command_t;
+
 	struct mp_device_registry_s {
 		mp_list_item_t item;
 		/** link on driver->devices. item is the link on kernel->devices. */
@@ -283,6 +317,12 @@
 		 * after register. Not copied. The address stays the machine name.
 		 */
 		const char *label;
+		/**
+		 * Commands this device accepts. The driver sets this right after
+		 * register, the same way as label. Not copied. NULL when it has none.
+		 * The table ends with name == NULL. A refresh leaves the pointer in place.
+		 */
+		const mp_device_command_t *commands;
 		char address[MP_DEVICE_ADDRESS];
 		/** YES while a scan of this driver has not registered it again */
 		mp_bool_t stale;
@@ -328,6 +368,31 @@
 	void mp_device_registry_fini(mp_kernel_t *kernel);
 	/** Drop this device. on_gone runs, then the struct is cleared. */
 	void mp_device_registry_unregister(mp_device_registry_t *device);
+
+	/** How many commands this device announces. 0 when it has none. */
+	int mp_device_command_count(mp_device_registry_t *device);
+	/** The command at that index. NULL when index is outside the table. */
+	const mp_device_command_t *mp_device_command_at(mp_device_registry_t *device, int index);
+	/** The command of that name, compared without regard to case. NULL when there is none. */
+	const mp_device_command_t *mp_device_command_find(mp_device_registry_t *device, const char *name);
+	/**
+	 * Parse text for that command and call its set.
+	 * NONE takes NULL or "". BOOL takes 0, 1, on, off, true, false, yes, no.
+	 * INT and FLOAT are decimal, with an optional sign, inside min..max unless max < min.
+	 * SELECT must be one of choice. Case does not matter.
+	 * TRUE when the device accepted the request. It may apply it later.
+	 * FALSE when the device is missing, removed or has no driver, the name is
+	 * unknown, the text is refused, set is missing, or set returns FALSE.
+	 */
+	mp_ret_t mp_device_command(mp_device_registry_t *device, const char *name, const char *text);
+	/** Read it back. FALSE when the command has no get, or get returns FALSE. */
+	mp_ret_t mp_device_command_get(mp_device_registry_t *device, const char *name, mp_device_value_t *value);
+	/**
+	 * Write value as text. A bool is "1" or "0", a select is its choice token.
+	 * Returns the length without the terminating NUL. A short buffer is still
+	 * terminated, and the return is the full length.
+	 */
+	int mp_device_command_text(const mp_device_command_t *command, const mp_device_value_t *value, char *dst, int cap);
 
 	/**
 	 * One subscriber. The caller owns the struct and zeroes it before the first subscribe.

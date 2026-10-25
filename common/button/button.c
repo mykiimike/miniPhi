@@ -142,6 +142,7 @@ mp_ret_t mp_button_init(mp_kernel_t *kernel, mp_button_t *button) {
 		mp_device_driver_unregister(kernel, &button->binding);
 		return(FALSE);
 	}
+	button->device.label = "GPIO button";
 
 	mp_printk("Button %s.%s on port %u pin %u, active %s",
 		button->model, button->serial,

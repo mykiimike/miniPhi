@@ -312,6 +312,7 @@ static void _mp_drv_TMP006_onManufacturerID(mp_regMaster_op_t *operand, mp_bool_
 
 	if(TMP006->manufacturerId != 0x5449) {
 		mp_printk("TMP006(%p): Got manufacturer ID 0x%x (bad), terminating", operand->user, TMP006->manufacturerId);
+		mp_device_registry_unregister(&TMP006->tempDev);
 		mp_regMaster_fini(&TMP006->regMaster);
 	}
 	else
@@ -323,6 +324,7 @@ static void _mp_drv_TMP006_onDeviceID(mp_regMaster_op_t *operand, mp_bool_t term
 
 	if(TMP006->deviceId != 0x67) {
 		mp_printk("TMP006(%p): Got device ID 0x%x (bad), terminating", operand->user, TMP006->deviceId);
+		mp_device_registry_unregister(&TMP006->tempDev);
 		mp_regMaster_fini(&TMP006->regMaster);
 	}
 	else {

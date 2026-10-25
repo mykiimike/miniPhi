@@ -61,11 +61,25 @@
  * 0x0214 and the answer is one word, kelvin times 100. The FLIR serial is
  * 0x0208, four words, most significant first. The part number is OEM 0x481C,
  * 32 ASCII bytes. The software version is OEM 0x4820, four words.
+ * A SET has type 1 and a RUN has type 2. FFC is run 0x0242 with no data.
+ * Polarity, AGC, AGC policy and freeze are sets of a 32-bit enum: the low
+ * word is DATA0 and DATA1 is 0.
  */
 #define LEPTON_CMD_SERIAL 0x0208
 #define LEPTON_CMD_FPA 0x0214
 #define LEPTON_CMD_PART 0x481C
 #define LEPTON_CMD_VERSION 0x4820
+#define LEPTON_CMD_FFC 0x0242
+#define LEPTON_CMD_POLARITY 0x0301
+#define LEPTON_CMD_AGC 0x0101
+#define LEPTON_CMD_POLICY 0x0105
+#define LEPTON_CMD_FREEZE 0x0325
+
+#define LEPTON_KIND_RUN -1
+#define LEPTON_KIND_POLARITY 0
+#define LEPTON_KIND_AGC 1
+#define LEPTON_KIND_POLICY 2
+#define LEPTON_KIND_FREEZE 3
 
 /* half an I2C clock: about 100 kHz */
 #define LEPTON_I2C_HALF 5000UL
@@ -247,24 +261,34 @@ static int _lepton_cci_idle(mp_drv_lepton_t *lep, unsigned short *status, int po
 }
 
 /*
- * One GET, as the SDK does it: wait not busy, write the word count, write
- * the command, wait not busy, check the error byte, read the data words
- * into cciRx. 1 when the answer is there.
+ * One CCI command. write is 1 for SET and RUN: each data word is written
+ * before the length and the command. write is 0 for GET: the answer is read
+ * into cciRx. words is the length register, in 16-bit words. 1 when the
+ * error byte is clear.
  */
-static int _lepton_cci_get(mp_drv_lepton_t *lep, unsigned short cmd, int words) {
+static int _lepton_cci_exec(mp_drv_lepton_t *lep, unsigned short cmd, int words, const unsigned short *data, int write) {
 	unsigned short status = 0;
 	mp_bool_t fsmc;
 	int ok = 0;
+	int i;
 
-	if(words * 2 > (int)sizeof(lep->cciRx))
+	if(words < 0 || words > (int)sizeof(lep->cciRx) / 2)
 		return(0);
 	fsmc = mp_fsmc_pause();
-	if(_lepton_cci_idle(lep, &status, 10) &&
-		_lepton_cci_write(lep, LEPTON_REG_LENGTH, (unsigned short)words) &&
-		_lepton_cci_write(lep, LEPTON_REG_COMMAND, cmd) &&
-		_lepton_cci_idle(lep, &status, 200) &&
-		!(status & 0xFF00))
-		ok = _lepton_cci_read(lep, LEPTON_REG_DATA, lep->cciRx, words * 2);
+	if(_lepton_cci_idle(lep, &status, 10)) {
+		ok = 1;
+		if(write) {
+			for(i = 0; ok && i < words; i++)
+				ok = _lepton_cci_write(lep, (unsigned short)(LEPTON_REG_DATA + i * 2), data ? data[i] : 0);
+		}
+		if(ok)
+			ok = _lepton_cci_write(lep, LEPTON_REG_LENGTH, (unsigned short)words) &&
+				_lepton_cci_write(lep, LEPTON_REG_COMMAND, cmd) &&
+				_lepton_cci_idle(lep, &status, 200) &&
+				!(status & 0xFF00);
+		if(ok && !write && words > 0)
+			ok = _lepton_cci_read(lep, LEPTON_REG_DATA, lep->cciRx, words * 2);
+	}
 	_lepton_line(lep->sda, 1);
 	_lepton_line(lep->scl, 1);
 	mp_fsmc_resume(fsmc);
@@ -273,6 +297,14 @@ static int _lepton_cci_get(mp_drv_lepton_t *lep, unsigned short cmd, int words) 
 		lep->gaveUp = YES;
 	}
 	return(ok);
+}
+
+static int _lepton_cci_get(mp_drv_lepton_t *lep, unsigned short cmd, int words) {
+	return(_lepton_cci_exec(lep, cmd, words, NULL, 0));
+}
+
+static int _lepton_cci_set(mp_drv_lepton_t *lep, unsigned short cmd, int words, const unsigned short *data) {
+	return(_lepton_cci_exec(lep, cmd, words, data, 1));
 }
 
 static int _lepton_filled(const unsigned char *raw, int n) {
@@ -349,6 +381,169 @@ static const char *_lepton_name(const char *part) {
 	return("FLIR Lepton");
 }
 
+static mp_drv_lepton_t *_lepton_from(mp_device_registry_t *device) {
+	if(!device || !device->driver)
+		return(NULL);
+	return(device->driver->self);
+}
+
+/*
+ * One pending CCI command. It is not sent here: VoSPI has to be stopped
+ * first, or the module stays busy until power is cycled. A wake while a
+ * packet is in flight is the lost-DMA path, so that packet finishes first
+ * and its completion wakes the task.
+ */
+static mp_ret_t _lepton_cmd_queue(mp_drv_lepton_t *lep, unsigned short cmd, int words, unsigned short value, int kind, int arg) {
+	if(!lep || lep->cmdPending == YES)
+		return(FALSE);
+	lep->cmdWord = cmd;
+	lep->cmdWords = (unsigned char)words;
+	lep->cmdData[0] = value;
+	lep->cmdData[1] = 0;
+	lep->cmdKind = kind;
+	lep->cmdArg = arg;
+	lep->cmdPending = YES;
+#ifdef SUPPORT_COMMON_DMA
+	if(lep->task && (lep->dmaUse == NO || lep->dmaOn == NO))
+#else
+	if(lep->task)
+#endif
+		mp_task_wake(lep->task);
+	return(TRUE);
+}
+
+static void _lepton_cmd_apply(mp_drv_lepton_t *lep) {
+	int ok;
+	int kind;
+	int arg;
+
+	if(!lep || lep->cmdPending != YES)
+		return;
+	kind = lep->cmdKind;
+	arg = lep->cmdArg;
+	ok = _lepton_cci_set(lep, lep->cmdWord, lep->cmdWords, lep->cmdData);
+	lep->cmdPending = NO;
+	if(!ok)
+		return;
+	if(kind == LEPTON_KIND_POLARITY) {
+		lep->polarity = arg;
+		lep->polaritySet = YES;
+	}
+	else if(kind == LEPTON_KIND_AGC) {
+		lep->agc = arg;
+		lep->agcSet = YES;
+	}
+	else if(kind == LEPTON_KIND_POLICY) {
+		lep->policy = arg;
+		lep->policySet = YES;
+	}
+	else if(kind == LEPTON_KIND_FREEZE) {
+		lep->freeze = arg;
+		lep->freezeSet = YES;
+	}
+}
+
+static mp_ret_t _lepton_set_ffc(mp_device_registry_t *device, const mp_device_value_t *value) {
+	mp_drv_lepton_t *lep = _lepton_from(device);
+
+	(void)value;
+	if(!lep)
+		return(FALSE);
+	return(_lepton_cmd_queue(lep, LEPTON_CMD_FFC, 0, 0, LEPTON_KIND_RUN, 0));
+}
+
+static mp_ret_t _lepton_set_polarity(mp_device_registry_t *device, const mp_device_value_t *value) {
+	mp_drv_lepton_t *lep = _lepton_from(device);
+
+	if(!lep || !value || (value->as.index != 0 && value->as.index != 1))
+		return(FALSE);
+	return(_lepton_cmd_queue(lep, LEPTON_CMD_POLARITY, 2, (unsigned short)value->as.index, LEPTON_KIND_POLARITY, value->as.index));
+}
+
+static mp_ret_t _lepton_get_polarity(mp_device_registry_t *device, mp_device_value_t *value) {
+	mp_drv_lepton_t *lep = _lepton_from(device);
+
+	if(!lep || !value || lep->polaritySet != YES)
+		return(FALSE);
+	memset(value, 0, sizeof(*value));
+	value->arg = MP_DEVICE_ARG_SELECT;
+	value->as.index = lep->polarity;
+	return(TRUE);
+}
+
+static mp_ret_t _lepton_set_agc(mp_device_registry_t *device, const mp_device_value_t *value) {
+	mp_drv_lepton_t *lep = _lepton_from(device);
+	int on;
+
+	if(!lep || !value)
+		return(FALSE);
+	on = value->as.on ? 1 : 0;
+	return(_lepton_cmd_queue(lep, LEPTON_CMD_AGC, 2, (unsigned short)on, LEPTON_KIND_AGC, on));
+}
+
+static mp_ret_t _lepton_get_agc(mp_device_registry_t *device, mp_device_value_t *value) {
+	mp_drv_lepton_t *lep = _lepton_from(device);
+
+	if(!lep || !value || lep->agcSet != YES)
+		return(FALSE);
+	memset(value, 0, sizeof(*value));
+	value->arg = MP_DEVICE_ARG_BOOL;
+	value->as.on = lep->agc ? 1 : 0;
+	return(TRUE);
+}
+
+static mp_ret_t _lepton_set_policy(mp_device_registry_t *device, const mp_device_value_t *value) {
+	mp_drv_lepton_t *lep = _lepton_from(device);
+
+	if(!lep || !value || (value->as.index != 0 && value->as.index != 1))
+		return(FALSE);
+	return(_lepton_cmd_queue(lep, LEPTON_CMD_POLICY, 2, (unsigned short)value->as.index, LEPTON_KIND_POLICY, value->as.index));
+}
+
+static mp_ret_t _lepton_get_policy(mp_device_registry_t *device, mp_device_value_t *value) {
+	mp_drv_lepton_t *lep = _lepton_from(device);
+
+	if(!lep || !value || lep->policySet != YES)
+		return(FALSE);
+	memset(value, 0, sizeof(*value));
+	value->arg = MP_DEVICE_ARG_SELECT;
+	value->as.index = lep->policy;
+	return(TRUE);
+}
+
+static mp_ret_t _lepton_set_freeze(mp_device_registry_t *device, const mp_device_value_t *value) {
+	mp_drv_lepton_t *lep = _lepton_from(device);
+	int on;
+
+	if(!lep || !value)
+		return(FALSE);
+	on = value->as.on ? 1 : 0;
+	return(_lepton_cmd_queue(lep, LEPTON_CMD_FREEZE, 2, (unsigned short)on, LEPTON_KIND_FREEZE, on));
+}
+
+static mp_ret_t _lepton_get_freeze(mp_device_registry_t *device, mp_device_value_t *value) {
+	mp_drv_lepton_t *lep = _lepton_from(device);
+
+	if(!lep || !value || lep->freezeSet != YES)
+		return(FALSE);
+	memset(value, 0, sizeof(*value));
+	value->arg = MP_DEVICE_ARG_BOOL;
+	value->as.on = lep->freeze ? 1 : 0;
+	return(TRUE);
+}
+
+static const char *const _lepton_polarity_choice[] = { "white-hot", "black-hot", NULL };
+static const char *const _lepton_policy_choice[] = { "linear", "heq", NULL };
+
+static const mp_device_command_t _lepton_commands[] = {
+	{ "ffc", "FFC", MP_DEVICE_ARG_NONE, 0, 0, NULL, NULL, _lepton_set_ffc, NULL },
+	{ "polarity", "Polarity", MP_DEVICE_ARG_SELECT, 0, 0, _lepton_polarity_choice, NULL, _lepton_set_polarity, _lepton_get_polarity },
+	{ "agc", "AGC", MP_DEVICE_ARG_BOOL, 0, 0, NULL, NULL, _lepton_set_agc, _lepton_get_agc },
+	{ "agc-policy", "AGC policy", MP_DEVICE_ARG_SELECT, 0, 0, _lepton_policy_choice, NULL, _lepton_set_policy, _lepton_get_policy },
+	{ "freeze", "Freeze", MP_DEVICE_ARG_BOOL, 0, 0, NULL, NULL, _lepton_set_freeze, _lepton_get_freeze },
+	{ NULL, NULL, MP_DEVICE_ARG_NONE, 0, 0, NULL, NULL, NULL, NULL }
+};
+
 /* the module's own name, part, serial and version. The board option is not a name. */
 static void _lepton_identity(mp_drv_lepton_t *lep) {
 	const char *model = _lepton_kept[0] ? _lepton_kept : (lep->model[0] ? lep->model : NULL);
@@ -361,9 +556,15 @@ static void _lepton_identity(mp_drv_lepton_t *lep) {
 		return;
 	mp_device_identify(lep, lep->label, model, serial, version);
 	/* load is NULL, so loaded stays NO; the driver is still registered */
-	if(model && lep->binding.kernel == lep->kernel &&
-		mp_device_registry_register(&lep->binding, &lep->tempDev, MP_DEVICE_TEMPERATURE, 0, &lep->temperature, model, serial ? serial : lep->askedSerial, version))
+	if(!model || lep->binding.kernel != lep->kernel)
+		return;
+	serial = serial ? serial : lep->askedSerial;
+	if(mp_device_registry_register(&lep->binding, &lep->tempDev, MP_DEVICE_TEMPERATURE, 0, &lep->temperature, model, serial, version))
 		lep->tempDev.label = lep->label;
+	if(mp_device_registry_register(&lep->binding, &lep->camDev, MP_DEVICE_CAMERA, 0, &lep->frame, model, serial, version)) {
+		lep->camDev.label = lep->label;
+		lep->camDev.commands = _lepton_commands;
+	}
 }
 
 static int _lepton_take_serial(mp_drv_lepton_t *lep) {
@@ -788,16 +989,16 @@ static void _lepton_cci(mp_drv_lepton_t *lep, unsigned long now) {
 		mp_device_measure_publish(&lep->temperature, (float)kelvin / 100.0f - 273.15f);
 }
 
-/* the driver of the temperature; the device itself waits for the part number */
+/* the temperature and the camera; both wait for the part number */
 static void _lepton_publish(mp_drv_lepton_t *lep) {
 	static const mp_device_driver_ops_t ops = {
 		"camera/lepton", "FLIR Lepton", "1.0.0",
-		(unsigned int)(1u << MP_DEVICE_TEMPERATURE),
+		(unsigned int)((1u << MP_DEVICE_TEMPERATURE) | (1u << MP_DEVICE_CAMERA)),
 		NULL, NULL, NULL, NULL, NULL
 	};
 
 	if(lep->binding.kernel != lep->kernel && mp_device_driver_register(lep->kernel, &lep->binding, &ops, lep, NULL) != TRUE)
-		mp_printk("Lepton: can not register the temperature");
+		mp_printk("Lepton: can not register the driver");
 	_lepton_identity(lep);
 	mp_printk("Lepton ready");
 }
@@ -826,14 +1027,20 @@ static MP_TASK(_lepton_task) {
 	/*
 	 * No command while frames stream: a command in the middle of VoSPI
 	 * left the module busy for good, and only its power brings it back.
+	 * A queued command runs here while nobody is watching.
 	 */
 	watched = lep->watchAt && (long)(now - lep->watchAt) < (long)_lepton_ticks(500);
 #ifdef SUPPORT_COMMON_DMA
-	if(!watched && (lep->dmaUse == NO || lep->dmaOn == NO))
+	if(!watched && (lep->dmaUse == NO || lep->dmaOn == NO)) {
 #else
-	if(!watched)
+	if(!watched) {
 #endif
 		_lepton_cci(lep, now);
+		if(lep->cmdPending == YES) {
+			mp_gpio_set(lep->cs);
+			_lepton_cmd_apply(lep);
+		}
+	}
 	/* a module that never answers on I2C is still listed, under the family name */
 	if(!lep->label && (long)(now - lep->bootAt) > (long)_lepton_ticks(6000)) {
 		lep->label = "FLIR Lepton";
@@ -860,6 +1067,17 @@ static MP_TASK(_lepton_task) {
 		mp_power_hold(lep->kernel, &lep->power, MP_POWER_HIGH, "Lepton");
 	if(lep->phase == LEPTON_PHASE_IDLE)
 		lep->phase = LEPTON_PHASE_SYNC;
+
+	/* between frames, with no packet in flight: the command, then the resync */
+#ifdef SUPPORT_COMMON_DMA
+	if(lep->cmdPending == YES && (lep->dmaUse == NO || lep->dmaOn == NO)) {
+#else
+	if(lep->cmdPending == YES) {
+#endif
+		mp_gpio_set(lep->cs);
+		_lepton_cmd_apply(lep);
+		lep->phase = LEPTON_PHASE_SYNC;
+	}
 
 	/* chip select high long enough for the module to resync, then frames */
 	if(lep->phase == LEPTON_PHASE_SYNC) {
@@ -1027,6 +1245,7 @@ void mp_drv_lepton_fini(mp_drv_lepton_t *lep) {
 		lep->cs = NULL;
 	}
 
+	mp_device_registry_unregister(&lep->camDev);
 	mp_device_registry_unregister(&lep->tempDev);
 	mp_device_driver_unregister(lep->kernel, &lep->binding);
 }

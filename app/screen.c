@@ -101,7 +101,7 @@ static void _sysinfo_touch_run(sysinfo_t *sysinfo, mp_bool_t on) {
 #endif
 }
 
-/* each board device is loaded once so its driver names it; a camera stays loaded */
+/* left open: a driver registers itself from open, and close drops that registration */
 static void _sysinfo_devices_load(sysinfo_t *sysinfo) {
 	int n;
 
@@ -110,23 +110,24 @@ static void _sysinfo_devices_load(sysinfo_t *sysinfo) {
 
 		if(!device || device->opened == YES)
 			continue;
-		if(mp_device_open(&sysinfo->kernel, device) == FALSE)
-			continue;
-		if(device->driver->type != MP_DEVICE_CAMERA)
-			mp_device_close(device);
+		mp_device_open(&sysinfo->kernel, device);
 	}
+	/* open leaves an accelerometer awake, so the next apply sends it to sleep */
+	sysinfo->accelRunning = YES;
 }
 
-/* shutdown closes the cameras loaded at open */
-static void _sysinfo_camera_run(sysinfo_t *sysinfo, mp_bool_t on) {
-	mp_device_t *device;
-	int rank;
+/* the display is still painting; Morse still owns the LEDs */
+static void _sysinfo_devices_release(sysinfo_t *sysinfo, mp_bool_t leds) {
+	int n;
 
-	for(rank = 0; (device = mp_device_find(MP_DEVICE_CAMERA, rank)) != NULL; rank++) {
-		if(on == YES)
-			mp_device_open(&sysinfo->kernel, device);
-		else
-			mp_device_close(device);
+	for(n = 0; n < mp_device_count(); n++) {
+		mp_device_t *device = mp_device_at(n);
+
+		if(!device || device->opened == NO || device == sysinfo->screen.display)
+			continue;
+		if(leds == NO && device->driver && device->driver->type == MP_DEVICE_LED)
+			continue;
+		mp_device_close(device);
 	}
 }
 
@@ -184,7 +185,7 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 	_sysinfo_touch_run(sysinfo, NO);
 	/* the overlay reads the camera buffer; close it before the device does */
 	mp_tui_fullscreen_close(&sysinfo->screen.tui);
-	_sysinfo_camera_run(sysinfo, NO);
+	_sysinfo_devices_release(sysinfo, NO);
 	mp_tui_fini(&sysinfo->screen.tui);
 	mp_device_close(sysinfo->screen.display);
 	sysinfo->screen.display = NULL;

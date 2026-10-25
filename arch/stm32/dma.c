@@ -147,6 +147,9 @@ static void *_mp_dma_hw(unsigned char unit, unsigned char index);
 			ctl->LIFCR = all;
 		else
 			ctl->HIFCR = all;
+		/* the peripheral request stays off while nothing is shifting, so the clock may change */
+		if(slot->arm)
+			slot->arm(slot->user, NO);
 	}
 
 	static mp_ret_t _mp_dma_program(_mp_dma_slot_t *slot, mp_dma_t *dma, mp_dma_seg_t *seg) {
@@ -183,6 +186,8 @@ static void *_mp_dma_hw(unsigned char unit, unsigned char index);
 			hw->M0AR = (uint32_t)seg->bus;
 			if(slot->prep)
 				slot->prep(slot->user);
+			if(slot->arm)
+				slot->arm(slot->user, YES);
 			slot->xfer = dma;
 			hw->CR = cr | 1UL;
 			spin = 1UL;
@@ -267,6 +272,9 @@ static void *_mp_dma_hw(unsigned char unit, unsigned char index);
 
 		hw->CCR &= ~1UL;
 		ctl->IFCR = 0xFUL << (slot->index * 4);
+		/* the peripheral request stays off while nothing is shifting, so the clock may change */
+		if(slot->arm)
+			slot->arm(slot->user, NO);
 	}
 
 	static mp_ret_t _mp_dma_program(_mp_dma_slot_t *slot, mp_dma_t *dma, mp_dma_seg_t *seg) {
@@ -298,6 +306,8 @@ static void *_mp_dma_hw(unsigned char unit, unsigned char index);
 			hw->CMAR = (uint32_t)seg->bus;
 			if(slot->prep)
 				slot->prep(slot->user);
+			if(slot->arm)
+				slot->arm(slot->user, YES);
 			slot->xfer = dma;
 			hw->CCR = ccr | 1UL;
 			spin = 1UL;
@@ -539,8 +549,6 @@ static void *_mp_dma_hw(unsigned char unit, unsigned char index);
 		slot->engine.ops = &_mp_dma_ops;
 		_mp_dma_clock(slot->unit, YES);
 		_mp_dma_force_off(slot);
-		if(slot->arm)
-			slot->arm(slot->user, YES);
 		if(!mp_interrupt_set(slot->irq, _mp_dma_irq, slot, who)) {
 			mp_printk("DMA %s: can not arm the interrupt", request);
 			mp_dma_release(&slot->engine);

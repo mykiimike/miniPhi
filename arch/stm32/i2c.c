@@ -281,15 +281,29 @@ void mp_i2c_reset(mp_i2c_t *i2c) {
 void mp_i2c_retime(void) {
 	mp_list_item_t *item;
 	mp_i2c_t *i2c;
+	I2C_TypeDef *regs;
+	mp_bool_t stuck;
 
 	for(item = __i2c.first; item; item = item->next) {
 		i2c = item->user;
+		regs = i2c->regs;
+		stuck = NO;
 		MP_INTERRUPT_SAFE_BEGIN
-		/* FREQ, CCR and TRISE are only written with PE off */
-		i2c->regs->CR1 &= ~I2C_CR1_PE;
+		/* PE off/on alone leaves BUSY stuck on F1; SWRST clears it */
+		regs->CR1 &= ~I2C_CR1_PE;
+		regs->CR1 = I2C_CR1_SWRST;
+		regs->CR1 = 0;
+		regs->CR2 = 0;
 		_mp_i2c_timing(i2c);
-		i2c->regs->CR1 |= I2C_CR1_PE;
+		regs->OAR1 = I2C_OAR1_BIT14;
+		regs->CR1 = I2C_CR1_PE;
+		if(i2c->phase == MP_I2C_PHASE_IDLE && (regs->SR2 & I2C_SR2_BUSY))
+			stuck = YES;
 		MP_INTERRUPT_SAFE_END
+		if(stuck == YES)
+			mp_i2c_reset(i2c);
+		else
+			_mp_i2c_irq_update(i2c);
 	}
 }
 

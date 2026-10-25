@@ -22,6 +22,10 @@
 
 #ifdef SUPPORT_DRV_LED
 
+#ifdef SUPPORT_COMMON_DEVICE
+static void _led_publish(mp_kernel_t *kernel, mp_drv_led_t *led, char *who);
+#endif
+
 mp_ret_t mp_drv_led_init(mp_kernel_t *kernel, mp_drv_led_t *led, mp_options_t *options, char *who) {
 	char *value, *port;
 
@@ -47,6 +51,9 @@ mp_ret_t mp_drv_led_init(mp_kernel_t *kernel, mp_drv_led_t *led, mp_options_t *o
 
     mp_printk("Initializing LED control on %s called %s", port, who);
 
+#ifdef SUPPORT_COMMON_DEVICE
+	_led_publish(kernel, led, who);
+#endif
     return(TRUE);
 }
 
@@ -55,6 +62,11 @@ mp_ret_t mp_drv_led_fini(mp_drv_led_t *led) {
 		return(FALSE);
 
 	mp_printk("Terminating LED control on %s", led->gpio->who);
+
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_registry_unregister(&led->device);
+	mp_device_driver_unregister(led->kernel, &led->binding);
+#endif
 
 	/* release GPIO port */
 	mp_gpio_release(led->gpio);
@@ -80,6 +92,42 @@ void mp_drv_led_turn(mp_drv_led_t *led) {
 }
 
 #ifdef SUPPORT_COMMON_DEVICE
+static void _led_face_set(mp_device_led_t *face, int on) {
+	mp_drv_led_t *led = face->user;
+
+	if(on)
+		mp_drv_led_turnOn(led);
+	else
+		mp_drv_led_turnOff(led);
+	face->state = on ? 1 : 0;
+}
+
+static void _led_face_turn(mp_device_led_t *face) {
+	mp_drv_led_t *led = face->user;
+
+	mp_drv_led_turn(led);
+	face->state = led->state == ON ? 1 : 0;
+}
+
+static void _led_publish(mp_kernel_t *kernel, mp_drv_led_t *led, char *who) {
+	static const mp_device_driver_ops_t ops = {
+		"led/gpio", "GPIO LED", "1.0.0",
+		(unsigned int)(1u << MP_DEVICE_LED),
+		NULL, NULL, NULL, NULL, NULL
+	};
+	const char *serial = who && who[0] ? who : "led";
+	const char *label = who && who[0] ? who : "GPIO LED";
+
+	led->kernel = kernel;
+	led->face.set = _led_face_set;
+	led->face.turn = _led_face_turn;
+	led->face.user = led;
+	if(mp_device_driver_register(kernel, &led->binding, &ops, led, NULL) == TRUE &&
+		mp_device_registry_register(&led->binding, &led->device, MP_DEVICE_LED, 0, &led->face, "led", serial, NULL))
+		led->device.label = label;
+	mp_device_identify(led, label, "led", serial, NULL);
+}
+
 static mp_ret_t _led_device_open(mp_kernel_t *kernel, void *self, mp_options_t *options, char *who) {
 	return(mp_drv_led_init(kernel, self, options, who));
 }
@@ -91,10 +139,13 @@ static void _led_device_close(void *self) {
 }
 
 static void _led_device_set(void *self, int value) {
+	mp_drv_led_t *led = self;
+
 	if(value)
-		mp_drv_led_turnOn(self);
+		mp_drv_led_turnOn(led);
 	else
-		mp_drv_led_turnOff(self);
+		mp_drv_led_turnOff(led);
+	led->face.state = value ? 1 : 0;
 }
 
 const mp_device_ops_t mp_drv_led_device = {
