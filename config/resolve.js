@@ -620,6 +620,7 @@ export function analyze(catalog, sel, exists) {
 			const entry = driverState.get(record.name)
 			return {
 				...strip(record),
+				vendor: record.data.vendor || null,
 				define: record.data.define || null,
 				buses: record.data.buses || [],
 				requires: record.data.requires || [],

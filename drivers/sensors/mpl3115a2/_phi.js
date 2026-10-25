@@ -1,6 +1,7 @@
 export const phi = {
 	kind: "driver",
 	name: "MPL3115A2",
+	vendor: "Freescale",
 	label: "MPL3115A2",
 	description: "Freescale barometric pressure and altitude sensor on I2C.",
 	define: "SUPPORT_DRV_MPL3115A2",

@@ -3,6 +3,7 @@ const gate = (kind) => ({ name: "gate", label: "USCI", type: "gate", gateKind: k
 export const phi = {
 	kind: "arch",
 	name: "msp430",
+	vendor: "Texas Instruments",
 	label: "TI MSP430",
 	description: "16-bit ultra-low-power microcontrollers.",
 	define: "__MSP430__",

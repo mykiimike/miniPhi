@@ -1,6 +1,7 @@
 export const phi = {
 	kind: "driver",
 	name: "ILI932X",
+	vendor: "Ilitek",
 	label: "ILI9320 / ILI9325 TFT",
 	description: "240x320 RGB565 TFT on the FSMC parallel bus. It is a display for the TUI, which dims its backlight through a PWM timer. Standby is off unless asked: on the STM32-LCD it is followed by the board losing power. The board names the model. The panel has no serial, so the serial is the MCU unique id. The model published is the id register when it reads 9320 or 9325.",
 	define: "SUPPORT_DRV_LCD_ILI932X",

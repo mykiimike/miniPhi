@@ -1,6 +1,7 @@
 export const phi = {
 	kind: "driver",
 	name: "NRF8001",
+	vendor: "Nordic Semiconductor",
 	label: "nRF8001",
 	description: "Nordic Bluetooth Low Energy controller on SPI.",
 	define: "SUPPORT_DRV_NRF8001",

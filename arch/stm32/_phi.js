@@ -3,6 +3,7 @@ const gate = (kind, label) => ({ name: "gate", label, type: "gate", gateKind: ki
 export const phi = {
 	kind: "arch",
 	name: "stm32",
+	vendor: "STMicroelectronics",
 	label: "ST STM32",
 	description: "32-bit Cortex-M microcontrollers. The peripheral code follows the F1 register layout (GPIO CRL/CRH, I2C v1, ADC with calibration).",
 	define: "__STM32__",

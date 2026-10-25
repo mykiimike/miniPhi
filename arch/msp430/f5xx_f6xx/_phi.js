@@ -38,6 +38,7 @@ export const phi = {
 	kind: "series",
 	arch: "msp430",
 	name: "f5xx_f6xx",
+	vendor: "Texas Instruments",
 	label: "MSP430F5xx / F6xx",
 	description: "UCS clock system, PMM core voltage, USCI serial blocks. The CPU clock is fixed; the power levels choose LPM0 or LPM3, and the tick timer is tickless.",
 	boot: ["clock.c"],

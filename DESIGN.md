@@ -149,11 +149,14 @@ export const phi = {
 
 Pins are `p<port>.<bit>` on numbered ports (`p10.6` on MSP430) and `p<letter><bit>` on lettered ones (`pa9` on STM32). A driver names its bus and options. The bus options (gate, SDA, SCL) come from the arch. `irq: true` only accepts pins on a port listed in the MCU's `irqPorts`. An MCU with `irqLines: true` (STM32 EXTI) takes any pin, but two interrupt pins cannot share a bit number:
 
+A record names `vendor` when one company makes the part. The LED and the button are only a pin, so they leave the field out.
+
 ```js
 // drivers/sensors/tmp006/_phi.js
 export const phi = {
 	kind: "driver",
 	name: "TMP006",
+	vendor: "Texas Instruments",
 	define: "SUPPORT_DRV_TMP006",
 	sources: ["TMP006.c"],
 	headers: ["TMP006.h"],

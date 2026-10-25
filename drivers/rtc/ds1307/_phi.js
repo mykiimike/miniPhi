@@ -1,6 +1,7 @@
 export const phi = {
 	kind: "driver",
 	name: "DS1307",
+	vendor: "Maxim",
 	label: "DS1307",
 	description: "Maxim DS1307 real-time clock. SDA and SCL are bit-banged, at most 100 kHz, on the pins the board names. The slave address is 0x68. VCC must be 5 V; the backup battery keeps time and does not answer on the bus. One clock device publishes civil time while a subscriber holds it.",
 	define: "SUPPORT_DRV_DS1307",

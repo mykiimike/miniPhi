@@ -32,6 +32,7 @@ export const phi = {
 	kind: "series",
 	arch: "stm32",
 	name: "f4",
+	vendor: "STMicroelectronics",
 	label: "STM32F4",
 	description: "Cortex-M4F up to 168 MHz, HSI at 16 MHz. GPIO, EXTI, USART, SPI, I2C, the basic timers, ADC and the PLL clock. One pin set per gate, the reset alternate.",
 	boot: ["startup.c", "clock.c"],

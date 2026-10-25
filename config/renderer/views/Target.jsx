@@ -90,6 +90,7 @@ export function Target() {
 							title={record.data.label}
 							sub={record.data.description}
 							meta={[
+								record.data.vendor,
 								record.data.define,
 								catalog.series.filter((item) => item.data.arch === record.name).length + " series",
 								(record.data.toolchains || []).length + " toolchains",
@@ -110,7 +111,7 @@ export function Target() {
 								active={record.name === selection.series}
 								title={record.data.label}
 								sub={record.data.description}
-								meta={[record.data.mcus.length + " MCUs", ...(record.data.boot || []).map((file) => file.split("/").pop())]}
+								meta={[record.data.vendor, record.data.mcus.length + " MCUs", ...(record.data.boot || []).map((file) => file.split("/").pop())]}
 								onClick={() => pickSeries(record)}
 							/>
 						))}

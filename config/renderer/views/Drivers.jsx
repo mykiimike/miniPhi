@@ -32,7 +32,7 @@ function DriverRow({ driver, active }) {
 			/>
 			<div className="list-text">
 				<div className="name">{driver.label}</div>
-				<div className="sub">{driver.buses.length ? driver.buses.map((bus) => bus.toUpperCase()).join(" / ") : "GPIO"}</div>
+				<div className="sub">{[driver.vendor, driver.buses.length ? driver.buses.map((bus) => bus.toUpperCase()).join(" / ") : "GPIO"].filter(Boolean).join(" · ")}</div>
 			</div>
 			{errors
 				? <span className="count err">{errors}</span>
@@ -101,6 +101,7 @@ export function Drivers() {
 						</h2>
 						<p>{current.description}</p>
 						<div className="meta">
+							{current.vendor ? <Chip>{current.vendor}</Chip> : null}
 							<Chip>{current.path}</Chip>
 							{current.define ? <Chip tone="define">{current.define}</Chip> : null}
 							{current.buses.map((bus) => <Chip key={bus}>{bus.toUpperCase()}</Chip>)}

@@ -1,6 +1,7 @@
 export const phi = {
 	kind: "driver",
 	name: "LCD_NOKIA3310",
+	vendor: "Philips",
 	label: "Nokia 3310 LCD",
 	description: "84x48 PCD8544 display on SPI.",
 	define: "SUPPORT_DRV_LCD_NOKIA3310",

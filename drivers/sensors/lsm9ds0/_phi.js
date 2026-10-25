@@ -1,6 +1,7 @@
 export const phi = {
 	kind: "driver",
 	name: "LSM9DS0",
+	vendor: "STMicroelectronics",
 	label: "LSM9DS0",
 	description: "ST 9-axis IMU: accelerometer, gyroscope, magnetometer. SPI or I2C.",
 	define: "SUPPORT_DRV_LSM9DS0",

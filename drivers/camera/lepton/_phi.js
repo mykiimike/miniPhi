@@ -1,6 +1,7 @@
 export const phi = {
 	kind: "driver",
 	name: "LEPTON",
+	vendor: "FLIR",
 	label: "FLIR Lepton",
 	description: "FLIR Lepton thermal module on the v1.3 breakout. Video is VoSPI (SPI mode 3, chip select around each 164-byte packet). Commands are I2C at 0x2A: boot status, the part number, the serial and the sensor temperature. The face is one 80x60 frame, each byte the top 8 bits of the 14-bit sample. A Lepton 2. The board names the model. Until the module answers, and if it never does, the serial is the MCU unique id.",
 	define: "SUPPORT_DRV_LEPTON",

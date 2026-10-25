@@ -1,6 +1,7 @@
 export const phi = {
 	kind: "driver",
 	name: "INA219",
+	vendor: "Texas Instruments",
 	label: "INA219",
 	description: "TI current and power monitor on I2C, address 0x40.",
 	define: "SUPPORT_DRV_INA219",

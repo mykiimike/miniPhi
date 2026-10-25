@@ -40,6 +40,7 @@ export const phi = {
 	kind: "series",
 	arch: "stm32",
 	name: "f1",
+	vendor: "STMicroelectronics",
 	label: "STM32F1",
 	description: "Cortex-M3 up to 72 MHz. HSE crystal and PLL, a clock per power level, tickless SysTick kernel tick at 1 kHz, Stop woken by the RTC on the LSE crystal, JTAG or SWD debug.",
 	boot: ["startup.c", "clock.c"],
