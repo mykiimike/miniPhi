@@ -20,9 +20,11 @@
 
 /*
  * Home page. One button per camera. Opening one runs that camera and draws
- * its frame while the picture page stays on screen. The lines above the
- * picture are the model, the serial number and the software version the
- * device registered, then its temperature.
+ * its frame while the picture page stays on screen. Each sample is drawn
+ * as a 2x2 block, centered under the header. The model, the serial number,
+ * the software version and the temperature are drawn over it. A band is
+ * filled even while the next frame is being read, or the clear behind it
+ * leaves a line across the picture.
  */
 
 #include "../index.h"
@@ -84,24 +86,21 @@ static void _sysinfo_camera_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 	mp_camera_frame_t *frame;
 	const unsigned char *pixels;
 	unsigned long sequence;
-	int width, height, scale, left, top, row, col, row0, row1;
+	int width, height, left, top, row, col, row0, row1;
 
 	device = sysinfo ? mp_device_find(MP_DEVICE_CAMERA, sysinfo->screen.cameraPick) : NULL;
 	frame = device && device->opened == YES ? mp_device_face(device) : NULL;
 	sequence = frame ? frame->sequence : 0;
-	if(!frame || (sequence & 1UL) || sequence == 0 || !frame->pixels || !frame->width || !frame->height)
+	if(!frame || sequence == 0 || !frame->pixels || !frame->width || !frame->height)
 		return;
 
 	pixels = frame->pixels;
 	width = frame->width;
 	height = frame->height;
-	scale = 1;
-	while(scale < 8 && (scale + 1) * width <= widget->rect.w && (scale + 1) * height <= widget->rect.h)
-		scale++;
-	left = widget->screen.x + (widget->screen.w - width * scale) / 2;
-	top = widget->screen.y + (widget->screen.h - height * scale) / 2;
-	row0 = (draw->clip.y - top) / scale;
-	row1 = (draw->clip.y + draw->clip.h - 1 - top) / scale + 1;
+	left = widget->screen.x + (widget->screen.w - width * 2) / 2;
+	top = widget->screen.y + (widget->screen.h - height * 2) / 2;
+	row0 = (draw->clip.y - top) / 2;
+	row1 = (draw->clip.y + draw->clip.h - 1 - top) / 2 + 1;
 	if(row0 < 0)
 		row0 = 0;
 	if(row1 > height)
@@ -113,8 +112,7 @@ static void _sysinfo_camera_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 		for(col = 0; col < width; col++) {
 			unsigned char sample = line[col];
 
-			mp_tui_draw_fill(draw, left + col * scale, top + row * scale, scale, scale,
-				MP_TUI_RGB(sample, sample, sample));
+			mp_tui_draw_fill(draw, left + col * 2, top + row * 2, 2, 2, MP_TUI_RGB(sample, sample, sample));
 		}
 	}
 }
@@ -183,14 +181,33 @@ static void _sysinfo_camera_view_page(mp_tui_widget_t *page, void *user) {
 	int line = font->lineHeight + 1;
 	int width = page->rect.w - 16;
 	int y = 8;
+	int imgW = 160;
+	int imgH = 120;
+	int x;
 	sysinfo_camera_view_t *picture = &sysinfo->screen.cameraPicture;
+	mp_device_t *device;
+	mp_camera_frame_t *frame;
 
-	mp_tui_label(&sysinfo->screen.cameraState, page, 8, y, width, line * 4, "");
-	mp_tui_label_color(&sysinfo->screen.cameraState, page->tui->theme.muted);
-	y += line * 4 + 8;
+	_sysinfo_camera_hold(sysinfo, YES);
+	device = mp_device_find(MP_DEVICE_CAMERA, sysinfo->screen.cameraPick);
+	frame = device && device->opened == YES ? mp_device_face(device) : NULL;
+	if(frame && frame->width && frame->height) {
+		imgW = (int)frame->width * 2;
+		imgH = (int)frame->height * 2;
+	}
+	if(imgW > page->rect.w)
+		imgW = page->rect.w;
+	if(imgH > page->rect.h)
+		imgH = page->rect.h;
+	x = (page->rect.w - imgW) / 2;
+	y = (page->rect.h - imgH) / 2;
+	if(y < 8)
+		y = 8;
 
 	picture->owner = sysinfo;
-	mp_tui_widget_init(&picture->widget, &_sysinfo_camera_class, page, 8, y, width, page->rect.h - y - 8);
+	mp_tui_widget_init(&picture->widget, &_sysinfo_camera_class, page, x, y, imgW, imgH);
+	mp_tui_label(&sysinfo->screen.cameraState, page, 8, 8, width, line * 4, "");
+	mp_tui_label_color(&sysinfo->screen.cameraState, page->tui->theme.muted);
 	_sysinfo_camera_values(sysinfo);
 }
 

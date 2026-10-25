@@ -601,10 +601,12 @@ static void _lepton_store(mp_drv_lepton_t *lep, int row) {
 	}
 }
 
-/* put the last complete frame back. A failed read must not leave the sequence odd. */
+/*
+ * A failed read has already replaced the top rows. Rolling the sequence
+ * back to even would publish that cut. Leave it odd until a full frame ends.
+ */
 static mp_bool_t _lepton_fail(mp_drv_lepton_t *lep) {
-	if(lep->frame.sequence & 1UL)
-		lep->frame.sequence--;
+	(void)lep;
 	return(NO);
 }
 
@@ -766,8 +768,8 @@ static MP_TASK(_lepton_task) {
 			lep->dmaResult = LEPTON_DMA_IDLE;
 			if(lep->frame.sequence == 2)
 				mp_printk("Lepton frame");
-			/* DMA is idle, so this frame stays still while the screen paints it */
-			mp_task_delay(task, _lepton_ticks(40));
+			/* the screen paints this frame in bands before the next read replaces it */
+			mp_task_delay(task, _lepton_ticks(80));
 			return;
 		}
 		if(lep->dmaResult == LEPTON_DMA_FAIL) {
@@ -798,8 +800,8 @@ static MP_TASK(_lepton_task) {
 
 	if(lep->frame.sequence == 2)
 		mp_printk("Lepton frame");
-	/* the screen paints this frame before the next read takes the CPU */
-	mp_task_delay(task, _lepton_ticks(40));
+	/* the screen paints this frame in bands before the next read replaces it */
+	mp_task_delay(task, _lepton_ticks(80));
 }
 
 static mp_ret_t _lepton_bus(mp_kernel_t *kernel, mp_drv_lepton_t *lep, mp_options_t *options, char *who) {
