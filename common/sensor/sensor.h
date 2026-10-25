@@ -36,6 +36,10 @@
 		MP_SENSOR_MAGNETOMETER,		/**< gauss, x y z */
 		MP_SENSOR_VOLTAGE,			/**< volt */
 		MP_SENSOR_CURRENT,			/**< ampere */
+		MP_SENSOR_POWER,			/**< watt */
+		MP_SENSOR_HUMIDITY,			/**< percent relative humidity */
+		MP_SENSOR_ILLUMINANCE,		/**< lux */
+		MP_SENSOR_ORIENTATION,		/**< degree, yaw pitch roll */
 		MP_SENSOR_TYPES
 	} mp_sensor_type_t;
 

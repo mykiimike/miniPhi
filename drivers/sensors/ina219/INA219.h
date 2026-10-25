@@ -46,10 +46,12 @@
 		unsigned short rawBusVoltage;
 		unsigned short rawShuntVoltage;
 		unsigned short rawCurrent;
+		unsigned short rawPower;
 
 		mp_sensor_t *busVoltage;
 		mp_sensor_t *shuntVoltage;
 		mp_sensor_t *current;
+		mp_sensor_t *power;
 
 
 		mp_task_t *task;
@@ -171,6 +173,7 @@
 	void mp_drv_INA219_update_busVoltage(mp_drv_INA219_t *INA219);
 	void mp_drv_INA219_update_shuntVoltage(mp_drv_INA219_t *INA219);
 	void mp_drv_INA219_update_current(mp_drv_INA219_t *INA219);
+	void mp_drv_INA219_update_power(mp_drv_INA219_t *INA219);
 #endif
 
 #endif

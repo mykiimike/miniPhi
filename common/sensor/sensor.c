@@ -48,7 +48,7 @@ registration failed.
 */
 
 static const char *_mp_sensor_units[MP_SENSOR_TYPES] = {
-	"C", "Pa", "m", "g", "dps", "gauss", "V", "A"
+	"C", "Pa", "m", "g", "dps", "gauss", "V", "A", "W", "%RH", "lx", "deg"
 };
 
 void mp_sensor_init(mp_kernel_t *kernel) {
@@ -227,10 +227,10 @@ mp_sensor_t *mp_sensor_find(mp_kernel_t *kernel, mp_sensor_type_t type, const ch
 }
 
 /**
- * @return 3 for the accelerometer, the gyroscope and the magnetometer, 1 otherwise
+ * @return 3 for the accelerometer, the gyroscope, the magnetometer and the orientation, 1 otherwise
  */
 int mp_sensor_axes(mp_sensor_type_t type) {
-	return(type == MP_SENSOR_ACCELEROMETER || type == MP_SENSOR_GYROSCOPE || type == MP_SENSOR_MAGNETOMETER ? 3 : 1);
+	return(type == MP_SENSOR_ACCELEROMETER || type == MP_SENSOR_GYROSCOPE || type == MP_SENSOR_MAGNETOMETER || type == MP_SENSOR_ORIENTATION ? 3 : 1);
 }
 
 /**

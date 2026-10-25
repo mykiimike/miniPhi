@@ -51,7 +51,7 @@ static unsigned long _sysinfo_mhz10(unsigned long hz) {
 }
 
 static int _sysinfo_power_sensor(mp_sensor_t *sensor) {
-	return(sensor->type == MP_SENSOR_VOLTAGE || sensor->type == MP_SENSOR_CURRENT);
+	return(sensor->type == MP_SENSOR_VOLTAGE || sensor->type == MP_SENSOR_CURRENT || sensor->type == MP_SENSOR_POWER);
 }
 
 static int _sysinfo_power_sensors(mp_kernel_t *kernel) {
@@ -149,6 +149,8 @@ static void _sysinfo_power_values(sysinfo_t *sysinfo) {
 				mp_tui_table_set(table, row, 1, "%s", "--");
 			else if(sensor->type == MP_SENSOR_VOLTAGE)
 				mp_tui_table_set(table, row, 1, "%.3f V", (double)v[0]);
+			else if(sensor->type == MP_SENSOR_POWER)
+				mp_tui_table_set(table, row, 1, "%.3f W", (double)v[0]);
 			else
 				mp_tui_table_set(table, row, 1, "%.1f mA", (double)v[0] * 1000.0);
 			row++;

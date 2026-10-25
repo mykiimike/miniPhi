@@ -30,6 +30,7 @@ static void _mp_drv_INA219_writeControl(mp_regMaster_op_t *operand, mp_bool_t te
 static void _mp_drv_INA219_busVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _mp_drv_INA219_shuntVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _mp_drv_INA219_current(mp_regMaster_op_t *operand, mp_bool_t terminate);
+static void _mp_drv_INA219_power(mp_regMaster_op_t *operand, mp_bool_t terminate);
 
 MP_TASK(_mp_drv_INA219_ASR);
 
@@ -127,6 +128,7 @@ mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_opt
 	INA219->busVoltage = mp_sensor_register(kernel, MP_SENSOR_VOLTAGE, "INA219: Bus");
 	INA219->shuntVoltage = mp_sensor_register(kernel, MP_SENSOR_VOLTAGE, "INA219: Shunt");
 	INA219->current = mp_sensor_register(kernel, MP_SENSOR_CURRENT, "INA219: Current");
+	INA219->power = mp_sensor_register(kernel, MP_SENSOR_POWER, "INA219: Power");
 
 	mp_printk("INA219(%p): Initializing", INA219);
 
@@ -149,6 +151,7 @@ mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_opt
 	//mp_drv_INA219_update_busVoltage(INA219);
 	//mp_drv_INA219_update_shuntVoltage(INA219);
 	//mp_drv_INA219_update_current(INA219);
+	//mp_drv_INA219_update_power(INA219);
 	return(TRUE);
 }
 
@@ -299,6 +302,23 @@ void mp_drv_INA219_update_current(mp_drv_INA219_t *INA219) {
 	);
 }
 
+/**
+ * @brief Update power
+ *
+ * powerDivider is the power LSB in milliwatts, written by the calibration.
+ *
+ * @param[in] INA219 context
+ */
+void mp_drv_INA219_update_power(mp_drv_INA219_t *INA219) {
+	mp_regMaster_readExt(
+		&INA219->regMaster,
+		mp_regMaster_register(INA219_REG_POWER), 1,
+		(unsigned char *)&INA219->rawPower, 2,
+		_mp_drv_INA219_power, INA219,
+		TRUE
+	);
+}
+
 /**@}*/
 
 static void mp_drv_INA219_write(mp_drv_INA219_t *INA219, unsigned char address, unsigned short writeByte) {
@@ -349,6 +369,12 @@ static void _mp_drv_INA219_current(mp_regMaster_op_t *operand, mp_bool_t termina
 	mp_sensor_publish(INA219->current, (float)(int16_t)INA219->rawCurrent * 0.001f);
 }
 
+static void _mp_drv_INA219_power(mp_regMaster_op_t *operand, mp_bool_t terminate) {
+	mp_drv_INA219_t *INA219 = operand->user;
+	/* unsigned, powerDivider milliwatts per step */
+	mp_sensor_publish(INA219->power, (float)INA219->rawPower * (float)INA219->powerDivider / 1000.0f);
+}
+
 
 
 
@@ -361,6 +387,7 @@ MP_TASK(_mp_drv_INA219_ASR) {
 		mp_sensor_unregister(INA219->kernel, &INA219->busVoltage);
 		mp_sensor_unregister(INA219->kernel, &INA219->shuntVoltage);
 		mp_sensor_unregister(INA219->kernel, &INA219->current);
+		mp_sensor_unregister(INA219->kernel, &INA219->power);
 
 		mp_regMaster_fini(&INA219->regMaster);
 
@@ -382,6 +409,7 @@ MP_TASK(_mp_drv_INA219_ASR) {
 	//mp_drv_INA219_update_busVoltage(INA219);
 	//mp_drv_INA219_update_shuntVoltage(INA219);
 	//mp_drv_INA219_update_current(INA219);
+	//mp_drv_INA219_update_power(INA219);
 	mp_printk("pouf");
 
 }
