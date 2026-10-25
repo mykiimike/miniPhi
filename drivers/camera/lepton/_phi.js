@@ -6,7 +6,7 @@ export const phi = {
 	define: "SUPPORT_DRV_LEPTON",
 	sources: ["lepton.c"],
 	headers: ["lepton.h"],
-	requires: ["SENSOR", "REGMASTER", "DEVICE"],
+	requires: ["SENSOR", "REGMASTER", "DEVICE", "DMA"],
 	device: { struct: "mp_drv_lepton_t", ops: "mp_drv_lepton_device" },
 	options: [
 		{ name: "spiGate", label: "SPI", type: "gate", gateKind: "spi", required: true },

@@ -23,6 +23,8 @@ export const phi = {
 		MP_CLOCK_LSE: true,
 		/* one device PHY; the System USB table keeps a row per slot */
 		MP_USB_PORT_MAX: 1,
+		/* newlib heap. The kernel pool is MP_MEM_SIZE; nothing in this firmware mallocs. */
+		HEAP_SIZE: 256,
 	},
 	/* pins wired to something the firmware does not own yet */
 	reserved: [

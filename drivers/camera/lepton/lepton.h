@@ -24,8 +24,9 @@
 	/**
 	 * FLIR Lepton 2 on the v1.3 breakout.
 	 * VoSPI on SPI mode 3 fills one 80x60 frame of bytes; the face is that frame.
-	 * On the STM32F1 each packet is moved by DMA1 (SPI2 RX channel 4, TX channel 5)
-	 * and chip select is raised in that interrupt, so the CPU can draw meanwhile.
+	 * When the SPI has DMA engines, each packet is moved there and chip select
+	 * rises in that completion, so the CPU can draw meanwhile. Otherwise the
+	 * task clocks the packet itself.
 	 * CCI on I2C reads the FLIR serial, the part number and the software version
 	 * once the module has booted, then publishes the FPA temperature in °C.
 	 * The frame lives in the device, not on the heap.
@@ -81,11 +82,22 @@
 		unsigned short bias;
 		unsigned int scale;
 
-		/** VoSPI DMA: -1 seeks line 0, otherwise the next row. 0 idle, 1 frame, 2 lost */
-		short dmaRow;
-		unsigned short dmaSkips;
-		mp_bool_t dmaOn;
-		signed char dmaResult;
+		#ifdef SUPPORT_COMMON_DMA
+			mp_dma_t dmaRx;
+			mp_dma_t dmaTx;
+			mp_dma_seg_t rxSeg;
+			mp_dma_seg_t txSeg;
+			/** the byte the TX engine repeats for the whole packet */
+			unsigned char dmaZero;
+			/** YES once both SPI engines are mapped */
+			mp_bool_t dmaUse;
+			/** -1 seeks line 0, otherwise the next row */
+			short dmaRow;
+			unsigned short dmaSkips;
+			mp_bool_t dmaOn;
+			/** 0 idle, 1 frame, 2 lost */
+			signed char dmaResult;
+		#endif
 	};
 
 	mp_ret_t mp_drv_lepton_init(mp_kernel_t *kernel, mp_drv_lepton_t *lep, mp_options_t *options, char *who);

@@ -21,6 +21,10 @@
 #ifndef _HAVE_MSP430_SPI_H
 	#define _HAVE_MSP430_SPI_H
 
+	#ifdef SUPPORT_COMMON_DMA
+		#include <dma/dma.h>
+	#endif
+
 	typedef struct mp_spi_s mp_spi_t;
 /*
 	typedef enum {
@@ -140,5 +144,11 @@
 	static inline void mp_spi_setInterruption(mp_spi_t *spi, mp_spi_interrupt_t cb) {
 		spi->intDispatch = cb;
 	}
+
+	#ifdef SUPPORT_COMMON_DMA
+		/** This arch has no SPI DMA engine yet. */
+		mp_dma_engine_t *mp_spi_engine(mp_spi_t *spi, mp_dma_dir_t dir);
+		void mp_spi_engine_drop(mp_spi_t *spi);
+	#endif
 
 #endif

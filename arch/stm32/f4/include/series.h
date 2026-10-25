@@ -229,6 +229,8 @@
 	#define RCC_AHB1_GPIOF    (1UL << 5)
 	#define RCC_AHB1_GPIOG    (1UL << 6)
 	#define RCC_AHB1_GPIOH    (1UL << 7)
+	#define RCC_AHB1_DMA1     (1UL << 21)
+	#define RCC_AHB1_DMA2     (1UL << 22)
 	#define RCC_AHB3_FSMC     (1UL << 0)
 
 	#define RCC_APB2_TIM1     (1UL << 0)
@@ -367,6 +369,13 @@
 		EXTI2_IRQn = 8,
 		EXTI3_IRQn = 9,
 		EXTI4_IRQn = 10,
+		DMA1_Stream0_IRQn = 11,
+		DMA1_Stream1_IRQn = 12,
+		DMA1_Stream2_IRQn = 13,
+		DMA1_Stream3_IRQn = 14,
+		DMA1_Stream4_IRQn = 15,
+		DMA1_Stream5_IRQn = 16,
+		DMA1_Stream6_IRQn = 17,
 		ADC1_2_IRQn = 18,
 		EXTI9_5_IRQn = 23,
 		TIM1_UP_IRQn = 25,
@@ -384,14 +393,23 @@
 		USART3_IRQn = 39,
 		EXTI15_10_IRQn = 40,
 		TIM8_UP_IRQn = 44,
+		DMA1_Stream7_IRQn = 47,
 		TIM5_IRQn = 50,
 		SPI3_IRQn = 51,
 		UART4_IRQn = 52,
 		UART5_IRQn = 53,
 		TIM6_IRQn = 54,
 		TIM7_IRQn = 55,
+		DMA2_Stream0_IRQn = 56,
+		DMA2_Stream1_IRQn = 57,
+		DMA2_Stream2_IRQn = 58,
+		DMA2_Stream3_IRQn = 59,
+		DMA2_Stream4_IRQn = 60,
 		USART6_IRQn = 71,
 		OTG_FS_IRQn = 67,
+		DMA2_Stream5_IRQn = 68,
+		DMA2_Stream6_IRQn = 69,
+		DMA2_Stream7_IRQn = 70,
 		OTG_HS_IRQn = 77,
 	} IRQn_Type;
 

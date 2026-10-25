@@ -9,6 +9,7 @@ export const phi = {
 	headers: [
 		"include/adc.h",
 		"include/clock.h",
+		"include/dma.h",
 		"include/flash.h",
 		"include/fsmc.h",
 		"include/gate.h",
@@ -23,6 +24,7 @@ export const phi = {
 	headerDir: "arch",
 	sources: [
 		"adc.c",
+		"dma.c",
 		"flash.c",
 		"fsmc.c",
 		"gate.c",

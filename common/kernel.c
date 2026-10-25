@@ -130,6 +130,10 @@ void mp_kernel_fini(mp_kernel_t *kernel) {
 	/* terminate logical machine state */
 	mp_state_fini(&kernel->states);
 
+#ifdef SUPPORT_COMMON_DMA
+	mp_dma_fini();
+#endif
+
 	/* initialize tasks */
 	mp_task_fini(&kernel->tasks);
 

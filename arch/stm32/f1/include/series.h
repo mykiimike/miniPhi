@@ -218,6 +218,7 @@
 	#define RCC_BDCR_BDRST    (1UL << 16)
 
 	#define RCC_AHB_DMA1      (1UL << 0)
+	#define RCC_AHB_DMA2      (1UL << 1)
 	#define RCC_AHB_FSMC      (1UL << 8)
 
 	#define RCC_APB2_AFIO     (1UL << 0)
@@ -378,8 +379,13 @@
 		EXTI2_IRQn = 8,
 		EXTI3_IRQn = 9,
 		EXTI4_IRQn = 10,
-		/* SPI2_RX. SPI2_TX is channel 5 and is not armed: the RX count is the packet */
+		DMA1_Channel1_IRQn = 11,
+		DMA1_Channel2_IRQn = 12,
+		DMA1_Channel3_IRQn = 13,
 		DMA1_Channel4_IRQn = 14,
+		DMA1_Channel5_IRQn = 15,
+		DMA1_Channel6_IRQn = 16,
+		DMA1_Channel7_IRQn = 17,
 		ADC1_2_IRQn = 18,
 		EXTI9_5_IRQn = 23,
 		TIM1_UP_IRQn = 25,
@@ -407,6 +413,9 @@
 		UART5_IRQn = 53,
 		TIM6_IRQn = 54,
 		TIM7_IRQn = 55,
+		DMA2_Channel1_IRQn = 56,
+		DMA2_Channel2_IRQn = 57,
+		DMA2_Channel3_IRQn = 58,
 	} IRQn_Type;
 
 	/* STM32F10X_HD and STM32F10X_XL come from the MCU entry */

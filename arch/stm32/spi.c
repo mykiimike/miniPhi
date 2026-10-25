@@ -20,6 +20,10 @@
 
 #include <mp.h>
 
+#ifdef SUPPORT_COMMON_DMA
+	#include <arch/dma.h>
+#endif
+
 /**
 @defgroup mpArchSTM32SPI SPI
 
@@ -200,9 +204,101 @@ mp_bool_t mp_spi_quiet(void) {
 	return(YES);
 }
 
+#ifdef SUPPORT_COMMON_DMA
+
+static void _mp_spi_dma_rx(void *user, mp_bool_t on) {
+	mp_spi_t *spi = user;
+
+	if(on == YES)
+		spi->regs->CR2 |= SPI_CR2_RXDMAEN;
+	else
+		spi->regs->CR2 &= ~SPI_CR2_RXDMAEN;
+}
+
+static void _mp_spi_dma_tx(void *user, mp_bool_t on) {
+	mp_spi_t *spi = user;
+
+	if(on == YES)
+		spi->regs->CR2 |= SPI_CR2_TXDMAEN;
+	else
+		spi->regs->CR2 &= ~SPI_CR2_TXDMAEN;
+}
+
+/* a leftover byte is clocked out as the next header */
+static void _mp_spi_dma_prep(void *user) {
+	mp_spi_t *spi = user;
+
+	spi->regs->CR2 &= ~(SPI_CR2_RXNEIE | SPI_CR2_TXEIE);
+	while(spi->regs->SR & (SPI_SR_RXNE | SPI_SR_OVR)) {
+		(void)spi->regs->DR;
+		(void)spi->regs->SR;
+	}
+}
+
+static const char *_mp_spi_dma_name(mp_spi_t *spi, mp_dma_dir_t dir) {
+	char *name;
+	mp_bool_t rx;
+
+	if(!spi->gate)
+		return(NULL);
+	name = spi->gate->portDevice;
+	rx = dir == MP_DMA_FROM_DEVICE ? YES : NO;
+	if(mp_options_cmp(name, "SPI1") == TRUE)
+		return(rx == YES ? "spi1.rx" : "spi1.tx");
+	if(mp_options_cmp(name, "SPI2") == TRUE)
+		return(rx == YES ? "spi2.rx" : "spi2.tx");
+	if(mp_options_cmp(name, "SPI3") == TRUE)
+		return(rx == YES ? "spi3.rx" : "spi3.tx");
+	return(NULL);
+}
+
+mp_dma_engine_t *mp_spi_engine(mp_spi_t *spi, mp_dma_dir_t dir) {
+	mp_dma_engine_t **held;
+	const char *request;
+	void (*arm)(void *user, mp_bool_t on);
+
+	if(!spi || !spi->regs)
+		return(NULL);
+	if(dir == MP_DMA_FROM_DEVICE) {
+		held = &spi->dmaRx;
+		arm = _mp_spi_dma_rx;
+	}
+	else if(dir == MP_DMA_TO_DEVICE) {
+		held = &spi->dmaTx;
+		arm = _mp_spi_dma_tx;
+	}
+	else
+		return(NULL);
+	if(*held)
+		return(*held);
+
+	request = _mp_spi_dma_name(spi, dir);
+	if(!request)
+		return(NULL);
+	*held = mp_dma_claim(request, dir, &spi->regs->DR, 1, arm, _mp_spi_dma_prep, spi, spi->gate->byWho);
+	return(*held);
+}
+
+void mp_spi_engine_drop(mp_spi_t *spi) {
+	if(!spi)
+		return;
+	mp_dma_release(spi->dmaRx);
+	mp_dma_release(spi->dmaTx);
+	spi->dmaRx = NULL;
+	spi->dmaTx = NULL;
+	if(spi->regs)
+		spi->regs->CR2 = (spi->regs->CR2 & ~(SPI_CR2_RXNEIE | SPI_CR2_TXEIE)) | spi->ie;
+}
+
+#endif
+
 mp_ret_t mp_spi_close(mp_spi_t *spi) {
 	mp_bool_t listed = NO;
 	mp_list_item_t *item;
+
+#ifdef SUPPORT_COMMON_DMA
+	mp_spi_engine_drop(spi);
+#endif
 
 	for(item = __spi.first; item; item = item->next)
 		if(item->user == spi)

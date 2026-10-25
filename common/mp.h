@@ -158,6 +158,9 @@
 	#ifdef SUPPORT_COMMON_USB
 		#include <usb/usb.h>
 	#endif
+	#ifdef SUPPORT_COMMON_DMA
+		#include <dma/dma.h>
+	#endif
 	#ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
 		#include <crypto/blake2s.h>
 	#endif

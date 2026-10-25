@@ -244,6 +244,20 @@ static void mp_spi_interruptDispatch(void *user) {
 		spi->intDispatch(spi, iv);
 }
 
+#ifdef SUPPORT_COMMON_DMA
+
+mp_dma_engine_t *mp_spi_engine(mp_spi_t *spi, mp_dma_dir_t dir) {
+	(void)spi;
+	(void)dir;
+	return(NULL);
+}
+
+void mp_spi_engine_drop(mp_spi_t *spi) {
+	(void)spi;
+}
+
+#endif
+
 #ifdef __UNUSED_FOR_THE_MOMENT
 static void __mp_spi_interrupt(void *user) {
 	mp_spi_t *spi = user;

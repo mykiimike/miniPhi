@@ -21,6 +21,10 @@
 #ifndef _HAVE_STM32_SPI_H
 	#define _HAVE_STM32_SPI_H
 
+	#ifdef SUPPORT_COMMON_DMA
+		#include <dma/dma.h>
+	#endif
+
 	typedef struct mp_spi_s mp_spi_t;
 
 	typedef enum {
@@ -55,6 +59,12 @@
 		unsigned long ie;
 
 		SPI_TypeDef *regs;
+
+		#ifdef SUPPORT_COMMON_DMA
+			/** held by mp_spi_engine(), released by mp_spi_close() */
+			mp_dma_engine_t *dmaRx;
+			mp_dma_engine_t *dmaTx;
+		#endif
 	};
 
 	void mp_spi_init();
@@ -120,5 +130,11 @@
 	static inline void mp_spi_setInterruption(mp_spi_t *spi, mp_spi_interrupt_t cb) {
 		spi->intDispatch = cb;
 	}
+
+	#ifdef SUPPORT_COMMON_DMA
+		/** NULL when this SPI has no DMA line, or the line is already claimed */
+		mp_dma_engine_t *mp_spi_engine(mp_spi_t *spi, mp_dma_dir_t dir);
+		void mp_spi_engine_drop(mp_spi_t *spi);
+	#endif
 
 #endif

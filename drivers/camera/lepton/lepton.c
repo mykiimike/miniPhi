@@ -339,10 +339,6 @@ static void _lepton_onCci(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	}
 }
 
-#if defined(STM32F10X_LD) || defined(STM32F10X_MD) || defined(STM32F10X_HD) || defined(STM32F10X_XL) || defined(STM32F10X_CL)
-#define LEPTON_SPI_DMA 1
-#endif
-
 #define LEPTON_DMA_IDLE 0
 #define LEPTON_DMA_OK 1
 #define LEPTON_DMA_FAIL 2
@@ -353,123 +349,69 @@ static void _lepton_store(mp_drv_lepton_t *lep, int row);
 static void _lepton_span_commit(mp_drv_lepton_t *lep);
 static mp_bool_t _lepton_fail(mp_drv_lepton_t *lep);
 
-#if LEPTON_SPI_DMA
-
-/* DMA1 channel 4 is SPI2_RX, channel 5 is SPI2_TX. The console does not use them. */
-#define LEPTON_DMA1 0x40020000UL
-#define LEPTON_DMA_CH4 (LEPTON_DMA1 + 0x44UL)
-#define LEPTON_DMA_CH5 (LEPTON_DMA1 + 0x58UL)
-#define LEPTON_DMA_GIF4 (0xFUL << 12)
-#define LEPTON_DMA_GIF5 (0xFUL << 16)
-#define LEPTON_DMA_TCIF4 (1UL << 13)
-#define LEPTON_DMA_TEIF4 (1UL << 15)
-/* RX: complete interrupt, 8-bit, memory increments. TX: 8-bit, same zero every time. */
-#define LEPTON_DMA_RX_CCR ((1UL << 1) | (1UL << 3) | (1UL << 7) | (2UL << 12))
-#define LEPTON_DMA_TX_CCR ((1UL << 3) | (1UL << 4) | (2UL << 12))
-
-typedef struct {
-	__IO uint32_t CCR;
-	__IO uint32_t CNDTR;
-	__IO uint32_t CPAR;
-	__IO uint32_t CMAR;
-	uint32_t reserved;
-} _lepton_dma_ch_t;
-
-static unsigned char _lepton_zero;
-static mp_drv_lepton_t *_lepton_dma;
-
-static _lepton_dma_ch_t *_lepton_dma_rx(void) {
-	return((_lepton_dma_ch_t *)LEPTON_DMA_CH4);
-}
-
-static _lepton_dma_ch_t *_lepton_dma_tx(void) {
-	return((_lepton_dma_ch_t *)LEPTON_DMA_CH5);
-}
-
-static void _lepton_dma_irq(void *user);
-
-/* one packet. Chip select is already decided by the caller. */
-static void _lepton_dma_kick(mp_drv_lepton_t *lep) {
-	_lepton_dma_ch_t *rx = _lepton_dma_rx();
-	_lepton_dma_ch_t *tx = _lepton_dma_tx();
-	SPI_TypeDef *regs = lep->spi.regs;
-	volatile uint32_t *ifcr = (volatile uint32_t *)(LEPTON_DMA1 + 4UL);
-
-	rx->CCR = LEPTON_DMA_RX_CCR;
-	tx->CCR = LEPTON_DMA_TX_CCR;
-	/* a leftover byte is clocked out as the next header and shifts the frame */
-	while(regs->SR & (SPI_SR_RXNE | SPI_SR_OVR)) {
-		(void)regs->DR;
-		(void)regs->SR;
-	}
-	*ifcr = LEPTON_DMA_GIF4 | LEPTON_DMA_GIF5;
-	rx->CNDTR = LEPTON_PACKET;
-	tx->CNDTR = LEPTON_PACKET;
-	mp_gpio_unset(lep->cs);
-	rx->CCR = LEPTON_DMA_RX_CCR | 1UL;
-	tx->CCR = LEPTON_DMA_TX_CCR | 1UL;
-}
+#ifdef SUPPORT_COMMON_DMA
+static void _lepton_dma_kick(mp_drv_lepton_t *lep);
+static void _lepton_dma_finish(mp_drv_lepton_t *lep, signed char result);
+#endif
 
 static void _lepton_dma_stop(mp_drv_lepton_t *lep) {
-	_lepton_dma_ch_t *rx;
-	_lepton_dma_ch_t *tx;
-	volatile uint32_t *ifcr;
-
-	if(_lepton_dma != lep)
+#ifdef SUPPORT_COMMON_DMA
+	if(lep->dmaUse == NO)
 		return;
-
-	MP_INTERRUPT_SAFE_BEGIN
 	lep->dmaOn = NO;
-	rx = _lepton_dma_rx();
-	tx = _lepton_dma_tx();
-	rx->CCR = LEPTON_DMA_RX_CCR;
-	tx->CCR = LEPTON_DMA_TX_CCR;
-	ifcr = (volatile uint32_t *)(LEPTON_DMA1 + 4UL);
-	*ifcr = LEPTON_DMA_GIF4 | LEPTON_DMA_GIF5;
-	if(lep->spi.regs)
-		lep->spi.regs->CR2 &= ~(SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN);
+	mp_dma_stop(&lep->dmaRx);
+	mp_dma_stop(&lep->dmaTx);
+	mp_dma_unmap(&lep->dmaRx);
+	mp_dma_unmap(&lep->dmaTx);
+	lep->dmaUse = NO;
 	if(lep->cs)
 		mp_gpio_set(lep->cs);
-	MP_INTERRUPT_SAFE_END
-
-	mp_interrupt_unset(DMA1_Channel4_IRQn);
-	_lepton_dma = NULL;
+#else
+	(void)lep;
+#endif
 }
+
+#ifdef SUPPORT_COMMON_DMA
 
 static void _lepton_dma_finish(mp_drv_lepton_t *lep, signed char result) {
 	lep->dmaOn = NO;
 	lep->dmaResult = result;
-	_lepton_dma_rx()->CCR = LEPTON_DMA_RX_CCR;
-	_lepton_dma_tx()->CCR = LEPTON_DMA_TX_CCR;
+	mp_dma_stop(&lep->dmaRx);
+	mp_dma_stop(&lep->dmaTx);
 	if(result != LEPTON_DMA_OK)
 		_lepton_fail(lep);
-	mp_gpio_set(lep->cs);
+	if(lep->cs)
+		mp_gpio_set(lep->cs);
 	if(lep->task)
 		mp_task_wake(lep->task);
 }
 
-static void _lepton_dma_irq(void *user) {
-	mp_drv_lepton_t *lep = user;
-	volatile uint32_t *isr = (volatile uint32_t *)LEPTON_DMA1;
-	volatile uint32_t *ifcr = (volatile uint32_t *)(LEPTON_DMA1 + 4UL);
-	uint32_t flags = *isr;
+/* one packet. The RX completion is the end of it; TX has no callback. */
+static void _lepton_dma_kick(mp_drv_lepton_t *lep) {
+	mp_gpio_unset(lep->cs);
+	if(mp_dma_start(&lep->dmaRx) == FALSE || mp_dma_start(&lep->dmaTx) == FALSE) {
+		mp_dma_stop(&lep->dmaRx);
+		mp_dma_stop(&lep->dmaTx);
+		_lepton_dma_finish(lep, LEPTON_DMA_FAIL);
+	}
+}
+
+static void _lepton_dma_done(mp_dma_t *dma, mp_dma_result_t result) {
+	mp_drv_lepton_t *lep = dma->user;
 	SPI_TypeDef *regs;
 	unsigned long spin;
 	int line;
 
-	*ifcr = LEPTON_DMA_GIF4;
 	if(lep->dmaOn == NO)
 		return;
-	if(flags & LEPTON_DMA_TEIF4) {
+	/* the TX interrupt may still be pending; the next kick needs the engine idle */
+	mp_dma_stop(&lep->dmaTx);
+	if(result != MP_DMA_DONE) {
 		_lepton_dma_finish(lep, LEPTON_DMA_FAIL);
 		return;
 	}
-	if((flags & LEPTON_DMA_TCIF4) == 0)
-		return;
 
 	regs = lep->spi.regs;
-	_lepton_dma_rx()->CCR = LEPTON_DMA_RX_CCR;
-	_lepton_dma_tx()->CCR = LEPTON_DMA_TX_CCR;
 	spin = 2000UL;
 	while((regs->SR & SPI_SR_BSY) && --spin)
 		;
@@ -522,36 +464,50 @@ static void _lepton_dma_irq(void *user) {
 		_lepton_dma_kick(lep);
 }
 
-static mp_ret_t _lepton_dma_open(mp_drv_lepton_t *lep) {
-	_lepton_dma_ch_t *rx;
-	_lepton_dma_ch_t *tx;
+static void _lepton_dma_open(mp_drv_lepton_t *lep) {
+	mp_dma_engine_t *rx;
+	mp_dma_engine_t *tx;
 
-	if(_lepton_dma && _lepton_dma != lep) {
-		mp_printk("Lepton: SPI DMA is already in use");
-		return(FALSE);
+	rx = mp_spi_engine(&lep->spi, MP_DMA_FROM_DEVICE);
+	tx = mp_spi_engine(&lep->spi, MP_DMA_TO_DEVICE);
+	if(!rx || !tx) {
+		mp_spi_engine_drop(&lep->spi);
+		mp_printk("Lepton: no SPI DMA, reading in the task");
+		return;
 	}
 
-	RCC->AHBENR |= RCC_AHB_DMA1;
-	rx = _lepton_dma_rx();
-	tx = _lepton_dma_tx();
-	rx->CCR = LEPTON_DMA_RX_CCR;
-	tx->CCR = LEPTON_DMA_TX_CCR;
-	rx->CPAR = (uint32_t)&lep->spi.regs->DR;
-	tx->CPAR = (uint32_t)&lep->spi.regs->DR;
-	rx->CMAR = (uint32_t)lep->packet;
-	tx->CMAR = (uint32_t)&_lepton_zero;
-	lep->spi.regs->CR2 |= SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN;
+	lep->rxSeg.cpu = lep->packet;
+	lep->rxSeg.len = LEPTON_PACKET;
+	lep->rxSeg.fixed = NO;
+	lep->txSeg.cpu = &lep->dmaZero;
+	lep->txSeg.len = LEPTON_PACKET;
+	lep->txSeg.fixed = YES;
 
-	_lepton_dma = lep;
-	if(!mp_interrupt_set(DMA1_Channel4_IRQn, _lepton_dma_irq, lep, "Lepton DMA")) {
-		_lepton_dma = NULL;
-		mp_printk("Lepton: can not arm DMA");
-		return(FALSE);
+	if(mp_dma_bind(&lep->dmaRx, rx) == FALSE || mp_dma_bind(&lep->dmaTx, tx) == FALSE) {
+		mp_spi_engine_drop(&lep->spi);
+		mp_printk("Lepton: no SPI DMA, reading in the task");
+		return;
 	}
-	return(TRUE);
+	lep->dmaRx.dir = MP_DMA_FROM_DEVICE;
+	lep->dmaRx.in = &lep->rxSeg;
+	lep->dmaRx.nin = 1;
+	lep->dmaRx.done = _lepton_dma_done;
+	lep->dmaRx.user = lep;
+	lep->dmaTx.dir = MP_DMA_TO_DEVICE;
+	lep->dmaTx.out = &lep->txSeg;
+	lep->dmaTx.nout = 1;
+
+	if(mp_dma_map(&lep->dmaRx) == FALSE || mp_dma_map(&lep->dmaTx) == FALSE) {
+		mp_dma_unmap(&lep->dmaRx);
+		mp_dma_unmap(&lep->dmaTx);
+		mp_spi_engine_drop(&lep->spi);
+		mp_printk("Lepton: no SPI DMA, reading in the task");
+		return;
+	}
+	lep->dmaUse = YES;
 }
 
-#else
+#endif
 
 static int _lepton_transfer(mp_drv_lepton_t *lep) {
 	SPI_TypeDef *regs = lep->spi.regs;
@@ -579,12 +535,6 @@ static int _lepton_transfer(mp_drv_lepton_t *lep) {
 	mp_gpio_set(lep->cs);
 	return((int)lep->packet[0] << 8) | lep->packet[1];
 }
-
-static void _lepton_dma_stop(mp_drv_lepton_t *lep) {
-	(void)lep;
-}
-
-#endif
 
 static int _lepton_number(int id) {
 	if(id < 0)
@@ -658,8 +608,6 @@ static mp_bool_t _lepton_fail(mp_drv_lepton_t *lep) {
 	return(NO);
 }
 
-#if !LEPTON_SPI_DMA
-
 static int _lepton_pull(mp_drv_lepton_t *lep, mp_task_t *task) {
 	int line;
 
@@ -729,8 +677,6 @@ static mp_bool_t _lepton_frame(mp_drv_lepton_t *lep, mp_task_t *task) {
 	_lepton_span_commit(lep);
 	return(YES);
 }
-
-#endif
 
 static void _lepton_next(mp_drv_lepton_t *lep) {
 	if(lep->ident == LEPTON_IDENT_SERIAL)
@@ -809,36 +755,41 @@ static MP_TASK(_lepton_task) {
 		return;
 	}
 
-#if LEPTON_SPI_DMA
-	/* the interrupt is the only thing that clears dmaOn. A lost one would sleep forever. */
-	if(lep->dmaOn == YES) {
-		_lepton_dma_finish(lep, LEPTON_DMA_FAIL);
-		return;
-	}
-	if(lep->dmaResult == LEPTON_DMA_OK) {
-		lep->dmaResult = LEPTON_DMA_IDLE;
-		if(lep->frame.sequence == 2)
-			mp_printk("Lepton frame");
-		/* DMA is idle, so this frame stays still while the screen paints it */
-		mp_task_delay(task, _lepton_ticks(40));
-		return;
-	}
-	if(lep->dmaResult == LEPTON_DMA_FAIL) {
-		lep->dmaResult = LEPTON_DMA_IDLE;
-		lep->phase = LEPTON_PHASE_SYNC;
-		mp_task_delay(task, _lepton_ticks(1));
-		return;
-	}
+#ifdef SUPPORT_COMMON_DMA
+	if(lep->dmaUse == YES) {
+		/* the interrupt is the only thing that clears dmaOn. A lost one would sleep forever. */
+		if(lep->dmaOn == YES) {
+			_lepton_dma_finish(lep, LEPTON_DMA_FAIL);
+			return;
+		}
+		if(lep->dmaResult == LEPTON_DMA_OK) {
+			lep->dmaResult = LEPTON_DMA_IDLE;
+			if(lep->frame.sequence == 2)
+				mp_printk("Lepton frame");
+			/* DMA is idle, so this frame stays still while the screen paints it */
+			mp_task_delay(task, _lepton_ticks(40));
+			return;
+		}
+		if(lep->dmaResult == LEPTON_DMA_FAIL) {
+			lep->dmaResult = LEPTON_DMA_IDLE;
+			lep->phase = LEPTON_PHASE_SYNC;
+			mp_task_delay(task, _lepton_ticks(1));
+			return;
+		}
 
-	if((lep->frame.sequence & 1UL) == 0)
-		lep->frame.sequence++;
-	_lepton_span_begin(lep);
-	lep->dmaRow = -1;
-	lep->dmaSkips = 0;
-	lep->dmaOn = YES;
-	_lepton_dma_kick(lep);
-	mp_task_delay(task, _lepton_ticks(1000));
-#else
+		if((lep->frame.sequence & 1UL) == 0)
+			lep->frame.sequence++;
+		_lepton_span_begin(lep);
+		lep->dmaRow = -1;
+		lep->dmaSkips = 0;
+		lep->dmaOn = YES;
+		_lepton_dma_kick(lep);
+		if(lep->dmaOn == NO)
+			return;
+		mp_task_delay(task, _lepton_ticks(1000));
+		return;
+	}
+#endif
 	if(_lepton_frame(lep, task) == NO) {
 		lep->phase = LEPTON_PHASE_SYNC;
 		mp_task_delay(task, _lepton_ticks(1));
@@ -849,7 +800,6 @@ static MP_TASK(_lepton_task) {
 		mp_printk("Lepton frame");
 	/* the screen paints this frame before the next read takes the CPU */
 	mp_task_delay(task, _lepton_ticks(40));
-#endif
 }
 
 static mp_ret_t _lepton_bus(mp_kernel_t *kernel, mp_drv_lepton_t *lep, mp_options_t *options, char *who) {
@@ -923,11 +873,8 @@ mp_ret_t mp_drv_lepton_init(mp_kernel_t *kernel, mp_drv_lepton_t *lep, mp_option
 		mp_drv_lepton_fini(lep);
 		return(FALSE);
 	}
-#if LEPTON_SPI_DMA
-	if(_lepton_dma_open(lep) == FALSE) {
-		mp_drv_lepton_fini(lep);
-		return(FALSE);
-	}
+#ifdef SUPPORT_COMMON_DMA
+	_lepton_dma_open(lep);
 #endif
 
 	lep->task = mp_task_create(&kernel->tasks, "Lepton", _lepton_task, lep, _lepton_ticks(50));
