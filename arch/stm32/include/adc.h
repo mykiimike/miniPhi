@@ -78,6 +78,13 @@
 	 */
 	int mp_adc_convert(int channel);
 
+	/**
+	 * ADC1 channel of a GPIO pin.
+	 * F1: PA0-PA7 are IN0-IN7, PB0-PB1 are IN8-IN9, PC0-PC5 are IN10-IN15.
+	 * -1 when the pin is not an ADC input.
+	 */
+	int mp_adc_channel(mp_gpio_port_t *pin);
+
 	void mp_adc_idle(void);
 	mp_bool_t mp_adc_quiet(void);
 

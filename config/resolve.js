@@ -496,6 +496,8 @@ export function analyze(catalog, sel, exists) {
 		addSources(record.data.sources, record.data.label)
 	if (app)
 		addSources(app.data.sources, app.data.label)
+	if (board)
+		addSources(board.data.sources, board.data.label)
 	addSources(sel.sources, "Extra sources")
 
 	const needs = ((app && app.data.devices) || []).map((need) => {

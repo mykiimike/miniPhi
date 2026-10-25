@@ -7,7 +7,7 @@ export const phi = {
 	sources: ["TMP006.c"],
 	headers: ["TMP006.h"],
 	buses: ["i2c"],
-	requires: ["SENSOR", "REGMASTER"],
+	requires: ["DEVICE", "REGMASTER"],
 	options: [
 		{ name: "drdy", label: "Data ready", type: "pin", irq: true },
 	],

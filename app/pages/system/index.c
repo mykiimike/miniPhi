@@ -111,14 +111,14 @@ static void _sysinfo_flash_state(char *text, size_t size) {
 		snprintf(text, size, "State    %s, %s", lock, guard);
 }
 
-#ifdef SUPPORT_COMMON_SENSOR
-static int _sysinfo_mcu_sensor(mp_kernel_t *kernel, mp_sensor_t *sensor) {
-	mp_sensor_t *axis = NULL;
+#ifdef SUPPORT_COMMON_DEVICE
+static int _sysinfo_mcu_sensor(mp_kernel_t *kernel, mp_device_registry_t *sensor) {
+	mp_device_registry_t *axis = NULL;
 
-	if(sensor->type != MP_SENSOR_TEMPERATURE && sensor->type != MP_SENSOR_VOLTAGE)
+	if(sensor->class != MP_DEVICE_TEMPERATURE && sensor->class != MP_DEVICE_VOLTAGE)
 		return(0);
-	while((axis = mp_sensor_next(kernel, axis)) != NULL) {
-		if(mp_sensor_axes(axis->type) == 3 && _sysinfo_sensor_beside(axis, sensor))
+	while((axis = mp_device_measure_next(kernel, axis)) != NULL) {
+		if(mp_device_measure_axes(axis->class) == 3 && _sysinfo_measure_beside(axis, sensor))
 			return(0);
 	}
 	return(1);
@@ -180,20 +180,20 @@ void _sysinfo_system_refresh(sysinfo_t *sysinfo) {
 	}
 #endif
 
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 	{
-		mp_sensor_t *sensor = NULL;
+		mp_device_registry_t *sensor = NULL;
 		float v[3];
 
-		while(index < 2 && (sensor = mp_sensor_next(kernel, sensor)) != NULL) {
+		while(index < 2 && (sensor = mp_device_measure_next(kernel, sensor)) != NULL) {
 			if(!_sysinfo_mcu_sensor(kernel, sensor))
 				continue;
-			if(mp_sensor_read(sensor, v, NULL) != TRUE)
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: --", sensor->name);
-			else if(sensor->type == MP_SENSOR_TEMPERATURE)
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.1f °C", sensor->name, (double)v[0]);
+			if(mp_device_measure_read(sensor->instance, v, NULL) != TRUE)
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: --", sensor->address);
+			else if(sensor->class == MP_DEVICE_TEMPERATURE)
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.1f °C", sensor->address, (double)v[0]);
 			else
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.3f V", sensor->name, (double)v[0]);
+				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.3f V", sensor->address, (double)v[0]);
 		}
 	}
 #endif

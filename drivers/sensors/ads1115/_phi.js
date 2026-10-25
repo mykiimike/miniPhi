@@ -7,7 +7,7 @@ export const phi = {
 	sources: ["ADS1115.c"],
 	headers: ["ADS1115.h"],
 	buses: ["i2c"],
-	requires: ["REGMASTER"],
+	requires: ["DEVICE", "REGMASTER"],
 	options: [
 		{ name: "drdy", label: "Data ready", type: "pin", irq: true },
 	],

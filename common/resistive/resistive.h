@@ -18,36 +18,33 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef _HAVE_MP_DRV_RESISTIVE_H
-	#define _HAVE_MP_DRV_RESISTIVE_H
+#ifdef SUPPORT_COMMON_RESISTIVE
+
+#ifndef _HAVE_MP_COMMON_RESISTIVE_H
+	#define _HAVE_MP_COMMON_RESISTIVE_H
 
 	/**
-	 * 4-wire resistive touch panel on two ADC channels.
-	 * The driver is an mp_input_t with MP_INPUT_CAP_TOUCH: it feeds
-	 * mp_input_touch(), and the TUI reads it with the other inputs.
-	 *
-	 * One plate is driven, the other is measured. YD and YU are one plate,
-	 * XL and XR the other, each on an ADC-capable pin. There is no
-	 * controller chip: the driver notices a press because the plates
-	 * connect. It samples every period while a finger is down, every idle
-	 * otherwise, and every doze while the input dozes. Between those YD
-	 * waits on a falling edge, which only a firm press gives: a light one
-	 * is still seen by the next sample.
+	 * 4-wire resistive sheet, with no controller chip.
+	 * The board owns the glass: the four pins, the size, the calibration and the
+	 * orientation. This module drives the plates, reads the two ADC channels and
+	 * registers one MP_DEVICE_TOUCH. The first subscriber starts the sampling.
 	 */
 
 	typedef enum {
-		MP_DRV_RESISTIVE_LANDSCAPE,
-		MP_DRV_RESISTIVE_PORTRAIT,
-		MP_DRV_RESISTIVE_LANDSCAPE_FLIPPED,
-		MP_DRV_RESISTIVE_PORTRAIT_FLIPPED,
-	} mp_drv_resistive_orientation_t;
+		MP_RESISTIVE_LANDSCAPE,
+		MP_RESISTIVE_PORTRAIT,
+		MP_RESISTIVE_LANDSCAPE_FLIPPED,
+		MP_RESISTIVE_PORTRAIT_FLIPPED,
+	} mp_resistive_orientation_t;
 
-	typedef struct mp_drv_resistive_s mp_drv_resistive_t;
+	typedef struct mp_resistive_s mp_resistive_t;
 
-	struct mp_drv_resistive_s {
-		mp_input_t input;
+	struct mp_resistive_s {
+		mp_device_input_t input;
 		mp_kernel_t *kernel;
 		mp_task_t *task;
+		mp_device_driver_t binding;
+		mp_device_registry_t touch;
 
 		mp_gpio_port_t *yd;
 		mp_gpio_port_t *yu;
@@ -56,39 +53,51 @@
 		int channelYd;
 		int channelXl;
 
-		mp_drv_resistive_orientation_t orientation;
+		mp_resistive_orientation_t orientation;
+		/** panel columns and rows, before orientation turns them into the display */
+		int columns;
+		int rows;
 		int flipX;
 		int flipY;
+		/** raw ADC window, 0 to 4095 */
 		int xMin, xMax, yMin, yMax;
+
+		/** address touchN.model.serial */
+		const char *model;
+		const char *serial;
 
 		int down;
 		int seen;
 		int miss;
-		/** first sample of a press, waiting for a second one that agrees */
 		int px, py;
-		/** last position sent, after the plate noise is filtered out */
 		int fx, fy;
 		int tracked;
 
-		/** ticks between samples, with a finger, without, and while the input dozes */
+		/**
+		 * Milliseconds until mp_resistive_init, ticks after it.
+		 * 0 selects 20, 100 and 50.
+		 */
 		unsigned long period;
 		unsigned long idle;
 		unsigned long doze;
-		/** YD has its pen interrupt */
 		mp_bool_t armed;
+		mp_bool_t adc;
 	};
 
 	/**
-	 * options: yd, yu, xl, xr (ADC pins), orientation (landscape, portrait,
-	 * landscape-flipped, portrait-flipped), flipX, flipY, xMin, xMax, yMin,
-	 * yMax (raw ADC window, 0 to 4095), period, idle and doze in ms.
+	 * Register the panel. The four pins are already claimed; this call owns them
+	 * and releases them on failure. FALSE when a pin is missing, YD or XL is not
+	 * an ADC pin, or the glass has no size.
 	 */
-	mp_ret_t mp_drv_resistive_init(mp_kernel_t *kernel, mp_drv_resistive_t *panel, mp_options_t *options, char *who);
-	mp_ret_t mp_drv_resistive_fini(mp_drv_resistive_t *panel);
+	mp_ret_t mp_resistive_init(mp_kernel_t *kernel, mp_resistive_t *panel);
+	void mp_resistive_fini(mp_resistive_t *panel);
 
-#ifdef SUPPORT_COMMON_DEVICE
-	/** an MP_DEVICE_TOUCH */
-	extern const mp_device_driver_t mp_drv_resistive_device;
+	/**
+	 * The board fills one mp_resistive_t for its glass and calls mp_resistive_init.
+	 * The kernel calls this once the machine is up.
+	 */
+	mp_ret_t mp_board_resistive(mp_kernel_t *kernel);
+
 #endif
 
 #endif

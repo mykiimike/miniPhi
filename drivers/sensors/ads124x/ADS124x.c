@@ -227,6 +227,20 @@ mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_
 	/* change nop operation */
 	mp_regMaster_setNOP(&ADS124X->regMaster, ADS124X_SPI_NOP);
 
+	{
+		static const mp_device_driver_ops_t ops = {
+			"sensor/ads124x", "TI ADS1246/7/8", "1.0.0",
+			(unsigned int)(1u << MP_DEVICE_VOLTAGE),
+			NULL, NULL, NULL, NULL, NULL
+		};
+		const char *model;
+
+		model = ADS124X->version == _TI_ADS1248 ? "ads1248" :
+			ADS124X->version == _TI_ADS1247 ? "ads1247" : "ads1246";
+		mp_device_driver_register(kernel, &ADS124X->binding, &ops, ADS124X, NULL);
+		mp_device_registry_register(&ADS124X->binding, &ADS124X->voltDev, MP_DEVICE_VOLTAGE, 0, &ADS124X->voltage, model, "adc", NULL);
+	}
+
 	/* turn on the device */
 	mp_gpio_unset(ADS124X->reset);
 	mp_gpio_set(ADS124X->reset);
@@ -256,6 +270,9 @@ mp_ret_t mp_drv_ADS124X_init(mp_kernel_t *kernel, mp_drv_ADS124X_t *ADS124X, mp_
 
 void mp_drv_ADS124X_fini(mp_drv_ADS124X_t *ADS124X) {
 	mp_printk("Unloading ADS124X driver");
+
+	mp_device_registry_unregister(&ADS124X->voltDev);
+	mp_device_driver_unregister(ADS124X->kernel, &ADS124X->binding);
 
 	mp_spi_close(&ADS124X->spi);
 
@@ -470,8 +487,10 @@ static void _mp_drv_ADS124X_onData(mp_regMaster_op_t *operand, mp_bool_t termina
 	value = value << 16;
 	value |= operand->wait[1]<<8;
 	value |= operand->wait[0];
-
-	//mp_printk("Data %ld - %x %x %x", value, operand->wait[2], operand->wait[1], operand->wait[0]);
+	if(value & 0x800000L)
+		value |= ~0xffffffL;
+	/* 24-bit two's complement, PGA 1, internal 2.048 V reference */
+	mp_device_measure_publish(&ADS124X->voltage, (float)value * (2.048f / 8388608.0f));
 
 	mp_mem_free(ADS124X->kernel, operand->wait);
 	operand->wait = NULL;
@@ -520,6 +539,8 @@ MP_TASK(_mp_drv_ADS124X_ASR) {
 
 	/* receive regMaster shutdown */
 	if(task->signal == MP_TASK_SIG_STOP) {
+		mp_device_registry_unregister(&ADS124X->voltDev);
+		mp_device_driver_unregister(ADS124X->kernel, &ADS124X->binding);
 
 		/* acknowledging */
 		mp_task_signal(ADS124X->task, MP_TASK_SIG_DEAD);

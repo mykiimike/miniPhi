@@ -327,8 +327,8 @@ static void _lepton_onCci(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 			else if(lep->cciCmd == LEPTON_CMD_FPA) {
 				kelvin = _lepton_word(lep->cciRx);
 				/* the word is kelvin times 100; a cold module is still above 200 K */
-				if(lep->temperature && kelvin >= 20000 && kelvin <= 40000)
-					mp_sensor_publish(lep->temperature, (float)kelvin / 100.0f - 273.15f);
+				if(lep->tempDev.driver && kelvin >= 20000 && kelvin <= 40000)
+					mp_device_measure_publish(&lep->temperature, (float)kelvin / 100.0f - 273.15f);
 			}
 			_lepton_done(lep);
 			return;
@@ -744,9 +744,18 @@ static MP_TASK(_lepton_task) {
 
 	if(lep->phase == LEPTON_PHASE_BOOT) {
 		lep->phase = LEPTON_PHASE_SYNC;
-		lep->temperature = mp_sensor_register(lep->kernel, MP_SENSOR_TEMPERATURE, "Lepton");
-		if(!lep->temperature)
-			mp_printk("Lepton: can not register the temperature");
+		{
+			static const mp_device_driver_ops_t ops = {
+				"camera/lepton", "FLIR Lepton", "1.0.0",
+				(unsigned int)(1u << MP_DEVICE_TEMPERATURE),
+				NULL, NULL, NULL, NULL, NULL
+			};
+
+			if(mp_device_driver_register(lep->kernel, &lep->binding, &ops, lep, NULL) == TRUE)
+				mp_device_registry_register(&lep->binding, &lep->tempDev, MP_DEVICE_TEMPERATURE, 0, &lep->temperature, "lepton", "fpa", NULL);
+			if(!lep->tempDev.driver)
+				mp_printk("Lepton: can not register the temperature");
+		}
 		mp_printk("Lepton ready");
 	}
 
@@ -906,8 +915,8 @@ void mp_drv_lepton_fini(mp_drv_lepton_t *lep) {
 		lep->cs = NULL;
 	}
 
-	mp_sensor_unregister(lep->kernel, &lep->temperature);
-	lep->temperature = NULL;
+	mp_device_registry_unregister(&lep->tempDev);
+	mp_device_driver_unregister(lep->kernel, &lep->binding);
 }
 
 #ifdef SUPPORT_COMMON_DEVICE
@@ -925,7 +934,7 @@ static void *_lepton_device_face(void *self) {
 	return(&lep->frame);
 }
 
-const mp_device_driver_t mp_drv_lepton_device = {
+const mp_device_ops_t mp_drv_lepton_device = {
 	"LEPTON", MP_DEVICE_CAMERA, _lepton_device_open, _lepton_device_close, _lepton_device_face, NULL
 };
 #endif

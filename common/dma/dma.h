@@ -121,7 +121,11 @@
 
 	/** CPU copy, deferred to a task. NULL when kernel is NULL. */
 	mp_dma_engine_t *mp_dma_memory(mp_kernel_t *kernel);
-	void mp_dma_fini(void);
+
+	/** The kernel calls this once tasks exist. The copy engine stays idle until mp_dma_memory(). */
+	void mp_dma_init(mp_kernel_t *kernel);
+	/** Drop a copy still queued. The kernel calls this before the tasks stop. */
+	void mp_dma_fini(mp_kernel_t *kernel);
 
 	/** @} */
 

@@ -126,19 +126,31 @@ void mp_machine_state_unset(mp_kernel_t *kernel) {
 
 }
 
+#ifdef SUPPORT_COMMON_DEVICE
+static mp_device_driver_t _mp_arch_sensors;
+static mp_device_registry_t _mp_arch_tempDev;
+static mp_device_measure_t _mp_arch_temp;
+#endif
+
 static void _set_machine_temperature(mp_kernel_t *kernel) {
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 #if defined(__msp430x54x) || defined(__msp430x54xA)
 	/* create mcu temperature */
 	{
+		static const mp_device_driver_ops_t ops = {
+			"arch/msp430", "MSP430 internal ADC", "1.0.0",
+			(unsigned int)(1u << MP_DEVICE_TEMPERATURE),
+			NULL, NULL, NULL, NULL, NULL
+		};
 		mp_options_t options[] = {
 				{ "channel", "A10" },
 				{ "delay", "500" },
 				{ NULL, NULL }
 		};
 		mp_adc_create(kernel, &kernel->arch.internalTemp, options, "MCU temperature");
-
-		kernel->arch.sensorMCU = mp_sensor_register(kernel, MP_SENSOR_TEMPERATURE, "MSP430 Internal");
+		mp_device_driver_register(kernel, &_mp_arch_sensors, &ops, kernel, NULL);
+		kernel->arch.sensorMCU = &_mp_arch_temp;
+		mp_device_registry_register(&_mp_arch_sensors, &_mp_arch_tempDev, MP_DEVICE_TEMPERATURE, 0, &_mp_arch_temp, "msp430", "mcu", NULL);
 
 		kernel->arch.internalTemp.callback = _processor_temp;
 	}
@@ -148,9 +160,11 @@ static void _set_machine_temperature(mp_kernel_t *kernel) {
 
 
 static void _unset_machine_temperature(mp_kernel_t *kernel) {
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 #if defined(__msp430x54x) || defined(__msp430x54xA)
-	mp_sensor_unregister(kernel, &kernel->arch.sensorMCU);
+	mp_device_registry_unregister(&_mp_arch_tempDev);
+	mp_device_driver_unregister(kernel, &_mp_arch_sensors);
+	kernel->arch.sensorMCU = NULL;
 	mp_adc_remove(&kernel->arch.internalTemp);
 #endif
 #endif
@@ -165,11 +179,11 @@ static void _unset_machine_temperature(mp_kernel_t *kernel) {
 	#define _CALADC12_15V_85C  *((unsigned int *)0x1A1C)   // Temperature Sensor Calibration-85 C
 #endif
 
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 #if defined(__msp430x54x) || defined(__msp430x54xA)
 
 static void _processor_temp(mp_adc_t *adc) {
-	mp_sensor_publish(adc->kernel->arch.sensorMCU, (float)(((long)adc->result - _CALADC12_15V_30C) * (85 - 30)) /
+	mp_device_measure_publish(adc->kernel->arch.sensorMCU, (float)(((long)adc->result - _CALADC12_15V_30C) * (85 - 30)) /
 		(_CALADC12_15V_85C - _CALADC12_15V_30C) + 30.0f);
 }
 

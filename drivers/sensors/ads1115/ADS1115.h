@@ -51,6 +51,10 @@
 		unsigned char configBuffer[3];
 
 		unsigned short value;
+
+		mp_device_driver_t binding;
+		mp_device_registry_t voltDev;
+		mp_device_measure_t voltage;
 	};
 
 

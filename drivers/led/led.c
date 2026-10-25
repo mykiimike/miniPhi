@@ -97,7 +97,7 @@ static void _led_device_set(void *self, int value) {
 		mp_drv_led_turnOff(self);
 }
 
-const mp_device_driver_t mp_drv_led_device = {
+const mp_device_ops_t mp_drv_led_device = {
 	"LED", MP_DEVICE_LED, _led_device_open, _led_device_close, NULL, _led_device_set
 };
 #endif

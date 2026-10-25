@@ -232,10 +232,9 @@ void mp_drv_smb380_fini(mp_drv_smb380_t *smb) {
 		smb->irq = NULL;
 	}
 
-	mp_sensor_unregister(smb->kernel, &smb->accel);
-	mp_sensor_unregister(smb->kernel, &smb->temperature);
-	smb->accel = NULL;
-	smb->temperature = NULL;
+	mp_device_registry_unregister(&smb->accelDev);
+	mp_device_registry_unregister(&smb->tempDev);
+	mp_device_driver_unregister(smb->kernel, &smb->binding);
 }
 
 static void _smb380_onChipId(mp_regMaster_op_t *operand, mp_bool_t terminate) {
@@ -285,19 +284,36 @@ static void _smb380_onRangeWritten(mp_regMaster_op_t *operand, mp_bool_t termina
 	if(terminate == YES)
 		return;
 
-	smb->accel = mp_sensor_register(smb->kernel, MP_SENSOR_ACCELEROMETER, "SMB380");
-	smb->temperature = mp_sensor_register(smb->kernel, MP_SENSOR_TEMPERATURE, "SMB380 Temp");
-	if(!smb->accel || !smb->temperature) {
-		mp_sensor_unregister(smb->kernel, &smb->accel);
-		mp_sensor_unregister(smb->kernel, &smb->temperature);
-		mp_printk("SMB380: can not register the sensors");
-		return;
+	{
+		static const mp_device_driver_ops_t ops = {
+			"sensor/smb380", "Bosch SMB380", "1.0.0",
+			(unsigned int)((1u << MP_DEVICE_ACCELEROMETER) | (1u << MP_DEVICE_TEMPERATURE)),
+			NULL, NULL, NULL, NULL, NULL
+		};
+		char serial[3];
+		static const char *hex = "0123456789abcdef";
+
+		serial[0] = hex[(smb->address >> 4) & 0xf];
+		serial[1] = hex[smb->address & 0xf];
+		serial[2] = 0;
+		memset(&smb->accel, 0, sizeof(smb->accel));
+		memset(&smb->temperature, 0, sizeof(smb->temperature));
+		if(mp_device_driver_register(smb->kernel, &smb->binding, &ops, smb, NULL) == FALSE ||
+			!mp_device_registry_register(&smb->binding, &smb->accelDev, MP_DEVICE_ACCELEROMETER, 0, &smb->accel, "02", serial, NULL) ||
+			!mp_device_registry_register(&smb->binding, &smb->tempDev, MP_DEVICE_TEMPERATURE, 0, &smb->temperature, "02", serial, NULL)) {
+			mp_device_registry_unregister(&smb->accelDev);
+			mp_device_registry_unregister(&smb->tempDev);
+			mp_device_driver_unregister(smb->kernel, &smb->binding);
+			mp_printk("SMB380: can not register the sensors");
+			return;
+		}
 	}
 
 	smb->task = mp_task_create(&smb->kernel->tasks, "SMB380", _smb380_task, smb, smb->period);
 	if(!smb->task) {
-		mp_sensor_unregister(smb->kernel, &smb->accel);
-		mp_sensor_unregister(smb->kernel, &smb->temperature);
+		mp_device_registry_unregister(&smb->accelDev);
+		mp_device_registry_unregister(&smb->tempDev);
+		mp_device_driver_unregister(smb->kernel, &smb->binding);
 		mp_printk("SMB380: can not create the sample task");
 		return;
 	}
@@ -347,12 +363,12 @@ static void _smb380_onSample(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	y = _smb380_axis(smb->raw[2], smb->raw[3]);
 	z = _smb380_axis(smb->raw[4], smb->raw[5]);
 
-	mp_sensor_publish3(smb->accel,
+	mp_device_measure_publish3(&smb->accel,
 		(float)x / (float)smb->countsPerG,
 		(float)y / (float)smb->countsPerG,
 		(float)z / (float)smb->countsPerG);
 	/* code 0x00 is -30 °C, and each step is 0.5 °C */
-	mp_sensor_publish(smb->temperature, (float)smb->raw[6] * 0.5f - 30.0f);
+	mp_device_measure_publish(&smb->temperature, (float)smb->raw[6] * 0.5f - 30.0f);
 }
 
 static MP_TASK(_smb380_task) {
@@ -401,7 +417,7 @@ static void _smb380_device_set(void *self, int value) {
 	_smb380_ctrl(smb, asleep == YES ? 1 : 0);
 }
 
-const mp_device_driver_t mp_drv_smb380_device = {
+const mp_device_ops_t mp_drv_smb380_device = {
 	"SMB380", MP_DEVICE_ACCELEROMETER, _smb380_device_open, _smb380_device_close, NULL, _smb380_device_set
 };
 #endif

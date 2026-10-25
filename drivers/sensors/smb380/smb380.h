@@ -40,8 +40,11 @@
 		mp_gpio_port_t *irq;
 		mp_task_t *task;
 
-		mp_sensor_t *accel;
-		mp_sensor_t *temperature;
+		mp_device_driver_t binding;
+		mp_device_registry_t accelDev;
+		mp_device_registry_t tempDev;
+		mp_device_measure_t accel;
+		mp_device_measure_t temperature;
 
 		unsigned char address;
 		unsigned char range;
@@ -63,7 +66,7 @@
 
 #ifdef SUPPORT_COMMON_DEVICE
 	/** an MP_DEVICE_ACCELEROMETER */
-	extern const mp_device_driver_t mp_drv_smb380_device;
+	extern const mp_device_ops_t mp_drv_smb380_device;
 #endif
 
 #endif

@@ -1,4 +1,7 @@
-.PHONY: all clean config doc flash
+.PHONY: all clean config doc flash test
+
+test:
+	node config/test.js
 
 all: build/Makefile
 	$(MAKE) -C build

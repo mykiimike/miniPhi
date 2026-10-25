@@ -46,7 +46,9 @@
 		mp_regMaster_t regMaster;
 		mp_gpio_port_t *cs;
 		mp_task_t *task;
-		mp_sensor_t *temperature;
+		mp_device_driver_t binding;
+		mp_device_registry_t tempDev;
+		mp_device_measure_t temperature;
 
 		mp_camera_frame_t frame;
 		unsigned char pixels[MP_DRV_LEPTON_WIDTH * MP_DRV_LEPTON_HEIGHT];
@@ -105,7 +107,7 @@
 
 #ifdef SUPPORT_COMMON_DEVICE
 	/** an MP_DEVICE_CAMERA */
-	extern const mp_device_driver_t mp_drv_lepton_device;
+	extern const mp_device_ops_t mp_drv_lepton_device;
 #endif
 
 #endif

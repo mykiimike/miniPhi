@@ -367,19 +367,19 @@ static void _sysinfo_report(sysinfo_t *sysinfo) {
 	}
 #endif
 
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 	{
-		mp_sensor_t *sensor = NULL;
+		mp_device_registry_t *sensor = NULL;
 		float v[3];
 
-		while((sensor = mp_sensor_next(kernel, sensor)) != NULL) {
-			if(mp_sensor_read(sensor, v, NULL) != TRUE)
-				mp_printk("  %s: --", sensor->name);
-			else if(mp_sensor_axes(sensor->type) == 3)
-				mp_printk("  %s: %.2f %.2f %.2f %s", sensor->name,
-					(double)v[0], (double)v[1], (double)v[2], mp_sensor_unit(sensor->type));
+		while((sensor = mp_device_measure_next(kernel, sensor)) != NULL) {
+			if(mp_device_measure_read(sensor->instance, v, NULL) != TRUE)
+				mp_printk("  %s: --", sensor->address);
+			else if(mp_device_measure_axes(sensor->class) == 3)
+				mp_printk("  %s: %.2f %.2f %.2f %s", sensor->address,
+					(double)v[0], (double)v[1], (double)v[2], mp_device_measure_unit(sensor->class));
 			else
-				mp_printk("  %s: %.3f %s", sensor->name, (double)v[0], mp_sensor_unit(sensor->type));
+				mp_printk("  %s: %.3f %s", sensor->address, (double)v[0], mp_device_measure_unit(sensor->class));
 		}
 	}
 #endif

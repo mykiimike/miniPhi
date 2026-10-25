@@ -86,7 +86,7 @@ the cool video from Adafruit/Ti on
 @{
 */
 
-mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who) {
+mp_device_measure_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who) {
 	char *value;
 	mp_ret_t ret;
 
@@ -154,8 +154,16 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 		return(NULL);
 	}
 
-	/* create sensor */
-	TMP006->sensor = mp_sensor_register(kernel, MP_SENSOR_TEMPERATURE, who);
+	{
+		static const mp_device_driver_ops_t ops = {
+			"sensor/tmp006", "TI TMP006", "1.0.0",
+			(unsigned int)(1u << MP_DEVICE_TEMPERATURE),
+			NULL, NULL, NULL, NULL, NULL
+		};
+
+		mp_device_driver_register(kernel, &TMP006->binding, &ops, TMP006, NULL);
+		mp_device_registry_register(&TMP006->binding, &TMP006->tempDev, MP_DEVICE_TEMPERATURE, 0, &TMP006->sensor, "tmp006", "obj", NULL);
+	}
 
 	mp_printk("TMP006(%p): Initializing", TMP006);
 
@@ -192,13 +200,14 @@ mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp
 
 
 
-	return(TMP006->sensor);
+	return(&TMP006->sensor);
 }
 
 void mp_drv_TMP006_fini(mp_drv_TMP006_t *TMP006) {
 	mp_printk("Unloading TMP006 driver");
 
-	mp_sensor_unregister(TMP006->kernel, &TMP006->sensor);
+	mp_device_registry_unregister(&TMP006->tempDev);
+	mp_device_driver_unregister(TMP006->kernel, &TMP006->binding);
 	mp_regMaster_fini(&TMP006->regMaster);
 }
 
@@ -378,7 +387,7 @@ static void _mp_drv_TMP006_onRawVoltage(mp_regMaster_op_t *operand, mp_bool_t te
 
 	Tobj -= 273.15f; // Kelvin -> *C
 
-	mp_sensor_publish(TMP006->sensor, Tobj);
+	mp_device_measure_publish(&TMP006->sensor, Tobj);
 }
 
 

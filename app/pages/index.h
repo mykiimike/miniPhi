@@ -33,9 +33,9 @@
 
 #include <stdio.h>
 
-/** a temperature published beside an accelerometer: its name, a space, then anything */
-#ifdef SUPPORT_COMMON_SENSOR
-int _sysinfo_sensor_beside(mp_sensor_t *axis, mp_sensor_t *sensor);
+/** a temperature published by the same driver as a 3-axis measure */
+#ifdef SUPPORT_COMMON_DEVICE
+int _sysinfo_measure_beside(mp_device_registry_t *axis, mp_device_registry_t *other);
 #endif
 
 void _sysinfo_accel_open(sysinfo_t *sysinfo);

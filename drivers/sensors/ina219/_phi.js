@@ -7,5 +7,5 @@ export const phi = {
 	sources: ["INA219.c"],
 	headers: ["INA219.h"],
 	buses: ["i2c"],
-	requires: ["SENSOR", "REGMASTER"],
+	requires: ["DEVICE", "REGMASTER"],
 }

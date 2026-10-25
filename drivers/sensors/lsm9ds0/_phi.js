@@ -8,7 +8,7 @@ export const phi = {
 	headers: ["LSM9DS0.h"],
 	buses: ["spi", "i2c"],
 	busOption: "protocol",
-	requires: ["SENSOR", "REGMASTER"],
+	requires: ["DEVICE", "REGMASTER"],
 	options: [
 		{ name: "csG", label: "Gyro chip select", type: "pin", required: true, when: { protocol: "spi" } },
 		{ name: "csXM", label: "Accel/mag chip select", type: "pin", required: true, when: { protocol: "spi" } },

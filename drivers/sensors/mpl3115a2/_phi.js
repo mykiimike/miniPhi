@@ -7,7 +7,7 @@ export const phi = {
 	sources: ["MPL3115A2.c"],
 	headers: ["MPL3115A2.h"],
 	buses: ["i2c"],
-	requires: ["SENSOR", "REGMASTER"],
+	requires: ["DEVICE", "REGMASTER"],
 	options: [
 		{ name: "drdy", label: "Data ready", type: "pin", irq: true },
 	],

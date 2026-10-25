@@ -15,6 +15,7 @@ export const phi = {
 	label: "Things UI",
 	description: "A user interface for small screens. On start it shows miniPhi, the logo and the version together, then a home of applications declared by the firmware. Opening one shows a scrollable page and a Back button. With INPUT, every touch panel, mouse and keyboard clicks, drags, drops and scrolls them. Things are drawn in bands into any RGB565 display: no framebuffer, and several screens at once. The task only runs while something is dirty or an input arrives; a screen saver dims, then turns off a display that can, and an input holds the HIGH power level for a moment. The default font and the logo are rasterized when build/ is written.",
 	define: "SUPPORT_COMMON_TUI",
+	requires: ["DEVICE"],
 	sources: [
 		"tui.c", "draw.c", "font.c", "task.c", "font_default.c",
 		"widgets/box.c", "widgets/label.c", "widgets/bar.c", "widgets/table.c",

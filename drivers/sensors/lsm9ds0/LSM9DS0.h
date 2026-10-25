@@ -187,10 +187,15 @@
 			float gbias[3];
 		};
 
-		mp_sensor_t *gyro;
-		mp_sensor_t *magneto;
-		mp_sensor_t *temperature;
-		mp_sensor_t *accelero;
+		mp_device_driver_t binding;
+		mp_device_registry_t gyroDev;
+		mp_device_registry_t magDev;
+		mp_device_registry_t tempDev;
+		mp_device_registry_t accelDev;
+		mp_device_measure_t gyro;
+		mp_device_measure_t magneto;
+		mp_device_measure_t temperature;
+		mp_device_measure_t accelero;
 
 		/** User callback: Gyro on data */
 		mp_drv_LSM9DS0_onData_t onGyroData;

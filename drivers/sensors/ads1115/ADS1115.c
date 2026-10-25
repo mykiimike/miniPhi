@@ -133,12 +133,24 @@ mp_ret_t mp_drv_ADS1115_init(mp_kernel_t *kernel, mp_drv_ADS1115_t *ADS1115, mp_
 		TRUE // on the fly swap
 	);
 
+	{
+		static const mp_device_driver_ops_t ops = {
+			"sensor/ads1115", "TI ADS1115", "1.0.0",
+			(unsigned int)(1u << MP_DEVICE_VOLTAGE),
+			NULL, NULL, NULL, NULL, NULL
+		};
+
+		mp_device_driver_register(kernel, &ADS1115->binding, &ops, ADS1115, NULL);
+		mp_device_registry_register(&ADS1115->binding, &ADS1115->voltDev, MP_DEVICE_VOLTAGE, 0, &ADS1115->voltage, "ads1115", "ain", NULL);
+	}
 
 	return(TRUE);
 }
 
 void mp_drv_ADS1115_fini(mp_drv_ADS1115_t *ADS1115) {
 	mp_printk("Unloading ADS1115 driver");
+	mp_device_registry_unregister(&ADS1115->voltDev);
+	mp_device_driver_unregister(ADS1115->kernel, &ADS1115->binding);
 }
 
 /**
@@ -277,10 +289,20 @@ static void _mp_drv_ADS1115_onConfigUpdated(mp_regMaster_op_t *operand, mp_bool_
 	mp_printk("ADS1115(%p): Configuration register updated %x", operand->user, ADS1115->config);
 }
 
+static float _mp_drv_ADS1115_volts(mp_drv_ADS1115_t *ADS1115) {
+	static const float fs[8] = {
+		6.144f, 4.096f, 2.048f, 1.024f, 0.512f, 0.256f, 0.256f, 0.256f
+	};
+	unsigned int pga;
+
+	pga = (ADS1115->config & ADS1015_REG_CONFIG_PGA_MASK) >> 9;
+	return((float)(int16_t)ADS1115->value * (fs[pga] / 32768.0f));
+}
+
 static void _mp_drv_ADS1115_onResult(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_ADS1115_t *ADS1115 = operand->user;
 
-	mp_printk("ADS1115(%p): Got result %d", operand->user, ADS1115->value);
+	mp_device_measure_publish(&ADS1115->voltage, _mp_drv_ADS1115_volts(ADS1115));
 
 	/* unlock update */
 	ADS1115->flags &= ~ADS1115_FLAG_CONFIG;

@@ -11,7 +11,7 @@ export const phi = {
 	requires: ["ak-link"],
 	app: "sysinfo",
 	defines: [],
-	modules: ["SERIAL", "SENSOR"],
+	modules: ["SERIAL", "DEVICE"],
 	drivers: ["LED"],
 	settings: {
 		MP_MEM_SIZE: 4096,

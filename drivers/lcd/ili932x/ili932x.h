@@ -72,7 +72,7 @@
 
 #ifdef SUPPORT_COMMON_DEVICE
 	/** an MP_DEVICE_DISPLAY */
-	extern const mp_device_driver_t mp_drv_ili932x_device;
+	extern const mp_device_ops_t mp_drv_ili932x_device;
 #endif
 
 #endif

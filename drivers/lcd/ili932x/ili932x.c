@@ -376,7 +376,7 @@ static void *_ili932x_device_face(void *self) {
 	return(&((mp_drv_ili932x_t *)self)->display);
 }
 
-const mp_device_driver_t mp_drv_ili932x_device = {
+const mp_device_ops_t mp_drv_ili932x_device = {
 	"ILI932X", MP_DEVICE_DISPLAY, _ili932x_device_open, _ili932x_device_close, _ili932x_device_face, NULL
 };
 #endif

@@ -41,6 +41,7 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │   ├── quaternion/  kalman/  optional modules, same shape
 │   ├── input/       touch, mouse and keyboard gestures, read by the TUI
 │   ├── device/      board devices by class, so an app names no driver
+│   ├── button/      a GPIO button: one pin, its active level, one MP_DEVICE_BUTTON
 │   ├── crypto/      by family: hash/sha256/..., mac/hmac/, rng/hmac_drbg/; each family dir is its API; headers as <crypto/...>
 │   └── tui/         Things UI, for small screens; fonts/ holds the TTF files
 │
@@ -76,7 +77,6 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 │
 ├── drivers/
 │   ├── led/                  _phi.js + led.c + led.h
-│   ├── button/
 │   ├── lcd/nokia3310/
 │   ├── rf/nRF8001/           _phi.js, nRF8001.c cmds.c evts.c, nRF8001.h aci*.h
 │   └── sensors/
@@ -158,7 +158,7 @@ export const phi = {
 	sources: ["TMP006.c"],
 	headers: ["TMP006.h"],
 	buses: ["i2c"],
-	requires: ["SENSOR", "REGMASTER"],
+	requires: ["DEVICE", "REGMASTER"],
 	options: [{ name: "drdy", label: "Data ready", type: "pin", irq: true }],
 }
 ```
@@ -199,7 +199,7 @@ export const phi = {
 	name: "sysinfo",
 	label: "System info",
 	sources: ["main.c"],
-	requires: ["SERIAL", "SENSOR", "DEVICE"],
+	requires: ["SERIAL", "DEVICE"],
 	devices: [{ bus: "uart", name: "console", label: "Console" }],
 	settings: [{ name: "SYSINFO_PERIOD", label: "Report period", type: "number", unit: "ms", default: 5000 }],
 }
@@ -365,7 +365,7 @@ The arch copies the MSP430 API: same functions, same options, same `mp_uart_t` o
 - Unused pins are analog inputs from boot, the lowest leakage, except the debug ones; a released pin goes back to analog. The ADC is only powered while a conversion runs.
 - The MCU name comes from DBGMCU_IDCODE, which the F1 only returns while a debugger is attached. Without one, sysinfo prints the flash size only.
 
-The F4 series records the STM32F407ZG (1 MB flash, 128 KB system SRAM, 64 KB CCM left out of the linker script) and the gates at their reset alternate. Its clock runs HIGH, MEDIUM and LOW from the PLL (or the HSE crystal when the level matches it) and SLEEP from the 16 MHz HSI, with tickless WFI. GPIO, EXTI, USART, SPI, I2C, the basic timers and ADC1 share the F1 drivers and branch where the registers differ: MODER instead of CRL, SYSCFG instead of AFIO, no ADC calibration, sector erase. Flash programming, SPI and I2C alternate functions, and timer alternate functions compile; there is no CCM, Ethernet, SD, HASH or CRYP driver. USB is the PHY port list in `arch/stm32/usb.c`, not a class stack. The Olimex STM32-E407 selects this series, puts the console on USART6 (PC6 TX, PC7 RX) and the green LED on PC13, and reserves the crystal, Ethernet, USB and microSD pins.
+The F4 series records the STM32F407ZG (1 MB flash, 128 KB system SRAM, 64 KB CCM left out of the linker script) and the gates at their reset alternate. Its clock runs HIGH, MEDIUM and LOW from the PLL (or the HSE crystal when the level matches it) and SLEEP from the 16 MHz HSI, with tickless WFI. GPIO, EXTI, USART, SPI, I2C, the basic timers and ADC1 share the F1 drivers and branch where the registers differ: MODER instead of CRL, SYSCFG instead of AFIO, no ADC calibration, sector erase. Flash programming, SPI and I2C alternate functions, and timer alternate functions compile; there is no CCM, Ethernet, SD, HASH or CRYP driver. USB is the PHY port list in `arch/stm32/usb.c`, not a class stack. The Olimex STM32-E407 selects this series, puts the console on USART6 (PC6 TX, PC7 RX), the green LED on PC13, and the WKUP button on PA0, active high. It reserves the crystal, Ethernet, USB and microSD pins.
 
 The F1 series reserves the JTAG pins (PA13, PA14, PA15, PB3, PB4). `_SWD_ONLY` gives PA15, PB3 and PB4 back, but the firmware then turns JTAG off at boot, and the AK-LINK, which has no SWD, has to connect with SRST held (`reset_config srst_only connect_assert_srst`).
 
@@ -373,7 +373,9 @@ The F1 series reserves the JTAG pins (PA13, PA14, PA15, PB3, PB4). `_SWD_ONLY` g
 
 The `fsmc` bus drives an 8080 LCD on bank 1 in 16 bits. The `FSMC` gate claims D0 to D15, NOE and NWE through `claims` in the series, so no other device can take them; `cs` (an NE pin) and `rs` (any address line) are device options. `mp_fsmc_write_cmd()` writes with RS low, `mp_fsmc_write_data()` with RS high. The STM32-LCD wires an ILI9320 on NE1 with RS on A19 (PE3), its reset on PE2 and the backlight on PD13, active low; `drivers/lcd/ili932x` turns it into an `mp_tui_display_t` for the TUI. PD13 is TIM4 channel 2 on the full remap, so with `backlightTimer: "TIM4"` the backlight is a 1 kHz PWM the screen saver dims. Off, the panel goes to standby (STB in R10) after the display is turned off, and its power registers are written again when it comes back; the TUI redraws the whole screen.
 
-The same board's touch panel is a 4-wire resistive sheet, not a controller: YD is PC0, YU is PC1, XL is PC2 and XR is PC3, all ADC inputs. `drivers/touch/resistive` drives one plate and measures the other with `mp_adc_convert()`, which borrows ADC1 between the temperature samples, then feeds an `mp_input_t`. A press is the two plates meeting. Landscape uses the same corner mapping as the ILI932x. It samples every `period` ms with a finger and every `idle` ms without; while the input dozes it samples every `doze` ms (50), long enough for Stop in between. Between samples YD, pulled up with XL low, waits on a falling edge, which a firm press triggers at once.
+The same board's touch panel is a 4-wire resistive sheet, not a controller. `boards/olimex/stm32-lcd/touch.c` names the glass: YD is PC0, YU is PC1, XL is PC2, XR is PC3, 240 by 320, landscape with the rows mirrored, raw window 250 to 3850. `common/resistive` drives one plate and measures the other with `mp_adc_convert()` (`mp_adc_channel()` turns the pin into an ADC1 channel), then registers an `MP_DEVICE_TOUCH`. A press is the two plates meeting. The screen subscribes when it opens, which starts the sampling: every 20 ms with a finger, every 100 ms without, and every 50 ms while the input dozes, long enough for Stop in between. Between samples YD, pulled up with XL low, waits on a falling edge, which a firm press triggers at once.
+
+A GPIO button is the same kind of split. `common/button` takes one pin and the active level the board stored on `face.active`, arms the interrupt on the opposite edge of the level it just read, and registers an `MP_DEVICE_BUTTON`. The first subscriber starts it; the task reports the raw level through `mp_device_button_level`. The Olimex MSP430-5438-STK names five active-low buttons, `button0.gpio.left` through `button4.gpio.down` on P1.6, P1.5, P1.4, P1.3 and P1.2. The STM32-E407 names WKUP, `button0.gpio.wkup` on PA0, active high. Press patterns stay above that contract.
 
 ## Code Composer files
 

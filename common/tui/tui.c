@@ -906,7 +906,7 @@ static void _mp_tui_cursor_move(mp_tui_t *ui, int x, int y) {
 
 /* inputs */
 
-#ifdef SUPPORT_COMMON_INPUT
+#ifdef SUPPORT_COMMON_DEVICE
 static mp_tui_view_t *_mp_tui_view_of(mp_tui_widget_t *widget) {
 	for(; widget; widget = widget->parent) {
 		if(widget->type == &mp_tui_view_class)
@@ -917,17 +917,17 @@ static mp_tui_view_t *_mp_tui_view_of(mp_tui_widget_t *widget) {
 
 static void _mp_tui_input_key(mp_tui_t *ui, int key) {
 	switch(key) {
-		case MP_INPUT_KEY_UP: mp_tui_key(ui, MP_TUI_KEY_UP); break;
-		case MP_INPUT_KEY_DOWN:
-		case MP_INPUT_KEY_TAB: mp_tui_key(ui, MP_TUI_KEY_DOWN); break;
-		case MP_INPUT_KEY_RIGHT:
-		case MP_INPUT_KEY_ENTER:
+		case MP_DEVICE_INPUT_KEY_UP: mp_tui_key(ui, MP_TUI_KEY_UP); break;
+		case MP_DEVICE_INPUT_KEY_DOWN:
+		case MP_DEVICE_INPUT_KEY_TAB: mp_tui_key(ui, MP_TUI_KEY_DOWN); break;
+		case MP_DEVICE_INPUT_KEY_RIGHT:
+		case MP_DEVICE_INPUT_KEY_ENTER:
 		case ' ': mp_tui_key(ui, MP_TUI_KEY_ENTER); break;
-		case MP_INPUT_KEY_LEFT:
-		case MP_INPUT_KEY_ESCAPE:
-		case MP_INPUT_KEY_BACKSPACE: mp_tui_key(ui, MP_TUI_KEY_BACK); break;
-		case MP_INPUT_KEY_PAGE_UP: mp_tui_key(ui, MP_TUI_KEY_PAGE_UP); break;
-		case MP_INPUT_KEY_PAGE_DOWN: mp_tui_key(ui, MP_TUI_KEY_PAGE_DOWN); break;
+		case MP_DEVICE_INPUT_KEY_LEFT:
+		case MP_DEVICE_INPUT_KEY_ESCAPE:
+		case MP_DEVICE_INPUT_KEY_BACKSPACE: mp_tui_key(ui, MP_TUI_KEY_BACK); break;
+		case MP_DEVICE_INPUT_KEY_PAGE_UP: mp_tui_key(ui, MP_TUI_KEY_PAGE_UP); break;
+		case MP_DEVICE_INPUT_KEY_PAGE_DOWN: mp_tui_key(ui, MP_TUI_KEY_PAGE_DOWN); break;
 	}
 }
 
@@ -974,12 +974,12 @@ static mp_tui_widget_t *_mp_tui_tappable(mp_tui_widget_t *target) {
 	return(NULL);
 }
 
-static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_t *in) {
+static void _mp_tui_input(mp_tui_t *ui, mp_device_input_t *input, const mp_device_input_event_t *in) {
 	mp_tui_widget_t *target;
 	mp_tui_event_t event;
 	int held;
 
-	if(in->type != MP_INPUT_KEY && (input->caps & MP_INPUT_CAP_MOUSE))
+	if(in->type != MP_DEVICE_INPUT_KEY && (input->caps & MP_DEVICE_INPUT_CAP_MOUSE))
 		_mp_tui_cursor_move(ui, in->x, in->y);
 
 	memset(&event, 0, sizeof(event));
@@ -987,7 +987,7 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 	event.y = in->y;
 
 	switch(in->type) {
-		case MP_INPUT_DOWN:
+		case MP_DEVICE_INPUT_DOWN:
 			if(_mp_tui_back_zone(ui, in->x, in->y)) {
 				_mp_tui_arm_back(ui);
 				break;
@@ -1007,7 +1007,7 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 				ui->tapped = _mp_tui_tappable(_mp_tui_pick(&ui->root, in->x, in->y, NULL));
 			break;
 
-		case MP_INPUT_CLICK:
+		case MP_DEVICE_INPUT_CLICK:
 			if(ui->pressed == &ui->back || _mp_tui_back_zone(ui, in->x, in->y)) {
 				_mp_tui_unpress(ui);
 				_mp_tui_on_back(&ui->back);
@@ -1019,7 +1019,7 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 			mp_tui_dispatch(ui, &event);
 			break;
 
-		case MP_INPUT_DRAG_START:
+		case MP_DEVICE_INPUT_DRAG_START:
 			/* a finger always moves a little; that stays a press while it is on a button */
 			if(ui->pressed || ui->tapped)
 				break;
@@ -1036,7 +1036,7 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 				ui->dragView = _mp_tui_view_of(_mp_tui_pick(&ui->root, in->x, in->y, NULL));
 			break;
 
-		case MP_INPUT_DRAG:
+		case MP_DEVICE_INPUT_DRAG:
 			if(ui->pressed) {
 				int dy = in->y - in->startY;
 				int travel = dy < 0 ? -dy : dy;
@@ -1076,7 +1076,7 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 				mp_tui_view_scroll(ui->dragView, -in->dy);
 			break;
 
-		case MP_INPUT_DROP:
+		case MP_DEVICE_INPUT_DROP:
 			/* lifted on Back again: a press that slid away from it is not a tap */
 			if(ui->pressed == &ui->back) {
 				held = _mp_tui_back_zone(ui, in->x, in->y);
@@ -1111,14 +1111,14 @@ static void _mp_tui_input(mp_tui_t *ui, mp_input_t *input, const mp_input_event_
 			_mp_tui_release(ui);
 			break;
 
-		case MP_INPUT_WHEEL:
+		case MP_DEVICE_INPUT_WHEEL:
 			event.type = MP_TUI_EVENT_WHEEL;
 			event.value = in->value;
 			if(!mp_tui_dispatch(ui, &event))
 				mp_tui_scroll(ui, -in->value * 3 * _mp_tui_line(ui));
 			break;
 
-		case MP_INPUT_KEY:
+		case MP_DEVICE_INPUT_KEY:
 			_mp_tui_input_key(ui, in->value);
 			break;
 
@@ -1146,13 +1146,13 @@ static void _mp_tui_rest(int on) {
 }
 
 static void _mp_tui_doze(mp_tui_t *ui, int dozing) {
-#ifdef SUPPORT_COMMON_INPUT
-	mp_input_t *input = NULL;
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_input_t *input = NULL;
 
 	if(!ui->kernel)
 		return;
-	while((input = mp_input_next(ui->kernel, input, ui)) != NULL)
-		mp_input_doze(input, dozing);
+	while((input = mp_device_input_next(ui->kernel, input, ui)) != NULL)
+		mp_device_input_doze(input, dozing);
 #else
 	(void)ui;
 	(void)dozing;
@@ -1223,13 +1223,13 @@ static unsigned long _mp_tui_saver(mp_tui_t *ui) {
 
 unsigned long mp_tui_idle(mp_tui_t *ui) {
 	unsigned long wait = _mp_tui_saver(ui);
-#ifdef SUPPORT_COMMON_INPUT
-	mp_input_t *input = NULL;
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_input_t *input = NULL;
 	unsigned long next;
 
 	if(ui->kernel) {
-		while((input = mp_input_next(ui->kernel, input, ui)) != NULL) {
-			next = mp_input_waiting(input);
+		while((input = mp_device_input_next(ui->kernel, input, ui)) != NULL) {
+			next = mp_device_input_waiting(input);
 			if(next && (!wait || next < wait))
 				wait = next;
 		}
@@ -1239,25 +1239,25 @@ unsigned long mp_tui_idle(mp_tui_t *ui) {
 }
 
 void mp_tui_poll(mp_tui_t *ui) {
-#ifdef SUPPORT_COMMON_INPUT
-	mp_input_t *input = NULL;
-	mp_input_event_t event;
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_input_t *input = NULL;
+	mp_device_input_event_t event;
 
 	if(!ui->kernel || !ui->display)
 		return;
-	while((input = mp_input_next(ui->kernel, input, ui)) != NULL) {
+	while((input = mp_device_input_next(ui->kernel, input, ui)) != NULL) {
 		if(input->width <= 0 || input->height <= 0)
-			mp_input_bounds(input, ui->display->width, ui->display->height);
+			mp_device_input_bounds(input, ui->display->width, ui->display->height);
 		if(!input->reader)
 			input->reader = ui->task;
-		while(mp_input_read(input, &event)) {
+		while(mp_device_input_read(input, &event)) {
 			/* nothing to act on while the splash is up */
 			if(ui->splash < 3)
 				continue;
 
 			mp_power_hold_for(ui->kernel, &ui->boost, MP_POWER_HIGH, MP_TUI_BOOST, "TUI");
 			/* a dimmed backlight chops, and the panel reads that as the finger moving */
-			if(ui->saver == MP_TUI_DIMMED && event.type == MP_INPUT_MOVE)
+			if(ui->saver == MP_TUI_DIMMED && event.type == MP_DEVICE_INPUT_MOVE)
 				continue;
 			if(ui->saver == MP_TUI_OFF)
 				ui->swallow = 1;
@@ -1265,7 +1265,7 @@ void mp_tui_poll(mp_tui_t *ui) {
 
 			/* the press that woke the screen ends with its release */
 			if(ui->swallow) {
-				if(event.type != MP_INPUT_DOWN && event.type != MP_INPUT_DRAG_START && event.type != MP_INPUT_DRAG)
+				if(event.type != MP_DEVICE_INPUT_DOWN && event.type != MP_DEVICE_INPUT_DRAG_START && event.type != MP_DEVICE_INPUT_DRAG)
 					ui->swallow = 0;
 				continue;
 			}

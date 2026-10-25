@@ -42,7 +42,7 @@
 #define SYSINFO_SCREEN
 #endif
 
-#if defined(SYSINFO_SCREEN) && defined(SUPPORT_COMMON_SENSOR)
+#if defined(SYSINFO_SCREEN) && defined(SUPPORT_COMMON_DEVICE)
 /** bubble level: mx, my, mz are centi-g, and ±100 is the edge of the glass */
 typedef struct {
 	mp_tui_widget_t widget;
@@ -98,8 +98,11 @@ struct sysinfo_s {
 		mp_tui_t tui;
 		mp_bool_t ready;
 		mp_task_t *task;
-#ifdef SUPPORT_COMMON_INPUT
-		mp_input_t keys;
+#ifdef SUPPORT_COMMON_DEVICE
+		mp_device_input_t keys;
+		/** subscribers of the registered touch panels; sampling starts with the first */
+		mp_device_subscribe_t touchSub[2];
+		int touchCount;
 #endif
 		int systemReady;
 		mp_tui_widget_t logo;
@@ -200,7 +203,7 @@ struct sysinfo_s {
 		mp_tui_label_t powerHolds;
 		mp_tui_table_t powerLevels;
 		mp_tui_cell_t powerLevelCell[MP_POWER_LEVELS][4];
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 		/** home entry "Accelerometer"; -1 until it is registered */
 		int accelIndex;
 		int accelReady;

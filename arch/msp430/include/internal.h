@@ -52,7 +52,7 @@ Michael Vergoz <mv@verman.fr>
 
 	struct mp_arch_msp430_s {
 		mp_adc_t internalTemp;
-		struct mp_sensor_s *sensorMCU;
+		struct mp_device_measure_s *sensorMCU;
 	};
 
 	typedef unsigned char uint8_t;

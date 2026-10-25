@@ -65,14 +65,21 @@ static void _sysinfo_camera_hold(sysinfo_t *sysinfo, mp_bool_t on) {
 	}
 }
 
-#ifdef SUPPORT_COMMON_SENSOR
-static mp_sensor_t *_sysinfo_camera_temperature(sysinfo_t *sysinfo, mp_device_t *device) {
-	mp_sensor_t *sensor = NULL;
+#ifdef SUPPORT_COMMON_DEVICE
+static mp_device_registry_t *_sysinfo_camera_temperature(sysinfo_t *sysinfo, mp_device_t *device) {
+	mp_device_registry_t *sensor = NULL;
 
 	if(!device)
 		return(NULL);
-	while((sensor = mp_sensor_next(&sysinfo->kernel, sensor)) != NULL) {
-		if(sensor->type == MP_SENSOR_TEMPERATURE && _sysinfo_camera_name(sensor->name, device->name))
+	while((sensor = mp_device_measure_next(&sysinfo->kernel, sensor)) != NULL) {
+		const char *name;
+
+		if(sensor->class != MP_DEVICE_TEMPERATURE || !sensor->driver || !sensor->driver->name)
+			continue;
+		name = sensor->driver->name;
+		if(strrchr(name, '/'))
+			name = strrchr(name, '/') + 1;
+		if(_sysinfo_camera_name(name, device->name))
 			return(sensor);
 	}
 	return(NULL);
@@ -159,13 +166,13 @@ static void _sysinfo_camera_values(sysinfo_t *sysinfo) {
 		n = _sysinfo_camera_line(text, n, device->model);
 		n = _sysinfo_camera_line(text, n, device->serial);
 		n = _sysinfo_camera_line(text, n, device->version);
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 		{
-			mp_sensor_t *temperature = _sysinfo_camera_temperature(sysinfo, device);
+			mp_device_registry_t *temperature = _sysinfo_camera_temperature(sysinfo, device);
 			float value[3];
 			char degrees[16];
 
-			if(temperature && mp_sensor_read(temperature, value, NULL) == TRUE) {
+			if(temperature && mp_device_measure_read(temperature->instance, value, NULL) == TRUE) {
 				snprintf(degrees, sizeof(degrees), "%.1f °C", (double)value[0]);
 				n = _sysinfo_camera_line(text, n, degrees);
 			}

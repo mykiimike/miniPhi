@@ -286,8 +286,20 @@ mp_dma_engine_t *mp_dma_memory(mp_kernel_t *kernel) {
 	return(&_mp_dma_mem.engine);
 }
 
-void mp_dma_fini(void) {
+void mp_dma_init(mp_kernel_t *kernel) {
+	if(!kernel)
+		return;
+	if(_mp_dma_mem.kernel == kernel)
+		return;
+	memset(&_mp_dma_mem, 0, sizeof(_mp_dma_mem));
+	_mp_dma_mem.kernel = kernel;
+}
+
+void mp_dma_fini(mp_kernel_t *kernel) {
+	if(!kernel || _mp_dma_mem.kernel != kernel)
+		return;
 	_mp_dma_mem.xfer = NULL;
+	_mp_dma_mem.kernel = NULL;
 }
 
 /** @} */

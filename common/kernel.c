@@ -58,6 +58,11 @@ void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) 
 	kernel->onBoot = onBoot;
 	kernel->onBootUser = user;
 
+	/* devices, then drivers, before the arch registers the CPU */
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_init(kernel);
+#endif
+
 	/* initialize the machine */
 	mp_machine_init(kernel);
 
@@ -73,17 +78,27 @@ void mp_kernel_init(mp_kernel_t *kernel, mp_kernel_onBoot_t onBoot, void *user) 
 	mp_kflash_init(kernel);
 #endif
 
-	/* init sensors */
-#ifdef SUPPORT_COMMON_SENSOR
-	mp_sensor_init(kernel);
-#endif
-
-#ifdef SUPPORT_COMMON_INPUT
+#ifdef SUPPORT_COMMON_DEVICE
 	mp_list_init(&kernel->inputs);
 #endif
 
 	/* initialize tasks */
 	mp_task_init(kernel, &kernel->tasks);
+
+	/* the board names its glass; the module registers the touch */
+#ifdef SUPPORT_COMMON_RESISTIVE
+	mp_board_resistive(kernel);
+#endif
+
+	/* the board names its buttons; the module registers each one */
+#ifdef SUPPORT_COMMON_BUTTON
+	mp_board_button(kernel);
+#endif
+
+	/* the copy engine runs as a task */
+#ifdef SUPPORT_COMMON_DMA
+	mp_dma_init(kernel);
+#endif
 
 #ifdef SUPPORT_COMMON_CRYPTO_RNG
 	mp_rng_start(kernel);
@@ -131,7 +146,12 @@ void mp_kernel_fini(mp_kernel_t *kernel) {
 	mp_state_fini(&kernel->states);
 
 #ifdef SUPPORT_COMMON_DMA
-	mp_dma_fini();
+	mp_dma_fini(kernel);
+#endif
+
+	/* close devices and unload drivers while tasks and pins still exist */
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_fini(kernel);
 #endif
 
 	/* initialize tasks */

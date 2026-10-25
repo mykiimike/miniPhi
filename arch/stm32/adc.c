@@ -280,6 +280,24 @@ void mp_adc_close(void) {
 		__auto_fini(__kernel);
 }
 
+int mp_adc_channel(mp_gpio_port_t *pin) {
+#if defined(STM32F407xx)
+	(void)pin;
+	return(-1);
+#else
+	if(!pin)
+		return(-1);
+	/* PA0-PA7 are IN0-IN7, PB0-PB1 are IN8-IN9, PC0-PC5 are IN10-IN15 */
+	if(pin->port == 0 && pin->pin <= 7)
+		return((int)pin->pin);
+	if(pin->port == 1 && pin->pin <= 1)
+		return(8 + (int)pin->pin);
+	if(pin->port == 2 && pin->pin <= 5)
+		return(10 + (int)pin->pin);
+	return(-1);
+#endif
+}
+
 int mp_adc_convert(int channel) {
 	unsigned long saved = 0;
 	unsigned long spins;

@@ -90,6 +90,16 @@ mp_ret_t mp_drv_LSM9DS0_init(mp_kernel_t *kernel, mp_drv_LSM9DS0_t *LSM9DS0, mp_
 
 	memset(LSM9DS0, 0, sizeof(*LSM9DS0));
 	LSM9DS0->kernel = kernel;
+	{
+		static const mp_device_driver_ops_t ops = {
+			"sensor/lsm9ds0", "ST LSM9DS0", "1.0.0",
+			(unsigned int)((1u << MP_DEVICE_GYROSCOPE) | (1u << MP_DEVICE_MAGNETOMETER) |
+				(1u << MP_DEVICE_TEMPERATURE) | (1u << MP_DEVICE_ACCELEROMETER)),
+			NULL, NULL, NULL, NULL, NULL
+		};
+
+		mp_device_driver_register(kernel, &LSM9DS0->binding, &ops, LSM9DS0, NULL);
+	}
 
 	/* protocol type */
 	value = mp_options_get(options, "protocol");
@@ -380,6 +390,12 @@ mp_ret_t mp_drv_LSM9DS0_fini(mp_drv_LSM9DS0_t *LSM9DS0) {
 			mp_i2c_close(&LSM9DS0->i2c);
 	}
 
+	mp_device_registry_unregister(&LSM9DS0->gyroDev);
+	mp_device_registry_unregister(&LSM9DS0->magDev);
+	mp_device_registry_unregister(&LSM9DS0->tempDev);
+	mp_device_registry_unregister(&LSM9DS0->accelDev);
+	mp_device_driver_unregister(LSM9DS0->kernel, &LSM9DS0->binding);
+
 	mp_printk("Stopping LSM9DS0");
 	return(TRUE);
 }
@@ -549,7 +565,7 @@ void mp_drv_LSM9DS0_gWrite(
 void mp_drv_LSM9DS0_initGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
 
 	/* Register new gyro sensor */
-	LSM9DS0->gyro = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_GYROSCOPE, "LSM9DS0 GYRO");
+	mp_device_registry_register(&LSM9DS0->binding, &LSM9DS0->gyroDev, MP_DEVICE_GYROSCOPE, 0, &LSM9DS0->gyro, "lsm9ds0", "gyro", NULL);
 
 	/* prepare gyro registers */
 	LSM9DS0->gReg1 = 0x0f;
@@ -569,7 +585,7 @@ void mp_drv_LSM9DS0_finiGyro(mp_drv_LSM9DS0_t *LSM9DS0) {
 	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG4_G, 0x00);
 	mp_drv_LSM9DS0_gWrite(LSM9DS0, CTRL_REG5_G, 0x00);
 
-	mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->gyro);
+	mp_device_registry_unregister(&LSM9DS0->gyroDev);
 }
 
 void mp_drv_LSM9DS0_setGyroScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_scale_t gScl) {
@@ -606,8 +622,8 @@ void mp_drv_LSM9DS0_setGyroODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_gyro_od
 
 void mp_drv_LSM9DS0_initMag(mp_drv_LSM9DS0_t *LSM9DS0) {
 	/* Register new magneto sensor */
-	LSM9DS0->magneto = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_MAGNETOMETER, "LSM9DS0 MAGNETO");
-	LSM9DS0->temperature = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_TEMPERATURE, "LSM9DS0 TEMP");
+	mp_device_registry_register(&LSM9DS0->binding, &LSM9DS0->magDev, MP_DEVICE_MAGNETOMETER, 0, &LSM9DS0->magneto, "lsm9ds0", "mag", NULL);
+	mp_device_registry_register(&LSM9DS0->binding, &LSM9DS0->tempDev, MP_DEVICE_TEMPERATURE, 0, &LSM9DS0->temperature, "lsm9ds0", "temp", NULL);
 
 	/* prepare magneto registers */
 	LSM9DS0->xmReg5 = 0x94;
@@ -628,8 +644,8 @@ void mp_drv_LSM9DS0_finiMag(mp_drv_LSM9DS0_t *LSM9DS0) {
 	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG4_XM, 0x00);
 	mp_drv_LSM9DS0_xmWrite(LSM9DS0, INT_CTRL_REG_M, 0x00);
 
-	mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->magneto);
-	mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->temperature);
+	mp_device_registry_unregister(&LSM9DS0->magDev);
+	mp_device_registry_unregister(&LSM9DS0->tempDev);
 }
 
 void mp_drv_LSM9DS0_setMagScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_scale_t mScl) {
@@ -673,7 +689,7 @@ void mp_drv_LSM9DS0_setMagODR(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_mag_odr_
 
 void mp_drv_LSM9DS0_initAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
 	/* Register new accelerometer sensor */
-	LSM9DS0->accelero = mp_sensor_register(LSM9DS0->kernel, MP_SENSOR_ACCELEROMETER, "LSM9DS0 ACCEL");
+	mp_device_registry_register(&LSM9DS0->binding, &LSM9DS0->accelDev, MP_DEVICE_ACCELEROMETER, 0, &LSM9DS0->accelero, "lsm9ds0", "accel", NULL);
 
 	/* prepare accelerometer registers */
 	LSM9DS0->xmReg1 = 0x57;
@@ -691,7 +707,7 @@ void mp_drv_LSM9DS0_finiAccel(mp_drv_LSM9DS0_t *LSM9DS0) {
 	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG2_XM, 0x00);
 	mp_drv_LSM9DS0_xmWrite(LSM9DS0, CTRL_REG3_XM, 0x00);
 
-	mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->accelero);
+	mp_device_registry_unregister(&LSM9DS0->accelDev);
 }
 
 void mp_drv_LSM9DS0_setAccelScale(mp_drv_LSM9DS0_t *LSM9DS0, mp_drv_LSM9DS0_accel_scale_t aScl, mp_bool_t calibrate) {
@@ -819,7 +835,7 @@ static void _mp_drv_LSM9DS0_onWrite(mp_regMaster_op_t *operand, mp_bool_t termin
 static void _mp_drv_LSM9DS0_onGyroRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-	mp_sensor_publish3(LSM9DS0->gyro,
+	mp_device_measure_publish3(&LSM9DS0->gyro,
 		LSM9DS0->gRes * (float)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]) - LSM9DS0->gbias[0],
 		LSM9DS0->gRes * (float)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]) - LSM9DS0->gbias[1],
 		LSM9DS0->gRes * (float)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]) - LSM9DS0->gbias[2]);
@@ -885,7 +901,7 @@ static void _mp_drv_LSM9DS0_onGyroCalibrationRead(mp_regMaster_op_t *operand, mp
 static void _mp_drv_LSM9DS0_onMagRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-	mp_sensor_publish3(LSM9DS0->magneto,
+	mp_device_measure_publish3(&LSM9DS0->magneto,
 		LSM9DS0->mRes * (float)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]),
 		LSM9DS0->mRes * (float)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]),
 		LSM9DS0->mRes * (float)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]));
@@ -905,7 +921,7 @@ static void _mp_drv_LSM9DS0_onTemperatureRead(mp_regMaster_op_t *operand, mp_boo
 	/* 12 bits two's complement, 8 LSB per degree; the datasheet gives no zero, 25 C is the usual one */
 	int16_t raw = (int16_t)(((LSM9DS0->buffer[1] & 0x0f) << 12) | (LSM9DS0->buffer[0] << 4)) >> 4;
 
-	mp_sensor_publish(LSM9DS0->temperature, 25.0f + (float)raw / 8.0f);
+	mp_device_measure_publish(&LSM9DS0->temperature, 25.0f + (float)raw / 8.0f);
 
 	if(LSM9DS0->onTempData)
 		LSM9DS0->onTempData(LSM9DS0);
@@ -916,7 +932,7 @@ static void _mp_drv_LSM9DS0_onTemperatureRead(mp_regMaster_op_t *operand, mp_boo
 static void _mp_drv_LSM9DS0_onAccelRead(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_LSM9DS0_t *LSM9DS0 = operand->user;
 
-	mp_sensor_publish3(LSM9DS0->accelero,
+	mp_device_measure_publish3(&LSM9DS0->accelero,
 		LSM9DS0->aRes * (float)(int16_t)((LSM9DS0->buffer[1] << 8) | LSM9DS0->buffer[0]) - LSM9DS0->abias[0],
 		LSM9DS0->aRes * (float)(int16_t)((LSM9DS0->buffer[3] << 8) | LSM9DS0->buffer[2]) - LSM9DS0->abias[1],
 		LSM9DS0->aRes * (float)(int16_t)((LSM9DS0->buffer[5] << 8) | LSM9DS0->buffer[4]) - LSM9DS0->abias[2]);
@@ -1005,13 +1021,11 @@ MP_TASK(_mp_drv_LSM9DS0_ASR) {
 
 	/* receive regMaster shutdown */
 	if(task->signal == MP_TASK_SIG_STOP) {
-		mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->gyro);
-
-		mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->magneto);
-
-		mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->temperature);
-
-		mp_sensor_unregister(LSM9DS0->kernel, &LSM9DS0->accelero);
+		mp_device_registry_unregister(&LSM9DS0->gyroDev);
+		mp_device_registry_unregister(&LSM9DS0->magDev);
+		mp_device_registry_unregister(&LSM9DS0->tempDev);
+		mp_device_registry_unregister(&LSM9DS0->accelDev);
+		mp_device_driver_unregister(LSM9DS0->kernel, &LSM9DS0->binding);
 
 		/* acknowledging */
 		mp_task_signal(LSM9DS0->task, MP_TASK_SIG_DEAD);

@@ -25,6 +25,36 @@
 #include <pinout.h>
 #include <gen/devices.h>
 
+void mp_device_init(mp_kernel_t *kernel) {
+	int index;
+
+	if(!kernel)
+		return;
+	for(index = 0; index < MP_DEVICE_COUNT; index++) {
+		_mp_devices[index].opened = NO;
+		_mp_devices[index].model = NULL;
+		_mp_devices[index].serial = NULL;
+		_mp_devices[index].version = NULL;
+	}
+	mp_device_registry_init(kernel);
+	mp_device_driver_init(kernel);
+}
+
+void mp_device_fini(mp_kernel_t *kernel) {
+	int index;
+
+	if(!kernel)
+		return;
+	for(index = 0; index < MP_DEVICE_COUNT; index++) {
+		if(_mp_devices[index].opened == NO)
+			continue;
+		mp_printk("Device %s still open at fini", _mp_devices[index].name);
+		mp_device_close(&_mp_devices[index]);
+	}
+	mp_device_registry_fini(kernel);
+	mp_device_driver_fini(kernel);
+}
+
 int mp_device_count(void) {
 	return(MP_DEVICE_COUNT);
 }
@@ -65,7 +95,7 @@ static const char *_mp_device_text(const char *text) {
 }
 
 mp_ret_t mp_device_open(mp_kernel_t *kernel, mp_device_t *device) {
-	if(!device)
+	if(!kernel || !device)
 		return(FALSE);
 	if(device->opened == YES)
 		return(TRUE);

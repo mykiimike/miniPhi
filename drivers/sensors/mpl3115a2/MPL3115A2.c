@@ -99,6 +99,15 @@ mp_ret_t mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A
 
 	memset(MPL3115A2, 0, sizeof(*MPL3115A2));
 	MPL3115A2->kernel = kernel;
+	{
+		static const mp_device_driver_ops_t ops = {
+			"sensor/mpl3115a2", "Freescale MPL3115A2", "1.0.0",
+			(unsigned int)((1u << MP_DEVICE_BAROMETER) | (1u << MP_DEVICE_ALTIMETER) | (1u << MP_DEVICE_TEMPERATURE)),
+			NULL, NULL, NULL, NULL, NULL
+		};
+
+		mp_device_driver_register(kernel, &MPL3115A2->binding, &ops, MPL3115A2, NULL);
+	}
 
 	/* drdy */
 	value = mp_options_get(options, "drdy");
@@ -224,6 +233,9 @@ mp_ret_t mp_drv_MPL3115A2_init(mp_kernel_t *kernel, mp_drv_MPL3115A2_t *MPL3115A
 }
 
 void mp_drv_MPL3115A2_fini(mp_drv_MPL3115A2_t *MPL3115A2) {
+	mp_device_registry_unregister(&MPL3115A2->pressDev);
+	mp_device_registry_unregister(&MPL3115A2->tempDev);
+	mp_device_driver_unregister(MPL3115A2->kernel, &MPL3115A2->binding);
 	mp_printk("Unloading MPL3115A2 driver");
 }
 
@@ -298,8 +310,8 @@ mp_ret_t mp_drv_MPL3115A2_acquisitionTimeStep(mp_drv_MPL3115A2_t *MPL3115A2, uns
 
 void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 	/* enable sensor */
-	mp_sensor_unregister(MPL3115A2->kernel, &MPL3115A2->sensor);
-	MPL3115A2->sensor = mp_sensor_register(MPL3115A2->kernel, MP_SENSOR_BAROMETER, "Barometer");
+	mp_device_registry_unregister(&MPL3115A2->pressDev);
+	mp_device_registry_register(&MPL3115A2->binding, &MPL3115A2->pressDev, MP_DEVICE_BAROMETER, 0, &MPL3115A2->sensor, "mpl3115a2", "baro", NULL);
 
 	MPL3115A2->settings &= ~(1<<7); //Clear ALT bit
 	MPL3115A2->readerControl = _mp_drv_MPL3115A2_readPressureControl;
@@ -321,8 +333,8 @@ void mp_drv_MPL3115A2_setModeBarometer(mp_drv_MPL3115A2_t *MPL3115A2) {
 
 void mp_drv_MPL3115A2_setModeAltimeter(mp_drv_MPL3115A2_t *MPL3115A2) {
 	/* enable sensor */
-	mp_sensor_unregister(MPL3115A2->kernel, &MPL3115A2->sensor);
-	MPL3115A2->sensor = mp_sensor_register(MPL3115A2->kernel, MP_SENSOR_ALTIMETER, "Altimeter");
+	mp_device_registry_unregister(&MPL3115A2->pressDev);
+	mp_device_registry_register(&MPL3115A2->binding, &MPL3115A2->pressDev, MP_DEVICE_ALTIMETER, 0, &MPL3115A2->sensor, "mpl3115a2", "alt", NULL);
 
 	/* request command */
 	MPL3115A2->settings |= (1<<7); //Set ALT bit
@@ -410,8 +422,8 @@ void mp_drv_MPL3115A2_OSTimer(mp_drv_MPL3115A2_t *MPL3115A2, mp_drv_MPL3115A_OS_
 void mp_drv_MPL3115A2_enableTemperature(mp_drv_MPL3115A2_t *MPL3115A2) {
 
 	/* enable sensor */
-	mp_sensor_unregister(MPL3115A2->kernel, &MPL3115A2->temperature);
-	MPL3115A2->temperature = mp_sensor_register(MPL3115A2->kernel, MP_SENSOR_TEMPERATURE, "Temperature");
+	mp_device_registry_unregister(&MPL3115A2->tempDev);
+	mp_device_registry_register(&MPL3115A2->binding, &MPL3115A2->tempDev, MP_DEVICE_TEMPERATURE, 0, &MPL3115A2->temperature, "mpl3115a2", "temp", NULL);
 
 	unsigned char *ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
 	unsigned char *src = ptr;
@@ -448,7 +460,7 @@ void mp_drv_MPL3115A2_disableTemperature(mp_drv_MPL3115A2_t *MPL3115A2) {
 	unsigned char *src = ptr;
 
 	/* disable sensor */
-	mp_sensor_unregister(MPL3115A2->kernel, &MPL3115A2->temperature);
+	mp_device_registry_unregister(&MPL3115A2->tempDev);
 
 	/* Route DRDY INT to INT1 */
 	ptr = mp_mem_alloc(MPL3115A2->kernel, 2);
@@ -518,7 +530,7 @@ static void _mp_drv_MPL3115A2_readPressureControl(mp_regMaster_op_t *operand, mp
 	lsb >>= 4; /* Get it right aligned */
 	float pressure_decimal = (float)lsb/4.0f; /* Turn it into fraction */
 
-	mp_sensor_publish(MPL3115A2->sensor, (float)pressure_whole + pressure_decimal);
+	mp_device_measure_publish(&MPL3115A2->sensor, (float)pressure_whole + pressure_decimal);
 
 	mp_mem_free(MPL3115A2->kernel, operand->wait);
 }
@@ -529,7 +541,7 @@ static void _mp_drv_MPL3115A2_readAltimeterControl(mp_regMaster_op_t *operand, m
 	/* the chip gives metres */
 	float altitude = (float)(int16_t)((operand->wait[0] << 8) | operand->wait[1]) + tempcsb;
 
-	mp_sensor_publish(MPL3115A2->sensor, altitude);
+	mp_device_measure_publish(&MPL3115A2->sensor, altitude);
 	mp_mem_free(MPL3115A2->kernel, operand->wait);
 }
 
@@ -565,7 +577,7 @@ static void _mp_drv_MPL3115A2_readTemperature(mp_regMaster_op_t *operand, mp_boo
 
 		if (negSign) temperature = 0 - temperature;
 
-		mp_sensor_publish(MPL3115A2->temperature, temperature);
+		mp_device_measure_publish(&MPL3115A2->temperature, temperature);
 
 		//mp_printk("Got temperature %f", temperature);
 	}

@@ -31,6 +31,7 @@ function normalize(record) {
 	if (kind === "kernel" || kind === "module" || kind === "driver" || kind === "arch" || kind === "app" || kind === "board")
 		data.sources = fix(data.sources)
 	data.headers = fix(data.headers)
+	data.tests = fix(data.tests)
 	if (data.headerDir === undefined)
 		data.headerDir = path.posix.basename(dir).toLowerCase()
 	const fixAccelerators = (list) => {

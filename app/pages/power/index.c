@@ -50,16 +50,16 @@ static unsigned long _sysinfo_mhz10(unsigned long hz) {
 	return((hz + 50000UL) / 100000UL);
 }
 
-static int _sysinfo_power_sensor(mp_sensor_t *sensor) {
-	return(sensor->type == MP_SENSOR_VOLTAGE || sensor->type == MP_SENSOR_CURRENT || sensor->type == MP_SENSOR_POWER);
+static int _sysinfo_power_sensor(mp_device_registry_t *sensor) {
+	return(sensor->class == MP_DEVICE_VOLTAGE || sensor->class == MP_DEVICE_CURRENT || sensor->class == MP_DEVICE_POWER);
 }
 
 static int _sysinfo_power_sensors(mp_kernel_t *kernel) {
 	int count = 0;
-#ifdef SUPPORT_COMMON_SENSOR
-	mp_sensor_t *sensor = NULL;
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_registry_t *sensor = NULL;
 
-	while((sensor = mp_sensor_next(kernel, sensor)) != NULL)
+	while((sensor = mp_device_measure_next(kernel, sensor)) != NULL)
 		if(_sysinfo_power_sensor(sensor))
 			count++;
 #endif
@@ -136,20 +136,20 @@ static void _sysinfo_power_values(sysinfo_t *sysinfo) {
 	mp_tui_table_set(table, 5, 1, "%s", mp_clock_deep());
 
 	row = _SYSINFO_POWER_FIGURES;
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 	{
-		mp_sensor_t *sensor = NULL;
+		mp_device_registry_t *sensor = NULL;
 		float v[3];
 
-		while(row < _SYSINFO_POWER_FIGURES + sysinfo->screen.powerSensorRows && (sensor = mp_sensor_next(kernel, sensor)) != NULL) {
+		while(row < _SYSINFO_POWER_FIGURES + sysinfo->screen.powerSensorRows && (sensor = mp_device_measure_next(kernel, sensor)) != NULL) {
 			if(!_sysinfo_power_sensor(sensor))
 				continue;
-			mp_tui_table_set(table, row, 0, "%s", sensor->name);
-			if(mp_sensor_read(sensor, v, NULL) != TRUE)
+			mp_tui_table_set(table, row, 0, "%s", sensor->address);
+			if(mp_device_measure_read(sensor->instance, v, NULL) != TRUE)
 				mp_tui_table_set(table, row, 1, "%s", "--");
-			else if(sensor->type == MP_SENSOR_VOLTAGE)
+			else if(sensor->class == MP_DEVICE_VOLTAGE)
 				mp_tui_table_set(table, row, 1, "%.3f V", (double)v[0]);
-			else if(sensor->type == MP_SENSOR_POWER)
+			else if(sensor->class == MP_DEVICE_POWER)
 				mp_tui_table_set(table, row, 1, "%.3f W", (double)v[0]);
 			else
 				mp_tui_table_set(table, row, 1, "%.1f mA", (double)v[0] * 1000.0);

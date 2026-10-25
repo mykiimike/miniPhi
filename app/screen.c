@@ -37,23 +37,23 @@ static mp_tui_color_t _sysinfo_pixels[320 * SYSINFO_SCREEN_ROWS];
 
 static MP_TASK(_sysinfo_screen);
 
-#ifdef SUPPORT_COMMON_INPUT
+#ifdef SUPPORT_COMMON_DEVICE
 static void _sysinfo_console_key(sysinfo_t *sysinfo, unsigned char c) {
-	mp_input_t *keys = &sysinfo->screen.keys;
+	mp_device_input_t *keys = &sysinfo->screen.keys;
 
 	if(c == 'j' || c == 'J')
-		mp_input_key(keys, MP_INPUT_KEY_DOWN);
+		mp_device_input_key(keys, MP_DEVICE_INPUT_KEY_DOWN);
 	else if(c == 'k' || c == 'K')
-		mp_input_key(keys, MP_INPUT_KEY_UP);
+		mp_device_input_key(keys, MP_DEVICE_INPUT_KEY_UP);
 	else if(c == 'b' || c == 'B')
-		mp_input_key(keys, MP_INPUT_KEY_ESCAPE);
+		mp_device_input_key(keys, MP_DEVICE_INPUT_KEY_ESCAPE);
 	else
-		mp_input_terminal(keys, c);
+		mp_device_input_terminal(keys, c);
 }
 #endif
 
 static void _sysinfo_console_read(sysinfo_t *sysinfo) {
-#ifdef SUPPORT_COMMON_INPUT
+#ifdef SUPPORT_COMMON_DEVICE
 	mp_circular_t *cir;
 	mp_circular_buffer_t *buffer;
 	int index;
@@ -77,17 +77,28 @@ static void _sysinfo_console_read(sysinfo_t *sysinfo) {
 #endif
 }
 
-/* every touch panel of the board feeds the TUI through the kernel inputs */
+/* every registered touch panel feeds the TUI; the first subscriber starts it */
 static void _sysinfo_touch_run(sysinfo_t *sysinfo, mp_bool_t on) {
-	mp_device_t *device;
-	int rank;
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_registry_t *device;
+	int index;
 
-	for(rank = 0; (device = mp_device_find(MP_DEVICE_TOUCH, rank)) != NULL; rank++) {
-		if(on == YES)
-			mp_device_open(&sysinfo->kernel, device);
-		else
-			mp_device_close(device);
+	if(on == NO) {
+		while(sysinfo->screen.touchCount > 0)
+			mp_device_subscribe_end(&sysinfo->screen.touchSub[--sysinfo->screen.touchCount]);
+		return;
 	}
+	index = 0;
+	while(sysinfo->screen.touchCount < 2 &&
+		(device = mp_device_registry_find(&sysinfo->kernel, MP_DEVICE_TOUCH, index)) != NULL) {
+		index++;
+		if(mp_device_touch(device, &sysinfo->screen.touchSub[sysinfo->screen.touchCount]) != NULL)
+			sysinfo->screen.touchCount++;
+	}
+#else
+	(void)sysinfo;
+	(void)on;
+#endif
 }
 
 /* shutdown closes a camera the picture page left open */
@@ -125,9 +136,9 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 		return;
 	}
 
-#ifdef SUPPORT_COMMON_INPUT
+#ifdef SUPPORT_COMMON_DEVICE
 	if(sysinfo->console == YES)
-		mp_input_init(kernel, &sysinfo->screen.keys, MP_INPUT_CAP_KEYS, "Console");
+		mp_device_input_init(kernel, &sysinfo->screen.keys, MP_DEVICE_INPUT_CAP_KEYS, "Console");
 #endif
 	_sysinfo_touch_run(sysinfo, YES);
 
@@ -150,8 +161,8 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 		mp_task_destroy(sysinfo->screen.task);
 		sysinfo->screen.task = NULL;
 	}
-#ifdef SUPPORT_COMMON_INPUT
-	mp_input_fini(&sysinfo->screen.keys);
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_input_fini(&sysinfo->screen.keys);
 #endif
 	_sysinfo_touch_run(sysinfo, NO);
 	_sysinfo_camera_run(sysinfo, NO);
@@ -162,7 +173,7 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 }
 
 static mp_bool_t _sysinfo_accel_page_on(sysinfo_t *sysinfo) {
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 	return(sysinfo->screen.accelIndex >= 0 && sysinfo->screen.tui.opened == sysinfo->screen.accelIndex ? YES : NO);
 #else
 	(void)sysinfo;

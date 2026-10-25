@@ -11,11 +11,12 @@ export const phi = {
 	requires: ["arm-usb-ocd-h"],
 	app: "sysinfo",
 	defines: [],
-	modules: ["SERIAL", "SENSOR", "INPUT", "TUI", "KFLASH", "RSA"],
-	drivers: ["ILI932X", "RESISTIVE", "SMB380", "LEPTON"],
+	modules: ["SERIAL", "DEVICE", "RESISTIVE", "TUI", "KFLASH", "RSA"],
+	drivers: ["ILI932X", "SMB380", "LEPTON"],
+	sources: ["touch.c"],
 	settings: {
-		/* 4 KB: the Lepton frame is in BSS beside this pool */
-		MP_MEM_SIZE: 4096,
+		/* 2560: the Lepton frame and the device records sit in BSS beside this pool */
+		MP_MEM_SIZE: 2560,
 		MP_MEM_CHUNK: 64,
 		/* screen, USB, ADC, touch, accelerometer and the Lepton each take tasks */
 		MP_TASK_MAX: 12,
@@ -26,8 +27,12 @@ export const phi = {
 		/* newlib heap. The kernel pool is MP_MEM_SIZE; nothing in this firmware mallocs. */
 		HEAP_SIZE: 256,
 	},
-	/* pins wired to something the firmware does not own yet */
+	/* touch.c claims PC0 to PC3; the crystal, USB and microSD pins stay reserved too */
 	reserved: [
+		{ pin: "pc0", who: "4-wire touch YD" },
+		{ pin: "pc1", who: "4-wire touch YU" },
+		{ pin: "pc2", who: "4-wire touch XL" },
+		{ pin: "pc3", who: "4-wire touch XR" },
 		{ pin: "pc14", who: "32.768 kHz crystal, RTC" },
 		{ pin: "pc15", who: "32.768 kHz crystal, RTC" },
 		{ pin: "pa11", who: "USB D-" },
@@ -46,11 +51,6 @@ export const phi = {
 			driver: "ILI932X",
 			name: "lcd",
 			options: { gate: "FSMC", cs: "pd7", rs: "pe3", reset: "pe2", backlight: "pd13", backlightLow: true, backlightTimer: "TIM4", orientation: "landscape" },
-		},
-		{
-			driver: "RESISTIVE",
-			name: "touch",
-			options: { yd: "pc0", yu: "pc1", xl: "pc2", xr: "pc3", orientation: "landscape", flipY: true },
 		},
 		{
 			driver: "SMB380",

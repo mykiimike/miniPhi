@@ -42,9 +42,11 @@
 
 		mp_gpio_port_t *drdy;
 
-		mp_sensor_t *sensor;
-
-		mp_sensor_t *temperature;
+		mp_device_driver_t binding;
+		mp_device_registry_t pressDev;
+		mp_device_registry_t tempDev;
+		mp_device_measure_t sensor;
+		mp_device_measure_t temperature;
 
 		unsigned char settings;
 

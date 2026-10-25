@@ -62,8 +62,8 @@
 
 		mp_adc_t internalTemp;
 		mp_adc_t internalVref;
-		struct mp_sensor_s *sensorMCU;
-		struct mp_sensor_s *sensorVDDA;
+		struct mp_device_measure_s *sensorMCU;
+		struct mp_device_measure_s *sensorVDDA;
 
 		/** last VDDA reading, scales the temperature conversion */
 		float vdda;

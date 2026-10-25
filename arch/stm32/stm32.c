@@ -28,9 +28,14 @@
 @{
 */
 
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 static void _mp_machine_temp(mp_adc_t *adc);
 static void _mp_machine_vref(mp_adc_t *adc);
+static mp_device_driver_t _mp_arch_sensors;
+static mp_device_registry_t _mp_arch_tempDev;
+static mp_device_registry_t _mp_arch_voltDev;
+static mp_device_measure_t _mp_arch_temp;
+static mp_device_measure_t _mp_arch_volt;
 #endif
 
 /* RM0008 / datasheet typical values */
@@ -125,7 +130,7 @@ void mp_machine_reset(void) {
 }
 
 void mp_machine_state_set(mp_kernel_t *kernel) {
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 	mp_options_t vref[] = {
 		{ "channel", "A17" },
 		{ "delay", "5000" },
@@ -143,27 +148,45 @@ void mp_machine_state_set(mp_kernel_t *kernel) {
 
 	kernel->arch.vdda = 3.3f;
 
-	if(mp_adc_create(kernel, &kernel->arch.internalVref, vref, "MCU VDDA") == TRUE) {
-		kernel->arch.sensorVDDA = mp_sensor_register(kernel, MP_SENSOR_VOLTAGE, "STM32 VDDA");
-		kernel->arch.internalVref.callback = _mp_machine_vref;
-	}
+	{
+		mp_ret_t haveVref = mp_adc_create(kernel, &kernel->arch.internalVref, vref, "MCU VDDA");
+		mp_ret_t haveTemp = mp_adc_create(kernel, &kernel->arch.internalTemp, temp, "MCU temperature");
 
-	if(mp_adc_create(kernel, &kernel->arch.internalTemp, temp, "MCU temperature") == TRUE) {
-		kernel->arch.sensorMCU = mp_sensor_register(kernel, MP_SENSOR_TEMPERATURE, "STM32 Internal");
-		kernel->arch.internalTemp.callback = _mp_machine_temp;
+		if(haveVref == TRUE || haveTemp == TRUE) {
+			static const mp_device_driver_ops_t ops = {
+				"arch/stm32", "STM32 internal ADC", "1.0.0",
+				(unsigned int)((1u << MP_DEVICE_TEMPERATURE) | (1u << MP_DEVICE_VOLTAGE)),
+				NULL, NULL, NULL, NULL, NULL
+			};
+
+			mp_device_driver_register(kernel, &_mp_arch_sensors, &ops, kernel, NULL);
+		}
+		if(haveVref == TRUE) {
+			kernel->arch.sensorVDDA = &_mp_arch_volt;
+			mp_device_registry_register(&_mp_arch_sensors, &_mp_arch_voltDev, MP_DEVICE_VOLTAGE, 0, &_mp_arch_volt, "stm32", "vdda", NULL);
+			kernel->arch.internalVref.callback = _mp_machine_vref;
+		}
+		if(haveTemp == TRUE) {
+			kernel->arch.sensorMCU = &_mp_arch_temp;
+			mp_device_registry_register(&_mp_arch_sensors, &_mp_arch_tempDev, MP_DEVICE_TEMPERATURE, 0, &_mp_arch_temp, "stm32", "mcu", NULL);
+			kernel->arch.internalTemp.callback = _mp_machine_temp;
+		}
 	}
 #endif
 }
 
 void mp_machine_state_unset(mp_kernel_t *kernel) {
-#ifdef SUPPORT_COMMON_SENSOR
-	mp_sensor_unregister(kernel, &kernel->arch.sensorMCU);
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_registry_unregister(&_mp_arch_tempDev);
+	mp_device_registry_unregister(&_mp_arch_voltDev);
+	mp_device_driver_unregister(kernel, &_mp_arch_sensors);
+	kernel->arch.sensorMCU = NULL;
+	kernel->arch.sensorVDDA = NULL;
 	if(kernel->arch.internalTemp.callback) {
 		mp_adc_remove(&kernel->arch.internalTemp);
 		kernel->arch.internalTemp.callback = NULL;
 	}
 
-	mp_sensor_unregister(kernel, &kernel->arch.sensorVDDA);
 	if(kernel->arch.internalVref.callback) {
 		mp_adc_remove(&kernel->arch.internalVref);
 		kernel->arch.internalVref.callback = NULL;
@@ -171,7 +194,7 @@ void mp_machine_state_unset(mp_kernel_t *kernel) {
 #endif
 }
 
-#ifdef SUPPORT_COMMON_SENSOR
+#ifdef SUPPORT_COMMON_DEVICE
 static void _mp_machine_vref(mp_adc_t *adc) {
 	mp_kernel_t *kernel = adc->kernel;
 
@@ -186,7 +209,7 @@ static void _mp_machine_vref(mp_adc_t *adc) {
 #else
 	kernel->arch.vdda = _VREFINT * 4095.0f / (float)adc->result;
 #endif
-	mp_sensor_publish(kernel->arch.sensorVDDA, kernel->arch.vdda);
+	mp_device_measure_publish(kernel->arch.sensorVDDA, kernel->arch.vdda);
 }
 
 static void _mp_machine_temp(mp_adc_t *adc) {
@@ -201,11 +224,11 @@ static void _mp_machine_temp(mp_adc_t *adc) {
 		temp = 30.0f + (scaled - (float)cal1) * 80.0f / (float)(cal2 - cal1);
 	else
 		temp = 25.0f;
-	mp_sensor_publish(kernel->arch.sensorMCU, temp);
+	mp_device_measure_publish(kernel->arch.sensorMCU, temp);
 #else
 	float vsense = (float)adc->result * kernel->arch.vdda / 4095.0f;
 
-	mp_sensor_publish(kernel->arch.sensorMCU, (_TEMP_V25 - vsense) / _TEMP_SLOPE + 25.0f);
+	mp_device_measure_publish(kernel->arch.sensorMCU, (_TEMP_V25 - vsense) / _TEMP_SLOPE + 25.0f);
 #endif
 }
 #endif

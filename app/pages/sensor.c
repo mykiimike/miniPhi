@@ -20,18 +20,12 @@
 
 #include "index.h"
 
-#if defined(SYSINFO_SCREEN) && defined(SUPPORT_COMMON_SENSOR)
+#if defined(SYSINFO_SCREEN) && defined(SUPPORT_COMMON_DEVICE)
 
-#include <string.h>
-
-int _sysinfo_sensor_beside(mp_sensor_t *axis, mp_sensor_t *sensor) {
-	int length = (int)strlen(axis->name);
-
-	if(sensor->type != MP_SENSOR_TEMPERATURE || length <= 0)
+int _sysinfo_measure_beside(mp_device_registry_t *axis, mp_device_registry_t *other) {
+	if(!axis || !other || !axis->driver)
 		return(0);
-	if(strncmp(sensor->name, axis->name, (size_t)length) != 0)
-		return(0);
-	return(sensor->name[length] == '\0' || sensor->name[length] == ' ');
+	return(other->driver == axis->driver && other->class == MP_DEVICE_TEMPERATURE);
 }
 
 #endif

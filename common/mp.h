@@ -137,23 +137,23 @@
 	#ifdef SUPPORT_COMMON_QUATERNION
 		#include <quaternion/quaternion.h>
 	#endif
-	#ifdef SUPPORT_COMMON_SENSOR
-		#include <sensor/sensor.h>
-	#endif
 	#ifdef SUPPORT_COMMON_REGMASTER
 		#include <regmaster/regMaster.h>
 	#endif
 	#ifdef SUPPORT_COMMON_KALMAN
 		#include <kalman/kalman.h>
 	#endif
-	#ifdef SUPPORT_COMMON_INPUT
-		#include <input/input.h>
-	#endif
 	#ifdef SUPPORT_COMMON_TUI
 		#include <tui/tui.h>
 	#endif
 	#ifdef SUPPORT_COMMON_DEVICE
 		#include <device/device.h>
+	#endif
+	#ifdef SUPPORT_COMMON_RESISTIVE
+		#include <resistive/resistive.h>
+	#endif
+	#ifdef SUPPORT_COMMON_BUTTON
+		#include <button/button.h>
 	#endif
 	#ifdef SUPPORT_COMMON_USB
 		#include <usb/usb.h>
@@ -247,17 +247,11 @@
 	#include <crypto/mode.h>
 #endif
 
-	#ifdef SUPPORT_DRV_BUTTON
-		#include <button/button.h>
-	#endif
 	#ifdef SUPPORT_DRV_LED
 		#include <led/led.h>
 	#endif
 	#ifdef SUPPORT_DRV_LCD_ILI932X
 		#include <ili932x/ili932x.h>
-	#endif
-	#ifdef SUPPORT_DRV_TOUCH_RESISTIVE
-		#include <resistive/resistive.h>
 	#endif
 	#ifdef SUPPORT_DRV_LCD_NOKIA3310
 		#include <nokia3310/nokia3310.h>
@@ -311,17 +305,21 @@
 		/** Level, governor and holds */
 		mp_power_t power;
 
-		/** Sensors handler */
-		mp_sensor_handler_t sensors;
-
-#ifdef SUPPORT_COMMON_INPUT
-		/** every mp_input_t, see mp_input_next() */
+#ifdef SUPPORT_COMMON_DEVICE
+		/** every mp_device_input_t, see mp_device_input_next() */
 		mp_list_t inputs;
 #endif
 
 #ifdef SUPPORT_COMMON_USB
 		/** PHY ports, see mp_usb_at() */
 		mp_list_t usbs;
+#endif
+
+#ifdef SUPPORT_COMMON_DEVICE
+		/** loaded drivers, see mp_device_driver_at() */
+		mp_list_t drivers;
+		/** registered devices, see mp_device_registry_at() */
+		mp_list_t devices;
 #endif
 
 #ifdef SUPPORT_COMMON_KFLASH

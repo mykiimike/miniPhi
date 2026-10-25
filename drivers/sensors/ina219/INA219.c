@@ -124,11 +124,19 @@ mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_opt
 		return(FALSE);
 	}
 
-	/* create sensor */
-	INA219->busVoltage = mp_sensor_register(kernel, MP_SENSOR_VOLTAGE, "INA219: Bus");
-	INA219->shuntVoltage = mp_sensor_register(kernel, MP_SENSOR_VOLTAGE, "INA219: Shunt");
-	INA219->current = mp_sensor_register(kernel, MP_SENSOR_CURRENT, "INA219: Current");
-	INA219->power = mp_sensor_register(kernel, MP_SENSOR_POWER, "INA219: Power");
+	{
+		static const mp_device_driver_ops_t ops = {
+			"sensor/ina219", "TI INA219", "1.0.0",
+			(unsigned int)((1u << MP_DEVICE_VOLTAGE) | (1u << MP_DEVICE_CURRENT) | (1u << MP_DEVICE_POWER)),
+			NULL, NULL, NULL, NULL, NULL
+		};
+
+		mp_device_driver_register(kernel, &INA219->binding, &ops, INA219, NULL);
+		mp_device_registry_register(&INA219->binding, &INA219->busDev, MP_DEVICE_VOLTAGE, 0, &INA219->busVoltage, "ina219", "bus", NULL);
+		mp_device_registry_register(&INA219->binding, &INA219->shuntDev, MP_DEVICE_VOLTAGE, 1, &INA219->shuntVoltage, "ina219", "shunt", NULL);
+		mp_device_registry_register(&INA219->binding, &INA219->currDev, MP_DEVICE_CURRENT, 0, &INA219->current, "ina219", "i", NULL);
+		mp_device_registry_register(&INA219->binding, &INA219->powerDev, MP_DEVICE_POWER, 0, &INA219->power, "ina219", "p", NULL);
+	}
 
 	mp_printk("INA219(%p): Initializing", INA219);
 
@@ -353,26 +361,26 @@ static void _mp_drv_INA219_busVoltage(mp_regMaster_op_t *operand, mp_bool_t term
 
 	/* 4 mV per step above 3 status bits */
 	INA219->rawBusVoltage = ((INA219->rawBusVoltage >> 3) * 4);
-	mp_sensor_publish(INA219->busVoltage, (float)INA219->rawBusVoltage / 1000.0f);
+	mp_device_measure_publish(&INA219->busVoltage, (float)INA219->rawBusVoltage / 1000.0f);
 
 }
 
 static void _mp_drv_INA219_shuntVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_INA219_t *INA219 = operand->user;
 	/* signed, 10 uV per step */
-	mp_sensor_publish(INA219->shuntVoltage, (float)(int16_t)INA219->rawShuntVoltage * 0.00001f);
+	mp_device_measure_publish(&INA219->shuntVoltage, (float)(int16_t)INA219->rawShuntVoltage * 0.00001f);
 }
 
 static void _mp_drv_INA219_current(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_INA219_t *INA219 = operand->user;
 	/* signed, 1 mA per step with the calibration the driver writes */
-	mp_sensor_publish(INA219->current, (float)(int16_t)INA219->rawCurrent * 0.001f);
+	mp_device_measure_publish(&INA219->current, (float)(int16_t)INA219->rawCurrent * 0.001f);
 }
 
 static void _mp_drv_INA219_power(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_INA219_t *INA219 = operand->user;
 	/* unsigned, powerDivider milliwatts per step */
-	mp_sensor_publish(INA219->power, (float)INA219->rawPower * (float)INA219->powerDivider / 1000.0f);
+	mp_device_measure_publish(&INA219->power, (float)INA219->rawPower * (float)INA219->powerDivider / 1000.0f);
 }
 
 
@@ -384,10 +392,11 @@ MP_TASK(_mp_drv_INA219_ASR) {
 	/* receive shutdown */
 	if(task->signal == MP_TASK_SIG_STOP) {
 
-		mp_sensor_unregister(INA219->kernel, &INA219->busVoltage);
-		mp_sensor_unregister(INA219->kernel, &INA219->shuntVoltage);
-		mp_sensor_unregister(INA219->kernel, &INA219->current);
-		mp_sensor_unregister(INA219->kernel, &INA219->power);
+		mp_device_registry_unregister(&INA219->busDev);
+		mp_device_registry_unregister(&INA219->shuntDev);
+		mp_device_registry_unregister(&INA219->currDev);
+		mp_device_registry_unregister(&INA219->powerDev);
+		mp_device_driver_unregister(INA219->kernel, &INA219->binding);
 
 		mp_regMaster_fini(&INA219->regMaster);
 

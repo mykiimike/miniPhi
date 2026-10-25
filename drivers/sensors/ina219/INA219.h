@@ -48,10 +48,15 @@
 		unsigned short rawCurrent;
 		unsigned short rawPower;
 
-		mp_sensor_t *busVoltage;
-		mp_sensor_t *shuntVoltage;
-		mp_sensor_t *current;
-		mp_sensor_t *power;
+		mp_device_driver_t binding;
+		mp_device_registry_t busDev;
+		mp_device_registry_t shuntDev;
+		mp_device_registry_t currDev;
+		mp_device_registry_t powerDev;
+		mp_device_measure_t busVoltage;
+		mp_device_measure_t shuntVoltage;
+		mp_device_measure_t current;
+		mp_device_measure_t power;
 
 
 		mp_task_t *task;

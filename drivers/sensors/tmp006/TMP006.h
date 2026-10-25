@@ -39,7 +39,9 @@
 
 		mp_regMaster_t regMaster;
 
-		mp_sensor_t *sensor;
+		mp_device_driver_t binding;
+		mp_device_registry_t tempDev;
+		mp_device_measure_t sensor;
 
 		unsigned short deviceId;
 		unsigned short manufacturerId;
@@ -175,7 +177,7 @@
 
 	/** @} */
 
-	mp_sensor_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who);
+	mp_device_measure_t *mp_drv_TMP006_init(mp_kernel_t *kernel, mp_drv_TMP006_t *TMP006, mp_options_t *options, char *who);
 	void mp_drv_TMP006_fini(mp_drv_TMP006_t *TMP006);
 	void mp_drv_TMP006_sleep(mp_drv_TMP006_t *TMP006);
 	void mp_drv_TMP006_wakeUp(mp_drv_TMP006_t *TMP006);
