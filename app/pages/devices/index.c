@@ -251,13 +251,108 @@ static void _sysinfo_dev_lines(sysinfo_t *sysinfo, mp_tui_widget_t *page, const 
 	mp_tui_label_color(&sysinfo->screen.accelY, page->tui->theme.muted);
 }
 
+static int _sysinfo_vdda_like(const char *label) {
+	const char *p;
+
+	if(!label)
+		return(0);
+	for(p = label; p[0] && p[1] && p[2] && p[3]; p++) {
+		char c0 = p[0], c1 = p[1], c2 = p[2], c3 = p[3];
+
+		if(c0 >= 'a' && c0 <= 'z')
+			c0 = (char)(c0 - 32);
+		if(c1 >= 'a' && c1 <= 'z')
+			c1 = (char)(c1 - 32);
+		if(c2 >= 'a' && c2 <= 'z')
+			c2 = (char)(c2 - 32);
+		if(c3 >= 'a' && c3 <= 'z')
+			c3 = (char)(c3 - 32);
+		if(c0 == 'V' && c1 == 'D' && c2 == 'D' && c3 == 'A')
+			return(1);
+	}
+	return(0);
+}
+
+static void _sysinfo_dev_measure_gauge(mp_tui_widget_t *page, sysinfo_t *sysinfo, int *y) {
+	const mp_tui_font_t *font = page->tui->theme.font;
+	int line = font->lineHeight + 1;
+	int class = sysinfo->screen.devClass;
+	mp_device_registry_t *reg = NULL;
+	mp_tui_gauge_style_t style = MP_TUI_GAUGE_DIAL;
+	long min, max, warn, alarm;
+	unsigned char decimals;
+	const char *unit;
+	const char *label = NULL;
+	int gw, gh, limit;
+
+	_sysinfo_dev_current(sysinfo, &reg, NULL);
+	if(reg && reg->label && reg->label[0])
+		label = reg->label;
+	if(class == MP_DEVICE_TEMPERATURE) {
+		min = -20000;
+		max = 85000;
+		warn = 50000;
+		alarm = 70000;
+		decimals = 1;
+		unit = "°C";
+	}
+	else if(_sysinfo_vdda_like(label)) {
+		min = 0;
+		max = 3600;
+		warn = max;
+		alarm = max;
+		decimals = 2;
+		unit = "V";
+	}
+	else {
+		min = 0;
+		max = 5000;
+		warn = max;
+		alarm = max;
+		decimals = 3;
+		unit = "V";
+	}
+
+	gw = page->rect.w - 72;
+	if(gw > 176)
+		gw = 176;
+	if(gw < 16)
+		gw = 16;
+	gh = gw * 3 / 4 + line;
+	limit = page->rect.h - line * 2 - 16;
+	if(limit < gh)
+		gh = limit;
+	if(gw < 100 || gh < 88) {
+		style = MP_TUI_GAUGE_BAR;
+		gw = page->rect.w - 32;
+		if(gw < 16)
+			gw = 16;
+		gh = line * 3 + 8;
+	}
+	mp_tui_gauge(&sysinfo->screen.measureGauge, page, (page->rect.w - gw) / 2, *y, gw, gh, style, min, max, decimals, unit);
+	mp_tui_gauge_zones(&sysinfo->screen.measureGauge, warn, alarm);
+	if(label)
+		mp_tui_gauge_label(&sysinfo->screen.measureGauge, label);
+	*y += gh + 8;
+}
+
 static void _sysinfo_dev_measure_build(mp_tui_widget_t *page, sysinfo_t *sysinfo) {
 	const mp_tui_font_t *font = page->tui->theme.font;
 	int line = font->lineHeight + 1;
-	int axes = mp_device_measure_axes(sysinfo->screen.devClass);
+	int class = sysinfo->screen.devClass;
+	int axes = mp_device_measure_axes(class);
 	int width = page->rect.w - 48;
 	int x = 24;
-	int y = axes >= 3 ? 24 : 48;
+	int y;
+
+	if(axes >= 3)
+		y = 24;
+	else if(class == MP_DEVICE_TEMPERATURE || class == MP_DEVICE_VOLTAGE) {
+		y = 8;
+		_sysinfo_dev_measure_gauge(page, sysinfo, &y);
+	}
+	else
+		y = 48;
 
 	mp_tui_label(&sysinfo->screen.accelName, page, x, y, width, line, "");
 	mp_tui_label_align(&sysinfo->screen.accelName, MP_TUI_ALIGN_CENTER);
@@ -302,6 +397,8 @@ static void _sysinfo_dev_measure_refresh(sysinfo_t *sysinfo) {
 		mp_tui_label_set(&sysinfo->screen.accelX, "%s", "");
 		mp_tui_label_set(&sysinfo->screen.accelY, "%s", "");
 		mp_tui_label_set(&sysinfo->screen.accelZ, "%s", "");
+		if((class == MP_DEVICE_TEMPERATURE || class == MP_DEVICE_VOLTAGE) && sysinfo->screen.measureGauge.widget.parent)
+			mp_tui_gauge_set(&sysinfo->screen.measureGauge, 0, 0);
 		return;
 	}
 	if(axes >= 3) {
@@ -319,6 +416,8 @@ static void _sysinfo_dev_measure_refresh(sysinfo_t *sysinfo) {
 	mp_tui_label_set(&sysinfo->screen.accelX, "%s", "");
 	mp_tui_label_set(&sysinfo->screen.accelY, "%s", "");
 	mp_tui_label_set(&sysinfo->screen.accelZ, "%s", "");
+	if((class == MP_DEVICE_TEMPERATURE || class == MP_DEVICE_VOLTAGE) && sysinfo->screen.measureGauge.widget.parent)
+		mp_tui_gauge_set(&sysinfo->screen.measureGauge, _sysinfo_milli(v[0]), 1);
 }
 
 static void _sysinfo_dev_card(mp_tui_widget_t *page, sysinfo_t *sysinfo) {
@@ -381,6 +480,9 @@ void _sysinfo_dev_open(sysinfo_t *sysinfo) {
 }
 
 void _sysinfo_dev_refresh(sysinfo_t *sysinfo) {
+	/* the overlay reads this camera; leaving its page drops the image */
+	if(_sysinfo_dev_camera_shown(sysinfo) == NO && mp_tui_fullscreen_shown(&sysinfo->screen.tui))
+		mp_tui_fullscreen_close(&sysinfo->screen.tui);
 	_sysinfo_dev_camera_refresh(sysinfo);
 	if(sysinfo->screen.devView < 0 || sysinfo->screen.tui.opened != sysinfo->screen.devView)
 		return;

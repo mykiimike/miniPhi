@@ -33,6 +33,8 @@
 static const mp_tui_class_t _mp_tui_root_class = { "root", NULL, NULL, NULL };
 
 static void _mp_tui_cursor_draw(mp_tui_t *ui, mp_tui_draw_t *draw);
+static void _mp_tui_fullscreen_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw);
+static const mp_tui_class_t _mp_tui_fullscreen_class = { "fullscreen", _mp_tui_fullscreen_draw, NULL, NULL };
 
 static int _mp_tui_intersect(const mp_tui_rect_t *a, const mp_tui_rect_t *b, mp_tui_rect_t *out) {
 	int x0 = a->x > b->x ? a->x : b->x;
@@ -148,6 +150,9 @@ int mp_tui_init(mp_tui_t *ui, mp_tui_display_t *display, mp_tui_color_t *buffer,
 	ui->root.tui = ui;
 	ui->root.rect.w = ui->root.screen.w = display->width;
 	ui->root.rect.h = ui->root.screen.h = display->height;
+
+	mp_tui_widget_init(&ui->fullscreen, &_mp_tui_fullscreen_class, &ui->root, 0, 0, display->width, display->height);
+	mp_tui_hide(&ui->fullscreen);
 
 	mp_tui_refresh(ui);
 	return(1);
@@ -318,6 +323,187 @@ static int _mp_tui_splash(mp_tui_t *ui) {
 	return(1);
 }
 
+#define _MP_TUI_CROSS_SIZE 28
+#define _MP_TUI_CROSS_MARGIN 8
+#define _MP_TUI_CROSS_HIT 48
+
+static void _mp_tui_fullscreen_fit(mp_tui_t *ui, mp_tui_rect_t *dest) {
+	const mp_tui_image_t *image = &ui->fullscreenImage;
+	int dw = ui->display->width;
+	int dh = ui->display->height;
+	int iw, ih;
+
+	dest->x = dest->y = dest->w = dest->h = 0;
+	if(!image->pixels || !image->w || !image->h || dw <= 0 || dh <= 0)
+		return;
+	if((long)image->w * dh >= (long)image->h * dw) {
+		iw = dw;
+		ih = (int)(((long)dw * image->h) / image->w);
+	}
+	else {
+		ih = dh;
+		iw = (int)(((long)dh * image->w) / image->h);
+	}
+	if(iw < 1)
+		iw = 1;
+	if(ih < 1)
+		ih = 1;
+	if(iw > dw)
+		iw = dw;
+	if(ih > dh)
+		ih = dh;
+	dest->x = (dw - iw) / 2;
+	dest->y = (dh - ih) / 2;
+	dest->w = iw;
+	dest->h = ih;
+}
+
+static void _mp_tui_fullscreen_bars(mp_tui_draw_t *draw, const mp_tui_rect_t *dest) {
+	mp_tui_rect_t *band = &draw->band;
+	int x0 = band->x;
+	int y0 = band->y;
+	int x1 = band->x + band->w;
+	int y1 = band->y + band->h;
+	int dy0, dy1, iy0, iy1;
+	mp_tui_color_t black = MP_TUI_RGB(0, 0, 0);
+
+	if(dest->w <= 0 || dest->h <= 0) {
+		mp_tui_draw_fill(draw, x0, y0, band->w, band->h, black);
+		return;
+	}
+	dy0 = dest->y;
+	dy1 = dest->y + dest->h;
+	if(y0 < dy0) {
+		int h = (y1 < dy0 ? y1 : dy0) - y0;
+
+		if(h > 0)
+			mp_tui_draw_fill(draw, x0, y0, band->w, h, black);
+	}
+	if(y1 > dy1) {
+		int y = y0 > dy1 ? y0 : dy1;
+
+		if(y1 > y)
+			mp_tui_draw_fill(draw, x0, y, band->w, y1 - y, black);
+	}
+	iy0 = y0 > dy0 ? y0 : dy0;
+	iy1 = y1 < dy1 ? y1 : dy1;
+	if(iy1 <= iy0)
+		return;
+	if(x0 < dest->x) {
+		int r = x1 < dest->x ? x1 : dest->x;
+
+		if(r > x0)
+			mp_tui_draw_fill(draw, x0, iy0, r - x0, iy1 - iy0, black);
+	}
+	if(x1 > dest->x + dest->w) {
+		int l = x0 > dest->x + dest->w ? x0 : dest->x + dest->w;
+
+		if(x1 > l)
+			mp_tui_draw_fill(draw, l, iy0, x1 - l, iy1 - iy0, black);
+	}
+}
+
+static void _mp_tui_cross_box(mp_tui_t *ui, mp_tui_rect_t *box) {
+	box->w = _MP_TUI_CROSS_SIZE;
+	box->h = _MP_TUI_CROSS_SIZE;
+	box->x = ui->display->width - _MP_TUI_CROSS_MARGIN - _MP_TUI_CROSS_SIZE;
+	box->y = _MP_TUI_CROSS_MARGIN;
+}
+
+static void _mp_tui_cross_invalidate(mp_tui_t *ui) {
+	mp_tui_rect_t box;
+
+	_mp_tui_cross_box(ui, &box);
+	mp_tui_invalidate_rect(ui, &box);
+}
+
+/* a finger on the bezel can read x at the width, or y at 0 */
+static int _mp_tui_cross_zone(mp_tui_t *ui, int x, int y) {
+	int right = ui->display->width;
+
+	return(x >= right - _MP_TUI_CROSS_HIT && x <= right && y >= 0 && y < _MP_TUI_CROSS_HIT);
+}
+
+static void _mp_tui_fullscreen_cross(mp_tui_t *ui, mp_tui_draw_t *draw) {
+	mp_tui_rect_t box;
+	mp_tui_color_t fill;
+	mp_tui_color_t white = MP_TUI_RGB(0xFF, 0xFF, 0xFF);
+	int pad = 7;
+	int n, i;
+
+	_mp_tui_cross_box(ui, &box);
+	if(box.x >= draw->clip.x + draw->clip.w || box.x + box.w <= draw->clip.x)
+		return;
+	if(box.y >= draw->clip.y + draw->clip.h || box.y + box.h <= draw->clip.y)
+		return;
+	fill = ui->fullscreenPressed == 1 ? ui->theme.accent : ui->theme.titleBackground;
+	mp_tui_draw_fill(draw, box.x, box.y, box.w, box.h, fill);
+	mp_tui_draw_frame(draw, box.x, box.y, box.w, box.h, ui->theme.border);
+	n = box.w - pad * 2;
+	for(i=0; i<n; i++) {
+		mp_tui_draw_fill(draw, box.x + pad + i, box.y + pad + i, 2, 2, white);
+		mp_tui_draw_fill(draw, box.x + pad + i, box.y + box.h - pad - 1 - i, 2, 2, white);
+	}
+}
+
+static void _mp_tui_fullscreen_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
+	mp_tui_t *ui = widget->tui;
+	mp_tui_rect_t dest;
+
+	if(!ui || !ui->display)
+		return;
+	_mp_tui_fullscreen_fit(ui, &dest);
+	_mp_tui_fullscreen_bars(draw, &dest);
+	if(dest.w > 0 && ui->fullscreenImage.pixels)
+		mp_tui_draw_image(draw, &ui->fullscreenImage, dest.x, dest.y, dest.w, dest.h);
+	_mp_tui_fullscreen_cross(ui, draw);
+}
+
+int mp_tui_fullscreen_shown(mp_tui_t *ui) {
+	return(ui && ui->fullscreen.tui && !ui->fullscreen.hidden);
+}
+
+int mp_tui_fullscreen(mp_tui_t *ui, const mp_tui_image_t *image, mp_tui_close_t onClose, void *user) {
+	if(!ui || !ui->display || !image || !ui->fullscreen.tui || !ui->fullscreen.hidden)
+		return(0);
+	ui->fullscreenImage = *image;
+	ui->fullscreenClose = onClose;
+	ui->fullscreenUser = user;
+	ui->fullscreenPressed = 0;
+	mp_tui_show(&ui->fullscreen);
+	mp_tui_raise(&ui->fullscreen);
+	mp_tui_refresh(ui);
+	return(1);
+}
+
+void mp_tui_fullscreen_update(mp_tui_t *ui) {
+	mp_tui_rect_t dest;
+
+	if(!mp_tui_fullscreen_shown(ui))
+		return;
+	_mp_tui_fullscreen_fit(ui, &dest);
+	if(dest.w > 0)
+		mp_tui_invalidate_rect(ui, &dest);
+}
+
+void mp_tui_fullscreen_close(mp_tui_t *ui) {
+	mp_tui_close_t onClose;
+	void *user;
+
+	if(!mp_tui_fullscreen_shown(ui))
+		return;
+	onClose = ui->fullscreenClose;
+	user = ui->fullscreenUser;
+	ui->fullscreenClose = NULL;
+	ui->fullscreenUser = NULL;
+	ui->fullscreenImage.pixels = NULL;
+	ui->fullscreenPressed = 0;
+	mp_tui_hide(&ui->fullscreen);
+	if(onClose)
+		onClose(ui, user);
+	mp_tui_refresh(ui);
+}
+
 static void _mp_tui_draw_tree(mp_tui_widget_t *widget, mp_tui_draw_t *draw, const mp_tui_rect_t *clip) {
 	mp_tui_widget_t *child;
 	mp_tui_rect_t area, client;
@@ -378,8 +564,14 @@ int mp_tui_step(mp_tui_t *ui) {
 	draw.band.h = rows;
 	draw.clip = draw.band;
 
-	mp_tui_draw_fill(&draw, draw.band.x, draw.band.y, draw.band.w, draw.band.h, ui->theme.background);
-	_mp_tui_draw_tree(&ui->root, &draw, &draw.band);
+	if(mp_tui_fullscreen_shown(ui)) {
+		draw.clip = draw.band;
+		_mp_tui_fullscreen_draw(&ui->fullscreen, &draw);
+	}
+	else {
+		mp_tui_draw_fill(&draw, draw.band.x, draw.band.y, draw.band.w, draw.band.h, ui->theme.background);
+		_mp_tui_draw_tree(&ui->root, &draw, &draw.band);
+	}
 	_mp_tui_cursor_draw(ui, &draw);
 
 	ui->display->write(ui->display, draw.band.x, draw.band.y, draw.band.w, draw.band.h, ui->buffer);
@@ -551,6 +743,7 @@ static int _mp_tui_button_top(mp_tui_t *ui) {
 }
 
 static void _mp_tui_show(mp_tui_t *ui, int index) {
+	mp_tui_fullscreen_close(ui);
 	_mp_tui_release(ui);
 	while(ui->view.widget.first)
 		mp_tui_widget_remove(ui->view.widget.first);
@@ -575,6 +768,7 @@ static void _mp_tui_on_back(mp_tui_button_t *button) {
 		_mp_tui_show(ui, ui->stack[ui->depth - 1]);
 		return;
 	}
+	mp_tui_fullscreen_close(ui);
 	_mp_tui_release(ui);
 	ui->depth = 0;
 	ui->opened = -1;
@@ -808,6 +1002,11 @@ void mp_tui_scroll(mp_tui_t *ui, int dy) {
 void mp_tui_key(mp_tui_t *ui, mp_tui_key_t key) {
 	int step;
 
+	if(mp_tui_fullscreen_shown(ui)) {
+		if(key == MP_TUI_KEY_BACK)
+			mp_tui_fullscreen_close(ui);
+		return;
+	}
 	if(!ui->shell)
 		return;
 	if(ui->opened >= 0) {
@@ -974,6 +1173,59 @@ static mp_tui_widget_t *_mp_tui_tappable(mp_tui_widget_t *target) {
 	return(NULL);
 }
 
+static void _mp_tui_fullscreen_input(mp_tui_t *ui, const mp_device_input_event_t *in) {
+	int inzone = _mp_tui_cross_zone(ui, in->x, in->y);
+
+	switch(in->type) {
+		case MP_DEVICE_INPUT_DOWN:
+			if(inzone) {
+				if(ui->fullscreenPressed != 1) {
+					ui->fullscreenPressed = 1;
+					_mp_tui_cross_invalidate(ui);
+				}
+			}
+			else if(ui->fullscreenPressed) {
+				ui->fullscreenPressed = 0;
+				_mp_tui_cross_invalidate(ui);
+			}
+			break;
+
+		case MP_DEVICE_INPUT_CLICK:
+			if(inzone)
+				mp_tui_fullscreen_close(ui);
+			else if(ui->fullscreenPressed) {
+				ui->fullscreenPressed = 0;
+				_mp_tui_cross_invalidate(ui);
+			}
+			break;
+
+		case MP_DEVICE_INPUT_DRAG:
+			if(!ui->fullscreenPressed)
+				break;
+			if(ui->fullscreenPressed != (inzone ? 1 : 2)) {
+				ui->fullscreenPressed = inzone ? 1 : 2;
+				_mp_tui_cross_invalidate(ui);
+			}
+			break;
+
+		case MP_DEVICE_INPUT_DROP:
+			if(ui->fullscreenPressed && inzone)
+				mp_tui_fullscreen_close(ui);
+			else if(ui->fullscreenPressed) {
+				ui->fullscreenPressed = 0;
+				_mp_tui_cross_invalidate(ui);
+			}
+			break;
+
+		case MP_DEVICE_INPUT_KEY:
+			_mp_tui_input_key(ui, in->value);
+			break;
+
+		default:
+			break;
+	}
+}
+
 static void _mp_tui_input(mp_tui_t *ui, mp_device_input_t *input, const mp_device_input_event_t *in) {
 	mp_tui_widget_t *target;
 	mp_tui_event_t event;
@@ -981,6 +1233,11 @@ static void _mp_tui_input(mp_tui_t *ui, mp_device_input_t *input, const mp_devic
 
 	if(in->type != MP_DEVICE_INPUT_KEY && (input->caps & MP_DEVICE_INPUT_CAP_MOUSE))
 		_mp_tui_cursor_move(ui, in->x, in->y);
+
+	if(mp_tui_fullscreen_shown(ui)) {
+		_mp_tui_fullscreen_input(ui, in);
+		return;
+	}
 
 	memset(&event, 0, sizeof(event));
 	event.x = in->x;

@@ -388,7 +388,7 @@ static void *_ili932x_device_face(void *self) {
 }
 
 const mp_device_ops_t mp_drv_ili932x_device = {
-	"ILI932X", MP_DEVICE_DISPLAY, _ili932x_device_open, _ili932x_device_close, _ili932x_device_face, NULL,
+	"lcd/ili932x", MP_DEVICE_DISPLAY, _ili932x_device_open, _ili932x_device_close, _ili932x_device_face, NULL,
 	"ILI9320 / ILI9325 TFT", "1.0.0"
 };
 #endif

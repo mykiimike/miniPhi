@@ -25,6 +25,7 @@
  * and temperature the driver published sit under the picture; the title is
  * the device name. A band is filled even while the next frame is being
  * read, or the clear behind it leaves a line across the picture.
+ * A tap on the picture shows it full screen until the cross is tapped.
  */
 
 #include "../index.h"
@@ -125,7 +126,38 @@ static void _sysinfo_camera_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 	}
 }
 
-static const mp_tui_class_t _sysinfo_camera_class = { "camera", _sysinfo_camera_draw, NULL, NULL };
+static void _sysinfo_camera_closed(mp_tui_t *ui, void *user) {
+	sysinfo_t *sysinfo = user;
+
+	(void)ui;
+	if(!sysinfo)
+		return;
+	mp_tui_invalidate(&sysinfo->screen.cameraPicture.widget);
+	mp_tui_invalidate(&sysinfo->screen.cameraState.widget);
+}
+
+static int _sysinfo_camera_event(mp_tui_widget_t *widget, const mp_tui_event_t *event) {
+	sysinfo_camera_view_t *picture = (sysinfo_camera_view_t *)widget;
+	sysinfo_t *sysinfo = picture->owner;
+	mp_device_t *device;
+	mp_camera_frame_t *frame;
+	mp_tui_image_t image;
+
+	if(event->type != MP_TUI_EVENT_CLICK)
+		return(0);
+	device = sysinfo ? _sysinfo_camera_device(sysinfo) : NULL;
+	frame = device && device->opened == YES ? mp_device_face(device) : NULL;
+	if(!frame || !frame->pixels || !frame->width || !frame->height || frame->sequence == 0)
+		return(1);
+	image.pixels = frame->pixels;
+	image.w = frame->width;
+	image.h = frame->height;
+	image.format = MP_TUI_IMAGE_GRAY8;
+	mp_tui_fullscreen(widget->tui, &image, _sysinfo_camera_closed, sysinfo);
+	return(1);
+}
+
+static const mp_tui_class_t _sysinfo_camera_class = { "camera", _sysinfo_camera_draw, NULL, _sysinfo_camera_event };
 
 static int _sysinfo_camera_line(char *text, int n, const char *line) {
 	int wrote;
@@ -156,7 +188,10 @@ static void _sysinfo_camera_values(sysinfo_t *sysinfo) {
 	sequence = frame ? frame->sequence : 0;
 	if(frame && (sequence & 1UL) == 0 && sequence != 0 && sequence != sysinfo->screen.cameraSequence) {
 		sysinfo->screen.cameraSequence = sequence;
-		mp_tui_invalidate(&sysinfo->screen.cameraPicture.widget);
+		if(mp_tui_fullscreen_shown(&sysinfo->screen.tui))
+			mp_tui_fullscreen_update(&sysinfo->screen.tui);
+		else
+			mp_tui_invalidate(&sysinfo->screen.cameraPicture.widget);
 	}
 
 	{

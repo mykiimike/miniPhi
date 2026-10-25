@@ -172,6 +172,8 @@ static void _sysinfo_accel_values(sysinfo_t *sysinfo) {
 		mp_tui_label_set(&sysinfo->screen.accelY, "%s", "Y  --");
 		mp_tui_label_set(&sysinfo->screen.accelZ, "%s", "Z  --");
 		mp_tui_label_set(&sysinfo->screen.accelTemperature, "%s", "");
+		if(sysinfo->screen.measureGauge.widget.parent && sysinfo->screen.measureGauge.style == MP_TUI_GAUGE_THERMO)
+			mp_tui_gauge_set(&sysinfo->screen.measureGauge, 0, 0);
 		if(level->mx || level->my || level->mz) {
 			level->mx = 0;
 			level->my = 0;
@@ -188,7 +190,13 @@ static void _sysinfo_accel_values(sysinfo_t *sysinfo) {
 	mp_tui_label_set(&sysinfo->screen.accelY, "Y  %s g", caption);
 	_sysinfo_format_fixed(caption, (int)sizeof(caption), g[2], 2, YES);
 	mp_tui_label_set(&sysinfo->screen.accelZ, "Z  %s g", caption);
-	if(temperature && mp_device_measure_read(temperature->instance, t, NULL) == TRUE) {
+	if(sysinfo->screen.measureGauge.widget.parent && sysinfo->screen.measureGauge.style == MP_TUI_GAUGE_THERMO) {
+		if(temperature && mp_device_measure_read(temperature->instance, t, NULL) == TRUE)
+			mp_tui_gauge_set(&sysinfo->screen.measureGauge, _sysinfo_milli(t[0]), 1);
+		else
+			mp_tui_gauge_set(&sysinfo->screen.measureGauge, 0, 0);
+	}
+	else if(temperature && mp_device_measure_read(temperature->instance, t, NULL) == TRUE) {
 		_sysinfo_format_fixed(caption, (int)sizeof(caption), t[0], 1, NO);
 		mp_tui_label_set(&sysinfo->screen.accelTemperature, "%s °C", caption);
 	}
@@ -255,8 +263,26 @@ void _sysinfo_dev_accel_build(mp_tui_widget_t *page, sysinfo_t *sysinfo) {
 	mp_tui_label_wrap(&sysinfo->screen.accelY, right, 0, &y, w, line, font, "Y");
 	mp_tui_label_wrap(&sysinfo->screen.accelZ, right, 0, &y, w, line, font, "Z");
 	y += 4;
-	mp_tui_label_wrap(&sysinfo->screen.accelTemperature, right, 0, &y, w, line, font, "");
-	mp_tui_label_color(&sysinfo->screen.accelTemperature, tui->theme.muted);
+	{
+		mp_device_registry_t *axis = NULL;
+		mp_device_registry_t *heat;
+
+		_sysinfo_dev_current(sysinfo, &axis, NULL);
+		heat = _sysinfo_accel_temperature(&sysinfo->kernel, axis);
+		if(heat && w >= 104) {
+			int gw = w > 156 ? 156 : w;
+			int gh = 76;
+
+			mp_tui_gauge(&sysinfo->screen.measureGauge, right, (w - gw) / 2, y, gw, gh,
+				MP_TUI_GAUGE_THERMO, -20000, 85000, 1, "°C");
+			mp_tui_gauge_zones(&sysinfo->screen.measureGauge, 50000, 70000);
+			y += gh;
+		}
+		else {
+			mp_tui_label_wrap(&sysinfo->screen.accelTemperature, right, 0, &y, w, line, font, "");
+			mp_tui_label_color(&sysinfo->screen.accelTemperature, tui->theme.muted);
+		}
+	}
 	y += 8;
 	mp_tui_switch(&sysinfo->screen.accelSwitch, right, 0, y, w, line + 10, "Enabled", sysinfo->accelEnabled == YES);
 	sysinfo->screen.accelSwitch.onChange = _sysinfo_on_accel_switch;

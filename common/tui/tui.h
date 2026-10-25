@@ -37,8 +37,10 @@
 	 * framebuffer: changes mark dirty rectangles, and each mp_tui_step()
 	 * draws one band of a dirty rectangle into a small buffer, then hands
 	 * it to the display. Every mp_tui_t is independent, so a firmware can
-	 * drive several screens. Things are allocated by the caller and must
-	 * outlive the screen they are on.
+	 * drive several screens. mp_tui_fullscreen() covers one of them with
+	 * an image scaled to fit and a close cross, reading the caller's
+	 * pixels while those bands are drawn. Things are allocated by the
+	 * caller and must outlive the screen they are on.
 	 * @{
 	 */
 
@@ -106,6 +108,20 @@
 	typedef struct mp_tui_display_s mp_tui_display_t;
 	typedef struct mp_tui_widget_s mp_tui_widget_t;
 	typedef struct mp_tui_draw_s mp_tui_draw_t;
+
+	typedef enum {
+		MP_TUI_IMAGE_GRAY8,
+		MP_TUI_IMAGE_RGB565,
+	} mp_tui_image_format_t;
+
+	/** caller's pixels, row after row; the TUI only reads them while drawing */
+	typedef struct {
+		const void *pixels;
+		uint16_t w, h;
+		mp_tui_image_format_t format;
+	} mp_tui_image_t;
+
+	typedef void (*mp_tui_close_t)(mp_tui_t *ui, void *user);
 
 	/**
 	 * What an LCD driver provides. write() receives w * h pixels, row
@@ -336,6 +352,14 @@
 		unsigned long activeAt;
 		int swallow;
 		mp_power_hold_t boost;
+
+		/** covers the display while shown; hidden until mp_tui_fullscreen() */
+		mp_tui_widget_t fullscreen;
+		mp_tui_image_t fullscreenImage;
+		mp_tui_close_t fullscreenClose;
+		void *fullscreenUser;
+		/** 0 idle, 1 finger on the armed cross, 2 the press slid off it */
+		int fullscreenPressed;
 	};
 
 	/* screen */
@@ -391,6 +415,30 @@
 		int value;
 		int max;
 	} mp_tui_bar_t;
+
+	typedef enum {
+		/** 240-degree dial with a needle and the value in the middle */
+		MP_TUI_GAUGE_DIAL,
+		/** vertical thermometer: bulb, tube filled to the value */
+		MP_TUI_GAUGE_THERMO,
+		/** horizontal segmented bar with min/max ticks */
+		MP_TUI_GAUGE_BAR,
+	} mp_tui_gauge_style_t;
+
+	/**
+	 * value, min, max, warn and alarm are milli-units (m°C, mV).
+	 * unit and label are not copied. warn = alarm = max disables the zones.
+	 */
+	typedef struct {
+		mp_tui_widget_t widget;
+		mp_tui_gauge_style_t style;
+		long value, min, max;
+		long warn, alarm;
+		unsigned char decimals;
+		const char *unit;
+		const char *label;
+		int valid;
+	} mp_tui_gauge_t;
 
 	#ifndef MP_TUI_TABLE_CELL
 		/** bytes kept for one table cell, including the trailing 0 */
@@ -456,6 +504,7 @@
 	extern const mp_tui_class_t mp_tui_box_class;
 	extern const mp_tui_class_t mp_tui_label_class;
 	extern const mp_tui_class_t mp_tui_bar_class;
+	extern const mp_tui_class_t mp_tui_gauge_class;
 	extern const mp_tui_class_t mp_tui_table_class;
 	extern const mp_tui_class_t mp_tui_columns_class;
 	extern const mp_tui_class_t mp_tui_window_class;
@@ -481,6 +530,13 @@
 
 	void mp_tui_bar(mp_tui_bar_t *bar, mp_tui_widget_t *parent, int x, int y, int w, int h, int max);
 	void mp_tui_bar_set(mp_tui_bar_t *bar, int value);
+
+	void mp_tui_gauge(mp_tui_gauge_t *gauge, mp_tui_widget_t *parent, int x, int y, int w, int h, mp_tui_gauge_style_t style, long min, long max, unsigned char decimals, const char *unit);
+	/** green below warn, amber through alarm, red above */
+	void mp_tui_gauge_zones(mp_tui_gauge_t *gauge, long warn, long alarm);
+	void mp_tui_gauge_label(mp_tui_gauge_t *gauge, const char *label);
+	/** redraws only when the value or validity changes */
+	void mp_tui_gauge_set(mp_tui_gauge_t *gauge, long value, int valid);
 
 	/**
 	 * A table of columnCount columns and up to capacity rows.
@@ -554,6 +610,15 @@
 	/** home: up and down move, enter opens. page: up and down scroll, back steps out */
 	void mp_tui_key(mp_tui_t *ui, mp_tui_key_t key);
 
+	/** covers the display with image scaled to fit, a close cross top right; 0 when one is already up */
+	int mp_tui_fullscreen(mp_tui_t *ui, const mp_tui_image_t *image, mp_tui_close_t onClose, void *user);
+	/** redraws the image after the caller changed its pixels */
+	void mp_tui_fullscreen_update(mp_tui_t *ui);
+	/** same as a tap on the cross: onClose, then the page under it again */
+	void mp_tui_fullscreen_close(mp_tui_t *ui);
+	/** YES/non-zero while the fullscreen image is up */
+	int mp_tui_fullscreen_shown(mp_tui_t *ui);
+
 	/** moves the open page by dy pixels; a positive dy reveals what is below */
 	void mp_tui_scroll(mp_tui_t *ui, int dy);
 
@@ -567,10 +632,14 @@
 	void mp_tui_draw_frame(mp_tui_draw_t *draw, int x, int y, int w, int h, mp_tui_color_t color);
 	void mp_tui_draw_hline(mp_tui_draw_t *draw, int x, int y, int w, mp_tui_color_t color);
 	void mp_tui_draw_vline(mp_tui_draw_t *draw, int x, int y, int h, mp_tui_color_t color);
+	/** clipped Bresenham line; coordinates are on the display */
+	void mp_tui_draw_line(mp_tui_draw_t *draw, int x0, int y0, int x1, int y1, mp_tui_color_t color);
 	/** y is the top of the line; returns the pen position after the text */
 	int mp_tui_draw_text(mp_tui_draw_t *draw, const mp_tui_font_t *font, int x, int y, const char *text, mp_tui_color_t color);
 	/** w and h are the destination size; the bitmap is scaled to fit */
 	void mp_tui_draw_bitmap(mp_tui_draw_t *draw, const mp_tui_bitmap_t *bitmap, int x, int y, int w, int h);
+	/** nearest neighbor into w by h, clipped to the band; gray8 is MP_TUI_RGB(v, v, v) */
+	void mp_tui_draw_image(mp_tui_draw_t *draw, const mp_tui_image_t *image, int x, int y, int w, int h);
 
 	/* kernel */
 

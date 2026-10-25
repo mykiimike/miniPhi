@@ -80,6 +80,8 @@
 		unsigned long bootAt;
 		/** last time the frame was taken; video stops half a second after */
 		unsigned long watchAt;
+		/** floor at HIGH while frames stream; DMA leaves the CPU idle so the load alone would drop the clock under VoSPI */
+		mp_power_hold_t power;
 		/** raw ends of the frame being read, and the stretch used to store it */
 		unsigned short seenMin;
 		unsigned short seenMax;

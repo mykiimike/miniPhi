@@ -19,8 +19,8 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Home page. The logo, about, version, copyright, license, the flash, uptime, RAM and
- * the MCU sensors, and the buttons that open the sub-pages.
+ * Home page. The logo, about, version, copyright, license, the flash, uptime, RAM,
+ * dial gauges for the MCU sensors, and the buttons that open the sub-pages.
  */
 
 #include "../index.h"
@@ -123,13 +123,52 @@ static int _sysinfo_mcu_sensor(mp_kernel_t *kernel, mp_device_registry_t *sensor
 	}
 	return(1);
 }
+
+static int _sysinfo_mcu_list(mp_kernel_t *kernel, mp_device_registry_t **out, int max) {
+	mp_device_registry_t *sensor = NULL;
+	int n = 0;
+
+	while(n < max && (sensor = mp_device_measure_next(kernel, sensor)) != NULL) {
+		if(_sysinfo_mcu_sensor(kernel, sensor))
+			out[n++] = sensor;
+	}
+	return(n);
+}
+
+static void _sysinfo_sensor_gauge(mp_tui_gauge_t *gauge, mp_tui_widget_t *parent, int x, int y, int w, int h, mp_tui_gauge_style_t style, mp_device_registry_t *sensor) {
+	const char *label;
+	const char *unit;
+	long min, max, warn, alarm;
+	unsigned char decimals;
+
+	if(sensor->class == MP_DEVICE_TEMPERATURE) {
+		label = (sensor->label && sensor->label[0]) ? sensor->label : "Temperature";
+		min = -20000;
+		max = 85000;
+		warn = 60000;
+		alarm = 75000;
+		decimals = 1;
+		unit = "°C";
+	}
+	else {
+		label = (sensor->label && sensor->label[0]) ? sensor->label : "Voltage";
+		min = 2000;
+		max = 3600;
+		warn = max;
+		alarm = max;
+		decimals = 2;
+		unit = "V";
+	}
+	mp_tui_gauge(gauge, parent, x, y, w, h, style, min, max, decimals, unit);
+	mp_tui_gauge_zones(gauge, warn, alarm);
+	mp_tui_gauge_label(gauge, label);
+}
 #endif
 
 void _sysinfo_system_refresh(sysinfo_t *sysinfo) {
 	mp_kernel_t *kernel = &sysinfo->kernel;
 	unsigned long hz = mp_clock_tick_hz();
 	unsigned long seconds = hz ? mp_clock_ticks() / hz : 0;
-	int index = 0;
 
 	if(!sysinfo->screen.systemReady)
 		return;
@@ -182,31 +221,23 @@ void _sysinfo_system_refresh(sysinfo_t *sysinfo) {
 
 #ifdef SUPPORT_COMMON_DEVICE
 	{
-		mp_device_registry_t *sensor = NULL;
+		mp_device_registry_t *found[2];
 		float v[3];
+		int n, i;
 
-		while(index < 2 && (sensor = mp_device_measure_next(kernel, sensor)) != NULL) {
-			const char *label;
+		n = _sysinfo_mcu_list(kernel, found, 2);
+		for(i = 0; i < n; i++) {
+			mp_tui_gauge_t *gauge = &sysinfo->screen.sensorGauge[i];
 
-			if(!_sysinfo_mcu_sensor(kernel, sensor))
+			if(!gauge->widget.parent)
 				continue;
-			if(sensor->label && sensor->label[0])
-				label = sensor->label;
-			else if(sensor->class == MP_DEVICE_TEMPERATURE)
-				label = "Temperature";
+			if(mp_device_measure_read(found[i]->instance, v, NULL) != TRUE)
+				mp_tui_gauge_set(gauge, 0, 0);
 			else
-				label = "Voltage";
-			if(mp_device_measure_read(sensor->instance, v, NULL) != TRUE)
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: --", label);
-			else if(sensor->class == MP_DEVICE_TEMPERATURE)
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.1f °C", label, (double)v[0]);
-			else
-				mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s: %.3f V", label, (double)v[0]);
+				mp_tui_gauge_set(gauge, _sysinfo_milli(v[0]), 1);
 		}
 	}
 #endif
-	while(index < 2)
-		mp_tui_label_set(&sysinfo->screen.sensors[index++], "%s", "");
 }
 
 static void _sysinfo_on_tasks(mp_tui_button_t *button) {
@@ -372,10 +403,38 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 		inner += line;
 	}
 #endif
-	mp_tui_label_wrap(&sysinfo->screen.sensors[0], client, 6, &inner, innerW, line, font, "");
-	mp_tui_label_wrap(&sysinfo->screen.sensors[1], client, 6, &inner, innerW, line, font, "");
-	mp_tui_label_color(&sysinfo->screen.sensors[0], tui->theme.muted);
-	mp_tui_label_color(&sysinfo->screen.sensors[1], tui->theme.muted);
+#ifdef SUPPORT_COMMON_DEVICE
+	{
+		mp_device_registry_t *found[2];
+		int n = _sysinfo_mcu_list(kernel, found, 2);
+		int gap = 8;
+		int gw, gh, gx, i;
+		mp_tui_gauge_style_t style = MP_TUI_GAUGE_DIAL;
+
+		if(n > 0) {
+			gw = (innerW - gap * (n - 1)) / n;
+			if(gw > 128)
+				gw = 128;
+			if(gw < 100) {
+				style = MP_TUI_GAUGE_BAR;
+				gw = (innerW - gap * (n - 1)) / n;
+				if(gw < 16)
+					gw = 16;
+				gh = line * 3 + 8;
+			}
+			else
+				gh = gw * 3 / 4 + line;
+			gx = 6 + (innerW - (gw * n + gap * (n - 1))) / 2;
+			if(gx < 4)
+				gx = 4;
+			for(i = 0; i < n; i++) {
+				_sysinfo_sensor_gauge(&sysinfo->screen.sensorGauge[i], client, gx, inner, gw, gh, style, found[i]);
+				gx += gw + gap;
+			}
+			inner += gh + 2;
+		}
+	}
+#endif
 	mp_tui_resize(&sysinfo->screen.status.widget, width - 8, title + inner + 4);
 	y += sysinfo->screen.status.widget.rect.h + 8;
 

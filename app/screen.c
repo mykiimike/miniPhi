@@ -182,6 +182,8 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 	mp_device_input_fini(&sysinfo->screen.keys);
 #endif
 	_sysinfo_touch_run(sysinfo, NO);
+	/* the overlay reads the camera buffer; close it before the device does */
+	mp_tui_fullscreen_close(&sysinfo->screen.tui);
 	_sysinfo_camera_run(sysinfo, NO);
 	mp_tui_fini(&sysinfo->screen.tui);
 	mp_device_close(sysinfo->screen.display);

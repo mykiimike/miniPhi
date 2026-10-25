@@ -190,8 +190,10 @@ struct sysinfo_s {
 		mp_tui_label_t signInfo;
 		mp_tui_label_t signResult;
 #endif
-		/** die temperature and supply, the only sensors this page shows */
-		mp_tui_label_t sensors[2];
+		/** die temperature and supply: dials on the System page */
+		mp_tui_gauge_t sensorGauge[2];
+		/** temperature or voltage dial, or the accelerometer thermometer */
+		mp_tui_gauge_t measureGauge;
 		/** home entry "Power"; -1 until it is registered */
 		int powerIndex;
 		int powerReady;

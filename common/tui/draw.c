@@ -56,6 +56,37 @@ void mp_tui_draw_vline(mp_tui_draw_t *draw, int x, int y, int h, mp_tui_color_t 
 	mp_tui_draw_fill(draw, x, y, 1, h, color);
 }
 
+void mp_tui_draw_line(mp_tui_draw_t *draw, int x0, int y0, int x1, int y1, mp_tui_color_t color) {
+	int dx = x0 < x1 ? x1 - x0 : x0 - x1;
+	int dy = y0 < y1 ? y1 - y0 : y0 - y1;
+	int sx = x0 < x1 ? 1 : -1;
+	int sy = y0 < y1 ? 1 : -1;
+	int err = dx - dy;
+	int steps = dx + dy;
+	int x = x0, y = y0;
+	int n;
+	mp_tui_rect_t *clip = &draw->clip;
+
+	for(n = 0; n <= steps; n++) {
+		if(x >= clip->x && y >= clip->y && x < clip->x + clip->w && y < clip->y + clip->h)
+			draw->pixels[(y - draw->band.y) * draw->band.w + (x - draw->band.x)] = color;
+		if(x == x1 && y == y1)
+			break;
+		{
+			int e2 = err * 2;
+
+			if(e2 > -dy) {
+				err -= dy;
+				x += sx;
+			}
+			if(e2 < dx) {
+				err += dx;
+				y += sy;
+			}
+		}
+	}
+}
+
 void mp_tui_draw_frame(mp_tui_draw_t *draw, int x, int y, int w, int h, mp_tui_color_t color) {
 	if(w <= 0 || h <= 0)
 		return;
@@ -158,6 +189,54 @@ void mp_tui_draw_bitmap(mp_tui_draw_t *draw, const mp_tui_bitmap_t *bitmap, int 
 				row[px] = bitmap->pixels[index];
 			else if(level)
 				row[px] = _mp_tui_blend(row[px], bitmap->pixels[index], level);
+		}
+	}
+}
+
+void mp_tui_draw_image(mp_tui_draw_t *draw, const mp_tui_image_t *image, int x, int y, int w, int h) {
+	int x0 = x > draw->clip.x ? x : draw->clip.x;
+	int y0 = y > draw->clip.y ? y : draw->clip.y;
+	int x1 = x + w < draw->clip.x + draw->clip.w ? x + w : draw->clip.x + draw->clip.w;
+	int y1 = y + h < draw->clip.y + draw->clip.h ? y + h : draw->clip.y + draw->clip.h;
+	int rgb565, px, py, sx, sy;
+	uint32_t step, col;
+	const unsigned char *bytes;
+	const mp_tui_color_t *colors;
+
+	if(!image || !image->pixels || !image->w || !image->h || w <= 0 || h <= 0)
+		return;
+	if(x1 <= x0 || y1 <= y0)
+		return;
+
+	rgb565 = image->format == MP_TUI_IMAGE_RGB565;
+	bytes = image->pixels;
+	colors = image->pixels;
+	step = ((uint32_t)image->w << 16) / (uint32_t)w;
+	for(py=y0; py<y1; py++) {
+		mp_tui_color_t *row = draw->pixels + (py - draw->band.y) * draw->band.w - draw->band.x;
+		unsigned int src;
+
+		sy = (int)(((long)(py - y) * (long)image->h) / h);
+		if(sy < 0)
+			sy = 0;
+		if(sy >= (int)image->h)
+			sy = (int)image->h - 1;
+		src = (unsigned int)sy * image->w;
+		col = (uint32_t)(x0 - x) * step;
+		for(px=x0; px<x1; px++) {
+			sx = (int)(col >> 16);
+			if(sx < 0)
+				sx = 0;
+			if(sx >= (int)image->w)
+				sx = (int)image->w - 1;
+			if(rgb565)
+				row[px] = colors[src + (unsigned int)sx];
+			else {
+				unsigned char sample = bytes[src + (unsigned int)sx];
+
+				row[px] = MP_TUI_RGB(sample, sample, sample);
+			}
+			col += step;
 		}
 	}
 }

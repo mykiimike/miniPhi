@@ -38,6 +38,8 @@
 int _sysinfo_measure_beside(mp_device_registry_t *axis, mp_device_registry_t *other);
 /** fixed digits, no printf %f. sign YES leaves a leading space when positive */
 void _sysinfo_format_fixed(char *dst, int cap, float value, int decimals, mp_bool_t sign);
+/** milli-units, rounded, for a gauge */
+long _sysinfo_milli(float value);
 #endif
 
 void _sysinfo_dev_open(sysinfo_t *sysinfo);

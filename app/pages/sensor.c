@@ -28,6 +28,10 @@ int _sysinfo_measure_beside(mp_device_registry_t *axis, mp_device_registry_t *ot
 	return(other->driver == axis->driver && other->class == MP_DEVICE_TEMPERATURE);
 }
 
+long _sysinfo_milli(float value) {
+	return((long)(value * 1000.0f + (value >= 0.0f ? 0.5f : -0.5f)));
+}
+
 /* integer digits only: printf %f mallocs, and a failed malloc resets the chip */
 void _sysinfo_format_fixed(char *dst, int cap, float value, int decimals, mp_bool_t sign) {
 	int scale = 1;

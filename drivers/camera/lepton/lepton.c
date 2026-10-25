@@ -851,9 +851,13 @@ static MP_TASK(_lepton_task) {
 #endif
 		mp_gpio_set(lep->cs);
 		lep->phase = LEPTON_PHASE_IDLE;
+		if(lep->power.held == YES)
+			mp_power_release(lep->kernel, &lep->power);
 		mp_task_delay(task, _lepton_ticks(100));
 		return;
 	}
+	if(lep->power.held != YES)
+		mp_power_hold(lep->kernel, &lep->power, MP_POWER_HIGH, "Lepton");
 	if(lep->phase == LEPTON_PHASE_IDLE)
 		lep->phase = LEPTON_PHASE_SYNC;
 
@@ -997,6 +1001,8 @@ mp_ret_t mp_drv_lepton_init(mp_kernel_t *kernel, mp_drv_lepton_t *lep, mp_option
 }
 
 void mp_drv_lepton_fini(mp_drv_lepton_t *lep) {
+	if(lep->power.held == YES)
+		mp_power_release(lep->kernel, &lep->power);
 	_lepton_dma_stop(lep);
 	if(lep->task) {
 		mp_task_destroy(lep->task);
@@ -1031,6 +1037,10 @@ static mp_ret_t _lepton_device_open(mp_kernel_t *kernel, void *self, mp_options_
 }
 
 static void _lepton_device_close(void *self) {
+	mp_drv_lepton_t *lep = self;
+
+	if(lep->power.held == YES)
+		mp_power_release(lep->kernel, &lep->power);
 	mp_drv_lepton_fini(self);
 }
 
