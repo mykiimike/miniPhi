@@ -30,8 +30,10 @@
 static const char *_mp_device_registry_stem[MP_DEVICE_CLASS_COUNT] = {
 	"disp", "touch", "accel", "led", "video",
 	"temp", "gyro", "mag", "volt", "curr", "cpu", "button",
-	"baro", "alt", "power", "hum", "lux", "orient"
+	"baro", "alt", "power", "hum", "lux", "orient", "clock"
 };
+
+typedef char _mp_device_registry_stem_ok[(sizeof(_mp_device_registry_stem) / sizeof(_mp_device_registry_stem[0]) == MP_DEVICE_CLASS_COUNT) ? 1 : -1];
 
 static void _mp_device_registry_drop(mp_device_registry_t *device) {
 	mp_device_driver_t *driver = device->driver;

@@ -216,6 +216,8 @@ struct sysinfo_s {
 		int devClass;
 		int devRank;
 		char devTitle[32];
+		/** held while the clock view is on screen; that subscription runs the read */
+		mp_device_subscribe_t clockSub;
 		/** accelerometer view: the bubble, the axes, the companion temperature, the switch */
 		int accelReady;
 		mp_tui_columns_t accelLayout;

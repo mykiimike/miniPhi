@@ -288,6 +288,9 @@
 	#ifdef SUPPORT_DRV_LEPTON
 		#include <lepton/lepton.h>
 	#endif
+	#ifdef SUPPORT_DRV_DS1307
+		#include <ds1307/ds1307.h>
+	#endif
 
 	#define MP_KERNEL_VERSION "2.0.0"
 

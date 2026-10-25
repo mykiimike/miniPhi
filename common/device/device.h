@@ -83,6 +83,8 @@
 		MP_DEVICE_ILLUMINANCE,
 		/** address stem orient. A measure: mp_device_measure_t */
 		MP_DEVICE_ORIENTATION,
+		/** address stem clock. Instance: mp_device_time_t, a civil time */
+		MP_DEVICE_CLOCK,
 		/** not a class: the number of classes above, and the scan that visits every driver */
 		MP_DEVICE_CLASS_COUNT,
 		MP_DEVICE_ANY = MP_DEVICE_CLASS_COUNT
@@ -181,7 +183,7 @@
 		const char *description;
 		/** this driver's own version, not the miniPhi version */
 		const char *version;
-		/** classes is a mask of 1u << mp_device_class_t. unsigned int: up to 18 classes. */
+		/** classes is a mask of 1u << mp_device_class_t. One bit per class. */
 		unsigned int classes;
 		/** Claim the ports. NULL when the driver has none. FALSE leaves it unregistered. */
 		mp_ret_t (*load)(mp_kernel_t *kernel, mp_device_driver_t *driver, void *self, mp_options_t *options);
@@ -660,6 +662,44 @@
 	mp_bool_t mp_device_measure_class(mp_device_class_t class);
 	/** Walk the registered measures. after is the previous one, NULL for the first. */
 	mp_device_registry_t *mp_device_measure_next(mp_kernel_t *kernel, mp_device_registry_t *after);
+
+	/**
+	 * A clock: civil time. The driver owns an mp_device_time_t, registers it as
+	 * the instance, and publishes into it while a subscriber holds the driver.
+	 * A reader takes a coherent copy with mp_device_clock_read.
+	 * set asks the driver to write that time. TRUE means the request was queued.
+	 */
+	typedef struct mp_device_time_s mp_device_time_t;
+
+	struct mp_device_time_s {
+		/** 2000 to 2099 */
+		int year;
+		/** 1 to 12, 1 to 31, and 1 to 7 as the chip stores the day of week */
+		unsigned char month, day, wday;
+		/** 0 to 23, 0 to 59, 0 to 59 */
+		unsigned char hour, minute, second;
+		/** YES when the oscillator is running */
+		mp_bool_t running;
+		/** YES once a time was published */
+		mp_bool_t valid;
+		/** clock ticks of the last publication */
+		unsigned long stamp;
+		/** the driver. NULL when this copy is only a reading */
+		mp_ret_t (*set)(mp_device_time_t *clock, const mp_device_time_t *time);
+		void *user;
+	};
+
+	/** Subscribe and return the clock. NULL when the device is gone. */
+	mp_device_time_t *mp_device_clock(mp_device_registry_t *device, mp_device_subscribe_t *sub);
+	/** Publish one reading; interrupt safe, NULL ignored */
+	void mp_device_clock_publish(mp_device_time_t *clock, const mp_device_time_t *time);
+	/**
+	 * Copy the last publication.
+	 * @return FALSE when nothing was published yet
+	 */
+	mp_ret_t mp_device_clock_read(mp_device_time_t *clock, mp_device_time_t *out);
+	/** Queue a new time. FALSE when the driver gave no set, or set refused it. */
+	mp_ret_t mp_device_clock_set(mp_device_time_t *clock, const mp_device_time_t *time);
 
 	/**
 	 * Start the device manager, then the driver registry.
