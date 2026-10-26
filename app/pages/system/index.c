@@ -30,8 +30,16 @@
 #include <string.h>
 
 /* RAM: static data ends at _end, then the reserved heap; the stack sits at the top */
+#if defined(__GNUC__)
 extern uint32_t _end, _estack;
 extern char __heap_size, __stack_size;
+#endif
+#if defined(__TI_COMPILER_VERSION__)
+extern char __STACK_END, __STACK_SIZE;
+/* one byte in its own section, linked after the low RAM allocations */
+#pragma DATA_SECTION(__mp_data_end, ".mp_data_end")
+char __mp_data_end;
+#endif
 
 typedef struct {
 	unsigned long size;
@@ -39,6 +47,8 @@ typedef struct {
 	unsigned long written;
 	unsigned long freeAt;
 } sysinfo_flash_t;
+
+#if defined(FLASH_SIZE_KB) && defined(MP_FLASH_PAGE_SIZE) && defined(MP_FLASH_ORIGIN)
 
 static unsigned long _sysinfo_flash_bytes(void) {
 	unsigned long kb = FLASH_SIZE_KB;
@@ -111,6 +121,19 @@ static void _sysinfo_flash_state(char *text, size_t size) {
 		snprintf(text, size, "State    %s, %s", lock, guard);
 }
 
+#else
+
+static void _sysinfo_flash_measure(sysinfo_flash_t *flash) {
+	memset(flash, 0, sizeof(*flash));
+	flash->size = (unsigned long)PHI_BUILD_FLASH;
+}
+
+static void _sysinfo_flash_state(char *text, size_t size) {
+	snprintf(text, size, "State    not measured");
+}
+
+#endif
+
 #ifdef SUPPORT_COMMON_DEVICE
 static int _sysinfo_mcu_sensor(mp_kernel_t *kernel, mp_device_registry_t *sensor) {
 	mp_device_registry_t *axis = NULL;
@@ -170,7 +193,7 @@ void _sysinfo_system_refresh(sysinfo_t *sysinfo) {
 	unsigned long hz = mp_clock_tick_hz();
 	unsigned long seconds = hz ? mp_clock_ticks() / hz : 0;
 
-	if(!sysinfo->screen.systemReady)
+	if(!sysinfo->screen.systemReady || sysinfo->screen.tui.opened != sysinfo->screen.systemIndex)
 		return;
 
 	{
@@ -192,16 +215,29 @@ void _sysinfo_system_refresh(sysinfo_t *sysinfo) {
 	mp_tui_bar_set(&sysinfo->screen.taskBar, kernel->tasks.usedNumber);
 	{
 		unsigned long total = (unsigned long)PHI_BUILD_RAM;
-		unsigned long origin = (unsigned long)&_estack - total;
 		unsigned long used = 0;
 		unsigned long usedKb, totalKb;
 
-		if((unsigned long)&_end >= origin) {
-			used = (unsigned long)&_end - origin;
-			used += (unsigned long)&__heap_size + (unsigned long)&__stack_size;
-			if(used > total)
-				used = total;
+#if defined(__TI_COMPILER_VERSION__)
+		{
+			unsigned long origin = (unsigned long)&__STACK_END - total;
+			unsigned long dataEnd = (unsigned long)&__mp_data_end;
+
+			if(dataEnd >= origin)
+				used = dataEnd - origin + (unsigned long)&__STACK_SIZE;
 		}
+#else
+		{
+			unsigned long origin = (unsigned long)&_estack - total;
+
+			if((unsigned long)&_end >= origin) {
+				used = (unsigned long)&_end - origin;
+				used += (unsigned long)&__heap_size + (unsigned long)&__stack_size;
+			}
+		}
+#endif
+		if(used > total)
+			used = total;
 		totalKb = total / 1024UL;
 		usedKb = (used + 1023UL) / 1024UL;
 		if(usedKb > totalKb)
@@ -336,10 +372,14 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 		used = (info.size - info.blank) / 1024UL;
 		if(used > total)
 			used = total;
+#if !defined(MP_FLASH_PAGE_SIZE)
+		used = 0;
+#endif
 
 		inner = 2;
 		mp_tui_window(&sysinfo->screen.flash, page, 4, y, width - 8, title + inner + 4, "Flash");
 		client = MP_TUI_WIDGET(&sysinfo->screen.flash);
+#if defined(MP_FLASH_PAGE_SIZE)
 		if(info.size != (unsigned long)PHI_BUILD_FLASH)
 			snprintf(text, sizeof(text), "Size     %lu KB chip, build %lu KB, page %lu KB",
 				info.size / 1024UL, (unsigned long)PHI_BUILD_FLASH / 1024UL,
@@ -347,12 +387,20 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 		else
 			snprintf(text, sizeof(text), "Size     %lu KB, page %lu KB",
 				info.size / 1024UL, (unsigned long)MP_FLASH_PAGE_SIZE / 1024UL);
+#else
+		snprintf(text, sizeof(text), "Size     %lu KB", info.size / 1024UL);
+#endif
 		mp_tui_label_wrap(&sysinfo->screen.flashSize, client, 6, &inner, innerW, line, font, text);
+#if defined(MP_FLASH_PAGE_SIZE)
 		snprintf(text, sizeof(text), "Used     %lu / %lu KB", used, total);
+#else
+		snprintf(text, sizeof(text), "Used     not measured");
+#endif
 		mp_tui_label_wrap(&sysinfo->screen.flashUsed, client, 6, &inner, innerW, line, font, text);
 		mp_tui_bar(&sysinfo->screen.flashBar, client, 6, inner + 2, innerW, barH, total > 0 ? (int)total : 1);
 		mp_tui_bar_set(&sysinfo->screen.flashBar, (int)used);
 		inner += line;
+#if defined(MP_FLASH_PAGE_SIZE)
 		if(info.written)
 			snprintf(text, sizeof(text), "Free     %lu KB blank, %lu KB written",
 				info.blank / 1024UL, info.written / 1024UL);
@@ -361,6 +409,9 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 				info.blank / 1024UL, info.freeAt);
 		else
 			snprintf(text, sizeof(text), "Free     none");
+#else
+		snprintf(text, sizeof(text), "Free     not measured");
+#endif
 		mp_tui_label_wrap(&sysinfo->screen.flashFree, client, 6, &inner, innerW, line, font, text);
 		_sysinfo_flash_state(state, sizeof(state));
 		mp_tui_label_wrap(&sysinfo->screen.flashState, client, 6, &inner, innerW, line, font, state);
@@ -438,25 +489,30 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	mp_tui_resize(&sysinfo->screen.status.widget, width - 8, title + inner + 4);
 	y += sysinfo->screen.status.widget.rect.h + 8;
 
-	mp_tui_button(&sysinfo->screen.taskManager, page, 12, y, width - 24, line + 18, "Task manager");
-	sysinfo->screen.taskManager.chevron = 1;
-	sysinfo->screen.taskManager.onPress = _sysinfo_on_tasks;
-	sysinfo->screen.taskManager.user = sysinfo;
-	y += line + 18 + 6;
+	{
+		int h = page->tui->pointer ? line + 18 : font->lineHeight;
+		int gap = page->tui->pointer ? 6 : 1;
 
-	mp_tui_button(&sysinfo->screen.devicesButton, page, 12, y, width - 24, line + 18, "Drivers");
-	sysinfo->screen.devicesButton.chevron = 1;
-	sysinfo->screen.devicesButton.onPress = _sysinfo_on_devices;
-	sysinfo->screen.devicesButton.user = sysinfo;
-	y += line + 18 + 6;
+		mp_tui_button(&sysinfo->screen.taskManager, page, 12, y, width - 24, h, "Task manager");
+		sysinfo->screen.taskManager.chevron = 1;
+		sysinfo->screen.taskManager.onPress = _sysinfo_on_tasks;
+		sysinfo->screen.taskManager.user = sysinfo;
+		y += h + gap;
+
+		mp_tui_button(&sysinfo->screen.devicesButton, page, 12, y, width - 24, h, "Drivers");
+		sysinfo->screen.devicesButton.chevron = 1;
+		sysinfo->screen.devicesButton.onPress = _sysinfo_on_devices;
+		sysinfo->screen.devicesButton.user = sysinfo;
+		y += h + gap;
 
 #ifdef SUPPORT_COMMON_USB
-	mp_tui_button(&sysinfo->screen.usbButton, page, 12, y, width - 24, line + 18, "USB");
-	sysinfo->screen.usbButton.chevron = 1;
-	sysinfo->screen.usbButton.onPress = _sysinfo_on_usb;
-	sysinfo->screen.usbButton.user = sysinfo;
-	y += line + 18 + 6;
+		mp_tui_button(&sysinfo->screen.usbButton, page, 12, y, width - 24, h, "USB");
+		sysinfo->screen.usbButton.chevron = 1;
+		sysinfo->screen.usbButton.onPress = _sysinfo_on_usb;
+		sysinfo->screen.usbButton.user = sysinfo;
+		y += h + gap;
 #endif
+	}
 	y += 2;
 
 	/* under the panels when the page is full, on the bottom edge when it fits */
@@ -475,7 +531,11 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 }
 
 int _sysinfo_system_open(sysinfo_t *sysinfo) {
-	return(mp_tui_app(&sysinfo->screen.tui, "System", _sysinfo_system, sysinfo) ? 1 : 0);
+	sysinfo->screen.systemIndex = -1;
+	if(!mp_tui_app(&sysinfo->screen.tui, "System", _sysinfo_system, sysinfo))
+		return(0);
+	sysinfo->screen.systemIndex = sysinfo->screen.tui.appCount - 1;
+	return(1);
 }
 
 #endif

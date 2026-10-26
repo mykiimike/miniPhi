@@ -139,6 +139,7 @@ SECTIONS
     .data       : {} > RAM                  /* Global & static vars              */
 
     .sysmem     : {} > RAM                  /* Dynamic memory allocation area    */
+    .mp_data_end : {} > RAM                  /* one byte past the low RAM allocations */
     .stack      : {} > RAM (HIGH)           /* Software system stack             */
 
     .text       : {}>> FLASH2 | FLASH       /* Code                              */

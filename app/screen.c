@@ -33,7 +33,11 @@
 /* four rows: eight no longer fit once the Lepton frame is in RAM */
 #define SYSINFO_SCREEN_ROWS 4
 
-static mp_tui_color_t _sysinfo_pixels[320 * SYSINFO_SCREEN_ROWS];
+#ifndef SYSINFO_SCREEN_COLUMNS
+#define SYSINFO_SCREEN_COLUMNS 320
+#endif
+
+static mp_tui_color_t _sysinfo_pixels[SYSINFO_SCREEN_COLUMNS * SYSINFO_SCREEN_ROWS];
 
 static MP_TASK(_sysinfo_screen);
 
@@ -145,6 +149,8 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 		return;
 	}
 	mp_tui_hibernate(tui, sysinfo->hibernate == YES);
+	/* a touch panel keeps the finger-sized chrome; without one the rows are one text line */
+	mp_tui_nav(tui, mp_device_registry_find(kernel, MP_DEVICE_TOUCH, 0) != NULL);
 	sysinfo->screen.display = display;
 
 	if(_sysinfo_pages_open(sysinfo) == 0) {
@@ -240,7 +246,8 @@ mp_bool_t _sysinfo_accel_shown(sysinfo_t *sysinfo) {
 }
 
 void _sysinfo_screen_open(sysinfo_t *sysinfo) {
-	(void)sysinfo;
+	/* no TUI in this image: opening the panel leaves the driver's picture on the glass */
+	mp_device_open(&sysinfo->kernel, mp_device_find(MP_DEVICE_DISPLAY, 0));
 }
 
 void _sysinfo_screen_close(sysinfo_t *sysinfo) {

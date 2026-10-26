@@ -21,46 +21,38 @@
 #ifndef _HAVE_MP_DRV_LCD_NOKIA3310_H
 	#define _HAVE_MP_DRV_LCD_NOKIA3310_H
 
-	#ifdef SUPPORT_DRV_LCD_NOKIA3310
+	/**
+	 * Philips PCD8544, the 84x48 panel of the Nokia 3310, on SPI.
+	 * Chip select is a GPIO held low around each command or page.
+	 * With the TUI module, the struct starts with an mp_tui_display_t and
+	 * the device face is that display: write() turns RGB565 into the 1-bit
+	 * pages, flush() ships the pages that changed.
+	 */
 
-		typedef struct mp_drv_nokia3310_s mp_drv_nokia3310_t;
+	typedef struct mp_drv_nokia3310_s mp_drv_nokia3310_t;
 
-		struct mp_drv_nokia3310_s {
-			/* */
-			mp_kernel_t *kernel;
+	struct mp_drv_nokia3310_s {
+#ifdef SUPPORT_COMMON_TUI
+		mp_tui_display_t display;
+#endif
+		mp_kernel_t *kernel;
+		mp_spi_t spi;
+		mp_gpio_port_t *dc;
+		mp_gpio_port_t *reset;
+		mp_gpio_port_t *cs;
+		/** 6 pages of 84 columns; the low bit is the top pixel of the page */
+		unsigned char gram[6 * 84];
+		unsigned char dirty;
+		unsigned char vop;
+		unsigned char on;
+	};
 
-			/* SPI interface */
-			mp_spi_t spi;
+	mp_ret_t mp_drv_nokia3310_init(mp_kernel_t *kernel, mp_drv_nokia3310_t *lcd, mp_options_t *options, char *who);
+	mp_ret_t mp_drv_nokia3310_fini(mp_drv_nokia3310_t *lcd);
 
-			/** DC port */
-			mp_gpio_port_t *dc;
+#ifdef SUPPORT_COMMON_DEVICE
+	/** an MP_DEVICE_DISPLAY */
+	extern const mp_device_ops_t mp_drv_nokia3310_device;
+#endif
 
-			/** Contrast port */
-			mp_gpio_port_t *res;
-
-			/* LCD memory */
-			unsigned char LCDMemory[504];
-
-			/* Reverse mode ? */
-			unsigned char inverse;
-
-			/* Global LCD memory position */
-			int index;
-
-			/** LCD TX position */
-			int txX;
-			int txY;
-
-		};
-
-		mp_ret_t mp_drv_nokia3310_init(mp_kernel_t *kernel, mp_drv_nokia3310_t *drv, mp_options_t *options, char *who);
-		mp_ret_t mp_drv_nokia3310_fini(mp_drv_nokia3310_t *drv);
-		void mp_drv_nokia3310_update(mp_drv_nokia3310_t *drv);
-		void mp_drv_nokia3310_clear(mp_drv_nokia3310_t *drv);
-		void mp_drv_nokia3310_contrast(mp_drv_nokia3310_t *drv, unsigned char contrast);
-		void mp_drv_nokia3310_write(mp_drv_nokia3310_t *drv, unsigned char *a, int l);
-		void mp_drv_nokia3310_writePos(mp_drv_nokia3310_t *drv, unsigned char *str, int l, int pos);
-		unsigned char *mp_drv_nokia3310_getMemory(mp_drv_nokia3310_t *drv);
-		void mp_drv_nokia3310_clearMemory(mp_drv_nokia3310_t *drv);
-	#endif
 #endif

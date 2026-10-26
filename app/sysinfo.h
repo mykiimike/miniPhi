@@ -106,111 +106,35 @@ struct sysinfo_s {
 		int touchCount;
 #endif
 		int systemReady;
-		mp_tui_widget_t logo;
-		mp_tui_label_t heading;
-		mp_tui_label_t copyright;
-		mp_tui_label_t license;
-		mp_tui_window_t system;
-		mp_tui_window_t status;
-		mp_tui_label_t board;
-		mp_tui_label_t cpu;
-		mp_tui_label_t clock;
-		mp_tui_label_t memory;
-		mp_tui_window_t flash;
-		mp_tui_label_t flashSize;
-		mp_tui_label_t flashUsed;
-		mp_tui_bar_t flashBar;
-		mp_tui_label_t flashFree;
-		mp_tui_label_t flashState;
-#ifdef SUPPORT_COMMON_KFLASH
-		mp_tui_label_t flashStore;
-#endif
-		mp_tui_label_t build;
-		mp_tui_label_t target;
-		mp_tui_label_t uptime;
-		mp_tui_label_t tasks;
-		mp_tui_bar_t taskBar;
-		mp_tui_label_t ram;
-		mp_tui_bar_t ramBar;
-#ifdef SUPPORT_COMMON_MEM
-		mp_tui_label_t pool;
-		mp_tui_bar_t poolBar;
-#endif
+		/** home entry System; -1 until it is registered */
+		int systemIndex;
 		/** sub-pages of System; -1 until they are registered */
 		int tasksIndex;
 		int tasksReady;
-		mp_tui_button_t taskManager;
-		mp_tui_label_t taskCount;
-		mp_tui_table_t taskTable;
-		mp_tui_cell_t taskCell[MP_TASK_MAX][4];
 		/** per kernel task slot: runs at taskAt, and wake ups per second since the one before */
 		unsigned long taskRuns[MP_TASK_MAX];
 		unsigned long taskRate[MP_TASK_MAX];
 		unsigned long taskAt;
 		int devicesIndex;
 		int devicesReady;
-		mp_tui_button_t devicesButton;
-		mp_tui_label_t deviceCount;
-		mp_tui_table_t deviceTable;
-		mp_tui_cell_t deviceCell[MP_DEVICE_MAX][3];
 #ifdef SUPPORT_COMMON_USB
 		int usbIndex;
 		int usbReady;
-		mp_tui_button_t usbButton;
-		mp_tui_label_t usbCount;
-		mp_tui_table_t usbTable;
-		mp_tui_cell_t usbCell[MP_USB_PORT_MAX][4];
 #endif
 		/** class page, then the algorithm; the detail says if that one is accelerated */
 		int cryptoClass;
 		int cryptoDetail;
 		int cryptoPick;
 		const char *cryptoFamily;
-		/**
-		 * Buttons of whichever list is on screen. Cryptography and Devices
-		 * are never built together: opening one clears the page and fills these again.
-		 */
-		union {
-			mp_tui_button_t crypto[MP_CRYPTO_MAX];
-			mp_tui_button_t device[MP_CRYPTO_MAX];
-		} menu;
-		mp_tui_label_t cryptoState;
 #ifdef SUPPORT_COMMON_CRYPTO_RNG
 		/** RNG class page: the generator, a fresh number every 500 ms, then the algorithms */
 		int rngShown;
 		unsigned long rngLast;
-		mp_tui_label_t rngGenerator;
-		mp_tui_label_t rngValue;
-		mp_tui_label_t rngHeading;
 #endif
-#ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
-		/** HMAC and HMAC-DRBG: the hashes they run over, and whether the chip accelerates them */
-		mp_tui_table_t cryptoTable;
-		mp_tui_cell_t cryptoCell[MP_CRYPTO_MAX][3];
-#endif
-#ifdef SUPPORT_COMMON_CRYPTO_SIGN
-		/** a signature: key and signature sizes, then the self-test */
-		mp_tui_label_t signInfo;
-		mp_tui_label_t signResult;
-#endif
-		/** die temperature and supply: dials on the System page */
-		mp_tui_gauge_t sensorGauge[2];
-		/** temperature or voltage dial, or the accelerometer thermometer */
-		mp_tui_gauge_t measureGauge;
 		/** home entry "Power"; -1 until it is registered */
 		int powerIndex;
 		int powerReady;
-		mp_tui_switch_t powerSwitch;
-		mp_tui_switch_t powerHibernate;
-		mp_tui_label_t powerLevel;
-		mp_tui_label_t powerGovernor;
-		/** figures, then the supply sensors found when the page was built */
-		mp_tui_table_t powerTable;
-		mp_tui_cell_t powerCell[SYSINFO_POWER_ROWS][2];
 		int powerSensorRows;
-		mp_tui_label_t powerHolds;
-		mp_tui_table_t powerLevels;
-		mp_tui_cell_t powerLevelCell[MP_POWER_LEVELS][4];
 #ifdef SUPPORT_COMMON_DEVICE
 		/** home entry Devices, then the category, then the device; -1 until registered */
 		int devIndex;
@@ -223,19 +147,136 @@ struct sysinfo_s {
 		mp_device_subscribe_t clockSub;
 		/** accelerometer view: the bubble, the axes, the companion temperature, the switch */
 		int accelReady;
-		mp_tui_columns_t accelLayout;
-		sysinfo_level_t level;
-		mp_tui_label_t accelName;
-		mp_tui_label_t accelX;
-		mp_tui_label_t accelY;
-		mp_tui_label_t accelZ;
-		mp_tui_label_t accelTemperature;
-		mp_tui_switch_t accelSwitch;
 		/** camera view */
 		unsigned long cameraSequence;
-		mp_tui_label_t cameraState;
-		sysinfo_camera_view_t cameraPicture;
 #endif
+		/**
+		 * One page is built at a time, and Back builds the previous one again.
+		 * The arms share their memory. A refresh runs only while its page is the
+		 * one on screen, so it never writes an arm that a later page has reused.
+		 */
+		union {
+			/** System */
+			struct {
+				mp_tui_widget_t logo;
+				mp_tui_label_t heading;
+				mp_tui_label_t copyright;
+				mp_tui_label_t license;
+				mp_tui_window_t system;
+				mp_tui_window_t status;
+				mp_tui_label_t board;
+				mp_tui_label_t cpu;
+				mp_tui_label_t clock;
+				mp_tui_label_t memory;
+				mp_tui_window_t flash;
+				mp_tui_label_t flashSize;
+				mp_tui_label_t flashUsed;
+				mp_tui_bar_t flashBar;
+				mp_tui_label_t flashFree;
+				mp_tui_label_t flashState;
+#ifdef SUPPORT_COMMON_KFLASH
+				mp_tui_label_t flashStore;
+#endif
+				mp_tui_label_t build;
+				mp_tui_label_t target;
+				mp_tui_label_t uptime;
+				mp_tui_label_t tasks;
+				mp_tui_bar_t taskBar;
+				mp_tui_label_t ram;
+				mp_tui_bar_t ramBar;
+#ifdef SUPPORT_COMMON_MEM
+				mp_tui_label_t pool;
+				mp_tui_bar_t poolBar;
+#endif
+				mp_tui_button_t taskManager;
+				mp_tui_button_t devicesButton;
+#ifdef SUPPORT_COMMON_USB
+				mp_tui_button_t usbButton;
+#endif
+				/** die temperature and supply */
+				mp_tui_gauge_t sensorGauge[2];
+			};
+			/** Task manager */
+			struct {
+				mp_tui_label_t taskCount;
+				mp_tui_table_t taskTable;
+				mp_tui_cell_t taskCell[MP_TASK_MAX][4];
+			};
+			/** Drivers */
+			struct {
+				mp_tui_label_t deviceCount;
+				mp_tui_table_t deviceTable;
+				mp_tui_cell_t deviceCell[MP_DEVICE_MAX][3];
+			};
+#ifdef SUPPORT_COMMON_USB
+			/** USB */
+			struct {
+				mp_tui_label_t usbCount;
+				mp_tui_table_t usbTable;
+				mp_tui_cell_t usbCell[MP_USB_PORT_MAX][4];
+			};
+#endif
+			/**
+			 * Buttons of whichever list is on screen. Cryptography and Devices
+			 * are never built together: opening one clears the page and fills these again.
+			 * The RNG lines sit on the cryptography class page, with the buttons.
+			 */
+			struct {
+				union {
+					mp_tui_button_t crypto[MP_CRYPTO_MAX];
+					mp_tui_button_t device[MP_CRYPTO_MAX];
+				} menu;
+#ifdef SUPPORT_COMMON_CRYPTO_RNG
+				mp_tui_label_t rngGenerator;
+				mp_tui_label_t rngValue;
+				mp_tui_label_t rngHeading;
+#endif
+			};
+			/** one algorithm */
+			struct {
+				mp_tui_label_t cryptoState;
+#ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
+				/** HMAC and HMAC-DRBG: the hashes they run over, and whether the chip accelerates them */
+				mp_tui_table_t cryptoTable;
+				mp_tui_cell_t cryptoCell[MP_CRYPTO_MAX][3];
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_SIGN
+				/** a signature: key and signature sizes, then the self-test */
+				mp_tui_label_t signInfo;
+				mp_tui_label_t signResult;
+#endif
+			};
+			/** Power */
+			struct {
+				mp_tui_switch_t powerSwitch;
+				mp_tui_switch_t powerHibernate;
+				mp_tui_label_t powerLevel;
+				mp_tui_label_t powerGovernor;
+				/** figures, then the supply sensors found when the page was built */
+				mp_tui_table_t powerTable;
+				mp_tui_cell_t powerCell[SYSINFO_POWER_ROWS][2];
+				mp_tui_label_t powerHolds;
+				mp_tui_table_t powerLevels;
+				mp_tui_cell_t powerLevelCell[MP_POWER_LEVELS][4];
+			};
+#ifdef SUPPORT_COMMON_DEVICE
+			/** one device: bubble, dial, or the camera picture */
+			struct {
+				mp_tui_columns_t accelLayout;
+				sysinfo_level_t level;
+				mp_tui_label_t accelName;
+				mp_tui_label_t accelX;
+				mp_tui_label_t accelY;
+				mp_tui_label_t accelZ;
+				mp_tui_label_t accelTemperature;
+				mp_tui_switch_t accelSwitch;
+				/** temperature or voltage dial, or the accelerometer thermometer */
+				mp_tui_gauge_t measureGauge;
+				mp_tui_label_t cameraState;
+				sysinfo_camera_view_t cameraPicture;
+			};
+#endif
+		};
 	} screen;
 #endif
 };

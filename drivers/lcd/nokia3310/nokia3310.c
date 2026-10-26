@@ -22,282 +22,345 @@
 
 #ifdef SUPPORT_DRV_LCD_NOKIA3310
 
-#define __LCD_FREQ  1000000
+#define _NOKIA_W 84
+#define _NOKIA_H 48
+#define _NOKIA_PAGES 6
 
-//LCD definitions +
-#define __SEND_CMD   0
-#define __SEND_CHR   1
-#define __SEND_FLUSH 2
-#define __LCD_X_RES                  84
-#define __LCD_Y_RES                  48
-#define __LCD_START_LINE_ADDR     (66-2)
-
-static const unsigned char FontLookup[][5] = {
-	{ 0x00, 0x00, 0x00, 0x00, 0x00 },  // sp
-	{ 0x00, 0x00, 0x2f, 0x00, 0x00 },   // !
-	{ 0x00, 0x07, 0x00, 0x07, 0x00 },   // "
-	{ 0x14, 0x7f, 0x14, 0x7f, 0x14 },   // #
-	{ 0x24, 0x2a, 0x7f, 0x2a, 0x12 },   // $
-	{ 0xc4, 0xc8, 0x10, 0x26, 0x46 },   // %
-	{ 0x36, 0x49, 0x55, 0x22, 0x50 },   // &
-	{ 0x00, 0x05, 0x03, 0x00, 0x00 },   // '
-	{ 0x00, 0x1c, 0x22, 0x41, 0x00 },   // (
-	{ 0x00, 0x41, 0x22, 0x1c, 0x00 },   // )
-	{ 0x14, 0x08, 0x3E, 0x08, 0x14 },   // *
-	{ 0x08, 0x08, 0x3E, 0x08, 0x08 },   // +
-	{ 0x00, 0x00, 0x50, 0x30, 0x00 },   // ,
-	{ 0x10, 0x10, 0x10, 0x10, 0x10 },   // -
-	{ 0x00, 0x60, 0x60, 0x00, 0x00 },   // .
-	{ 0x20, 0x10, 0x08, 0x04, 0x02 },   // /
-	{ 0x3E, 0x51, 0x49, 0x45, 0x3E },   // 0
-	{ 0x00, 0x42, 0x7F, 0x40, 0x00 },   // 1
-	{ 0x42, 0x61, 0x51, 0x49, 0x46 },   // 2
-	{ 0x21, 0x41, 0x45, 0x4B, 0x31 },   // 3
-	{ 0x18, 0x14, 0x12, 0x7F, 0x10 },   // 4
-	{ 0x27, 0x45, 0x45, 0x45, 0x39 },   // 5
-	{ 0x3C, 0x4A, 0x49, 0x49, 0x30 },   // 6
-	{ 0x01, 0x71, 0x09, 0x05, 0x03 },   // 7
-	{ 0x36, 0x49, 0x49, 0x49, 0x36 },   // 8
-	{ 0x06, 0x49, 0x49, 0x29, 0x1E },   // 9
-	{ 0x00, 0x36, 0x36, 0x00, 0x00 },   // :
-	{ 0x00, 0x56, 0x36, 0x00, 0x00 },   // ;
-	{ 0x08, 0x14, 0x22, 0x41, 0x00 },   // <
-	{ 0x14, 0x14, 0x14, 0x14, 0x14 },   // =
-	{ 0x00, 0x41, 0x22, 0x14, 0x08 },   // >
-	{ 0x02, 0x01, 0x51, 0x09, 0x06 },   // ?
-	{ 0x32, 0x49, 0x59, 0x51, 0x3E },   // @
-	{ 0x7E, 0x11, 0x11, 0x11, 0x7E },   // A
-	{ 0x7F, 0x49, 0x49, 0x49, 0x36 },   // B
-	{ 0x3E, 0x41, 0x41, 0x41, 0x22 },   // C
-	{ 0x7F, 0x41, 0x41, 0x22, 0x1C },   // D
-	{ 0x7F, 0x49, 0x49, 0x49, 0x41 },   // E
-	{ 0x7F, 0x09, 0x09, 0x09, 0x01 },   // F
-	{ 0x3E, 0x41, 0x49, 0x49, 0x7A },   // G
-	{ 0x7F, 0x08, 0x08, 0x08, 0x7F },   // H
-	{ 0x00, 0x41, 0x7F, 0x41, 0x00 },   // I
-	{ 0x20, 0x40, 0x41, 0x3F, 0x01 },   // J
-	{ 0x7F, 0x08, 0x14, 0x22, 0x41 },   // K
-	{ 0x7F, 0x40, 0x40, 0x40, 0x40 },   // L
-	{ 0x7F, 0x02, 0x0C, 0x02, 0x7F },   // M
-	{ 0x7F, 0x04, 0x08, 0x10, 0x7F },   // N
-	{ 0x3E, 0x41, 0x41, 0x41, 0x3E },   // O
-	{ 0x7F, 0x09, 0x09, 0x09, 0x06 },   // P
-	{ 0x3E, 0x41, 0x51, 0x21, 0x5E },   // Q
-	{ 0x7F, 0x09, 0x19, 0x29, 0x46 },   // R
-	{ 0x46, 0x49, 0x49, 0x49, 0x31 },   // S
-	{ 0x01, 0x01, 0x7F, 0x01, 0x01 },   // T
-	{ 0x3F, 0x40, 0x40, 0x40, 0x3F },   // U
-	{ 0x1F, 0x20, 0x40, 0x20, 0x1F },   // V
-	{ 0x3F, 0x40, 0x38, 0x40, 0x3F },   // W
-	{ 0x63, 0x14, 0x08, 0x14, 0x63 },   // X
-	{ 0x07, 0x08, 0x70, 0x08, 0x07 },   // Y
-	{ 0x61, 0x51, 0x49, 0x45, 0x43 },   // Z
-	{ 0x00, 0x7F, 0x41, 0x41, 0x00 },   // [
-	{ 0x55, 0x2A, 0x55, 0x2A, 0x55 },   // 55
-	{ 0x00, 0x41, 0x41, 0x7F, 0x00 },   // ]
-	{ 0x04, 0x02, 0x01, 0x02, 0x04 },   // ^
-	{ 0x40, 0x40, 0x40, 0x40, 0x40 },   // _
-	{ 0x00, 0x01, 0x02, 0x04, 0x00 },   // '
-	{ 0x20, 0x54, 0x54, 0x54, 0x78 },   // a
-	{ 0x7F, 0x48, 0x44, 0x44, 0x38 },   // b
-	{ 0x38, 0x44, 0x44, 0x44, 0x20 },   // c
-	{ 0x38, 0x44, 0x44, 0x48, 0x7F },   // d
-	{ 0x38, 0x54, 0x54, 0x54, 0x18 },   // e
-	{ 0x08, 0x7E, 0x09, 0x01, 0x02 },   // f
-	{ 0x0C, 0x52, 0x52, 0x52, 0x3E },   // g
-	{ 0x7F, 0x08, 0x04, 0x04, 0x78 },   // h
-	{ 0x00, 0x44, 0x7D, 0x40, 0x00 },   // i
-	{ 0x20, 0x40, 0x44, 0x3D, 0x00 },   // j
-	{ 0x7F, 0x10, 0x28, 0x44, 0x00 },   // k
-	{ 0x00, 0x41, 0x7F, 0x40, 0x00 },   // l
-	{ 0x7C, 0x04, 0x18, 0x04, 0x78 },   // m
-	{ 0x7C, 0x08, 0x04, 0x04, 0x78 },   // n
-	{ 0x38, 0x44, 0x44, 0x44, 0x38 },   // o
-	{ 0x7C, 0x14, 0x14, 0x14, 0x08 },   // p
-	{ 0x08, 0x14, 0x14, 0x18, 0x7C },   // q
-	{ 0x7C, 0x08, 0x04, 0x04, 0x08 },   // r
-	{ 0x48, 0x54, 0x54, 0x54, 0x20 },   // s
-	{ 0x04, 0x3F, 0x44, 0x40, 0x20 },   // t
-	{ 0x3C, 0x40, 0x40, 0x20, 0x7C },   // u
-	{ 0x1C, 0x20, 0x40, 0x20, 0x1C },   // v
-	{ 0x3C, 0x40, 0x30, 0x40, 0x3C },   // w
-	{ 0x44, 0x28, 0x10, 0x28, 0x44 },   // x
-	{ 0x0C, 0x50, 0x50, 0x50, 0x3C },   // y
-	{ 0x44, 0x64, 0x54, 0x4C, 0x44 },   // z
-	{ 0x08, 0x6C, 0x6A, 0x19, 0x08 },   // {
-	{ 0x30, 0x4E, 0x61, 0x4E, 0x30 }    // |
+/* "miniPhi" in 5x7 columns, a 0 between letters. Bit 0 is the top pixel. */
+static const unsigned char _nokia_name[] = {
+	0x7C, 0x04, 0x18, 0x04, 0x78, 0,
+	0x00, 0x44, 0x7D, 0x40, 0x00, 0,
+	0x7C, 0x08, 0x04, 0x04, 0x78, 0,
+	0x00, 0x44, 0x7D, 0x40, 0x00, 0,
+	0x7F, 0x09, 0x09, 0x09, 0x06, 0,
+	0x7F, 0x08, 0x04, 0x04, 0x78, 0,
+	0x00, 0x44, 0x7D, 0x40, 0x00,
 };
 
-static void _set_position(mp_drv_nokia3310_t *drv, unsigned char x, unsigned int y);
-static void _lcd_send(mp_drv_nokia3310_t *drv, unsigned char data, unsigned char cd);
+static mp_ret_t _nokia_shift(mp_drv_nokia3310_t *lcd, unsigned char data) {
+	unsigned int spin;
 
-/*
- * gate=<gate name>
- * somi=<port>
- * simo=<port>
- * ste=<port>
- * clk=<port>
- * dc=<port>
- * contrast=<port>
- */
-mp_ret_t mp_drv_nokia3310_init(mp_kernel_t *kernel, mp_drv_nokia3310_t *drv, mp_options_t *options, char *who) {
+	spin = 0;
+	while(!(_SPI_REG8(lcd->spi.gate, _SPI_IFG) & UCTXIFG)) {
+		if(++spin > 10000)
+			return(FALSE);
+	}
+	mp_spi_tx(&lcd->spi, data);
+	spin = 0;
+	while(_SPI_REG8(lcd->spi.gate, _SPI_STATW) & UCBUSY) {
+		if(++spin > 10000)
+			return(FALSE);
+	}
+	(void)mp_spi_rx(&lcd->spi);
+	return(TRUE);
+}
+
+/* #SCE rises only once the shifter is idle, so D/C cannot change mid-byte */
+static mp_ret_t _nokia_command(mp_drv_nokia3310_t *lcd, unsigned char command) {
 	mp_ret_t ret;
-	char *value;
 
-	memset(drv, 0, sizeof(*drv));
+	mp_gpio_unset(lcd->dc);
+	mp_gpio_unset(lcd->cs);
+	ret = _nokia_shift(lcd, command);
+	mp_gpio_set(lcd->cs);
+	return(ret);
+}
 
-	/* dc */
-	value = mp_options_get(options, "dc");
-	if(!value) {
-		mp_drv_nokia3310_fini(drv);
+static mp_ret_t _nokia_page(mp_drv_nokia3310_t *lcd, int page) {
+	int column;
+
+	if(_nokia_command(lcd, 0x80) == FALSE)
 		return(FALSE);
-	}
-	drv->dc = mp_gpio_text_handle(value, "LCD DC");
-    if(!drv->dc) {
-		mp_drv_nokia3310_fini(drv);
+	if(_nokia_command(lcd, (unsigned char)(0x40 | page)) == FALSE)
 		return(FALSE);
+	mp_gpio_set(lcd->dc);
+	mp_gpio_unset(lcd->cs);
+	for(column = 0; column < _NOKIA_W; column++) {
+		if(_nokia_shift(lcd, lcd->gram[page * _NOKIA_W + column]) == FALSE) {
+			mp_gpio_set(lcd->cs);
+			return(FALSE);
+		}
 	}
-
-	/* contrast */
-	value = mp_options_get(options, "contrast");
-	if(!value) {
-		mp_drv_nokia3310_fini(drv);
-		return(FALSE);
-	}
-	drv->res = mp_gpio_text_handle(value, "LCD CONSTRAT");
-    if(!drv->res) {
-		mp_drv_nokia3310_fini(drv);
-		return(FALSE);
-	}
-
-    /* initialize SPI interface */
-	ret = mp_spi_open(
-		kernel, &drv->spi, options,
-		MP_SPI_CLK_PHASE_CHANGE,
-		MP_SPI_CLK_POLARITY_HIGH,
-		MP_SPI_MSB,
-		MP_SPI_MASTER,
-		MP_SPI_MODE_3PIN,
-		MP_SPI_BIT_8,
-		MP_SPI_SYNC,
-		__LCD_FREQ,
-		"Nokia 3310 LCD"
-	);
-    if(ret == FALSE) {
-		mp_drv_nokia3310_fini(drv);
-		return(FALSE);
-	}
-
-    /* set gpio direction */
-    mp_gpio_direction(drv->res, MP_GPIO_OUTPUT);
-    mp_gpio_unset(drv->res);
-    mp_clock_delay(1000);
-	mp_gpio_set(drv->res);
-	mp_clock_delay(1000);
-
-	_lcd_send(drv, 0x21, __SEND_CMD);  // LCD Extended Commands.
-	//Extended commands +
-		_lcd_send(drv, 0xC8, __SEND_CMD);  // Set Contrast.
-		_lcd_send(drv, 0x04 | !!(__LCD_START_LINE_ADDR&(0x40)), __SEND_CMD);      // Set Temp S6 for start line
-		_lcd_send(drv, 0x40 | (__LCD_START_LINE_ADDR & ((0x40)-1)), __SEND_CMD);  // Set Temp S[5:0] for start line
-		_lcd_send(drv, 0x12, __SEND_CMD);  // LCD bias mode 1:68.
-	//Extended commands -
-		_lcd_send(drv, 0x20, __SEND_CMD);  // LCD Standard Commands, Horizontal addressing mode.
-		_lcd_send(drv, 0x08, __SEND_CMD);  // LCD blank
-		_lcd_send(drv, 0x0C, __SEND_CMD);  // LCD in normal mode.
-
-	//Optional commands +
-	mp_drv_nokia3310_contrast(drv, 0xf0);       //Increase contrast
-	mp_drv_nokia3310_clear(drv);              //Clear Screen
-	_set_position(drv, 0, 0);   //0, 0 coordinates of the display
-
-
+	mp_gpio_set(lcd->cs);
 	return(TRUE);
 }
 
-mp_ret_t mp_drv_nokia3310_fini(mp_drv_nokia3310_t *drv) {
+static mp_ret_t _nokia_flush(mp_drv_nokia3310_t *lcd) {
+	int page;
 
-	if(drv->res)
-		mp_gpio_release(drv->res);
-	if(drv->dc)
-		mp_gpio_release(drv->dc);
-
-	mp_spi_close(&drv->spi);
+	if(lcd->on == 0)
+		return(TRUE);
+	for(page = 0; page < _NOKIA_PAGES; page++) {
+		if((lcd->dirty & (1u << page)) == 0)
+			continue;
+		if(_nokia_page(lcd, page) == FALSE)
+			return(FALSE);
+	}
+	lcd->dirty = 0;
 	return(TRUE);
 }
 
+static mp_ret_t _nokia_setup(mp_drv_nokia3310_t *lcd) {
+	/* extended set, then Vop, temperature 0, bias 4 for a 1:48 mux */
+	if(_nokia_command(lcd, 0x21) == FALSE)
+		return(FALSE);
+	if(_nokia_command(lcd, (unsigned char)(0x80 | lcd->vop)) == FALSE)
+		return(FALSE);
+	if(_nokia_command(lcd, 0x04) == FALSE)
+		return(FALSE);
+	if(_nokia_command(lcd, 0x14) == FALSE)
+		return(FALSE);
+	if(_nokia_command(lcd, 0x20) == FALSE)
+		return(FALSE);
+	if(_nokia_command(lcd, 0x0C) == FALSE)
+		return(FALSE);
+	return(TRUE);
+}
 
-void mp_drv_nokia3310_update(mp_drv_nokia3310_t *drv) {
-	char x, y;
-	for(y=0; y<__LCD_Y_RES/8; y++) {
-		_lcd_send(drv, 0x80, __SEND_CMD);     //x - home
-		_lcd_send(drv, 0x40|y, __SEND_CMD);   //y - next line
+static void _nokia_picture(mp_drv_nokia3310_t *lcd) {
+	int page, column, at;
+	unsigned char *row;
 
-		for(x=0; x<__LCD_X_RES; x++)
-			_lcd_send(drv, drv->LCDMemory[y*__LCD_X_RES+x], __SEND_CHR);
+	memset(lcd->gram, 0, sizeof(lcd->gram));
+	for(column = 0; column < _NOKIA_W; column++) {
+		lcd->gram[column] = 0xFF;
+		lcd->gram[5 * _NOKIA_W + column] = 0xFF;
+	}
+	for(page = 1; page <= 4; page++) {
+		if(page == 2)
+			continue;
+		row = lcd->gram + page * _NOKIA_W;
+		for(column = 0; column < _NOKIA_W; column++)
+			row[column] = (column & 4) ? 0x0F : 0xF0;
+	}
+	row = lcd->gram + 2 * _NOKIA_W;
+	for(column = 0; column < _NOKIA_W; column++)
+		row[column] = 0xFF;
+	at = (_NOKIA_W - (int)sizeof(_nokia_name)) / 2;
+	for(column = 0; column < (int)sizeof(_nokia_name); column++)
+		row[at + column] &= (unsigned char)~_nokia_name[column];
+	for(page = 0; page < _NOKIA_PAGES; page++) {
+		lcd->gram[page * _NOKIA_W] = 0xFF;
+		lcd->gram[page * _NOKIA_W + _NOKIA_W - 1] = 0xFF;
+	}
+	lcd->dirty = (1u << _NOKIA_PAGES) - 1;
+}
+
+#ifdef SUPPORT_COMMON_TUI
+static void _nokia_write(mp_tui_display_t *display, int x, int y, int w, int h, const mp_tui_color_t *pixels);
+static void _nokia_flush_face(mp_tui_display_t *display);
+static void _nokia_power_face(mp_tui_display_t *display, int on);
+#endif
+
+static mp_gpio_port_t *_nokia_pin(mp_options_t *options, char *key, char *who) {
+	char *value = mp_options_get(options, key);
+
+	if(!value)
+		return(NULL);
+	return(mp_gpio_text_handle(value, who));
+}
+
+mp_ret_t mp_drv_nokia3310_init(mp_kernel_t *kernel, mp_drv_nokia3310_t *lcd, mp_options_t *options, char *who) {
+	char *contrast;
+	unsigned long vop;
+
+	memset(lcd, 0, sizeof(*lcd));
+	lcd->kernel = kernel;
+	if(!who || !who[0])
+		who = "nokia";
+
+	lcd->dc = _nokia_pin(options, "dc", who);
+	lcd->reset = _nokia_pin(options, "reset", who);
+	lcd->cs = _nokia_pin(options, "cs", who);
+	if(!lcd->dc || !lcd->reset || !lcd->cs) {
+		mp_printk("Nokia 3310: data/command, reset and chip select are required");
+		mp_drv_nokia3310_fini(lcd);
+		return(FALSE);
+	}
+
+	/* #SCE stays high across the reset, so a clock edge cannot be latched */
+	mp_gpio_set(lcd->cs);
+	mp_gpio_unset(lcd->dc);
+	mp_gpio_set(lcd->reset);
+	mp_gpio_direction(lcd->cs, MP_GPIO_OUTPUT);
+	mp_gpio_direction(lcd->dc, MP_GPIO_OUTPUT);
+	mp_gpio_direction(lcd->reset, MP_GPIO_OUTPUT);
+
+	mp_gpio_unset(lcd->reset);
+	mp_clock_delay(2);
+	mp_gpio_set(lcd->reset);
+	mp_clock_delay(2);
+
+	if(mp_spi_open(kernel, &lcd->spi, options, who) == FALSE) {
+		mp_drv_nokia3310_fini(lcd);
+		return(FALSE);
+	}
+	if(mp_spi_setup(&lcd->spi, options) == FALSE) {
+		/* setup already released the bus */
+		lcd->spi.gate = NULL;
+		lcd->spi.simo = NULL;
+		lcd->spi.somi = NULL;
+		lcd->spi.clk = NULL;
+		mp_drv_nokia3310_fini(lcd);
+		return(FALSE);
+	}
+
+	contrast = mp_options_get(options, "contrast");
+	vop = contrast ? (unsigned long)atol(contrast) : 0x48UL;
+	if(vop > 0x7FUL)
+		vop = 0x48UL;
+	lcd->vop = (unsigned char)vop;
+
+	if(_nokia_setup(lcd) == FALSE) {
+		mp_printk("Nokia 3310: the panel did not take the setup");
+		mp_drv_nokia3310_fini(lcd);
+		return(FALSE);
+	}
+
+	lcd->on = 1;
+	_nokia_picture(lcd);
+	if(_nokia_flush(lcd) == FALSE) {
+		mp_printk("Nokia 3310: the picture did not reach the panel");
+		mp_drv_nokia3310_fini(lcd);
+		return(FALSE);
+	}
+
+#ifdef SUPPORT_COMMON_TUI
+	lcd->display.width = _NOKIA_W;
+	lcd->display.height = _NOKIA_H;
+	lcd->display.write = _nokia_write;
+	lcd->display.flush = _nokia_flush_face;
+	lcd->display.power = _nokia_power_face;
+	lcd->display.user = lcd;
+#endif
+
+#ifdef SUPPORT_COMMON_DEVICE
+	mp_device_identify(lcd, "Nokia 3310", "PCD8544", mp_machine_serial(), NULL);
+#endif
+	mp_printk("Nokia 3310 ready, %s", who);
+	return(TRUE);
+}
+
+mp_ret_t mp_drv_nokia3310_fini(mp_drv_nokia3310_t *lcd) {
+	if(lcd->on && lcd->cs && lcd->spi.gate) {
+		_nokia_command(lcd, 0x24);
+		lcd->on = 0;
+	}
+	if(lcd->cs) {
+		mp_gpio_release(lcd->cs);
+		lcd->cs = NULL;
+	}
+	if(lcd->dc) {
+		mp_gpio_release(lcd->dc);
+		lcd->dc = NULL;
+	}
+	if(lcd->reset) {
+		mp_gpio_release(lcd->reset);
+		lcd->reset = NULL;
+	}
+	if(lcd->spi.gate)
+		mp_spi_close(&lcd->spi);
+	return(TRUE);
+}
+
+#ifdef SUPPORT_COMMON_TUI
+
+static int _nokia_ink(mp_tui_color_t color) {
+	unsigned r = (color >> 11) & 31;
+	unsigned g = (color >> 5) & 63;
+	unsigned b = color & 31;
+
+	/* a light source pixel is a dark mark on the pale glass */
+	return((r + (g >> 1) + b) >= 32);
+}
+
+static void _nokia_mark(mp_drv_nokia3310_t *lcd, int x, int y, int ink) {
+	int page = y >> 3;
+	unsigned char bit = (unsigned char)(1u << (y & 7));
+	unsigned char *cell = &lcd->gram[page * _NOKIA_W + x];
+
+	if(ink)
+		*cell |= bit;
+	else
+		*cell &= (unsigned char)~bit;
+	lcd->dirty |= (unsigned char)(1u << page);
+}
+
+static void _nokia_write(mp_tui_display_t *display, int x, int y, int w, int h, const mp_tui_color_t *pixels) {
+	mp_drv_nokia3310_t *lcd = display->user;
+	int stride = w;
+	int row, column;
+
+	if(x < 0) {
+		pixels += -x;
+		w += x;
+		x = 0;
+	}
+	if(y < 0) {
+		pixels += (unsigned)(-y) * (unsigned)stride;
+		h += y;
+		y = 0;
+	}
+	if(x >= _NOKIA_W || y >= _NOKIA_H || w <= 0 || h <= 0)
+		return;
+	if(x + w > _NOKIA_W)
+		w = _NOKIA_W - x;
+	if(y + h > _NOKIA_H)
+		h = _NOKIA_H - y;
+
+	for(row = 0; row < h; row++) {
+		const mp_tui_color_t *src = pixels + row * stride;
+
+		for(column = 0; column < w; column++)
+			_nokia_mark(lcd, x + column, y + row, _nokia_ink(src[column]));
 	}
 }
 
-void mp_drv_nokia3310_clear(mp_drv_nokia3310_t *drv) {
-	mp_drv_nokia3310_clearMemory(drv);
-	mp_drv_nokia3310_update(drv);
+static void _nokia_flush_face(mp_tui_display_t *display) {
+	_nokia_flush(display->user);
 }
 
-void mp_drv_nokia3310_contrast(mp_drv_nokia3310_t *drv, unsigned char contrast) {
-	_lcd_send(drv, 0x21, __SEND_CMD);
-	//LCD Extended Commands +
-		_lcd_send(drv, 0x80 | contrast, __SEND_CMD);  // Set LCD Vop (Contrast).
-	//LCD Extended Commands -
-	_lcd_send(drv, 0x20, __SEND_CMD);         //LCD Standard Commands, horizontal addressing mode
-}
+static void _nokia_power_face(mp_tui_display_t *display, int on) {
+	mp_drv_nokia3310_t *lcd = display->user;
 
-void mp_drv_nokia3310_write(mp_drv_nokia3310_t *drv, unsigned char *a, int l) {
-	unsigned char i;
-	while (*a && l) {
-		   l--;
-		   for (i=0; i<5; i++)
-			   	   drv->LCDMemory[drv->index++] = FontLookup[*a-32][i];
-		drv->LCDMemory[drv->index++] = 0x00;    //space between signs
-		a++;
+	if(on) {
+		_nokia_command(lcd, 0x20);
+		_nokia_command(lcd, 0x0C);
+		lcd->on = 1;
+		lcd->dirty = (1u << _NOKIA_PAGES) - 1;
+		_nokia_flush(lcd);
+		return;
 	}
+	_nokia_command(lcd, 0x24);
+	lcd->on = 0;
 }
 
-void mp_drv_nokia3310_writePos(mp_drv_nokia3310_t *drv, unsigned char *str, int l, int pos) {
-	int a, b;
-	for(a=0; a<l; a++) {
-		for (b=0; b<5; b++)
-			drv->LCDMemory[pos+b] = FontLookup[*str-32][b];
-		drv->LCDMemory[pos+b] = 0x00;
-		pos += 6;
-		str++;
-	}
+#endif
+
+#ifdef SUPPORT_COMMON_DEVICE
+
+static mp_ret_t _nokia_device_open(mp_kernel_t *kernel, void *self, mp_options_t *options, char *who) {
+	return(mp_drv_nokia3310_init(kernel, self, options, who));
 }
 
-unsigned char *mp_drv_nokia3310_getMemory(mp_drv_nokia3310_t *drv) {
-	return(drv->LCDMemory);
+static void _nokia_device_close(void *self) {
+	mp_drv_nokia3310_fini(self);
 }
 
-void mp_drv_nokia3310_clearMemory(mp_drv_nokia3310_t *drv) {
-	for (drv->index=0; drv->index<504; drv->index++)
-		drv->LCDMemory[drv->index] = 0;
-	drv->index = 0;
+static void *_nokia_device_face(void *self) {
+#ifdef SUPPORT_COMMON_TUI
+	return(&((mp_drv_nokia3310_t *)self)->display);
+#else
+	(void)self;
+	return(NULL);
+#endif
 }
 
-static void _lcd_send(mp_drv_nokia3310_t *drv, unsigned char data, unsigned char cd) {
-	if(cd == __SEND_CHR)
-		mp_gpio_set(drv->dc); /* sending char */
-	else if(cd == __SEND_CMD)
-		mp_gpio_unset(drv->dc); /* sending command */
-	mp_spi_tx(&drv->spi, data);
-}
+const mp_device_ops_t mp_drv_nokia3310_device = {
+	"lcd/nokia3310", MP_DEVICE_DISPLAY, _nokia_device_open, _nokia_device_close, _nokia_device_face, NULL,
+	"84x48 PCD8544", "1.0.0"
+};
 
-static void _set_position(mp_drv_nokia3310_t *drv, unsigned char x, unsigned int y) {
-	y = y + x/84;
-	y = y % 6;
-	x = x % 84;
-	drv->index = 84*y + x;
-	_lcd_send(drv, 0x80 | x, __SEND_CMD);
-	_lcd_send(drv, 0x40 | y, __SEND_CMD);
-}
+#endif
 
 #endif

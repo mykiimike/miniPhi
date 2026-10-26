@@ -36,6 +36,9 @@ static void _mp_tui_cursor_draw(mp_tui_t *ui, mp_tui_draw_t *draw);
 static void _mp_tui_fullscreen_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw);
 static const mp_tui_class_t _mp_tui_fullscreen_class = { "fullscreen", _mp_tui_fullscreen_draw, NULL, NULL };
 
+static int _mp_tui_line(mp_tui_t *ui);
+static void _mp_tui_pads(mp_tui_t *ui, int on);
+
 static int _mp_tui_intersect(const mp_tui_rect_t *a, const mp_tui_rect_t *b, mp_tui_rect_t *out) {
 	int x0 = a->x > b->x ? a->x : b->x;
 	int y0 = a->y > b->y ? a->y : b->y;
@@ -143,6 +146,7 @@ int mp_tui_init(mp_tui_t *ui, mp_tui_display_t *display, mp_tui_color_t *buffer,
 	ui->theme.titleBackground = MP_TUI_RGB(0x2A, 0x32, 0x40);
 	ui->theme.titleForeground = MP_TUI_RGB(0xFF, 0xFF, 0xFF);
 	ui->theme.font = &mp_tui_font_default;
+	ui->pointer = 1;
 	ui->saver = MP_TUI_AWAKE;
 	ui->activeAt = mp_clock_ticks();
 
@@ -158,7 +162,20 @@ int mp_tui_init(mp_tui_t *ui, mp_tui_display_t *display, mp_tui_color_t *buffer,
 	return(1);
 }
 
+void mp_tui_nav(mp_tui_t *ui, int pointer) {
+	ui->pointer = pointer ? 1 : 0;
+}
+
+int mp_tui_row(mp_tui_t *ui, int extra) {
+	int line = _mp_tui_line(ui);
+
+	if(ui->pointer)
+		return(line + extra);
+	return(line);
+}
+
 void mp_tui_fini(mp_tui_t *ui) {
+	_mp_tui_pads(ui, 0);
 	mp_tui_detach(ui);
 	while(ui->root.first)
 		mp_tui_widget_remove(ui->root.first);
@@ -742,17 +759,130 @@ static int _mp_tui_button_top(mp_tui_t *ui) {
 	return(8 + line + 14);
 }
 
+static void _mp_tui_reveal(mp_tui_view_t *view, mp_tui_widget_t *widget) {
+	int top, bottom, edge, height;
+
+	if(!view || !widget)
+		return;
+	top = widget->screen.y;
+	bottom = top + widget->screen.h;
+	edge = view->widget.screen.y;
+	height = view->widget.rect.h;
+	if(top < edge)
+		mp_tui_view_scroll(view, top - edge);
+	else if(bottom > edge + height)
+		mp_tui_view_scroll(view, bottom - (edge + height));
+}
+
+static mp_tui_button_t *_mp_tui_own_back(mp_tui_widget_t *widget) {
+	mp_tui_widget_t *child;
+	mp_tui_button_t *found;
+
+	if(widget->hidden)
+		return(NULL);
+	if(widget->type == &mp_tui_button_class && ((mp_tui_button_t *)widget)->back)
+		return((mp_tui_button_t *)widget);
+	for(child = widget->first; child; child = child->next) {
+		found = _mp_tui_own_back(child);
+		if(found)
+			return(found);
+	}
+	return(NULL);
+}
+
+static int _mp_tui_focusable(mp_tui_widget_t *widget) {
+	return(widget->type == &mp_tui_button_class || widget->type == &mp_tui_switch_class);
+}
+
+static int _mp_tui_collect(mp_tui_widget_t *widget, mp_tui_widget_t **list, int count, int max) {
+	mp_tui_widget_t *child;
+
+	if(widget->hidden)
+		return(count);
+	if(_mp_tui_focusable(widget) && count < max)
+		list[count++] = widget;
+	for(child = widget->first; child; child = child->next)
+		count = _mp_tui_collect(child, list, count, max);
+	return(count);
+}
+
+static int _mp_tui_before(mp_tui_widget_t *a, mp_tui_widget_t *b) {
+	if(a->rect.y != b->rect.y)
+		return(a->rect.y < b->rect.y);
+	return(a->rect.x < b->rect.x);
+}
+
+static int _mp_tui_controls(mp_tui_t *ui, mp_tui_widget_t **list, int max) {
+	int count, i, j;
+	mp_tui_widget_t *swap;
+
+	count = _mp_tui_collect(&ui->view.widget, list, 0, max);
+	for(i = 1; i < count; i++) {
+		swap = list[i];
+		j = i;
+		while(j > 0 && _mp_tui_before(swap, list[j - 1])) {
+			list[j] = list[j - 1];
+			j--;
+		}
+		list[j] = swap;
+	}
+	return(count);
+}
+
+static int _mp_tui_same_row(mp_tui_widget_t *a, mp_tui_widget_t *b) {
+	int span = a->rect.h / 2;
+
+	if(span < 1)
+		span = 1;
+	if(a->rect.y - b->rect.y > span || b->rect.y - a->rect.y > span)
+		return(0);
+	return(1);
+}
+
+static void _mp_tui_mark(mp_tui_t *ui, mp_tui_widget_t **list, int count, mp_tui_widget_t *focused) {
+	int i;
+
+	if(ui->focused && ui->focused != focused && ui->focused->type == &mp_tui_switch_class)
+		mp_tui_invalidate(ui->focused);
+	ui->focused = focused;
+	for(i = 0; i < count; i++) {
+		if(list[i]->type != &mp_tui_button_class)
+			continue;
+		((mp_tui_button_t *)list[i])->selected = list[i] == focused;
+		mp_tui_invalidate(list[i]);
+	}
+	if(focused && focused->type == &mp_tui_switch_class)
+		mp_tui_invalidate(focused);
+}
+
 static void _mp_tui_show(mp_tui_t *ui, int index) {
+	mp_tui_widget_t *list[24];
+	int count;
+
 	mp_tui_fullscreen_close(ui);
 	_mp_tui_release(ui);
 	while(ui->view.widget.first)
 		mp_tui_widget_remove(ui->view.widget.first);
 	ui->view.scroll = 0;
 	ui->view.pending = 0;
+	ui->focused = NULL;
+	ui->pageBack = NULL;
 	ui->app[index].build(&ui->view.widget, ui->app[index].user);
 	mp_tui_label_set(&ui->pageTitle, "%s", ui->app[index].name);
 	ui->opened = index;
+	ui->pageBack = _mp_tui_own_back(&ui->view.widget);
+	if(ui->pageBack)
+		mp_tui_hide(&ui->back.widget);
+	else
+		mp_tui_show(&ui->back.widget);
 	_mp_tui_place(&ui->view.widget);
+	if(!ui->pointer) {
+		count = _mp_tui_controls(ui, list, 24);
+		if(count > 0) {
+			_mp_tui_mark(ui, list, count, list[0]);
+			_mp_tui_reveal(&ui->view, list[0]);
+		}
+	}
 	mp_tui_show(&ui->page.widget);
 	mp_tui_raise(&ui->page.widget);
 }
@@ -772,6 +902,8 @@ static void _mp_tui_on_back(mp_tui_button_t *button) {
 	_mp_tui_release(ui);
 	ui->depth = 0;
 	ui->opened = -1;
+	ui->focused = NULL;
+	ui->pageBack = NULL;
 	mp_tui_hide(&ui->page.widget);
 }
 
@@ -793,27 +925,44 @@ static void _mp_tui_shell(mp_tui_t *ui) {
 	int width = ui->display->width;
 	int height = ui->display->height;
 	int header = line + 20;
+	int backW;
 
 	/* a finger needs a target taller than a text line */
 	if(header < 40)
 		header = 40;
+	if(!ui->pointer)
+		header = line;
 
 	ui->opened = -1;
 	ui->focus = 0;
 	ui->shell = 1;
 
-	mp_tui_label(&ui->homeTitle, &ui->root, 12, 8, width - 24, line + 2, "miniPhi");
+	if(ui->pointer) {
+		mp_tui_label(&ui->homeTitle, &ui->root, 12, 8, width - 24, line + 2, "miniPhi");
+	}
+	else {
+		mp_tui_label(&ui->homeTitle, &ui->root, 0, 0, width, line, "miniPhi");
+		mp_tui_view(&ui->homeView, &ui->root, 0, line, width, height - line);
+	}
 	mp_tui_label_align(&ui->homeTitle, MP_TUI_ALIGN_CENTER);
 	mp_tui_label_color(&ui->homeTitle, ui->theme.accent);
 
 	mp_tui_page(&ui->page, &ui->root, 0, 0, width, height, header);
-	mp_tui_label(&ui->pageTitle, &ui->page.widget, 0, (header - line) / 2, width, line, "");
+	backW = mp_tui_text_width(ui->theme.font, "< Back") + (ui->pointer ? 4 : 2);
+	if(!ui->pointer && backW > width / 2)
+		backW = width / 2;
+	if(ui->pointer) {
+		mp_tui_label(&ui->pageTitle, &ui->page.widget, 0, (header - line) / 2, width, line, "");
+		mp_tui_button(&ui->back, &ui->page.widget, 10, (header - line) / 2, backW, line, "< Back");
+	}
+	else {
+		mp_tui_label(&ui->pageTitle, &ui->page.widget, backW, 0, width - backW, line, "");
+		mp_tui_button(&ui->back, &ui->page.widget, 0, 0, backW, line, "< Back");
+	}
 	mp_tui_label_align(&ui->pageTitle, MP_TUI_ALIGN_CENTER);
 	mp_tui_label_color(&ui->pageTitle, ui->theme.titleForeground);
 
 	/* the words only; the whole header stays the hit target */
-	mp_tui_button(&ui->back, &ui->page.widget, 10, (header - line) / 2,
-		mp_tui_text_width(ui->theme.font, "< Back") + 4, line, "< Back");
 	ui->back.plain = 1;
 	ui->back.onPress = _mp_tui_on_back;
 	ui->back.user = ui;
@@ -838,6 +987,8 @@ static void _mp_tui_focus(mp_tui_t *ui, int index) {
 	ui->focus = index;
 	ui->homeButton[index].selected = 1;
 	mp_tui_invalidate(&ui->homeButton[index].widget);
+	if(!ui->pointer)
+		_mp_tui_reveal(&ui->homeView, &ui->homeButton[index].widget);
 }
 
 static int _mp_tui_view_max(mp_tui_view_t *view) {
@@ -909,15 +1060,24 @@ int mp_tui_app(mp_tui_t *ui, const char *name, mp_tui_app_build_t build, void *u
 	index = ui->appCount;
 	home = ui->homeCount;
 	line = _mp_tui_line(ui);
-	h = line + 18;
-	y = _mp_tui_button_top(ui) + home * (h + 8);
+	if(ui->pointer) {
+		h = line + 18;
+		y = _mp_tui_button_top(ui) + home * (h + 8);
+	}
+	else {
+		h = line;
+		y = home * (h + 1);
+	}
 
 	ui->app[index].name = name;
 	ui->app[index].build = build;
 	ui->app[index].user = user;
 
 	button = &ui->homeButton[home];
-	mp_tui_button(button, &ui->root, 12, y, ui->display->width - 24, h, name);
+	if(ui->pointer)
+		mp_tui_button(button, &ui->root, 12, y, ui->display->width - 24, h, name);
+	else
+		mp_tui_button(button, &ui->homeView.widget, 0, y, ui->homeView.widget.rect.w, h, name);
 	button->onPress = _mp_tui_on_app;
 	button->id = index;
 	button->chevron = 1;
@@ -999,6 +1159,113 @@ void mp_tui_scroll(mp_tui_t *ui, int dy) {
 	mp_tui_view_scroll(&ui->view, dy);
 }
 
+static void _mp_tui_activate(mp_tui_widget_t *widget) {
+	mp_tui_button_t *button;
+	mp_tui_switch_t *sw;
+
+	if(!widget)
+		return;
+	if(widget->type == &mp_tui_button_class) {
+		button = (mp_tui_button_t *)widget;
+		if(button->onPress)
+			button->onPress(button);
+		return;
+	}
+	if(widget->type != &mp_tui_switch_class)
+		return;
+	sw = (mp_tui_switch_t *)widget;
+	sw->on = !sw->on;
+	mp_tui_invalidate(widget);
+	if(sw->onChange)
+		sw->onChange(sw);
+}
+
+static int _mp_tui_neighbor(mp_tui_widget_t **list, int count, int current, int key) {
+	mp_tui_widget_t *from = list[current];
+	int i, best, found, row;
+
+	best = -1;
+	if(key == MP_TUI_KEY_LEFT || key == MP_TUI_KEY_RIGHT) {
+		for(i = 0; i < count; i++) {
+			if(i == current || !_mp_tui_same_row(from, list[i]))
+				continue;
+			if(key == MP_TUI_KEY_LEFT && list[i]->rect.x >= from->rect.x)
+				continue;
+			if(key == MP_TUI_KEY_RIGHT && list[i]->rect.x <= from->rect.x)
+				continue;
+			if(best < 0)
+				best = i;
+			else if(key == MP_TUI_KEY_LEFT && list[i]->rect.x > list[best]->rect.x)
+				best = i;
+			else if(key == MP_TUI_KEY_RIGHT && list[i]->rect.x < list[best]->rect.x)
+				best = i;
+		}
+		if(best >= 0)
+			return(best);
+		key = key == MP_TUI_KEY_LEFT ? MP_TUI_KEY_UP : MP_TUI_KEY_DOWN;
+	}
+
+	found = -1;
+	for(i = 0; i < count; i++) {
+		if(i == current)
+			continue;
+		row = list[i]->rect.y - from->rect.y;
+		if(key == MP_TUI_KEY_UP && row >= 0)
+			continue;
+		if(key == MP_TUI_KEY_DOWN && row <= 0)
+			continue;
+		if(found < 0)
+			found = i;
+		else if(key == MP_TUI_KEY_UP && list[i]->rect.y > list[found]->rect.y)
+			found = i;
+		else if(key == MP_TUI_KEY_DOWN && list[i]->rect.y < list[found]->rect.y)
+			found = i;
+		else if(list[i]->rect.y == list[found]->rect.y) {
+			int da = list[i]->rect.x - from->rect.x;
+			int db = list[found]->rect.x - from->rect.x;
+
+			if(da < 0)
+				da = -da;
+			if(db < 0)
+				db = -db;
+			if(da < db)
+				found = i;
+		}
+	}
+	return(found);
+}
+
+/* non-zero when the page has controls and the key moved or activated one */
+static int _mp_tui_steer(mp_tui_t *ui, mp_tui_key_t key) {
+	mp_tui_widget_t *list[24];
+	int count, current, next;
+
+	if(key != MP_TUI_KEY_UP && key != MP_TUI_KEY_DOWN && key != MP_TUI_KEY_LEFT && key != MP_TUI_KEY_RIGHT && key != MP_TUI_KEY_ENTER)
+		return(0);
+	count = _mp_tui_controls(ui, list, 24);
+	if(count <= 0)
+		return(0);
+	current = 0;
+	if(ui->focused) {
+		for(next = 0; next < count; next++) {
+			if(list[next] == ui->focused) {
+				current = next;
+				break;
+			}
+		}
+	}
+	if(key == MP_TUI_KEY_ENTER) {
+		_mp_tui_activate(list[current]);
+		return(1);
+	}
+	next = _mp_tui_neighbor(list, count, current, key);
+	if(next < 0)
+		return(1);
+	_mp_tui_mark(ui, list, count, list[next]);
+	_mp_tui_reveal(&ui->view, list[next]);
+	return(1);
+}
+
 void mp_tui_key(mp_tui_t *ui, mp_tui_key_t key) {
 	int step;
 
@@ -1011,9 +1278,14 @@ void mp_tui_key(mp_tui_t *ui, mp_tui_key_t key) {
 		return;
 	if(ui->opened >= 0) {
 		if(key == MP_TUI_KEY_BACK) {
-			_mp_tui_on_back(&ui->back);
+			if(ui->pageBack && ui->pageBack->onPress)
+				ui->pageBack->onPress(ui->pageBack);
+			else
+				_mp_tui_on_back(&ui->back);
 			return;
 		}
+		if(!ui->pointer && _mp_tui_steer(ui, key))
+			return;
 		step = _mp_tui_line(ui);
 		if(key == MP_TUI_KEY_PAGE_UP || key == MP_TUI_KEY_PAGE_DOWN)
 			step = ui->view.widget.rect.h - step;
@@ -1023,9 +1295,9 @@ void mp_tui_key(mp_tui_t *ui, mp_tui_key_t key) {
 			mp_tui_scroll(ui, step);
 		return;
 	}
-	if(key == MP_TUI_KEY_UP)
+	if(key == MP_TUI_KEY_UP || key == MP_TUI_KEY_LEFT)
 		_mp_tui_focus(ui, ui->focus - 1);
-	else if(key == MP_TUI_KEY_DOWN)
+	else if(key == MP_TUI_KEY_DOWN || key == MP_TUI_KEY_RIGHT)
 		_mp_tui_focus(ui, ui->focus + 1);
 	else if(key == MP_TUI_KEY_ENTER && ui->homeCount > 0)
 		_mp_tui_open(ui, ui->homeButton[ui->focus].id);
@@ -1134,6 +1406,8 @@ static void _mp_tui_input_key(mp_tui_t *ui, int key) {
 static int _mp_tui_back_zone(mp_tui_t *ui, int x, int y) {
 	mp_tui_rect_t *words = &ui->back.widget.screen;
 
+	if(ui->back.widget.hidden)
+		return(0);
 	return(ui->opened >= 0 && x >= 0 && y >= 0 && x < words->x + words->w + 16 && y < ui->page.header);
 }
 
@@ -1520,6 +1794,140 @@ unsigned long mp_tui_idle(mp_tui_t *ui) {
 	return(wait);
 }
 
+#ifdef SUPPORT_COMMON_DEVICE
+
+#define _MP_TUI_PAD_MAX 8
+#define _MP_TUI_PAD_HOLD 600
+
+static struct {
+	mp_device_subscribe_t sub;
+	mp_device_button_t *face;
+	int role;
+	unsigned long downAt;
+	int down;
+	int swallow;
+} _mp_tui_pad[_MP_TUI_PAD_MAX];
+
+static int _mp_tui_pad_count;
+static mp_tui_t *_mp_tui_pad_owner;
+
+static int _mp_tui_pad_role(const char *serial) {
+	if(strcmp(serial, "up") == 0)
+		return(MP_TUI_KEY_UP);
+	if(strcmp(serial, "down") == 0)
+		return(MP_TUI_KEY_DOWN);
+	if(strcmp(serial, "left") == 0)
+		return(MP_TUI_KEY_LEFT);
+	if(strcmp(serial, "right") == 0)
+		return(MP_TUI_KEY_RIGHT);
+	if(strcmp(serial, "center") == 0)
+		return(MP_TUI_KEY_ENTER);
+	return(-1);
+}
+
+static void _mp_tui_pad_edge(mp_device_button_t *button, int down, void *user) {
+	mp_tui_t *ui = user;
+	int index, was;
+
+	for(index = 0; index < _mp_tui_pad_count; index++) {
+		if(_mp_tui_pad[index].face == button)
+			break;
+	}
+	if(index >= _mp_tui_pad_count || !ui)
+		return;
+	if(ui->splash < 3)
+		return;
+
+	was = ui->saver;
+	mp_tui_wake(ui);
+	if(was == MP_TUI_OFF) {
+		_mp_tui_pad[index].swallow = 1;
+		if(ui->task)
+			mp_task_wake(ui->task);
+		return;
+	}
+
+	if(_mp_tui_pad[index].role == MP_TUI_KEY_ENTER) {
+		if(down) {
+			_mp_tui_pad[index].down = 1;
+			_mp_tui_pad[index].downAt = mp_clock_ticks();
+			return;
+		}
+		if(_mp_tui_pad[index].swallow) {
+			_mp_tui_pad[index].swallow = 0;
+			return;
+		}
+		if(!_mp_tui_pad[index].down)
+			return;
+		_mp_tui_pad[index].down = 0;
+		if(mp_clock_ticks() - _mp_tui_pad[index].downAt >= _mp_tui_ms(_MP_TUI_PAD_HOLD))
+			mp_tui_key(ui, MP_TUI_KEY_BACK);
+		else
+			mp_tui_key(ui, MP_TUI_KEY_ENTER);
+	}
+	else if(down)
+		mp_tui_key(ui, (mp_tui_key_t)_mp_tui_pad[index].role);
+
+	if(ui->task && ui->saver != MP_TUI_OFF)
+		mp_task_wake(ui->task);
+}
+
+#endif
+
+static void _mp_tui_pads(mp_tui_t *ui, int on) {
+#ifdef SUPPORT_COMMON_DEVICE
+	int index, role, count, num;
+	mp_device_registry_t *device;
+	mp_device_button_t *face;
+	char type[16], model[16], serial[16];
+
+	if(!on) {
+		if(_mp_tui_pad_owner != ui)
+			return;
+		for(index = 0; index < _mp_tui_pad_count; index++) {
+			if(_mp_tui_pad[index].face) {
+				_mp_tui_pad[index].face->on_change = NULL;
+				_mp_tui_pad[index].face->user = NULL;
+			}
+			mp_device_subscribe_end(&_mp_tui_pad[index].sub);
+			memset(&_mp_tui_pad[index], 0, sizeof(_mp_tui_pad[index]));
+		}
+		_mp_tui_pad_count = 0;
+		_mp_tui_pad_owner = NULL;
+		return;
+	}
+	if(!ui || !ui->kernel || _mp_tui_pad_owner == ui)
+		return;
+	if(_mp_tui_pad_owner)
+		_mp_tui_pads(_mp_tui_pad_owner, 0);
+
+	index = 0;
+	count = 0;
+	while(count < _MP_TUI_PAD_MAX && (device = mp_device_registry_find(ui->kernel, MP_DEVICE_BUTTON, index)) != NULL) {
+		index++;
+		if(mp_device_address_split(device->address, type, (int)sizeof(type), &num, model, (int)sizeof(model), serial, (int)sizeof(serial)) == FALSE)
+			continue;
+		role = _mp_tui_pad_role(serial);
+		if(role < 0)
+			continue;
+		memset(&_mp_tui_pad[count], 0, sizeof(_mp_tui_pad[count]));
+		face = mp_device_button(device, &_mp_tui_pad[count].sub);
+		if(!face)
+			continue;
+		_mp_tui_pad[count].face = face;
+		_mp_tui_pad[count].role = role;
+		face->on_change = _mp_tui_pad_edge;
+		face->user = ui;
+		count++;
+	}
+	_mp_tui_pad_count = count;
+	_mp_tui_pad_owner = ui;
+#else
+	(void)ui;
+	(void)on;
+#endif
+}
+
 void mp_tui_poll(mp_tui_t *ui) {
 #ifdef SUPPORT_COMMON_DEVICE
 	mp_device_input_t *input = NULL;
@@ -1527,6 +1935,7 @@ void mp_tui_poll(mp_tui_t *ui) {
 
 	if(!ui->kernel || !ui->display)
 		return;
+	_mp_tui_pads(ui, 1);
 	while((input = mp_device_input_next(ui->kernel, input, ui)) != NULL) {
 		if(input->width <= 0 || input->height <= 0)
 			mp_device_input_bounds(input, ui->display->width, ui->display->height);

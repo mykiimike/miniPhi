@@ -242,6 +242,8 @@
 		int plain;
 		/** held down by a pointer */
 		int pressed;
+		/** this is the page's back control: the header one stays hidden, and the back key presses this */
+		int back;
 	};
 
 	typedef struct mp_tui_switch_s mp_tui_switch_t;
@@ -308,6 +310,13 @@
 		int splashRow;
 		unsigned long splashUntil;
 
+		/**
+		 * Non-zero: a finger or a mouse is attached, so the header and the home
+		 * stay tall enough to hit. Zero: rows are one text line and the home scrolls
+		 * to keep the focus on screen. Set before the first mp_tui_app().
+		 */
+		int pointer;
+
 		/** home of applications; shell is set by the first mp_tui_app() */
 		int shell;
 		int appCount;
@@ -326,8 +335,14 @@
 		} app[MP_TUI_APP_MAX];
 		mp_tui_label_t homeTitle;
 		mp_tui_button_t homeButton[MP_TUI_HOME_MAX];
+		/** home list when pointer is zero; the finger home stays on the root */
+		mp_tui_view_t homeView;
 		mp_tui_page_t page;
 		mp_tui_button_t back;
+		/** the page's own back button, or NULL while the header one is shown */
+		mp_tui_button_t *pageBack;
+		/** control under the keys on an open page; NULL on the home and with a pointer */
+		mp_tui_widget_t *focused;
 		mp_tui_label_t pageTitle;
 		mp_tui_view_t view;
 
@@ -555,6 +570,20 @@
 	void mp_tui_window_title(mp_tui_window_t *window, const char *format, ...);
 
 	void mp_tui_button(mp_tui_button_t *button, mp_tui_widget_t *parent, int x, int y, int w, int h, const char *text);
+	/** the page's back control: the header "< Back" stays hidden and the back key presses this button */
+	void mp_tui_button_back(mp_tui_button_t *button);
+
+	/**
+	 * Height of one row. With a pointer, the font line plus extra.
+	 * Without one, a single text line, extra is ignored.
+	 */
+	int mp_tui_row(mp_tui_t *ui, int extra);
+
+	/**
+	 * Finger-sized chrome when pointer is non-zero. Call it after mp_tui_init()
+	 * and before the first mp_tui_app(). The default is finger-sized.
+	 */
+	void mp_tui_nav(mp_tui_t *ui, int pointer);
 
 	void mp_tui_switch(mp_tui_switch_t *sw, mp_tui_widget_t *parent, int x, int y, int w, int h, const char *text, int on);
 	/** does not call onChange; redraws only when the state changes */
@@ -601,9 +630,17 @@
 		MP_TUI_KEY_BACK,
 		MP_TUI_KEY_PAGE_UP,
 		MP_TUI_KEY_PAGE_DOWN,
+		MP_TUI_KEY_LEFT,
+		MP_TUI_KEY_RIGHT,
 	} mp_tui_key_t;
 
-	/** home: up and down move, enter opens. page: up and down scroll, back steps out */
+	/**
+	 * Home: up, down, left and right move, enter opens.
+	 * Page with a pointer: up and down scroll, back steps out.
+	 * Page without one: the same keys move the focus, enter activates it,
+	 * and up and down scroll only when the page has no control.
+	 * Back steps out, or presses the page's own back button when it defined one.
+	 */
 	void mp_tui_key(mp_tui_t *ui, mp_tui_key_t key);
 
 	/** covers the display with image scaled to fit, a close cross top right; 0 when one is already up */

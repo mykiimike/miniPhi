@@ -142,7 +142,7 @@ static int _sysinfo_dev_button(mp_tui_widget_t *page, sysinfo_t *sysinfo, int sl
 	const mp_tui_font_t *font = page->tui->theme.font;
 	int line = font->lineHeight + 1;
 	int width = page->rect.w - 16;
-	int h = line + 18;
+	int h = page->tui->pointer ? line + 18 : font->lineHeight;
 
 	if(slot < 0 || slot >= MP_CRYPTO_MAX)
 		return(y);
@@ -151,7 +151,7 @@ static int _sysinfo_dev_button(mp_tui_widget_t *page, sysinfo_t *sysinfo, int sl
 	sysinfo->screen.menu.device[slot].onPress = onPress;
 	sysinfo->screen.menu.device[slot].user = sysinfo;
 	sysinfo->screen.menu.device[slot].id = id;
-	return(y + h + 6);
+	return(y + h + (page->tui->pointer ? 6 : 1));
 }
 
 static void _sysinfo_on_class(mp_tui_button_t *button) {

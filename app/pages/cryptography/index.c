@@ -291,7 +291,7 @@ static void _sysinfo_crypto_buttons(mp_tui_widget_t *page, sysinfo_t *sysinfo, i
 	const mp_tui_font_t *font = page->tui->theme.font;
 	int line = font->lineHeight + 1;
 	int width = page->rect.w - 16;
-	int h = line + 18;
+	int h = page->tui->pointer ? line + 18 : font->lineHeight;
 	int n, slot, seen;
 	int first[MP_CRYPTO_MAX];
 	int count = MP_CRYPTO_COUNT;
@@ -318,7 +318,7 @@ static void _sysinfo_crypto_buttons(mp_tui_widget_t *page, sysinfo_t *sysinfo, i
 		sysinfo->screen.menu.crypto[slot].onPress = onPress;
 		sysinfo->screen.menu.crypto[slot].user = sysinfo;
 		sysinfo->screen.menu.crypto[slot].id = n;
-		y += h + 6;
+		y += h + (page->tui->pointer ? 6 : 1);
 		slot++;
 	}
 }

@@ -39,6 +39,8 @@ static void _mp_tui_button_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 	mp_tui_color_t color = button->selected ? theme->accent : theme->foreground;
 	mp_tui_color_t border = button->selected ? theme->accent : theme->border;
 	int y = r->y + (r->h - font->lineHeight) / 2;
+	int pad = r->h <= font->lineHeight + 2 ? 2 : 10;
+	int mark = pad == 2 ? 10 : 18;
 
 	if(button->plain) {
 		mp_tui_draw_text(draw, font, r->x, y, button->text, button->pressed ? theme->accent : theme->titleForeground);
@@ -47,9 +49,9 @@ static void _mp_tui_button_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 
 	mp_tui_draw_fill(draw, r->x, r->y, r->w, r->h, button->pressed ? theme->titleBackground : theme->surface);
 	mp_tui_draw_frame(draw, r->x, r->y, r->w, r->h, border);
-	mp_tui_draw_text(draw, font, r->x + 10, y, button->text, color);
+	mp_tui_draw_text(draw, font, r->x + pad, y, button->text, color);
 	if(button->chevron)
-		mp_tui_draw_text(draw, font, r->x + r->w - 18, y, ">", button->selected ? theme->accent : theme->muted);
+		mp_tui_draw_text(draw, font, r->x + r->w - mark, y, ">", button->selected ? theme->accent : theme->muted);
 }
 
 static int _mp_tui_button_event(mp_tui_widget_t *widget, const mp_tui_event_t *event) {
@@ -72,8 +74,13 @@ void mp_tui_button(mp_tui_button_t *button, mp_tui_widget_t *parent, int x, int 
 	button->chevron = 0;
 	button->plain = 0;
 	button->pressed = 0;
+	button->back = 0;
 	snprintf(button->text, sizeof(button->text), "%s", text ? text : "");
 	mp_tui_widget_init(&button->widget, &mp_tui_button_class, parent, x, y, w, h);
+}
+
+void mp_tui_button_back(mp_tui_button_t *button) {
+	button->back = 1;
 }
 
 /**@}*/

@@ -221,15 +221,17 @@ static void _sysinfo_power_page(mp_tui_widget_t *page, void *user) {
 	int w = page->rect.w - 16;
 	int y = 4;
 
-	mp_tui_switch(&sysinfo->screen.powerSwitch, page, 8, y, w, line + 10, "Governor", sysinfo->kernel.power.fixed == MP_POWER_AUTO);
+	int h = tui->pointer ? line + 10 : font->lineHeight;
+
+	mp_tui_switch(&sysinfo->screen.powerSwitch, page, 8, y, w, h, "Governor", sysinfo->kernel.power.fixed == MP_POWER_AUTO);
 	sysinfo->screen.powerSwitch.onChange = _sysinfo_on_governor;
 	sysinfo->screen.powerSwitch.user = sysinfo;
-	y += line + 14;
+	y += h + (tui->pointer ? 4 : 1);
 
-	mp_tui_switch(&sysinfo->screen.powerHibernate, page, 8, y, w, line + 10, "Hibernate", sysinfo->hibernate == YES);
+	mp_tui_switch(&sysinfo->screen.powerHibernate, page, 8, y, w, h, "Hibernate", sysinfo->hibernate == YES);
 	sysinfo->screen.powerHibernate.onChange = _sysinfo_on_hibernate;
 	sysinfo->screen.powerHibernate.user = sysinfo;
-	y += line + 14;
+	y += h + (tui->pointer ? 4 : 1);
 
 	mp_tui_label_wrap(&sysinfo->screen.powerLevel, page, 8, &y, w, line, font, "");
 	mp_tui_label_color(&sysinfo->screen.powerLevel, tui->theme.accent);

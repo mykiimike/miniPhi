@@ -284,7 +284,7 @@ void _sysinfo_dev_accel_build(mp_tui_widget_t *page, sysinfo_t *sysinfo) {
 		}
 	}
 	y += 8;
-	mp_tui_switch(&sysinfo->screen.accelSwitch, right, 0, y, w, line + 10, "Enabled", sysinfo->accelEnabled == YES);
+	mp_tui_switch(&sysinfo->screen.accelSwitch, right, 0, y, w, tui->pointer ? line + 10 : font->lineHeight, "Enabled", sysinfo->accelEnabled == YES);
 	sysinfo->screen.accelSwitch.onChange = _sysinfo_on_accel_switch;
 	sysinfo->screen.accelSwitch.user = sysinfo;
 

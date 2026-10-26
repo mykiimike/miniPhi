@@ -139,6 +139,7 @@ SECTIONS
     .data       : {} > RAM                  /* Global & static vars              */
     .TI.noinit  : {} > RAM                  /* For #pragma noinit                */
     .sysmem     : {} > RAM                  /* Dynamic memory allocation area    */
+    .mp_data_end : {} > RAM                  /* one byte past the low RAM allocations */
     .stack      : {} > RAM (HIGH)           /* Software system stack             */
 
 #ifndef __LARGE_CODE_MODEL__

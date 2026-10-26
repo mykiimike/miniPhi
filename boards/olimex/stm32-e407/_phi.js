@@ -11,7 +11,7 @@ export const phi = {
 	requires: ["arm-usb-ocd-h"],
 	app: "sysinfo",
 	defines: [],
-	modules: ["SERIAL", "DEVICE", "BUTTON"],
+	modules: ["SERIAL", "DEVICE", "BUTTON", "ED25519", "ECDSA_P256"],
 	drivers: ["LED"],
 	sources: ["button.c"],
 	settings: {

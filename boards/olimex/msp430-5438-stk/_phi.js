@@ -11,10 +11,17 @@ export const phi = {
 	requires: ["msp430-jtag-tiny-v2"],
 	app: "sysinfo",
 	defines: ["__OLIMEX_PROTOBOARD__"],
-	modules: ["MEM", "SERIAL", "PINOUT", "DEVICE", "CIRCULAR", "BUTTON"],
-	drivers: ["LED", "INA219"],
+	modules: ["MEM", "SERIAL", "PINOUT", "DEVICE", "CIRCULAR", "BUTTON", "TUI"],
+	drivers: ["LED", "INA219", "LCD_NOKIA3310"],
 	sources: ["button.c"],
-	settings: {},
+	settings: {
+		MP_TUI_FONT: "silkscreen",
+		MP_TUI_FONT_SIZE: 8,
+		MP_TUI_FONT_BPP: "1",
+		MP_TUI_FONT_CHARSET: "latin1",
+		SYSINFO_SCREEN_COLUMNS: 84,
+		MP_TASK_MAX: 16,
+	},
 	/* button.c claims these */
 	reserved: [
 		{ pin: "p1.6", who: "joystick left, active low" },
@@ -24,6 +31,19 @@ export const phi = {
 		{ pin: "p1.2", who: "joystick down, active low" },
 	],
 	devices: [
+		{
+			driver: "LCD_NOKIA3310",
+			name: "nokia",
+			options: {
+				gate: "USCI_B2",
+				simo: "p9.1",
+				somi: "p9.2",
+				clk: "p9.3",
+				dc: "p9.7",
+				reset: "p9.6",
+				cs: "p9.0",
+			},
+		},
 		{ driver: "LED", name: "red", options: { port: "p10.6" } },
 		{ driver: "LED", name: "green", options: { port: "p10.7" } },
 		{ driver: "LED", name: "system_green", options: { port: "p2.5" } },

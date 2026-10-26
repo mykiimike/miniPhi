@@ -61,7 +61,10 @@ static void _mp_tui_switch_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
 	cy = r->y + r->h / 2;
 	track = sw->on ? theme->accent : theme->border;
 
-	mp_tui_draw_text(draw, font, r->x, r->y + (r->h - font->lineHeight) / 2, sw->text, theme->foreground);
+	mp_tui_draw_text(draw, font, r->x, r->y + (r->h - font->lineHeight) / 2, sw->text,
+		widget->tui->focused == widget ? theme->accent : theme->foreground);
+	if(widget->tui->focused == widget)
+		mp_tui_draw_frame(draw, r->x, r->y, r->w, r->h, theme->accent);
 	_mp_tui_switch_disc(draw, tx + radius, cy, radius, track);
 	_mp_tui_switch_disc(draw, tx + tw - radius, cy, radius, track);
 	mp_tui_draw_fill(draw, tx + radius, cy - radius, tw - radius * 2, radius * 2 + 1, track);
