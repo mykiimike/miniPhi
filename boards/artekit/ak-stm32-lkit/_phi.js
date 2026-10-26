@@ -3,7 +3,7 @@ export const phi = {
 	name: "ak-stm32-lkit",
 	vendor: "Artekit",
 	label: "Artekit AK-STM32-LKIT",
-	description: "STM32F103T8 board: 8 MHz quartz, RS-232 on USART1, USB device, 20-pin JTAG. D1 and D2 sink into PA0 and PA1.",
+	description: "STM32F103T8U6 in a 36-pin package: 64 KB flash, 20 KB RAM, 8 MHz crystal, no 32 kHz crystal. Console on USART1 through the ST3232 (PA9 TX, PA10 RX, 115200). The USB B connector is PA11 and PA12, with 27 Ω series resistors and a fitted 1.5 kΩ pull-up; the port is not driven. 20-pin JTAG. D1 and D2 are the red LEDs and sink on PA0 and PA1. The reset key is NRST. J5 brings the remaining I/O out, including PB6 and PB7. Flashed with the AK-LINK.",
 	arch: "stm32",
 	series: "f1",
 	mcu: "stm32f103t8",
@@ -14,9 +14,17 @@ export const phi = {
 	modules: ["SERIAL", "DEVICE"],
 	drivers: ["LED"],
 	settings: {
+		/* 20 KB RAM: the pool, a small C heap and the 2 KB stack have to share it */
 		MP_MEM_SIZE: 4096,
 		MP_MEM_CHUNK: 64,
+		MP_CLOCK_HSE_HZ: 8000000,
+		HEAP_SIZE: 128,
 	},
+	/* the crystal is OSC_IN / OSC_OUT, not a GPIO; JTAG pins are reserved by the series */
+	reserved: [
+		{ pin: "pa11", who: "USB D-" },
+		{ pin: "pa12", who: "USB D+" },
+	],
 	devices: [
 		{ driver: "LED", name: "d1", options: { port: "pa0", reverse: true } },
 		{ driver: "LED", name: "d2", options: { port: "pa1", reverse: true } },

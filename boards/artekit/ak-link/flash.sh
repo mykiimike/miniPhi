@@ -17,4 +17,8 @@ case "$mcu" in
 	*) echo "ak-link: no OpenOCD target for $mcu" >&2; exit 1 ;;
 esac
 
-exec openocd -f "$here/ak-link.cfg" -f "$target" -c "program {$firmware} verify reset exit"
+# connect_assert_srst holds the core in reset while connecting: a running
+# image can be in WFI with its debug domain off, and the halt then times out.
+exec openocd -f "$here/ak-link.cfg" -f "$target" \
+	-c "reset_config srst_only srst_nogate connect_assert_srst" \
+	-c "program {$firmware} verify reset exit"
