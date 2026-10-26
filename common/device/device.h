@@ -85,6 +85,8 @@
 		MP_DEVICE_ORIENTATION,
 		/** address stem clock. Instance: mp_device_time_t, a civil time */
 		MP_DEVICE_CLOCK,
+		/** address stem charge. Instance: mp_device_charge_t, the cycle the status lines report */
+		MP_DEVICE_CHARGER,
 		/** not a class: the number of classes above, and the scan that visits every driver */
 		MP_DEVICE_CLASS_COUNT,
 		MP_DEVICE_ANY = MP_DEVICE_CLASS_COUNT
@@ -700,6 +702,52 @@
 	mp_ret_t mp_device_clock_read(mp_device_time_t *clock, mp_device_time_t *out);
 	/** Queue a new time. FALSE when the driver gave no set, or set refused it. */
 	mp_ret_t mp_device_clock_set(mp_device_time_t *clock, const mp_device_time_t *time);
+
+	/**
+	 * A charger. The driver owns an mp_device_charge_t, registers it as the
+	 * instance, and samples into it while a subscriber holds the driver.
+	 * The state is charging, done or waiting. STAT1 low is charging, STAT2
+	 * low is done, both lines released is waiting. Both lines low leave
+	 * that state as it is.
+	 *
+	 * The device keeps the last reading that came back twice.
+	 */
+	typedef enum {
+		MP_DEVICE_CHARGE_CHARGING = 0,
+		MP_DEVICE_CHARGE_DONE,
+		MP_DEVICE_CHARGE_WAITING,
+	} mp_device_charge_state_t;
+
+	typedef struct mp_device_charge_s mp_device_charge_t;
+
+	struct mp_device_charge_s {
+		mp_device_charge_state_t state;
+		/** YES once a state was published */
+		mp_bool_t valid;
+		/** clock ticks of the last publication */
+		unsigned long stamp;
+		/** last raw reading, held until it repeats */
+		mp_device_charge_state_t pending;
+		/** 1 when pending differs from the published state and is waiting */
+		unsigned char seen;
+	};
+
+	/** Subscribe and return the charger. NULL when the device is gone. */
+	mp_device_charge_t *mp_device_charge(mp_device_registry_t *device, mp_device_subscribe_t *sub);
+	/** Publish one state now; interrupt safe, NULL ignored */
+	void mp_device_charge_publish(mp_device_charge_t *charge, mp_device_charge_state_t state);
+	/**
+	 * Offer charging, done or waiting. Anything else is ignored. The state is
+	 * published when the same reading is offered again. NULL ignored.
+	 */
+	void mp_device_charge_sample(mp_device_charge_t *charge, mp_device_charge_state_t state);
+	/**
+	 * Copy the last state.
+	 * @return FALSE when nothing was published yet
+	 */
+	mp_ret_t mp_device_charge_read(mp_device_charge_t *charge, mp_device_charge_state_t *state);
+	/** "charging", "done" or "waiting". "" when state is none of them. */
+	const char *mp_device_charge_text(mp_device_charge_state_t state);
 
 	/**
 	 * Start the device manager, then the driver registry.

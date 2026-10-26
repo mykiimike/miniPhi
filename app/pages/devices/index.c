@@ -34,7 +34,7 @@ static const char *_sysinfo_dev_class_name[] = {
 	"Display", "Touch", "Accelerometer", "LED", "Camera",
 	"Temperature", "Gyroscope", "Magnetometer", "Voltage", "Current",
 	"CPU", "Button", "Barometer", "Altimeter", "Power",
-	"Humidity", "Illuminance", "Orientation", "Clock"
+	"Humidity", "Illuminance", "Orientation", "Clock", "Charger"
 };
 
 typedef char _sysinfo_dev_class_ok[(sizeof(_sysinfo_dev_class_name) / sizeof(_sysinfo_dev_class_name[0]) == MP_DEVICE_CLASS_COUNT) ? 1 : -1];
@@ -456,6 +456,8 @@ static void _sysinfo_dev_view(mp_tui_widget_t *page, void *user) {
 		_sysinfo_dev_camera_build(page, sysinfo);
 	else if(sysinfo->screen.devClass == MP_DEVICE_CLOCK)
 		_sysinfo_dev_clock_build(page, sysinfo);
+	else if(sysinfo->screen.devClass == MP_DEVICE_CHARGER)
+		_sysinfo_dev_charge_build(page, sysinfo);
 	else if(mp_device_measure_class(sysinfo->screen.devClass) == YES) {
 		_sysinfo_dev_measure_build(page, sysinfo);
 		_sysinfo_dev_measure_refresh(sysinfo);
@@ -487,6 +489,8 @@ void _sysinfo_dev_refresh(sysinfo_t *sysinfo) {
 		mp_tui_fullscreen_close(&sysinfo->screen.tui);
 	if(_sysinfo_dev_clock_shown(sysinfo) == NO)
 		_sysinfo_dev_clock_release(sysinfo);
+	if(_sysinfo_dev_charge_shown(sysinfo) == NO)
+		_sysinfo_dev_charge_release(sysinfo);
 	_sysinfo_dev_camera_refresh(sysinfo);
 	if(sysinfo->screen.devView < 0 || sysinfo->screen.tui.opened != sysinfo->screen.devView)
 		return;
@@ -494,6 +498,8 @@ void _sysinfo_dev_refresh(sysinfo_t *sysinfo) {
 		_sysinfo_dev_accel_refresh(sysinfo);
 	else if(sysinfo->screen.devClass == MP_DEVICE_CLOCK)
 		_sysinfo_dev_clock_refresh(sysinfo);
+	else if(sysinfo->screen.devClass == MP_DEVICE_CHARGER)
+		_sysinfo_dev_charge_refresh(sysinfo);
 	else if(sysinfo->screen.devClass != MP_DEVICE_CAMERA && mp_device_measure_class(sysinfo->screen.devClass) == YES)
 		_sysinfo_dev_measure_refresh(sysinfo);
 }

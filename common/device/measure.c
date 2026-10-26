@@ -31,7 +31,7 @@
 
 static const char *_mp_device_measure_unit[MP_DEVICE_CLASS_COUNT] = {
 	"", "", "g", "", "", "C", "dps", "gauss", "V", "A", "", "",
-	"Pa", "m", "W", "%RH", "lx", "deg", ""
+	"Pa", "m", "W", "%RH", "lx", "deg", "", ""
 };
 
 typedef char _mp_device_measure_unit_ok[(sizeof(_mp_device_measure_unit) / sizeof(_mp_device_measure_unit[0]) == MP_DEVICE_CLASS_COUNT) ? 1 : -1];

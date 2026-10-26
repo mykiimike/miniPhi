@@ -3,7 +3,7 @@ export const phi = {
 	name: "stm32-lcd",
 	vendor: "Olimex",
 	label: "Olimex STM32-LCD",
-	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. ILI9320 TFT on the FSMC (NE1, RS on A19), shown by the TUI. The 4-wire touch panel is on PC0 to PC3 (YD, YU, XL, XR). A Bosch SMB380 accelerometer is on I2C2 (PB10 SCL, PB11 SDA), its interrupt on PE4. A FLIR Lepton breakout is on SPI2 (PB13 SCK, PB14 MISO, PB15 MOSI, chip select PB12) and I2C1 (PB6 SCL, PB7 SDA); MOSI stays unconnected at the module. No user LED: D1 to D4 are supply diodes. Flashed with the ARM-USB-OCD-H.",
+	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. ILI9320 TFT on the FSMC (NE1, RS on A19), shown by the TUI. The 4-wire touch panel is on PC0 to PC3 (YD, YU, XL, XR). A Bosch SMB380 accelerometer is on I2C2 (PB10 SCL, PB11 SDA), its interrupt on PE4. A FLIR Lepton breakout is on SPI2 (PB13 SCK, PB14 MISO, PB15 MOSI, chip select PB12) and I2C1 (PB6 SCL, PB7 SDA); MOSI stays unconnected at the module. A Microchip MCP73833 charger reports STAT1 on PC6 and STAT2 on PC7. No user LED: D1 to D4 are supply diodes. Flashed with the ARM-USB-OCD-H.",
 	arch: "stm32",
 	series: "f1",
 	mcu: "stm32f103ze",
@@ -12,13 +12,14 @@ export const phi = {
 	app: "sysinfo",
 	defines: [],
 	modules: ["SERIAL", "DEVICE", "RESISTIVE", "TUI", "KFLASH", "RSA", "ED25519", "ECDSA_P256"],
-	drivers: ["ILI932X", "SMB380", "LEPTON"],
+	drivers: ["ILI932X", "SMB380", "LEPTON", "MCP73833"],
 	sources: ["touch.c"],
 	settings: {
 		/* 2560: the Lepton frame and the device records sit in BSS beside this pool */
 		MP_MEM_SIZE: 2560,
 		MP_MEM_CHUNK: 64,
-		MP_TASK_MAX: 12,
+		/* one slot for the MCP73833 sample task, taken while its page is open */
+		MP_TASK_MAX: 13,
 		MP_TUI_TEXT_MAX: 96,
 		MP_CLOCK_LSE: true,
 		/* one device PHY; the System USB table keeps a row per slot */
@@ -26,7 +27,7 @@ export const phi = {
 		/* newlib heap. Nothing in this firmware mallocs; 128 frees a task slot. */
 		HEAP_SIZE: 128,
 	},
-	/* touch.c claims PC0 to PC3; the crystal, USB and microSD pins stay reserved too */
+	/* touch.c claims PC0 to PC3; the crystal, USB and microSD pins stay reserved too. PC6 and PC7 belong to the charger device. */
 	reserved: [
 		{ pin: "pc0", who: "4-wire touch YD" },
 		{ pin: "pc1", who: "4-wire touch YU" },
@@ -64,6 +65,11 @@ export const phi = {
 				i2cGate: "I2C1", sda: "pb7", scl: "pb6",
 				model: "lepton",
 			},
+		},
+		{
+			driver: "MCP73833",
+			name: "charger",
+			options: { stat1: "pc6", stat2: "pc7", model: "mcp73833", serial: "adafruit" },
 		},
 	],
 }

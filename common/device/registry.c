@@ -30,7 +30,7 @@
 static const char *_mp_device_registry_stem[MP_DEVICE_CLASS_COUNT] = {
 	"disp", "touch", "accel", "led", "video",
 	"temp", "gyro", "mag", "volt", "curr", "cpu", "button",
-	"baro", "alt", "power", "hum", "lux", "orient", "clock"
+	"baro", "alt", "power", "hum", "lux", "orient", "clock", "charge"
 };
 
 typedef char _mp_device_registry_stem_ok[(sizeof(_mp_device_registry_stem) / sizeof(_mp_device_registry_stem[0]) == MP_DEVICE_CLASS_COUNT) ? 1 : -1];

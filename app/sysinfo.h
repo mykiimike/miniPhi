@@ -145,6 +145,8 @@ struct sysinfo_s {
 		char devTitle[32];
 		/** held while the clock view is on screen; that subscription runs the read */
 		mp_device_subscribe_t clockSub;
+		/** held while the charger view is on screen; that subscription runs the read */
+		mp_device_subscribe_t chargeSub;
 		/** accelerometer view: the bubble, the axes, the companion temperature, the switch */
 		int accelReady;
 		/** camera view */

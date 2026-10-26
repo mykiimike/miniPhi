@@ -59,6 +59,10 @@ void _sysinfo_dev_clock_release(sysinfo_t *sysinfo);
 mp_bool_t _sysinfo_dev_clock_shown(sysinfo_t *sysinfo);
 void _sysinfo_dev_clock_build(mp_tui_widget_t *page, sysinfo_t *sysinfo);
 void _sysinfo_dev_clock_refresh(sysinfo_t *sysinfo);
+void _sysinfo_dev_charge_release(sysinfo_t *sysinfo);
+mp_bool_t _sysinfo_dev_charge_shown(sysinfo_t *sysinfo);
+void _sysinfo_dev_charge_build(mp_tui_widget_t *page, sysinfo_t *sysinfo);
+void _sysinfo_dev_charge_refresh(sysinfo_t *sysinfo);
 #endif
 /** 0 when the System page could not be registered */
 int _sysinfo_system_open(sysinfo_t *sysinfo);
