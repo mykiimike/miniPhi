@@ -1,0 +1,2 @@
+# Olimex MSP430-JTAG-TINY-V2. mspdebug opens it with libusb and detaches cdc-acm.
+ATTRS{idVendor}=="15ba", ATTRS{idProduct}=="0031", MODE="660", GROUP="plugdev", TAG+="uaccess"

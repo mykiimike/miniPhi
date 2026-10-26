@@ -344,36 +344,36 @@ static void hash_int(uint32_t e[W], const uint8_t digest[32]) {
 
 /* RFC 6979 section 3.2, HMAC-SHA-256, qlen = hlen = 256 */
 static void rfc6979(uint32_t k[W], const uint8_t priv[32], const uint8_t digest[32]) {
-	uint8_t V[32], K[32], h1[32], block[32 + 1 + 32 + 32];
+	uint8_t v[32], K[32], h1[32], block[32 + 1 + 32 + 32];
 	uint32_t t[W];
 	int guard;
 
 	mp_bn_from_be(t, W, digest, 32);
 	sc_reduce(t, t);
 	mp_bn_to_be(h1, 32, t, W);
-	memset(V, 0x01, 32);
+	memset(v, 0x01, 32);
 	memset(K, 0x00, 32);
-	memcpy(block, V, 32);
+	memcpy(block, v, 32);
 	block[32] = 0x00;
 	memcpy(block + 33, priv, 32);
 	memcpy(block + 65, h1, 32);
 	mp_hmac("SHA256", K, 32, block, sizeof(block), K);
-	mp_hmac("SHA256", K, 32, V, 32, V);
-	memcpy(block, V, 32);
+	mp_hmac("SHA256", K, 32, v, 32, v);
+	memcpy(block, v, 32);
 	block[32] = 0x01;
 	mp_hmac("SHA256", K, 32, block, sizeof(block), K);
-	mp_hmac("SHA256", K, 32, V, 32, V);
+	mp_hmac("SHA256", K, 32, v, 32, v);
 	for(guard = 0; guard < 8; guard++) {
-		mp_hmac("SHA256", K, 32, V, 32, V);
-		mp_bn_from_be(k, W, V, 32);
+		mp_hmac("SHA256", K, 32, v, 32, v);
+		mp_bn_from_be(k, W, v, 32);
 		if(!mp_bn_is_zero(k, W) && mp_bn_cmp(k, _n, W) < 0)
 			break;
-		memcpy(block, V, 32);
+		memcpy(block, v, 32);
 		block[32] = 0x00;
 		mp_hmac("SHA256", K, 32, block, 33, K);
-		mp_hmac("SHA256", K, 32, V, 32, V);
+		mp_hmac("SHA256", K, 32, v, 32, v);
 	}
-	memset(V, 0, sizeof(V));
+	memset(v, 0, sizeof(v));
 	memset(K, 0, sizeof(K));
 }
 

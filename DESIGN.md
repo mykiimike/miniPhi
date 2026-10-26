@@ -98,8 +98,12 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
     │   ├── arm-usb-ocd-h/
     │   │   ├── _phi.js       kind probe: make flash through OpenOCD
     │   │   └── flash.sh      program, verify, reset (STM32F1 and STM32F4)
+    │   ├── msp430-jtag-tiny-v2/
+    │   │   ├── _phi.js       kind probe: make flash through mspdebug
+    │   │   ├── flash.sh      program the ELF; closing the session runs the core
+    │   │   └── 60-msp430-jtag-tiny-v2.rules
     │   ├── msp430-5438-stk/
-    │   │   └── _phi.js       kind board: target, app, modules, drivers, devices
+    │   │   └── _phi.js       kind board, requires the msp430-jtag-tiny-v2 probe
     │   ├── stm32-e407/
     │   │   └── _phi.js       STM32F407ZG, console on UEXT USART6, LED on PC13, ARM-USB-OCD-H
     │   └── stm32-lcd/

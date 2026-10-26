@@ -198,28 +198,29 @@ SECTIONS
     .int38       : {}               > INT38
     .int39       : {}               > INT39
     .int40       : {}               > INT40
-    RTC          : { * ( .int41 ) } > INT41 type = VECT_INIT
-    PORT2        : { * ( .int42 ) } > INT42 type = VECT_INIT
-    USCI_B3      : { * ( .int43 ) } > INT43 type = VECT_INIT
-    USCI_A3      : { * ( .int44 ) } > INT44 type = VECT_INIT
-    USCI_B1      : { * ( .int45 ) } > INT45 type = VECT_INIT
-    USCI_A1      : { * ( .int46 ) } > INT46 type = VECT_INIT
-    PORT1        : { * ( .int47 ) } > INT47 type = VECT_INIT
-    TIMER1_A1    : { * ( .int48 ) } > INT48 type = VECT_INIT
-    TIMER1_A0    : { * ( .int49 ) } > INT49 type = VECT_INIT
-    DMA          : { * ( .int50 ) } > INT50 type = VECT_INIT
-    USCI_B2      : { * ( .int51 ) } > INT51 type = VECT_INIT
-    USCI_A2      : { * ( .int52 ) } > INT52 type = VECT_INIT
-    TIMER0_A1    : { * ( .int53 ) } > INT53 type = VECT_INIT
-    TIMER0_A0    : { * ( .int54 ) } > INT54 type = VECT_INIT
-    ADC12        : { * ( .int55 ) } > INT55 type = VECT_INIT
-    USCI_B0      : { * ( .int56 ) } > INT56 type = VECT_INIT
-    USCI_A0      : { * ( .int57 ) } > INT57 type = VECT_INIT
-    WDT          : { * ( .int58 ) } > INT58 type = VECT_INIT
-    TIMER0_B1    : { * ( .int59 ) } > INT59 type = VECT_INIT
-    TIMER0_B0    : { * ( .int60 ) } > INT60 type = VECT_INIT
-    UNMI         : { * ( .int61 ) } > INT61 type = VECT_INIT
-    SYSNMI       : { * ( .int62 ) } > INT62 type = VECT_INIT
+    /* cl430 emits .intN from the device header. Those macros are one above the original TI slots. */
+    RTC          : { * ( .int42 ) } > INT41 type = VECT_INIT
+    PORT2        : { * ( .int43 ) } > INT42 type = VECT_INIT
+    USCI_B3      : { * ( .int44 ) } > INT43 type = VECT_INIT
+    USCI_A3      : { * ( .int45 ) } > INT44 type = VECT_INIT
+    USCI_B1      : { * ( .int46 ) } > INT45 type = VECT_INIT
+    USCI_A1      : { * ( .int47 ) } > INT46 type = VECT_INIT
+    PORT1        : { * ( .int48 ) } > INT47 type = VECT_INIT
+    TIMER1_A1    : { * ( .int49 ) } > INT48 type = VECT_INIT
+    TIMER1_A0    : { * ( .int50 ) } > INT49 type = VECT_INIT
+    DMA          : { * ( .int51 ) } > INT50 type = VECT_INIT
+    USCI_B2      : { * ( .int52 ) } > INT51 type = VECT_INIT
+    USCI_A2      : { * ( .int53 ) } > INT52 type = VECT_INIT
+    TIMER0_A1    : { * ( .int54 ) } > INT53 type = VECT_INIT
+    TIMER0_A0    : { * ( .int55 ) } > INT54 type = VECT_INIT
+    ADC12        : { * ( .int56 ) } > INT55 type = VECT_INIT
+    USCI_B0      : { * ( .int57 ) } > INT56 type = VECT_INIT
+    USCI_A0      : { * ( .int58 ) } > INT57 type = VECT_INIT
+    WDT          : { * ( .int59 ) } > INT58 type = VECT_INIT
+    TIMER0_B1    : { * ( .int60 ) } > INT59 type = VECT_INIT
+    TIMER0_B0    : { * ( .int61 ) } > INT60 type = VECT_INIT
+    UNMI         : { * ( .int62 ) } > INT61 type = VECT_INIT
+    SYSNMI       : { * ( .int63 ) } > INT62 type = VECT_INIT
     .reset       : {}               > RESET  /* MSP430 Reset vector         */ 
 }
 

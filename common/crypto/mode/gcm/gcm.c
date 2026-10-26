@@ -46,23 +46,23 @@ is a mask too, so no branch, table index or address depends on H.
 
 /* X * Y in GF(2^128) with the NIST bit order; V starts as Y, bits of X are
  * tested with masks (constant time with respect to both operands) */
-static void _mp_gmul(const uint8_t *X, const uint8_t *Y, uint8_t *Z) {
-	uint8_t V[16], z[16];
-	memcpy(V, Y, 16);
+static void _mp_gmul(const uint8_t *X, const uint8_t *Y, uint8_t *out) {
+	uint8_t shift[16], z[16];
+	memcpy(shift, Y, 16);
 	memset(z, 0, 16);
 	for(int i = 0; i < 128; i++) {
 		uint8_t bit = (uint8_t)((X[i / 8] >> (7 - (i & 7))) & 1);
 		uint8_t mask = (uint8_t)(0 - bit);
 		for(int b = 0; b < 16; b++)
-			z[b] ^= (uint8_t)(V[b] & mask);
-		uint8_t lsb = (uint8_t)(V[15] & 1);
+			z[b] ^= (uint8_t)(shift[b] & mask);
+		uint8_t lsb = (uint8_t)(shift[15] & 1);
 		for(int b = 15; b > 0; b--)
-			V[b] = (uint8_t)((V[b] >> 1) | (V[b - 1] << 7));
-		V[0] >>= 1;
-		V[0] ^= (uint8_t)(0xE1 & (0 - lsb));
+			shift[b] = (uint8_t)((shift[b] >> 1) | (shift[b - 1] << 7));
+		shift[0] >>= 1;
+		shift[0] ^= (uint8_t)(0xE1 & (0 - lsb));
 	}
-	memcpy(Z, z, 16);
-	memset(V, 0, sizeof(V));
+	memcpy(out, z, 16);
+	memset(shift, 0, sizeof(shift));
 	memset(z, 0, sizeof(z));
 }
 
