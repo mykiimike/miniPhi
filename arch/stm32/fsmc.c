@@ -199,6 +199,19 @@ mp_bool_t mp_fsmc_pause(void) {
 #endif
 }
 
+/**
+ * @brief Let a buffered FSMC write land
+ *
+ * The clock changes between task passes, so it never meets an access
+ * still inside the task that started it.
+ *
+ * @return YES
+ */
+mp_bool_t mp_fsmc_quiet(void) {
+	__asm volatile ("dsb" ::: "memory");
+	return(YES);
+}
+
 void mp_fsmc_resume(mp_bool_t running) {
 #if defined(RCC_AHBENR_FSMCEN)
 	if(running == YES)

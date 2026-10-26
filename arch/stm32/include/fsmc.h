@@ -62,6 +62,9 @@
 	mp_bool_t mp_fsmc_pause(void);
 	void mp_fsmc_resume(mp_bool_t running);
 
+	/** DSB so a buffered write has landed, then YES */
+	mp_bool_t mp_fsmc_quiet(void);
+
 	static inline void mp_fsmc_write_cmd(mp_fsmc_t *fsmc, uint16_t value) {
 		*fsmc->cmd = value;
 	}

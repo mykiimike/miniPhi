@@ -80,11 +80,6 @@
 		#define MP_TUI_OFF_LEVEL 0
 	#endif
 
-	/* ms the level stays HIGH after an input */
-	#ifndef MP_TUI_BOOST
-		#define MP_TUI_BOOST 300
-	#endif
-
 	/** RGB565 */
 	typedef uint16_t mp_tui_color_t;
 
@@ -351,10 +346,8 @@
 		mp_tui_saver_t saver;
 		unsigned long activeAt;
 		int swallow;
-		/** HIGH for MP_TUI_BOOST after an input */
-		mp_power_hold_t boost;
-		/** MEDIUM while the screen is up, so the governor does not sit in Sleep */
-		mp_power_hold_t rest;
+		/** non-zero: the saver may turn the panel off */
+		int hibernate;
 
 		/** covers the display while shown; hidden until mp_tui_fullscreen() */
 		mp_tui_widget_t fullscreen;
@@ -657,13 +650,21 @@
 	 * Screen saver: dims after MP_TUI_DIM_AFTER s without input. After
 	 * MP_TUI_OFF_AFTER s it turns the backlight to MP_TUI_OFF_LEVEL % and,
 	 * when the display provides it, powers the panel down, but only while
-	 * mp_power_hibernating() is YES. Otherwise it stays dimmed, which holds
-	 * the reduced supply. Only with a display that has backlight() or
-	 * power(). Off, nothing is drawn, accelerometers sleep, and the touch
-	 * panel dozes; the first gesture only wakes the screen.
+	 * mp_tui_hibernating() is non-zero. Otherwise it stays dimmed. Only
+	 * with a display that has backlight() or power(). Off, nothing is
+	 * drawn, accelerometers sleep, and the touch panel dozes; the first
+	 * gesture only wakes the screen.
 	 */
 	void mp_tui_wake(mp_tui_t *ui);
 	int mp_tui_awake(mp_tui_t *ui);
+
+	/**
+	 * Authorize hibernate. Off, the saver stays at the dimmed backlight,
+	 * and a panel that was off comes back to that dim. On, the saver may
+	 * turn the panel off. Wakes the TUI task when there is one.
+	 */
+	void mp_tui_hibernate(mp_tui_t *ui, int on);
+	int mp_tui_hibernating(mp_tui_t *ui);
 
 	/** applies the screen saver; ticks until it moves again or an input wants a read, 0 for never */
 	unsigned long mp_tui_idle(mp_tui_t *ui);

@@ -20,6 +20,10 @@
 
 #include <mp.h>
 
+#ifdef SUPPORT_COMMON_DMA
+#include <arch/dma.h>
+#endif
+
 /**
 @defgroup mpArchSTM32F1Clock STM32F1 clock tree, power levels and kernel tick
 
@@ -34,9 +38,11 @@ Each power level has its own tree:
 - SLEEP runs HSI at 8 MHz with HSE and the PLL off: Stop wakes up on HSI,
   so there is nothing to restore.
 
-AHB and APB2 run at SYSCLK, APB1 at most 36 MHz. A level only changes
-while no UART, I2C, SPI or ADC transfer runs; then the UARTs, I2C, SPI,
-timers, FSMC banks, the ADC prescaler and SysTick are retimed.
+AHB and APB2 run at SYSCLK, APB1 at most 36 MHz. MEDIUM defaults to
+48 MHz. USBPRE leaves a 48 MHz PLL undivided and divides a 72 MHz PLL
+by 1.5, so both clock USB at 48 MHz. A level only changes while no UART,
+I2C, SPI, ADC or DMA transfer is in flight; then the UARTs, I2C,
+SPI, timers, FSMC banks, the ADC prescaler and SysTick are retimed.
 
 SysTick ticks at 1 kHz, so one tick is one ms. It is tickless: before WFI
 it is stretched to the next deadline, at most 2^24 core cycles. With
@@ -55,7 +61,7 @@ and a press no longer wakes it.
 #define _SYSTICK_MAX 0xFFFFFFUL
 
 #ifndef MP_CLOCK_ME_FREQ
-	#define MP_CLOCK_ME_FREQ MHZ24_t
+	#define MP_CLOCK_ME_FREQ MHZ48_t
 #endif
 
 #ifndef MP_CLOCK_LE_FREQ
@@ -220,7 +226,7 @@ static void _mp_clock_apply(mp_kernel_t *kernel, const _mp_clock_plan_t *plan) {
 	__pclk1 = plan->hz > _APB1_MAX_HZ ? plan->hz / 2 : plan->hz;
 	__pclk2 = plan->hz;
 #ifdef SUPPORT_COMMON_USB
-	/* 72 MHz PLL / 1.5, or the 48 MHz PLL itself */
+	/* USBPRE set is PLL/1 (48 MHz); clear is PLL/1.5 (72 MHz -> 48) */
 	if(__sysclk == 48000000UL)
 		RCC->CFGR |= RCC_CFGR_USBPRE;
 	else
@@ -249,10 +255,35 @@ static void _mp_clock_tick_retime(void) {
 	MP_INTERRUPT_SAFE_END
 }
 
+/* the bus that refused the last switch, for the Power page */
+static const char *__blocker = NULL;
+
 static mp_bool_t _mp_clock_quiet(void) {
-	if(mp_uart_quiet() == NO || mp_i2c_quiet() == NO || mp_spi_quiet() == NO || mp_adc_quiet() == NO)
-		return(NO);
-	return(YES);
+	__blocker = NULL;
+	if(mp_uart_quiet() == NO)
+		__blocker = "UART";
+	else if(mp_i2c_quiet() == NO)
+		__blocker = "I2C";
+	else if(mp_spi_quiet() == NO)
+		__blocker = "SPI";
+	else if(mp_adc_quiet() == NO)
+		__blocker = "ADC";
+#ifdef SUPPORT_COMMON_DMA
+	else if(mp_dma_quiet() == NO)
+		__blocker = "DMA";
+#endif
+	else if(mp_fsmc_quiet() == NO)
+		__blocker = "FSMC";
+	return(__blocker ? NO : YES);
+}
+
+/**
+ * @brief What refused the last level switch
+ *
+ * @return A bus name, or NULL when the last switch went through
+ */
+const char *mp_clock_blocker(void) {
+	return(__blocker);
 }
 
 static mp_bool_t _mp_clock_same(const _mp_clock_plan_t *a, const _mp_clock_plan_t *b) {
@@ -280,10 +311,6 @@ mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
 		_mp_clock_plan(level, &plan);
 
 	if(_mp_clock_same(&plan, &__plan) == NO) {
-#ifdef SUPPORT_COMMON_USB
-		/* the PHY is parked and comes back only if this tree still has 48 MHz */
-		mp_usb_clock_stop();
-#endif
 		_mp_clock_apply(kernel, &plan);
 		_mp_clock_tick_retime();
 		mp_uart_retime();
@@ -291,9 +318,6 @@ mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
 		mp_spi_retime();
 		mp_timer_retime();
 		mp_fsmc_retime(__sysclk);
-#ifdef SUPPORT_COMMON_USB
-		mp_usb_clock_start();
-#endif
 	}
 	return(TRUE);
 }
@@ -567,6 +591,8 @@ void mp_clock_schedule(mp_kernel_t *kernel, unsigned long limit) {
 	_mp_clock_lse_poll();
 #endif
 
+	mp_i2c_watch();
+
 	/* masked so a wake up between the test and WFI is not lost: WFI still returns on it */
 	__asm volatile ("cpsid i" ::: "memory");
 	idle = mp_task_idle(&kernel->tasks);
@@ -655,10 +681,14 @@ const char *mp_clock_name(mp_clock_freq_t clock) {
 	return(__names[clock]);
 }
 
-mp_bool_t mp_clock_usb48(void) {
-	if(__plan.sw != 2)
+static mp_bool_t _mp_clock_usb_ok(const _mp_clock_plan_t *plan) {
+	if(plan->sw != 2)
 		return(NO);
-	return(__plan.hz == 48000000UL || __plan.hz == 72000000UL ? YES : NO);
+	return(plan->hz == 48000000UL || plan->hz == 72000000UL ? YES : NO);
+}
+
+mp_bool_t mp_clock_usb48(void) {
+	return(_mp_clock_usb_ok(&__plan));
 }
 
 void mp_clock_delay(int delay) {

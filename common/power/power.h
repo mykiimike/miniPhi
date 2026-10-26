@@ -30,12 +30,8 @@
 		#define MP_POWER_WINDOW 100
 	#endif
 
-	#ifndef MP_POWER_UP
-		#define MP_POWER_UP 70
-	#endif
-
-	#ifndef MP_POWER_DOWN
-		#define MP_POWER_DOWN 20
+	#ifndef MP_POWER_TARGET
+		#define MP_POWER_TARGET 60
 	#endif
 
 	#ifndef MP_POWER_DOWN_DELAY
@@ -70,6 +66,8 @@
 		mp_bool_t expires;
 
 		mp_bool_t held;
+		/** YES: vetoes deep sleep; floor is not a frequency */
+		mp_bool_t nodeep;
 		char *who;
 		mp_list_item_t item;
 	};
@@ -86,24 +84,24 @@
 		/** MP_POWER_AUTO, or the level mp_power_fix() pinned */
 		mp_power_level_t fixed;
 
-		/** highest floor of the live holds */
+		/** highest floor of the live frequency holds */
 		mp_power_level_t floor;
 
-		/** YES: the screen saver may turn the backlight fully off */
-		mp_bool_t hibernate;
+		/** level the last window's need asked for */
+		mp_power_level_t target;
 
-		/** busy share of the last window, in % */
+		/** EWMA of the busy share, in % */
 		unsigned char load;
 
-		/** load the next level down would see, in % */
-		unsigned char projected;
+		/** kHz the smoothed load needs so it sits near MP_POWER_TARGET */
+		unsigned long need;
 
 		/** µs at the window start, busy µs inside it, µs of the last wake up */
 		unsigned long windowAt;
 		unsigned long busy;
 		unsigned long wokeAt;
 
-		/** ms the load stayed under MP_POWER_DOWN */
+		/** ms the target stayed under governed */
 		unsigned long calm;
 
 		/** wake ups in the last window, per second */
@@ -115,6 +113,10 @@
 
 		/** level changes since boot */
 		unsigned long switches;
+
+		/** switches the arch refused since boot, and what refused the last one */
+		unsigned long refused;
+		const char *blocker;
 
 		/** ms spent per level since boot */
 		unsigned long levelMs[MP_POWER_LEVELS];
@@ -133,14 +135,14 @@
 	void mp_power_hold_for(mp_kernel_t *kernel, mp_power_hold_t *hold, mp_power_level_t floor, unsigned long ms, char *who);
 	void mp_power_release(mp_kernel_t *kernel, mp_power_hold_t *hold);
 
+	/**
+	 * Veto deep sleep until released. The frequency stays free.
+	 * Interrupt safe. Released with mp_power_release().
+	 */
+	void mp_power_nodeep(mp_kernel_t *kernel, mp_power_hold_t *hold, char *who);
+
 	void mp_power_fix(mp_kernel_t *kernel, mp_power_level_t level);
 
-	/**
-	 * Authorize hibernate. Off, the screen saver stops at the dimmed
-	 * backlight, which holds the reduced supply. On, it turns the screen off.
-	 */
-	void mp_power_hibernate(mp_kernel_t *kernel, mp_bool_t on);
-	mp_bool_t mp_power_hibernating(mp_kernel_t *kernel);
 	mp_power_level_t mp_power_level(mp_kernel_t *kernel);
 	mp_bool_t mp_power_deep(mp_kernel_t *kernel);
 	const char *mp_power_name(mp_power_level_t level);

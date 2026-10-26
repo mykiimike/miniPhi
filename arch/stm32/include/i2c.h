@@ -85,6 +85,9 @@ into the right register sequence. Master only.
 
 		/* SCL in Hz, kept to retime the bus */
 		unsigned long frequency;
+
+		/* tick of the last START or served event, for mp_i2c_watch() */
+		unsigned long since;
 	};
 
 	mp_ret_t mp_i2c_init();
@@ -92,6 +95,7 @@ into the right register sequence. Master only.
 	mp_ret_t mp_i2c_open(mp_kernel_t *kernel, mp_i2c_t *i2c, mp_options_t *options, char *who);
 	void mp_i2c_retime(void);
 	mp_bool_t mp_i2c_quiet(void);
+	void mp_i2c_watch(void);
 
 	/* options: frequency in Hz (100000 by default, 400000 for fast mode) */
 	mp_ret_t mp_i2c_setup(mp_i2c_t *i2c, mp_options_t *options);

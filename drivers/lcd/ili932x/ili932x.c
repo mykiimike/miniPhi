@@ -179,8 +179,9 @@ static void _ili932x_percent(mp_drv_ili932x_t *lcd, int percent) {
 		period = (unsigned long)mp_timer_get_precision(&lcd->timer);
 		/* above the period is always active: steady through Stop */
 		mp_timer_pwm_set(&lcd->pwm, percent >= 100 ? period : period * (unsigned long)percent / 100UL);
+		/* a duty between the ends stops when the core enters Stop */
 		if(percent > 0 && percent < 100)
-			mp_power_hold(lcd->kernel, &lcd->dimmed, MP_POWER_LOW, "Backlight");
+			mp_power_nodeep(lcd->kernel, &lcd->dimmed, "Backlight");
 		else
 			mp_power_release(lcd->kernel, &lcd->dimmed);
 		return;

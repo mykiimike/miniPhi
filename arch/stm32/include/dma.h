@@ -42,6 +42,9 @@
 	);
 	void mp_dma_release(mp_dma_engine_t *engine);
 
+	/** YES when no claimed channel is shifting */
+	mp_bool_t mp_dma_quiet(void);
+
 	#endif
 
 #endif

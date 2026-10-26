@@ -96,6 +96,8 @@
 	mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level);
 	void mp_clock_schedule(mp_kernel_t *kernel, unsigned long limit);
 	const char *mp_clock_deep(void);
+	/** what refused the last mp_clock_level(), or NULL */
+	const char *mp_clock_blocker(void);
 	void mp_machine_state_set(mp_kernel_t *kernel);
 	void mp_machine_state_unset(mp_kernel_t *kernel);
 	/**

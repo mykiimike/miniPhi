@@ -1390,16 +1390,6 @@ static void _mp_tui_backlight(mp_tui_t *ui, int percent) {
 		ui->display->backlight(ui->display, percent);
 }
 
-/* Sleep is 8 MHz. The screen stays usable without a touch every few hundred ms. */
-static void _mp_tui_floor(mp_tui_t *ui) {
-	if(!ui->kernel)
-		return;
-	if(ui->saver == MP_TUI_AWAKE)
-		mp_power_hold(ui->kernel, &ui->rest, MP_POWER_MEDIUM, "Screen");
-	else
-		mp_power_release(ui->kernel, &ui->rest);
-}
-
 static void _mp_tui_rest(int on) {
 #ifdef SUPPORT_COMMON_DEVICE
 	mp_device_t *device;
@@ -1440,7 +1430,31 @@ void mp_tui_wake(mp_tui_t *ui) {
 	}
 	ui->saver = MP_TUI_AWAKE;
 	_mp_tui_backlight(ui, 100);
-	_mp_tui_floor(ui);
+}
+
+/**
+ * @brief Authorize the screen to turn fully off
+ *
+ * Off, the saver stays dimmed. On, it may power the panel down. Wakes the
+ * TUI task so the saver follows at once.
+ *
+ * @param[in] ui Screen
+ * @param[in] on Non-zero to allow it
+ */
+void mp_tui_hibernate(mp_tui_t *ui, int on) {
+	ui->hibernate = on ? 1 : 0;
+	if(ui->task)
+		mp_task_wake(ui->task);
+}
+
+/**
+ * @brief Whether hibernate is authorized
+ *
+ * @param[in] ui Screen
+ * @return Non-zero when the saver may turn the panel off
+ */
+int mp_tui_hibernating(mp_tui_t *ui) {
+	return(ui->hibernate);
 }
 
 int mp_tui_awake(mp_tui_t *ui) {
@@ -1461,10 +1475,9 @@ static unsigned long _mp_tui_saver(mp_tui_t *ui) {
 	if(ui->saver == MP_TUI_AWAKE && dim && idle >= dim) {
 		_mp_tui_backlight(ui, MP_TUI_DIM_LEVEL);
 		ui->saver = MP_TUI_DIMMED;
-		_mp_tui_floor(ui);
 	}
 	/* a dark panel can drop the draw enough that a USB port cuts the 5 V */
-	if(ui->kernel && mp_power_hibernating(ui->kernel) == YES) {
+	if(ui->hibernate) {
 		if(ui->saver != MP_TUI_OFF && off && idle >= off) {
 			_mp_tui_backlight(ui, MP_TUI_OFF_LEVEL);
 			if(ui->display->power)
@@ -1472,7 +1485,6 @@ static unsigned long _mp_tui_saver(mp_tui_t *ui) {
 			_mp_tui_doze(ui, 1);
 			_mp_tui_rest(0);
 			ui->saver = MP_TUI_OFF;
-			_mp_tui_floor(ui);
 		}
 	} else if(ui->saver == MP_TUI_OFF) {
 		if(ui->display->power)
@@ -1482,12 +1494,11 @@ static unsigned long _mp_tui_saver(mp_tui_t *ui) {
 		ui->saver = MP_TUI_DIMMED;
 		mp_tui_refresh(ui);
 		_mp_tui_backlight(ui, MP_TUI_DIM_LEVEL);
-		_mp_tui_floor(ui);
 	}
 
 	if(ui->saver == MP_TUI_AWAKE && dim)
 		return(dim - idle);
-	if(ui->saver != MP_TUI_OFF && off && ui->kernel && mp_power_hibernating(ui->kernel) == YES)
+	if(ui->saver != MP_TUI_OFF && off && ui->hibernate)
 		return(off - idle);
 	return(0);
 }
@@ -1526,7 +1537,6 @@ void mp_tui_poll(mp_tui_t *ui) {
 			if(ui->splash < 3)
 				continue;
 
-			mp_power_hold_for(ui->kernel, &ui->boost, MP_POWER_HIGH, MP_TUI_BOOST, "TUI");
 			/* a dimmed backlight chops, and the panel reads that as the finger moving */
 			if(ui->saver == MP_TUI_DIMMED && event.type == MP_DEVICE_INPUT_MOVE)
 				continue;

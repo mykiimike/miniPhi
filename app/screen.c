@@ -144,6 +144,7 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 		mp_device_close(display);
 		return;
 	}
+	mp_tui_hibernate(tui, sysinfo->hibernate == YES);
 	sysinfo->screen.display = display;
 
 	if(_sysinfo_pages_open(sysinfo) == 0) {

@@ -20,6 +20,10 @@
 
 #include <mp.h>
 
+#ifdef SUPPORT_COMMON_DMA
+#include <arch/dma.h>
+#endif
+
 /**
 @defgroup mpArchSTM32F4Clock STM32F4 clock tree, power levels and kernel tick
 
@@ -29,8 +33,9 @@ HIGH, MEDIUM and LOW run MP_CLOCK_HE_FREQ, MP_CLOCK_ME_FREQ and
 MP_CLOCK_LE_FREQ. A level equal to the HSE crystal runs from it. Anything
 else is the PLL, fed by that crystal, or by the 16 MHz HSI when the
 crystal does not start. SLEEP is the HSI with the PLL off. APB1 stays at
-or under 42 MHz and APB2 at or under 84 MHz. SysTick is tickless. Stop is
-not used.
+or under 42 MHz and APB2 at or under 84 MHz. A level changes only while
+no UART, I2C, SPI, ADC or DMA transfer is in flight. SysTick is
+tickless. Stop is not used.
 
 @{
 */
@@ -293,10 +298,35 @@ static void _mp_clock_tick_retime(void) {
 	MP_INTERRUPT_SAFE_END
 }
 
+/* the bus that refused the last switch, for the Power page */
+static const char *__blocker = NULL;
+
 static mp_bool_t _mp_clock_quiet(void) {
-	if(mp_uart_quiet() == NO || mp_i2c_quiet() == NO || mp_spi_quiet() == NO || mp_adc_quiet() == NO)
-		return(NO);
-	return(YES);
+	__blocker = NULL;
+	if(mp_uart_quiet() == NO)
+		__blocker = "UART";
+	else if(mp_i2c_quiet() == NO)
+		__blocker = "I2C";
+	else if(mp_spi_quiet() == NO)
+		__blocker = "SPI";
+	else if(mp_adc_quiet() == NO)
+		__blocker = "ADC";
+#ifdef SUPPORT_COMMON_DMA
+	else if(mp_dma_quiet() == NO)
+		__blocker = "DMA";
+#endif
+	else if(mp_fsmc_quiet() == NO)
+		__blocker = "FSMC";
+	return(__blocker ? NO : YES);
+}
+
+/**
+ * @brief What refused the last level switch
+ *
+ * @return A bus name, or NULL when the last switch went through
+ */
+const char *mp_clock_blocker(void) {
+	return(__blocker);
 }
 
 static mp_bool_t _mp_clock_same(const _mp_clock_plan_t *a, const _mp_clock_plan_t *b) {
@@ -316,9 +346,6 @@ mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
 		_mp_clock_plan(level, &plan);
 
 	if(_mp_clock_same(&plan, &__plan) == NO) {
-#ifdef SUPPORT_COMMON_USB
-		mp_usb_clock_stop();
-#endif
 		_mp_clock_apply(kernel, &plan);
 		_mp_clock_tick_retime();
 		mp_uart_retime();
@@ -326,9 +353,6 @@ mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
 		mp_spi_retime();
 		mp_timer_retime();
 		mp_fsmc_retime(__sysclk);
-#ifdef SUPPORT_COMMON_USB
-		mp_usb_clock_start();
-#endif
 	}
 	return(TRUE);
 }
@@ -462,6 +486,8 @@ void mp_clock_schedule(mp_kernel_t *kernel, unsigned long limit) {
 	_mp_clock_lse_poll();
 #endif
 
+	mp_i2c_watch();
+
 	__asm volatile ("cpsid i" ::: "memory");
 	idle = mp_task_idle(&kernel->tasks);
 	if(limit < idle)
@@ -545,14 +571,18 @@ const char *mp_clock_name(mp_clock_freq_t clock) {
 	}
 }
 
-mp_bool_t mp_clock_usb48(void) {
+static mp_bool_t _mp_clock_usb_ok(const _mp_clock_plan_t *plan) {
 	uint32_t q;
 
 	/* PLLQ is chosen so VCO / Q is 48 MHz when the VCO is a multiple of 48 */
-	if(__plan.sw != 2 || (__plan.plln % 48) != 0)
+	if(plan->sw != 2 || (plan->plln % 48) != 0)
 		return(NO);
-	q = __plan.plln / 48;
+	q = plan->plln / 48;
 	return(q >= 2 && q <= 15 ? YES : NO);
+}
+
+mp_bool_t mp_clock_usb48(void) {
+	return(_mp_clock_usb_ok(&__plan));
 }
 
 void mp_clock_delay(int delay) {

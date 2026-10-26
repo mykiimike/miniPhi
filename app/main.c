@@ -125,6 +125,15 @@ void _sysinfo_accel_apply(sysinfo_t *sysinfo) {
 	_sysinfo_accel_run(sysinfo, on);
 }
 
+static void _sysinfo_hibernate_apply(sysinfo_t *sysinfo) {
+#ifdef SYSINFO_SCREEN
+	if(sysinfo->screen.ready == YES)
+		mp_tui_hibernate(&sysinfo->screen.tui, sysinfo->hibernate == YES);
+#else
+	(void)sysinfo;
+#endif
+}
+
 #ifdef SUPPORT_COMMON_KFLASH
 static void _sysinfo_accel_changed(mp_kflash_var_t *var) {
 	sysinfo_t *sysinfo = var->user;
@@ -136,7 +145,7 @@ static void _sysinfo_accel_changed(mp_kflash_var_t *var) {
 static void _sysinfo_hibernate_changed(mp_kflash_var_t *var) {
 	sysinfo_t *sysinfo = var->user;
 
-	mp_power_hibernate(&sysinfo->kernel, sysinfo->hibernate);
+	_sysinfo_hibernate_apply(sysinfo);
 	mp_printk("%s %s", var->key, sysinfo->hibernate == YES ? "on" : "off");
 }
 #endif
@@ -158,7 +167,7 @@ void _sysinfo_hibernate_enable(sysinfo_t *sysinfo, mp_bool_t on) {
 	mp_printk("%s: the flash did not take it, until the next reset only", SYSINFO_KEY_HIBERNATE);
 #endif
 	sysinfo->hibernate = on ? YES : NO;
-	mp_power_hibernate(&sysinfo->kernel, sysinfo->hibernate);
+	_sysinfo_hibernate_apply(sysinfo);
 }
 
 static void _sysinfo_op_set(void *user) {
@@ -180,7 +189,6 @@ static void _sysinfo_op_set(void *user) {
 	sysinfo->accelEnabled = YES;
 	sysinfo->hibernate = NO;
 #endif
-	mp_power_hibernate(&sysinfo->kernel, sysinfo->hibernate);
 
 	if(mp_serial_open(&sysinfo->kernel, &sysinfo->serial, console, "Console") == FALSE) {
 		_sysinfo_screen_open(sysinfo);

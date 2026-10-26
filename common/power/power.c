@@ -25,33 +25,28 @@
 
 @ingroup mpCommon
 
-@brief Pick the clock level from the load, like a cpufreq governor
+@brief Pick the clock level from the demand the kernel measures
 
 The kernel runs at one of four levels: HIGH, MEDIUM, LOW and SLEEP. The
-arch maps each to a clock tree with mp_clock_level(); SLEEP runs the LOW
-tree and lets the arch sleep deep (Stop, LPM3) when nothing is due soon.
+arch maps each to a clock tree with mp_clock_level(). SLEEP is the slow
+tree and the only level that may sleep deep (Stop, LPM3).
 
-The kernel loop measures how long it stays awake. Every MP_POWER_WINDOW ms
-the busy share of the window is the load:
+Every MP_POWER_WINDOW ms the busy share of the loop is smoothed into an
+EWMA. The frequency that share needs, so a load of MP_POWER_TARGET percent
+stays on the clock that just ran, picks the slowest level that still
+reaches it. The level moves up at once and down, straight to that target,
+only after it has stayed below the current level for MP_POWER_DOWN_DELAY
+ms. A move up clears that wait.
 
-- 90 % or more goes straight to HIGH,
-- MP_POWER_UP % or more goes one level up,
-- under MP_POWER_DOWN % for MP_POWER_DOWN_DELAY ms goes one level down,
-  when the load the lower clock would see stays under MP_POWER_UP.
-
-A hold is a floor: the level never goes under the highest live hold. A
-driver holds while its bus would not survive a lower clock or a deep
-sleep, the TUI holds HIGH for a moment after a touch. mp_power_hold() and
-mp_power_release() can be called from an interrupt; the hold memory
-belongs to the caller and starts zeroed.
+A hold is a frequency floor or a veto of deep sleep. mp_power_hold() and
+mp_power_nodeep() can be called from an interrupt; the hold memory belongs
+to the caller and starts zeroed. mp_power_deep() is YES only at SLEEP, with
+no floor above it and no veto.
 
 @{
 */
 
 static const char *__names[MP_POWER_LEVELS] = { "Sleep", "Low", "Medium", "High" };
-
-/* the next level down must keep this much headroom under MP_POWER_UP */
-#define _MARGIN 10
 
 void mp_power_init(mp_kernel_t *kernel) {
 	mp_power_t *power = &kernel->power;
@@ -102,6 +97,7 @@ static void _mp_power_attach(mp_power_t *power, mp_power_hold_t *hold, mp_power_
 void mp_power_hold(mp_kernel_t *kernel, mp_power_hold_t *hold, mp_power_level_t floor, char *who) {
 	MP_INTERRUPT_SAFE_BEGIN
 	hold->expires = NO;
+	hold->nodeep = NO;
 	_mp_power_attach(&kernel->power, hold, floor, who);
 	MP_INTERRUPT_SAFE_END
 }
@@ -123,6 +119,7 @@ void mp_power_hold_for(mp_kernel_t *kernel, mp_power_hold_t *hold, mp_power_leve
 
 	MP_INTERRUPT_SAFE_BEGIN
 	hold->expires = YES;
+	hold->nodeep = NO;
 	hold->until = until;
 	_mp_power_attach(power, hold, floor, who);
 	MP_INTERRUPT_SAFE_END
@@ -163,26 +160,20 @@ void mp_power_fix(mp_kernel_t *kernel, mp_power_level_t level) {
 }
 
 /**
- * @brief Authorize the screen to turn fully off
+ * @brief Veto deep sleep until released
  *
- * Off, the saver stays at the dimmed backlight. That duty holds the reduced
- * supply, so the governor cannot reach Sleep. On, the saver may go dark.
- *
- * @param[in] kernel Kernel handler
- * @param[in] on YES to allow it
- */
-void mp_power_hibernate(mp_kernel_t *kernel, mp_bool_t on) {
-	kernel->power.hibernate = on ? YES : NO;
-}
-
-/**
- * @brief Whether hibernate is authorized
+ * The frequency stays free. Holding again keeps the veto. Interrupt safe.
  *
  * @param[in] kernel Kernel handler
- * @return YES when the screen may turn fully off
+ * @param[in] hold Caller memory, zeroed before the first use
+ * @param[in] who Shown on the Power page
  */
-mp_bool_t mp_power_hibernating(mp_kernel_t *kernel) {
-	return(kernel->power.hibernate);
+void mp_power_nodeep(mp_kernel_t *kernel, mp_power_hold_t *hold, char *who) {
+	MP_INTERRUPT_SAFE_BEGIN
+	hold->expires = NO;
+	hold->nodeep = YES;
+	_mp_power_attach(&kernel->power, hold, MP_POWER_SLEEP, who);
+	MP_INTERRUPT_SAFE_END
 }
 
 /**
@@ -202,13 +193,20 @@ mp_power_level_t mp_power_level(mp_kernel_t *kernel) {
  * interrupt just before is seen.
  *
  * @param[in] kernel Kernel handler
- * @return YES at SLEEP with no hold above it
+ * @return YES at SLEEP, with floor SLEEP and no deep-sleep veto
  */
 mp_bool_t mp_power_deep(mp_kernel_t *kernel) {
 	mp_power_t *power = &kernel->power;
+	mp_list_item_t *item;
 
 	if(power->level != MP_POWER_SLEEP || power->floor != MP_POWER_SLEEP)
 		return(NO);
+	for(item = power->holds.first; item; item = item->next) {
+		mp_power_hold_t *hold = item->user;
+
+		if(hold->nodeep == YES)
+			return(NO);
+	}
 	return(YES);
 }
 
@@ -239,7 +237,7 @@ static unsigned long _mp_power_floor(mp_power_t *power) {
 			hold->held = NO;
 		}
 		else {
-			if(hold->floor > floor)
+			if(hold->nodeep == NO && hold->floor > floor)
 				floor = hold->floor;
 			if(hold->expires == YES && (unsigned long)left < next)
 				next = (unsigned long)left;
@@ -261,41 +259,52 @@ static void _mp_power_account(mp_power_t *power, unsigned long now) {
 	}
 }
 
+/* lowest level that reaches need Hz; equal clocks stay on the lowest */
+static mp_power_level_t _mp_power_fit(unsigned long long need) {
+	unsigned int index;
+
+	for(index = 0; index < MP_POWER_LEVELS; index++) {
+		if((unsigned long long)mp_clock_level_hz((mp_power_level_t)index) >= need)
+			return((mp_power_level_t)index);
+	}
+	return(MP_POWER_HIGH);
+}
+
 static void _mp_power_govern(mp_power_t *power, unsigned long now) {
 	unsigned long span = now - power->windowAt;
-	unsigned long load;
-	unsigned long below;
-	unsigned long here;
+	unsigned long sample;
+	unsigned long util;
+	unsigned long hz;
+	unsigned long long need;
+	unsigned int targetPct = MP_POWER_TARGET ? MP_POWER_TARGET : 1;
+	mp_power_level_t target;
 
-	load = power->busy >= span ? 100 : power->busy / ((span + 99) / 100);
-	if(load > 100)
-		load = 100;
-	power->load = (unsigned char)load;
+	sample = power->busy >= span ? 100 : power->busy / ((span + 99) / 100);
+	if(sample > 100)
+		sample = 100;
+	util = ((unsigned long)power->load + sample) / 2;
+	if(util > 100)
+		util = 100;
+	power->load = (unsigned char)util;
 	power->wakeups = power->passes * 1000UL / (span / 1000UL ? span / 1000UL : 1);
-	power->projected = (unsigned char)load;
+
+	hz = mp_clock_level_hz(power->level);
+	need = (unsigned long long)hz * util / targetPct;
+	power->need = (unsigned long)(need / 1000ULL);
+	target = _mp_power_fit(need);
+	power->target = target;
 
 	if(power->fixed != MP_POWER_AUTO)
 		power->governed = power->fixed;
-	else if(load >= 90) {
-		power->governed = MP_POWER_HIGH;
+	else if(target > power->governed) {
+		power->governed = target;
 		power->calm = 0;
 	}
-	else if(load >= MP_POWER_UP) {
-		if(power->governed < MP_POWER_HIGH)
-			power->governed++;
-		power->calm = 0;
-	}
-	else if(load < MP_POWER_DOWN) {
+	else if(target < power->governed) {
 		power->calm += span / 1000UL;
-		if(power->governed > MP_POWER_SLEEP) {
-			here = mp_clock_level_hz(power->governed) / 1000UL;
-			below = mp_clock_level_hz(power->governed - 1) / 1000UL;
-			if(below)
-				power->projected = (unsigned char)(load * here / below > 100 ? 100 : load * here / below);
-			if(power->calm >= MP_POWER_DOWN_DELAY && power->projected + _MARGIN < MP_POWER_UP) {
-				power->governed--;
-				power->calm = 0;
-			}
+		if(power->calm >= MP_POWER_DOWN_DELAY) {
+			power->governed = target;
+			power->calm = 0;
 		}
 	}
 	else
@@ -317,9 +326,10 @@ void mp_power_schedule(mp_kernel_t *kernel) {
 	mp_power_t *power = &kernel->power;
 	mp_power_level_t want;
 	unsigned long now = mp_clock_us();
+	unsigned long stretch = now - power->wokeAt;
 	unsigned long expiry;
 
-	power->busy += now - power->wokeAt;
+	power->busy += stretch;
 	power->passes++;
 	_mp_power_account(power, now);
 
@@ -330,9 +340,15 @@ void mp_power_schedule(mp_kernel_t *kernel) {
 
 	want = power->governed > power->floor ? power->governed : power->floor;
 	/* a bus that is busy refuses, the next pass tries again */
-	if(want != power->level && mp_clock_level(kernel, want) == TRUE) {
-		power->level = want;
-		power->switches++;
+	if(want != power->level) {
+		if(mp_clock_level(kernel, want) == TRUE) {
+			power->level = want;
+			power->switches++;
+		}
+		else {
+			power->refused++;
+			power->blocker = mp_clock_blocker();
+		}
 	}
 
 	mp_clock_schedule(kernel, expiry);

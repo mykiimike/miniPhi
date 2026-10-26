@@ -21,8 +21,9 @@
 /*
  * Home page. The switch that gives the level to the governor or pins it at
  * HIGH, the switch that authorizes hibernate, the level and its clock, a
- * table of the figures (load, wake ups, switches, deep sleeps, supply
- * sensors), who holds a level, and a table of the time spent at each level.
+ * table of the figures (load, need, wake ups, switches, deep sleeps) and
+ * any supply sensor that still fits, who holds a level,
+ * and a table of the time spent at each level.
  */
 
 #include "../index.h"
@@ -32,7 +33,7 @@
 #include <string.h>
 
 /* the rows of the figures table before the sensors */
-#define _SYSINFO_POWER_FIGURES 6
+#define _SYSINFO_POWER_FIGURES 7
 
 static const mp_tui_column_t _sysinfo_power_columns[] = {
 	{ "Figure", 0, MP_TUI_ALIGN_LEFT },
@@ -63,8 +64,8 @@ static int _sysinfo_power_sensors(mp_kernel_t *kernel) {
 		if(_sysinfo_power_sensor(sensor))
 			count++;
 #endif
-	if(count > 8 - _SYSINFO_POWER_FIGURES)
-		count = 8 - _SYSINFO_POWER_FIGURES;
+	if(count > SYSINFO_POWER_ROWS - _SYSINFO_POWER_FIGURES)
+		count = SYSINFO_POWER_ROWS - _SYSINFO_POWER_FIGURES;
 	return(count);
 }
 
@@ -78,8 +79,12 @@ static void _sysinfo_power_holds(mp_power_t *power, char *text, size_t size) {
 	MP_INTERRUPT_SAFE_BEGIN
 	for(item = power->holds.first; item != NULL && used + 1 < size; item = item->next) {
 		hold = item->user;
-		snprintf(text + used, size - used, "%s%s %s", item == power->holds.first ? "" : ", ",
-			hold->who ? hold->who : "?", mp_power_name(hold->floor));
+		if(hold->nodeep == YES)
+			snprintf(text + used, size - used, "%s%s no deep", item == power->holds.first ? "" : ", ",
+				hold->who ? hold->who : "?");
+		else
+			snprintf(text + used, size - used, "%s%s %s", item == power->holds.first ? "" : ", ",
+				hold->who ? hold->who : "?", mp_power_name(hold->floor));
 		used = strlen(text);
 	}
 	MP_INTERRUPT_SAFE_END
@@ -124,35 +129,48 @@ static void _sysinfo_power_values(sysinfo_t *sysinfo) {
 
 	mp_tui_table_set(table, 0, 0, "%s", "Load");
 	mp_tui_table_set(table, 0, 1, "%u %%", (unsigned int)power->load);
-	mp_tui_table_set(table, 1, 0, "%s", "One level down");
-	mp_tui_table_set(table, 1, 1, "%u %%", (unsigned int)power->projected);
+	mp_tui_table_set(table, 1, 0, "%s", "Need");
+	mp_tui_table_set(table, 1, 1, "%lu.%lu MHz", power->need / 1000UL, (power->need / 100UL) % 10UL);
 	mp_tui_table_set(table, 2, 0, "%s", "Wake ups");
 	mp_tui_table_set(table, 2, 1, "%lu /s", power->wakeups);
 	mp_tui_table_set(table, 3, 0, "%s", "Level changes");
 	mp_tui_table_set(table, 3, 1, "%lu", power->switches);
-	mp_tui_table_set(table, 4, 0, "%s", "Deep sleeps");
-	mp_tui_table_set(table, 4, 1, "%lu", power->deep);
-	mp_tui_table_set(table, 5, 0, "%s", "Deepest");
-	mp_tui_table_set(table, 5, 1, "%s", mp_clock_deep());
+	mp_tui_table_set(table, 4, 0, "%s", "Refused");
+	if(power->refused)
+		mp_tui_table_set(table, 4, 1, "%lu, %s", power->refused, power->blocker ? power->blocker : "?");
+	else
+		mp_tui_table_set(table, 4, 1, "%s", "0");
+	mp_tui_table_set(table, 5, 0, "%s", "Deep sleeps");
+	mp_tui_table_set(table, 5, 1, "%lu", power->deep);
+	mp_tui_table_set(table, 6, 0, "%s", "Deepest");
+	mp_tui_table_set(table, 6, 1, "%s", mp_clock_deep());
 
 	row = _SYSINFO_POWER_FIGURES;
 #ifdef SUPPORT_COMMON_DEVICE
 	{
 		mp_device_registry_t *sensor = NULL;
 		float v[3];
+		char number[16];
 
+		/* printf %f mallocs, and this heap is too small for that */
 		while(row < _SYSINFO_POWER_FIGURES + sysinfo->screen.powerSensorRows && (sensor = mp_device_measure_next(kernel, sensor)) != NULL) {
 			if(!_sysinfo_power_sensor(sensor))
 				continue;
 			mp_tui_table_set(table, row, 0, "%s", sensor->address);
 			if(mp_device_measure_read(sensor->instance, v, NULL) != TRUE)
 				mp_tui_table_set(table, row, 1, "%s", "--");
-			else if(sensor->class == MP_DEVICE_VOLTAGE)
-				mp_tui_table_set(table, row, 1, "%.3f V", (double)v[0]);
-			else if(sensor->class == MP_DEVICE_POWER)
-				mp_tui_table_set(table, row, 1, "%.3f W", (double)v[0]);
-			else
-				mp_tui_table_set(table, row, 1, "%.1f mA", (double)v[0] * 1000.0);
+			else if(sensor->class == MP_DEVICE_VOLTAGE) {
+				_sysinfo_format_fixed(number, (int)sizeof(number), v[0], 3, NO);
+				mp_tui_table_set(table, row, 1, "%s V", number);
+			}
+			else if(sensor->class == MP_DEVICE_POWER) {
+				_sysinfo_format_fixed(number, (int)sizeof(number), v[0], 3, NO);
+				mp_tui_table_set(table, row, 1, "%s W", number);
+			}
+			else {
+				_sysinfo_format_fixed(number, (int)sizeof(number), v[0] * 1000.0f, 1, NO);
+				mp_tui_table_set(table, row, 1, "%s mA", number);
+			}
 			row++;
 		}
 	}
@@ -220,7 +238,7 @@ static void _sysinfo_power_page(mp_tui_widget_t *page, void *user) {
 	y += 6;
 
 	sysinfo->screen.powerSensorRows = _sysinfo_power_sensors(&sysinfo->kernel);
-	mp_tui_table(table, page, 8, y, w, _sysinfo_power_columns, 2, &sysinfo->screen.powerCell[0][0], 8);
+	mp_tui_table(table, page, 8, y, w, _sysinfo_power_columns, 2, &sysinfo->screen.powerCell[0][0], SYSINFO_POWER_ROWS);
 	mp_tui_table_rows(table, _SYSINFO_POWER_FIGURES + sysinfo->screen.powerSensorRows);
 	y += table->widget.rect.h + 6;
 

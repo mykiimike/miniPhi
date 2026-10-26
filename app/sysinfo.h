@@ -37,6 +37,9 @@
 /* kept in flash when KFLASH is on; a bool, NO by default: the screen may go dark */
 #define SYSINFO_KEY_HIBERNATE "sysinfo.hibernate"
 
+/* Power page figures table: the governor rows plus the supply sensors */
+#define SYSINFO_POWER_ROWS 12
+
 /* the devices come from common/device: sysinfo never names a driver */
 #ifdef SUPPORT_COMMON_TUI
 #define SYSINFO_SCREEN
@@ -203,7 +206,7 @@ struct sysinfo_s {
 		mp_tui_label_t powerGovernor;
 		/** figures, then the supply sensors found when the page was built */
 		mp_tui_table_t powerTable;
-		mp_tui_cell_t powerCell[8][2];
+		mp_tui_cell_t powerCell[SYSINFO_POWER_ROWS][2];
 		int powerSensorRows;
 		mp_tui_label_t powerHolds;
 		mp_tui_table_t powerLevels;

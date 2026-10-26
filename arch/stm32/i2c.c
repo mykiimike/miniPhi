@@ -38,10 +38,19 @@ runs (the regMaster ASR calls it on each pass), and sends a repeated
 START when the direction changes. In receive mode mp_i2c_txStop() clears
 ACK and asks for the STOP: the byte on the wire is the last one.
 
+Every byte is served by an interrupt, so SCL never runs faster than the
+core can follow: at most 9 bits per _I2C_BYTE_CYCLES core cycles, 100 kHz
+at 8 MHz. A late STOP lets one more byte in, and the F1 block then keeps
+BUSY; a START over a pending STOP never raises SB. A START therefore
+resets a bus left in that state, and mp_i2c_watch() frees a transfer that
+saw no event for _I2C_STALL_MS.
+
 @{
 */
 
 #define _I2C_TIMEOUT 100000UL
+#define _I2C_BYTE_CYCLES 720UL
+#define _I2C_STALL_MS 100UL
 
 static mp_list_t __i2c;
 
@@ -149,22 +158,29 @@ mp_ret_t mp_i2c_open(mp_kernel_t *kernel, mp_i2c_t *i2c, mp_options_t *options, 
 	return(TRUE);
 }
 
-/* rounded up, so SCL never runs faster than asked */
+/* rounded up, so SCL never runs faster than asked nor than the core serves */
 static void _mp_i2c_timing(mp_i2c_t *i2c) {
 	I2C_TypeDef *regs = i2c->regs;
 	unsigned long pclk = mp_gate_pclk(i2c->gate);
 	unsigned long mhz = pclk / 1000000UL;
+	unsigned long scl = i2c->frequency;
+	unsigned long most = mp_clock_hclk() / _I2C_BYTE_CYCLES * 9UL;
 	uint32_t ccr;
 
+	if(scl > most)
+		scl = most;
+	if(scl < 10000UL)
+		scl = 10000UL;
+
 	regs->CR2 = (regs->CR2 & ~I2C_CR2_FREQ) | mhz;
-	if(i2c->frequency <= 100000UL) {
-		ccr = (pclk + 2 * i2c->frequency - 1) / (2 * i2c->frequency);
+	if(scl <= 100000UL) {
+		ccr = (pclk + 2 * scl - 1) / (2 * scl);
 		if(ccr < 4)
 			ccr = 4;
 		regs->TRISE = mhz + 1;
 	}
 	else {
-		ccr = (pclk + 3 * i2c->frequency - 1) / (3 * i2c->frequency);
+		ccr = (pclk + 3 * scl - 1) / (3 * scl);
 		if(ccr < 1)
 			ccr = 1;
 		ccr |= I2C_CCR_FS;
@@ -324,6 +340,37 @@ mp_bool_t mp_i2c_quiet(void) {
 	return(YES);
 }
 
+/**
+ * @brief Free the buses a transfer left hanging
+ *
+ * A START that never raised SB, or a slave that stopped clocking, leaves
+ * no interrupt to end the transfer, and the bus would refuse every clock
+ * change. After _I2C_STALL_MS without an event the bus is reset and the
+ * transfer ends as a NACK. The arch calls it before each sleep.
+ */
+void mp_i2c_watch(void) {
+	mp_list_item_t *item;
+	mp_i2c_t *i2c;
+	unsigned long stall = _I2C_STALL_MS * mp_clock_tick_hz() / 1000UL;
+	mp_bool_t stalled;
+
+	for(item = __i2c.first; item; item = item->next) {
+		i2c = item->user;
+		MP_INTERRUPT_SAFE_BEGIN
+		stalled = i2c->phase != MP_I2C_PHASE_IDLE && mp_clock_ticks() - i2c->since >= stall ? YES : NO;
+		MP_INTERRUPT_SAFE_END
+		if(stalled == NO)
+			continue;
+
+		mp_printk("I2C %s: stalled, reset", i2c->gate->portDevice);
+		mp_i2c_reset(i2c);
+		MP_INTERRUPT_SAFE_BEGIN
+		if(i2c->intDispatch)
+			i2c->intDispatch(i2c, MP_I2C_FL_NACK);
+		MP_INTERRUPT_SAFE_END
+	}
+}
+
 mp_ret_t mp_i2c_close(mp_i2c_t *i2c) {
 	mp_list_item_t *item;
 
@@ -389,8 +436,21 @@ void mp_i2c_txStart(mp_i2c_t *i2c) {
 		goto done;
 
 	/* a STOP from the previous transfer may still be on its way out */
-	if(i2c->phase == MP_I2C_PHASE_IDLE)
+	if(i2c->phase == MP_I2C_PHASE_IDLE) {
 		_mp_i2c_poll(&regs->CR1, I2C_CR1_STOP, NO);
+		_mp_i2c_poll(&regs->SR2, I2C_SR2_BUSY, NO);
+		if((regs->CR1 & (I2C_CR1_STOP | I2C_CR1_START)) || (regs->SR2 & I2C_SR2_BUSY) || (regs->SR1 & I2C_SR1_RXNE)) {
+			char mode = i2c->mode;
+			mp_bool_t tx = i2c->txEnabled;
+			mp_bool_t rx = i2c->rxEnabled;
+
+			mp_i2c_reset(i2c);
+			i2c->mode = mode;
+			i2c->txEnabled = tx;
+			i2c->rxEnabled = rx;
+		}
+	}
+	i2c->since = mp_clock_ticks();
 	/* STOPF left set blocks the next START and holds the event line */
 	if(regs->SR1 & I2C_SR1_STOPF) {
 		(void)regs->SR1;
@@ -481,6 +541,8 @@ static void _mp_i2c_event(void *user) {
 	I2C_TypeDef *regs = i2c->regs;
 	uint32_t sr1 = regs->SR1;
 	mp_bool_t armed;
+
+	i2c->since = mp_clock_ticks();
 
 	/* a leftover STOPF re-enters this interrupt forever and starves the DMA */
 	if(sr1 & I2C_SR1_STOPF) {

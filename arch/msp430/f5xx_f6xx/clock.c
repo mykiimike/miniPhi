@@ -280,6 +280,15 @@ const char *mp_clock_deep(void) {
 	return("LPM3, TA1 on ACLK");
 }
 
+/**
+ * @brief What refused the last level switch
+ *
+ * @return NULL: the DCO never changes, nothing refuses
+ */
+const char *mp_clock_blocker(void) {
+	return(NULL);
+}
+
 unsigned long mp_clock_ticks() {
 	unsigned long ticks;
 

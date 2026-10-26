@@ -359,6 +359,10 @@ static void *_mp_dma_hw(unsigned char unit, unsigned char index);
 		(void)engine;
 	}
 
+	mp_bool_t mp_dma_quiet(void) {
+		return(YES);
+	}
+
 #endif
 
 #if defined(STM32F407xx) || defined(STM32F10X_LD) || defined(STM32F10X_MD) || defined(STM32F10X_HD) || defined(STM32F10X_XL) || defined(STM32F10X_CL)
@@ -577,6 +581,31 @@ static void *_mp_dma_hw(unsigned char unit, unsigned char index);
 		slot->arm = NULL;
 		slot->prep = NULL;
 		_mp_dma_clock(slot->unit, NO);
+	}
+
+	/**
+	 * @brief No claimed channel is shifting
+	 *
+	 * The enable bit is CR on F4 and CCR on F1, both bit 0.
+	 *
+	 * @return YES when the clock may change
+	 */
+	mp_bool_t mp_dma_quiet(void) {
+		int i;
+
+		for(i = 0; i < _MP_DMA_CLAIMS; i++) {
+			_mp_dma_slot_t *slot = &_mp_dma_slots[i];
+			volatile uint32_t *cr;
+
+			if(slot->claimed == NO)
+				continue;
+			if(slot->xfer)
+				return(NO);
+			cr = (volatile uint32_t *)slot->hw;
+			if(cr && (*cr & 1UL))
+				return(NO);
+		}
+		return(YES);
 	}
 
 #endif
