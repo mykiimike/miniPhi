@@ -3,7 +3,11 @@ export const phi = {
 	name: "ak-stm32-lkit",
 	vendor: "Artekit",
 	label: "Artekit AK-STM32-LKIT",
-	description: "STM32F103T8U6 in a 36-pin package: 64 KB flash, 20 KB RAM, 8 MHz crystal, no 32 kHz crystal. Console on USART1 through the ST3232 (PA9 TX, PA10 RX, 115200). The USB B connector is PA11 and PA12, with 27 Ω series resistors and a fitted 1.5 kΩ pull-up; the port is not driven. 20-pin JTAG. D1 and D2 are the red LEDs and sink on PA0 and PA1. The reset key is NRST. J5 brings the remaining I/O out, including PB6 and PB7. Flashed with the AK-LINK.",
+	description: "STM32F103T8U6 in a 36-pin package, with no 32 kHz crystal. The console goes through the ST3232. The USB B connector is fitted and the port is not driven. D1 and D2 are the red LEDs and sink. The reset key is NRST. Flashed with the AK-LINK.",
+	specs: {
+		crystal: "8 MHz",
+		console: "USART1",
+	},
 	arch: "stm32",
 	series: "f1",
 	mcu: "stm32f103t8",

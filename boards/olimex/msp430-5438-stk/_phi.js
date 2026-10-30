@@ -5,6 +5,10 @@ export const phi = {
 	label: "Olimex MSP430-5438-STK",
 	tested: true,
 	description: "The Olimex prototype board miniPhi was developed on. Flashed with the MSP430-JTAG-TINY-V2.",
+	specs: {
+		display: "Nokia 3310",
+		console: "USCI_A3",
+	},
 	arch: "msp430",
 	series: "f5xx_f6xx",
 	mcu: "msp430f5438",
