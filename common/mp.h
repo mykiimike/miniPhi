@@ -263,6 +263,9 @@
 	#ifdef SUPPORT_DRV_LCD_NOKIA3310
 		#include <nokia3310/nokia3310.h>
 	#endif
+	#ifdef SUPPORT_DRV_LCD_UC8179
+		#include <uc8179/uc8179.h>
+	#endif
 	#ifdef SUPPORT_DRV_NRF8001
 		#include <nrf8001/nRF8001.h>
 	#endif

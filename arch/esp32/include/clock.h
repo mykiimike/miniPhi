@@ -21,7 +21,7 @@
 #ifndef _HAVE_ESP32_CLOCK_H
 	#define _HAVE_ESP32_CLOCK_H
 
-	#define ESP32_TICK_RATE_HZ C6_TICK_HZ
+	#define ESP32_TICK_RATE_HZ 1000
 
 	mp_ret_t mp_clock_init(mp_kernel_t *kernel);
 	mp_ret_t mp_clock_fini(mp_kernel_t *kernel);

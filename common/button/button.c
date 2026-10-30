@@ -92,6 +92,9 @@ static void _mp_button_start(void *self) {
 	int level;
 
 	mp_gpio_direction(button->pin, MP_GPIO_INPUT);
+	/* Active low idles high. The direction call leaves the pad floating. */
+	if(button->face.active == 0)
+		mp_gpio_pull_up(button->pin);
 	if(mp_gpio_interrupt_set(button->pin, _mp_button_irq, button, "Button") == FALSE)
 		return;
 

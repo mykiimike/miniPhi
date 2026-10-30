@@ -38,20 +38,40 @@
 	mp_interrupt_t *mp_interrupt_set(int vector, mp_interrupt_cb_t in, void *user, char *who);
 	mp_ret_t mp_interrupt_unset(int vector);
 
-	static inline void mp_interrupt_enable(void) {
-		__asm__ volatile ("csrs mstatus, %0" :: "r"(8) : "memory");
-	}
+	#ifdef ESP32C6
+		static inline void mp_interrupt_enable(void) {
+			__asm__ volatile ("csrs mstatus, %0" :: "r"(8) : "memory");
+		}
 
-	static inline void mp_interrupt_disable(void) {
-		__asm__ volatile ("csrc mstatus, %0" :: "r"(8) : "memory");
-	}
+		static inline void mp_interrupt_disable(void) {
+			__asm__ volatile ("csrc mstatus, %0" :: "r"(8) : "memory");
+		}
 
-	static inline mp_bool_t mp_interrupt_state(void) {
-		unsigned long mstatus;
+		static inline mp_bool_t mp_interrupt_state(void) {
+			unsigned long mstatus;
 
-		__asm__ volatile ("csrr %0, mstatus" : "=r"(mstatus));
-		return(mstatus & 8 ? TRUE : FALSE);
-	}
+			__asm__ volatile ("csrr %0, mstatus" : "=r"(mstatus));
+			return(mstatus & 8 ? TRUE : FALSE);
+		}
+	#elif defined(ESP32S3)
+		/* INTLEVEL 0 leaves the level-1 lines unmasked. WOE stays as _start set it. */
+		static inline void mp_interrupt_enable(void) {
+			__asm__ volatile ("rsil a2, 0" ::: "a2", "memory");
+		}
+
+		static inline void mp_interrupt_disable(void) {
+			__asm__ volatile ("rsil a2, 1" ::: "a2", "memory");
+		}
+
+		static inline mp_bool_t mp_interrupt_state(void) {
+			unsigned long ps;
+
+			__asm__ volatile ("rsr.ps %0" : "=r"(ps));
+			return((ps & 0xFUL) == 0 ? TRUE : FALSE);
+		}
+	#else
+		#error ESP32 series interrupt state is missing
+	#endif
 
 	static inline void mp_interrupt_restore(mp_bool_t state) {
 		if(state == TRUE)

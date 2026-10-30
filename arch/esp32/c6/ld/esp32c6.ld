@@ -57,5 +57,8 @@ SECTIONS
 		__stack_top = .;
 	} > sram
 
+	/* top of the SRAM window; the system page measures RAM from here */
+	_estack = ORIGIN(sram) + LENGTH(sram);
+
 	ASSERT(__stack_top <= ORIGIN(sram) + LENGTH(sram), "HP SRAM overflow")
 }

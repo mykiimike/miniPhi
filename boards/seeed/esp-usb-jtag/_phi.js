@@ -28,8 +28,8 @@ function plugged() {
 }
 
 export function prepare(ctx) {
-	if (ctx.mcu.name !== "esp32c6")
-		ctx.error(ctx.mcu.label + " is not an ESP32-C6.", "flash.sh passes --chip esp32c6 to esptool.")
+	if (ctx.mcu.name !== "esp32c6" && ctx.mcu.name !== "esp32s3")
+		ctx.error(ctx.mcu.label + " has no USB Serial/JTAG flash path.", "flash.sh passes the MCU name to esptool --chip. esp32c6 is 4 MB, esp32s3 is 16 MB.")
 
 	const home = process.env.HOME || ""
 	const esptool = ["esptool", "esptool.py"].some((name) =>

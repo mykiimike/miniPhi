@@ -1,6 +1,6 @@
 #!/bin/sh
-# Write an ESP32-C6 image through the USB Serial/JTAG port.
-# The ROM loads the image at flash offset 0 into HP SRAM.
+# Write an ESP32 image through the USB Serial/JTAG port.
+# The ROM loads the image at flash offset 0 into SRAM.
 # If connect fails, hold BOOT, tap RESET, release BOOT, and run again.
 set -eu
 
@@ -20,7 +20,12 @@ else
 	exit 1
 fi
 
+size=4MB
+if [ "$mcu" = "esp32s3" ]; then
+	size=16MB
+fi
+
 # shellcheck disable=SC2086
-$tool --chip "$mcu" elf2image --flash-mode dio --flash-freq 80m --flash-size 4MB -o "$bin" "$elf"
+$tool --chip "$mcu" elf2image --flash-mode dio --flash-freq 80m --flash-size "$size" -o "$bin" "$elf"
 # shellcheck disable=SC2086
 $tool --chip "$mcu" -p "$port" -b 460800 --before default-reset --after hard-reset write-flash 0x0 "$bin"

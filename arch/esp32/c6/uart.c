@@ -198,4 +198,9 @@ unsigned char mp_uart_rx(mp_uart_t *uart) {
 	return((unsigned char)c6_read(_EP1));
 }
 
+char mp_uart_isBusy(mp_uart_t *uart) {
+	(void)uart;
+	return(c6_read(_EP1_CONF) & _IN_FREE ? 0 : 1);
+}
+
 /**@}*/

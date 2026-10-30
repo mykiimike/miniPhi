@@ -16,7 +16,7 @@ export const phi = {
 	vendor: "Espressif",
 	label: "ESP32-C6",
 	description: "HP core up to 160 MHz from the 480 MHz PLL, 40 MHz crystal, 512 KB HP SRAM. The kernel tick is the 16 MHz SYSTIMER at 1 kHz. HIGH is 160 MHz, MEDIUM is 80 MHz, LOW and SLEEP are 40 MHz, and the PLL stays up so the USB console does not drop. GPIO 12 and 13 are USB. GPIO 24 to 30 are the in-package flash.",
-	boot: ["startup.c", "clock.c"],
+	boot: ["startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "interrupt.c", "uart.c"],
 	headers: ["include/series.h"],
 	headerDir: "arch",
 	mcus: [

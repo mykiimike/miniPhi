@@ -55,10 +55,7 @@
 	void mp_uart_tx(mp_uart_t *uart, unsigned char data);
 	unsigned char mp_uart_rx(mp_uart_t *uart);
 
-	static inline char mp_uart_isBusy(mp_uart_t *uart) {
-		(void)uart;
-		return(c6_read(C6_USB + 0x4UL) & (1UL << 1) ? 0 : 1);
-	}
+	char mp_uart_isBusy(mp_uart_t *uart);
 
 	static inline char mp_uart_hasOverrun(mp_uart_t *uart) {
 		(void)uart;
