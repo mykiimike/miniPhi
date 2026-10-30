@@ -1,0 +1,30 @@
+export const phi = {
+	kind: "board",
+	name: "xiao-esp32c6",
+	vendor: "Seeed Studio",
+	label: "Seeed Studio XIAO ESP32-C6",
+	description: "ESP32-C6 on the XIAO module: 160 MHz HP core, 512 KB SRAM, 4 MB flash, 40 MHz crystal. The USB-C socket is the USB Serial/JTAG console. The yellow user LED is GPIO15 and lights when the pin is low. Silk D0 to D2 are GPIO0 to GPIO2, D3 is GPIO21, D4/D5 are GPIO22/GPIO23 (I2C), D6/D7 are GPIO16/GPIO17 (UART), D8/D9/D10 are GPIO19/GPIO20/GPIO18 (SPI). BOOT is GPIO9. GPIO3 and GPIO14 select the antenna and stay untouched, so the ceramic antenna remains selected. The image clears the USB reset strap so opening the console does not reboot the module. A later esptool run needs BOOT held while the port opens.",
+	arch: "esp32",
+	series: "c6",
+	mcu: "esp32c6",
+	toolchain: "gcc",
+	requires: ["esp-usb-jtag"],
+	app: "sysinfo",
+	defines: [],
+	modules: ["SERIAL", "DEVICE"],
+	drivers: ["LED"],
+	settings: {
+		MP_MEM_SIZE: 12288,
+		MP_MEM_CHUNK: 64,
+		MP_TASK_MAX: 16,
+		STACK_SIZE: 8192,
+		HEAP_SIZE: 8192,
+	},
+	reserved: [
+		{ pin: "pa9", who: "BOOT" },
+	],
+	devices: [
+		{ driver: "LED", name: "light", options: { port: "pa15", reverse: true } },
+		{ bus: "uart", name: "console", options: { gate: "USB", baudRate: "115200" } },
+	],
+}
