@@ -2,6 +2,7 @@ export const phi = {
 	kind: "driver",
 	name: "LED",
 	label: "LED",
+	tested: true,
 	description: "On/off output on one GPIO.",
 	define: "SUPPORT_DRV_LED",
 	sources: ["led.c"],

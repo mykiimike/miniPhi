@@ -3,6 +3,7 @@ export const phi = {
 	name: "xiao-epaper",
 	vendor: "Seeed Studio",
 	label: "Seeed Studio XIAO ePaper",
+	tested: true,
 	description: "TRMNL 7.5 inch (OG) DIY kit: XIAO ESP32-S3 Plus on the EE04 ePaper board, 800x480 UC8179 panel, 2000 mAh battery. 240 MHz, 512 KB SRAM, 16 MB flash, 40 MHz crystal. The USB-C socket is the USB Serial/JTAG console. The module LED is GPIO21 and lights when the pin is low. Three buttons are active low with the internal pull-up: KEY1 (D1/GPIO2) moves up in the TUI, KEY2 (D2/GPIO3) selects and a long press goes back, KEY3 (D4/GPIO5) moves down. The panel is the UC8179 display: SCK GPIO7, MOSI GPIO9, CS GPIO44, DC GPIO10, BUSY GPIO4, RST GPIO38, and GPIO43 powers the panel rail. The cell is a voltage device: GPIO6 powers the divider, ADC1 samples GPIO1 at 11 dB, and the reading is (count/4095)*3.6*2*0.968. The image sets the RTC USB reset disable so opening the console does not reboot the module. A later esptool run needs BOOT held while the port opens.",
 	arch: "esp32",
 	series: "s3",

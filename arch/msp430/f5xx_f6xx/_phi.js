@@ -40,7 +40,15 @@ export const phi = {
 	name: "f5xx_f6xx",
 	vendor: "Texas Instruments",
 	label: "MSP430F5xx / F6xx",
-	description: "UCS clock system, PMM core voltage, USCI serial blocks. The CPU clock is fixed; the power levels choose LPM0 or LPM3, and the tick timer is tickless.",
+	tested: true,
+	description: "UCS clock system, PMM core voltage, USCI serial blocks. The CPU clock stays fixed while the power level chooses LPM0 or LPM3.",
+	specs: {
+		core: "MSP430",
+		clock: "25 MHz",
+		source: "XT1",
+		memory: "16 KB SRAM",
+		tick: "tickless",
+	},
 	boot: ["clock.c"],
 	settings: [
 		{ name: "MP_CLOCK_HE_FREQ", label: "CPU clock", type: "enum", values: clocks, labels: clockLabels, default: "MHZ25_t" },

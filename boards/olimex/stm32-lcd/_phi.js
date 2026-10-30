@@ -3,6 +3,7 @@ export const phi = {
 	name: "stm32-lcd",
 	vendor: "Olimex",
 	label: "Olimex STM32-LCD",
+	tested: true,
 	description: "STM32F103ZE board, revision A: 8 MHz and 32.768 kHz crystals, mini USB, microSD, UEXT, 20-pin JTAG. ILI9320 TFT on the FSMC (NE1, RS on A19), shown by the TUI. The 4-wire touch panel is on PC0 to PC3 (YD, YU, XL, XR). A Bosch SMB380 accelerometer is on I2C2 (PB10 SCL, PB11 SDA), its interrupt on PE4. A FLIR Lepton breakout is on SPI2 (PB13 SCK, PB14 MISO, PB15 MOSI, chip select PB12) and I2C1 (PB6 SCL, PB7 SDA); MOSI stays unconnected at the module. A Microchip MCP73833 charger reports STAT1 on PC6 and STAT2 on PC7. No user LED: D1 to D4 are supply diodes. Flashed with the ARM-USB-OCD-H.",
 	arch: "stm32",
 	series: "f1",

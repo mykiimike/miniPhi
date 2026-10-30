@@ -3,6 +3,7 @@ export const phi = {
 	name: "UC8179",
 	vendor: "Ultrachip",
 	label: "UC8179 ePaper",
+	tested: true,
 	description: "800x480 panel, 1 bit. Clock and MOSI are GPIO, SPI mode 0, because the panel has no MISO. The power pin turns the panel rail on. Chip select is active low, data/command selects the byte, reset is active low, and BUSY reads high when the controller is idle. A light source pixel is white. Opening the device paints a white field with a black frame. flush() writes the previous and the next plane, then refreshes. Power off is deep sleep; the glass keeps the image.",
 	define: "SUPPORT_DRV_LCD_UC8179",
 	sources: ["uc8179.c"],
