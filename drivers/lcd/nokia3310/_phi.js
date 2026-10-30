@@ -1,9 +1,16 @@
 export const phi = {
 	kind: "driver",
+	group: ["lcd"],
 	name: "LCD_NOKIA3310",
 	vendor: "Philips",
 	label: "Nokia 3310 LCD",
-	description: "84x48 PCD8544 on SPI mode 0. Chip select, data/command and reset are GPIO. The device is a display: with the TUI module its face is the mp_tui_display_t, and write() turns RGB565 into the 1-bit pages. Opening it paints a picture, so the glass can be checked before the shell is attached. The panel has no serial, so the serial is the MCU unique id.",
+	tested: true,
+	description: "PCD8544. Chip select, data/command and reset are GPIO. The device is a display: with the TUI module its face is the mp_tui_display_t, and write() turns RGB565 into the 1-bit pages. Opening it paints a picture, so the glass can be checked before the shell is attached. The panel has no serial, so the serial is the MCU unique id.",
+	specs: {
+		bus: "SPI mode 0",
+		size: "84x48",
+		depth: "1 bit",
+	},
 	define: "SUPPORT_DRV_LCD_NOKIA3310",
 	sources: ["nokia3310.c"],
 	headers: ["nokia3310.h"],

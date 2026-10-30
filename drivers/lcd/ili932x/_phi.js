@@ -1,9 +1,16 @@
 export const phi = {
 	kind: "driver",
+	group: ["lcd"],
 	name: "ILI932X",
 	vendor: "Ilitek",
 	label: "ILI9320 / ILI9325 TFT",
-	description: "240x320 RGB565 TFT on the FSMC parallel bus. It is a display for the TUI, which dims its backlight through a PWM timer. Standby is off unless asked: on the STM32-LCD it is followed by the board losing power. The board names the model. The panel has no serial, so the serial is the MCU unique id. The model published is the id register when it reads 9320 or 9325.",
+	tested: true,
+	description: "It is a display for the TUI, which dims its backlight through a PWM timer. Standby is off unless asked: on the STM32-LCD it is followed by the board losing power. The board names the model. The panel has no serial, so the serial is the MCU unique id. The model published is the id register when it reads 9320 or 9325.",
+	specs: {
+		bus: "FSMC",
+		size: "240x320",
+		depth: "RGB565",
+	},
 	define: "SUPPORT_DRV_LCD_ILI932X",
 	sources: ["ili932x.c"],
 	headers: ["ili932x.h"],

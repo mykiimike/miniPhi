@@ -1,9 +1,15 @@
 export const phi = {
 	kind: "driver",
+	group: ["adc"],
 	name: "ADS124X",
 	vendor: "Texas Instruments",
 	label: "ADS124x",
-	description: "TI 24-bit delta-sigma ADC family on SPI.",
+	tested: true,
+	description: "Delta-sigma ADC family.",
+	specs: {
+		bus: "SPI",
+		depth: "24 bit",
+	},
 	define: "SUPPORT_DRV_ADS124X",
 	sources: ["ADS124x.c"],
 	headers: ["ADS124x.h"],

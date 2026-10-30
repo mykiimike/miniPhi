@@ -1,9 +1,15 @@
 export const phi = {
 	kind: "driver",
+	group: ["temperature"],
 	name: "TMP006",
 	vendor: "Texas Instruments",
 	label: "TMP006",
-	description: "TI infrared thermopile temperature sensor on I2C.",
+	tested: true,
+	description: "Infrared thermopile.",
+	specs: {
+		bus: "I2C",
+		measure: "temperature",
+	},
 	define: "SUPPORT_DRV_TMP006",
 	sources: ["TMP006.c"],
 	headers: ["TMP006.h"],

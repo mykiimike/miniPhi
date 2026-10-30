@@ -89,6 +89,11 @@ export async function loadCatalog(root) {
 		}
 
 		const dir = path.posix.dirname(rel)
+		if (data.kind === "driver") {
+			const group = data.group
+			if (!Array.isArray(group) || group.length === 0 || group.some((name) => typeof name !== "string" || name === ""))
+				problems.push({ level: "error", text: rel + " group must be a list of roles." })
+		}
 		const record = {
 			kind: data.kind,
 			name: data.name || path.posix.basename(dir),
