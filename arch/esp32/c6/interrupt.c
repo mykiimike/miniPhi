@@ -26,10 +26,12 @@
 @ingroup mpArchESP32
 
 One machine-mode handler. mcause carries the CPU line. The matrix
-register for a peripheral source selects that line, and INTPRI at
-0x600C5000 is what the core actually takes. Priority n lives at
-+0x0c + n*4 and must sit above the threshold at +0x8c. Bit n of the
-type register at +0x4 is level when clear.
+register for a peripheral source selects that line. The machine PLIC
+at 0x20001000 is what the core takes after the ROM boots: its
+threshold comes up at 1 and masks a priority of 1, so init writes it
+back to 0. INTPRI at 0x600C5000 is programmed the same way. Priority
+n lives at +0x10 + n*4 on the PLIC and at +0x0c + n*4 on INTPRI. Bit
+n of either type register is level when clear.
 
 @{
 */
@@ -94,6 +96,9 @@ mp_ret_t mp_interrupt_init(void) {
 		_slot[line].who = NULL;
 	}
 
+	c6_write(C6_PLIC + 0x90UL, 0);
+	c6_write(C6_PLIC, 0);
+	c6_write(C6_PLIC + 0x4UL, 0);
 	c6_write(C6_INTPRI + 0x8cUL, 0);
 	c6_write(C6_INTPRI, 0);
 	c6_write(C6_INTPRI + 0x4UL, 0);
@@ -105,6 +110,7 @@ mp_ret_t mp_interrupt_init(void) {
 
 mp_ret_t mp_interrupt_fini(void) {
 	mp_interrupt_disable();
+	c6_write(C6_PLIC, 0);
 	c6_write(C6_INTPRI, 0);
 	return(TRUE);
 }
@@ -121,6 +127,9 @@ mp_interrupt_t *mp_interrupt_set(int vector, mp_interrupt_cb_t in, void *user, c
 	_slot[line].user = user;
 	_slot[line].who = who;
 	c6_write(C6_INTMTX + (unsigned long)vector * 4UL, (unsigned long)line);
+	c6_write(C6_PLIC + 0x10UL + (unsigned long)line * 4UL, 1);
+	c6_clr(C6_PLIC + 0x4UL, 1UL << line);
+	c6_set(C6_PLIC, 1UL << line);
 	c6_write(C6_INTPRI + 0x0cUL + (unsigned long)line * 4UL, 1);
 	c6_clr(C6_INTPRI + 0x4UL, 1UL << line);
 	c6_set(C6_INTPRI, 1UL << line);
@@ -133,6 +142,7 @@ mp_ret_t mp_interrupt_unset(int vector) {
 
 	if(line < 0)
 		return(FALSE);
+	c6_clr(C6_PLIC, 1UL << line);
 	c6_clr(C6_INTPRI, 1UL << line);
 	_mie_clr(line);
 	_slot[line].callback = NULL;

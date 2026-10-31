@@ -37,6 +37,11 @@
 	#define C6_EFUSE            0x600B0800UL
 	#define C6_LP_AON           0x600B1000UL
 	#define C6_LP_WDT           0x600B1C00UL
+	/* Machine PLIC. The ROM leaves the threshold at 1, which masks a
+	 * priority of 1, so a power cycle never delivers the tick. Priority n
+	 * is at +0x10 + n*4. The threshold is at +0x90.
+	 */
+	#define C6_PLIC             0x20001000UL
 	/* INTPRI. Priority n is at +0x0c + n*4. The threshold is at +0x8c. */
 	#define C6_INTPRI           0x600C5000UL
 
