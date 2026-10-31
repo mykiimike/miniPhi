@@ -233,6 +233,12 @@ mp_ret_t mp_aes_init(mp_aes_t *ctx, const void *key, unsigned int keylen) {
 		return(FALSE);
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->keylen = keylen;
+	ctx->rounds = keylen / 4 + 6;
+#ifdef MP_ARCH_AES
+	ctx->onHardware = mp_arch_aes_init(&ctx->hw, key, keylen);
+	if(ctx->onHardware)
+		return(TRUE);
+#endif
 	_aes_expand(ctx, (const uint8_t *)key);
 	return(TRUE);
 }
@@ -249,6 +255,12 @@ mp_ret_t mp_aes_init(mp_aes_t *ctx, const void *key, unsigned int keylen) {
 unsigned int mp_aes_update_block(mp_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
 	if(!ctx || !ctx->rounds || !in || !out)
 		return(0);
+#ifdef MP_ARCH_AES
+	if(ctx->onHardware) {
+		mp_arch_aes_update_block(&ctx->hw, in, inlen, out);
+		return(16);
+	}
+#endif
 	uint8_t s[16];
 	unsigned int n = inlen < 16 ? inlen : 16;
 	memset(s, 0, 16);
@@ -282,6 +294,12 @@ unsigned int mp_aes_update_block(mp_aes_t *ctx, const void *in, unsigned int inl
 unsigned int mp_aes_update_block_inv(mp_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
 	if(!ctx || !ctx->rounds || !in || !out)
 		return(0);
+#ifdef MP_ARCH_AES
+	if(ctx->onHardware) {
+		mp_arch_aes_update_block_inv(&ctx->hw, in, inlen, out);
+		return(16);
+	}
+#endif
 	uint8_t s[16];
 	unsigned int n = inlen < 16 ? inlen : 16;
 	memset(s, 0, 16);

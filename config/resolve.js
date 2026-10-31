@@ -199,11 +199,22 @@ export function analyze(catalog, sel, exists) {
 		for (const dependency of drivers.get(name).data.requires || [])
 			want(dependency, drivers.get(name).data.label)
 
+	/* a module flagged needsAccelerator is the wrapper of a block: the series
+	 * or the MCU declaration is what brings it in, and a require without one is an error */
+	const accelerated = { ...(series.data.accelerators || {}), ...(mcu.accelerators || {}) }
+	for (const record of catalog.modules) {
+		if (!record.data.needsAccelerator)
+			continue
+		if (accelerated[record.name])
+			want(record.name, mcu.label + " accelerator")
+		else if (moduleState.has(record.name))
+			issue("error", "build", record.data.label + " needs an accelerator declared on " + mcu.label + ".")
+	}
+
 	const activeModules = catalog.modules.filter((record) => moduleState.has(record.name))
 	const activeDrivers = catalog.drivers.filter((record) => driverState.has(record.name))
 
 	/* accelerators: { SHA256: { sources, headers } } on the series; an MCU entry replaces it, null removes it */
-	const accelerated = { ...(series.data.accelerators || {}), ...(mcu.accelerators || {}) }
 	const accelerators = activeModules
 		.filter((record) => accelerated[record.name])
 		.map((record) => ({

@@ -55,12 +55,13 @@
 	/** @} */
 
 	/**
-	 * hash is a name of HASH. entropy is required. nonce and personal may be NULL
-	 * with a length of 0: NIST wants a nonce, so pass one unless the entropy already
-	 * carries it. FALSE when the build does not carry hash or entropy is empty.
+	 * hash is a name of HASH. A NULL entropy pointer reads the HSM when the series
+	 * declares one (one digest, plus half a digest of nonce when nonce is also NULL).
+	 * An entropy buffer is the deterministic seed. FALSE when the build does not
+	 * carry hash, the HSM is absent or returned nothing, or a supplied entropy is empty.
 	 */
 	mp_ret_t mp_hmac_drbg_init(mp_hmac_drbg_t *ctx, const char *hash, const void *entropy, unsigned int entropylen, const void *nonce, unsigned int noncelen, const void *personal, unsigned int personlen);
-	/** mixes new entropy in. FALSE when ctx is not started or entropy is empty; ctx is then unchanged */
+	/** mixes new entropy in. A NULL entropy pointer reads one digest from the HSM when the series declares one. FALSE when ctx is not started, the HSM is absent or returned nothing, or a supplied entropy is empty; ctx is then unchanged */
 	mp_ret_t mp_hmac_drbg_reseed(mp_hmac_drbg_t *ctx, const void *entropy, unsigned int entropylen, const void *additional, unsigned int addlen);
 	/**
 	 * Writes size bytes, at most MP_HMAC_DRBG_MAX. additional may be NULL with a length of 0.

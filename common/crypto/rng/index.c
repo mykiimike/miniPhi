@@ -30,15 +30,16 @@
 
 @brief The running generator
 
-One task, started with the kernel. It mixes a fresh noise sample into
-HMAC-DRBG after MP_RNG_RESEED draws, or on the first draw once the seed
-is MP_RNG_PERIOD milliseconds old; nobody drawing, it sleeps. The noise is
-the low byte of the die temperature and of the internal reference, on an
-arch that has those channels. SHA-256 is the hash when the build carries it.
+One task, started with the kernel. It reseeds HMAC-DRBG after
+MP_RNG_RESEED draws, or on the first draw once the seed is
+MP_RNG_PERIOD milliseconds old; nobody drawing, it sleeps. With an HSM
+in the build the reseed passes a NULL entropy pointer and the DRBG
+reads the block. Without one, the task samples the low byte of the die
+temperature and of the internal reference and passes those bytes.
+SHA-256 is the hash when the build carries it.
 
-mp_rng_bytes() draws from that generator. It stays FALSE until the first
-sample has seeded it, so a caller never receives bytes mixed from the
-clock alone.
+mp_rng_bytes() draws from that generator. It stays FALSE until the
+first seed. The HSM, or the die sensors, is the entropy; this is the draw.
 
 @{
 */
@@ -49,7 +50,9 @@ clock alone.
 static mp_task_t *_mp_rng_task;
 static mp_hmac_drbg_t _mp_rng_drbg;
 static mp_bool_t _mp_rng_ready;
+#ifndef SUPPORT_COMMON_CRYPTO_RNG_HSM
 static uint32_t _mp_rng_stir;
+#endif
 static volatile unsigned long _mp_rng_draws;
 static unsigned long _mp_rng_seededAt;
 #ifdef SUPPORT_COMMON_MEM
@@ -75,6 +78,22 @@ static const char *_mp_rng_hash(void) {
 	algo = mp_hash_at(0);
 	return(algo ? algo->name : NULL);
 }
+
+#ifdef SUPPORT_COMMON_CRYPTO_RNG_HSM
+
+static mp_bool_t _mp_rng_reseed(void) {
+	const char *hash;
+
+	if(_mp_rng_ready == YES)
+		return(mp_hmac_drbg_reseed(&_mp_rng_drbg, NULL, 0, NULL, 0) == TRUE ? YES : NO);
+
+	hash = _mp_rng_hash();
+	if(hash && mp_hmac_drbg_init(&_mp_rng_drbg, hash, NULL, 0, NULL, 0, NULL, 0) == TRUE)
+		_mp_rng_ready = YES;
+	return(_mp_rng_ready);
+}
+
+#else
 
 /* low bytes of the die sensors; 0 when the converter is down or busy */
 static unsigned int _mp_rng_noise(uint8_t *out, unsigned int cap) {
@@ -135,6 +154,8 @@ static mp_bool_t _mp_rng_reseed(void) {
 	return(_mp_rng_ready);
 }
 
+#endif
+
 static MP_TASK(_mp_rng_wake) {
 	if(task->signal == MP_TASK_SIG_STOP) {
 		task->signal = MP_TASK_SIG_DEAD;
@@ -165,7 +186,9 @@ void mp_rng_start(mp_kernel_t *kernel) {
 	if(_mp_rng_task || !kernel)
 		return;
 	_mp_rng_ready = NO;
+#ifndef SUPPORT_COMMON_CRYPTO_RNG_HSM
 	_mp_rng_stir = 0;
+#endif
 	_mp_rng_draws = 0;
 #ifdef SUPPORT_COMMON_MEM
 	_mp_rng_kernel = kernel;

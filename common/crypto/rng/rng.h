@@ -43,7 +43,7 @@
 	void mp_rng_stop(void);
 	/**
 	 * Draws size bytes, at most MP_HMAC_DRBG_MAX.
-	 * FALSE until the task has seeded from a noise sample, or when size is empty.
+	 * FALSE until the task has seeded, or when size is empty.
 	 */
 	mp_ret_t mp_rng_bytes(void *out, unsigned int size);
 	/** the generator the task reseeds, "HMAC-DRBG" */

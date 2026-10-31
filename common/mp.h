@@ -200,6 +200,9 @@
 	#ifdef SUPPORT_COMMON_CRYPTO_MAC
 		#include <crypto/mac.h>
 	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_RNG_HSM
+		#include <crypto/hsm.h>
+	#endif
 	#ifdef SUPPORT_COMMON_CRYPTO_RNG_HMAC_DRBG
 		#include <crypto/hmac_drbg.h>
 	#endif

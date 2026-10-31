@@ -90,6 +90,7 @@
 	#ifdef MP_ARCH_AES
 		mp_bool_t mp_arch_aes_init(mp_arch_aes_t *hw, const void *key, unsigned int keylen);
 		void mp_arch_aes_update_block(mp_arch_aes_t *hw, const void *in, unsigned int inlen, uint8_t *out);
+		void mp_arch_aes_update_block_inv(mp_arch_aes_t *hw, const void *in, unsigned int inlen, uint8_t *out);
 	#endif
 
 #endif
