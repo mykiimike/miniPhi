@@ -51,6 +51,8 @@
 	#define MP_CRYPTO_FUSE_X25519 11u
 	/** RSA-KEM. */
 	#define MP_CRYPTO_FUSE_RSAKEM 12u
+	/** X448. */
+	#define MP_CRYPTO_FUSE_X448 13u
 
 	typedef struct mp_crypto_fuse_s mp_crypto_fuse_t;
 

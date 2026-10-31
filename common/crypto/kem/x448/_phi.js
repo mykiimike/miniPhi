@@ -1,0 +1,21 @@
+export const phi = {
+	kind: "module",
+	name: "X448",
+	label: "X448",
+	group: ["crypto", "kem"],
+	pqc: false,
+	description: "DHKEM(X448, HKDF-SHA512) from RFC 9180, with the Montgomery ladder of RFC 7748. A seed is the 56-byte private key. Encapsulation coins are the 56-byte ephemeral secret. The ciphertext is 56 bytes and the shared secret is 64. The ladder always runs 448 steps and swaps with a mask, so the scalar never becomes a branch or a table index. The shared secret is mp_crypto_dhkem() with SHA-512 and suite 0x0021. A Diffie-Hellman output of 56 zero bytes is rejected. Needs SHA-512, HMAC, HKDF and the KEM module. One operation at a time. mp_crypto_x448_decaps_fuse() is the fuse path, role MP_CRYPTO_FUSE_X448. Nothing here burns a fuse.",
+	specs: {
+		standard: ["RFC 9180", "RFC 7748"],
+		security: "224 bit",
+		lengths: { priv: "56", pub: "56", ct: "56", ss: "64", seed: "56", coins: "56" },
+		hpke: "0x0021",
+		random: "coins",
+		failure: "abort",
+	},
+	define: "SUPPORT_COMMON_CRYPTO_KEM_X448",
+	requires: ["SHA512", "HMAC", "HKDF", "KEM"],
+	sources: ["x448.c"],
+	headers: ["x448.h"],
+	headerDir: "crypto",
+}

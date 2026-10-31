@@ -294,6 +294,35 @@ Records are appended: the hash, the size, a Fletcher-16, then the value, with th
 
 `common/crypto` groups the crypto modules by family: `hash/` holds `blake2s/` (module `BLAKE2S`), `sha1/` (`SHA1`), `sha256/` (`SHA256`), `sha384/` (`SHA384`) and `sha512/` (`SHA512`). SHA-384 requires SHA-512 and reuses its compression. Each algorithm is its own module, so a build only carries what an app `requires`. They all set `headerDir: "crypto"`, so code includes `<crypto/sha256.h>`, and two of them cannot publish a header of the same name.
 
+An algorithm, four components under `common/crypto/<family>/<algo>/`, carries a card. The configurator stores it. The headers keep the sizes the compiler sees. The family directory itself (`hash/`, `kem/`, `kdf/`, and the rest) is the API and carries none of these fields.
+
+```js
+// common/crypto/kem/x448/_phi.js
+group: ["crypto", "kem"],
+pqc: false,
+specs: {
+	standard: ["RFC 9180", "RFC 7748"],
+	security: "224 bit",
+	lengths: { priv: "56", pub: "56", ct: "56", ss: "64", seed: "56", coins: "56" },
+	hpke: "0x0021",
+	random: "coins",
+	failure: "abort",
+},
+```
+
+`group` is `crypto` and the family directory (`kem`, `hash`, `sign`, `cipher`, `mac`, `kdf`, `mode`, `rng`). `pqc` is a boolean, written both ways. `specs` are display strings. `standard` is a list of documents. `ECCG ACM v2` is Agreed Cryptographic Mechanisms version 2, May 2025, the catalogue ENISA publishes for EUCC. It is named when that catalogue lists the mechanism. `security` names the strength with its unit, and a setting that picks a set writes every value (`"128 / 192 / 256 bit"`). `lengths` names the byte sizes that stay put when a setting changes the keys, so a levelled KEM keeps `ss`, `seed` and `coins`. `hpke` is the KEM identifier from the RFC 9180 table, present when that table assigns one (`"0x0020"` for X25519, `"0x0021"` for X448).
+
+`random` says where the operation's randomness comes from:
+
+- `coins`: the caller supplies the bytes, as the 56 ephemeral bytes of X448. A selftest can replay a vector.
+- `nonce`: the caller supplies a unique number, as the GCM nonce.
+- `none`: the operation asks for none, as SHA-512 or AES on one block.
+
+`failure` says what decryption does with a bad input. A hash leaves the field out.
+
+- `abort`: X448 returns NO when the Diffie-Hellman output is 56 zero bytes, the low-order point.
+- `reject`: ML-KEM and HQC still return YES, with a rejection secret, so both cases take the same time.
+
 A digest runs through a context the caller owns: `mp_crypto_sha256_init()`, `mp_crypto_sha256_update()`, `mp_crypto_sha256_final()`, which wipes the context, or `mp_crypto_sha256()` in one call. SHA-1, SHA-384, SHA-512 and BLAKE2s have the same calls. BLAKE2s adds `mp_crypto_blake2s_init_key()` for a key of up to 32 bytes. The software version sits in the module's `.c` and always builds. The schedule is a ring of 16 words, so the stack stays small on MSP430.
 
 `common/crypto/hash` itself is the module `HASH`, one API over every hash in the build, picked by name:

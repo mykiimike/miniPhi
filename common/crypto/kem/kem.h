@@ -70,6 +70,31 @@
 		#define MP_CRYPTO_KEM_COINS_MAX MP_CRYPTO_X25519_COINS
 	#endif
 
+	#if defined(SUPPORT_COMMON_CRYPTO_KEM_X448) && (MP_CRYPTO_X448_PRIV > MP_CRYPTO_KEM_PRIV_MAX)
+		#undef MP_CRYPTO_KEM_PRIV_MAX
+		#define MP_CRYPTO_KEM_PRIV_MAX MP_CRYPTO_X448_PRIV
+	#endif
+	#if defined(SUPPORT_COMMON_CRYPTO_KEM_X448) && (MP_CRYPTO_X448_PUB > MP_CRYPTO_KEM_PUB_MAX)
+		#undef MP_CRYPTO_KEM_PUB_MAX
+		#define MP_CRYPTO_KEM_PUB_MAX MP_CRYPTO_X448_PUB
+	#endif
+	#if defined(SUPPORT_COMMON_CRYPTO_KEM_X448) && (MP_CRYPTO_X448_CT > MP_CRYPTO_KEM_CT_MAX)
+		#undef MP_CRYPTO_KEM_CT_MAX
+		#define MP_CRYPTO_KEM_CT_MAX MP_CRYPTO_X448_CT
+	#endif
+	#if defined(SUPPORT_COMMON_CRYPTO_KEM_X448) && (MP_CRYPTO_X448_SS > MP_CRYPTO_KEM_SS_MAX)
+		#undef MP_CRYPTO_KEM_SS_MAX
+		#define MP_CRYPTO_KEM_SS_MAX MP_CRYPTO_X448_SS
+	#endif
+	#if defined(SUPPORT_COMMON_CRYPTO_KEM_X448) && (MP_CRYPTO_X448_SEED > MP_CRYPTO_KEM_SEED_MAX)
+		#undef MP_CRYPTO_KEM_SEED_MAX
+		#define MP_CRYPTO_KEM_SEED_MAX MP_CRYPTO_X448_SEED
+	#endif
+	#if defined(SUPPORT_COMMON_CRYPTO_KEM_X448) && (MP_CRYPTO_X448_COINS > MP_CRYPTO_KEM_COINS_MAX)
+		#undef MP_CRYPTO_KEM_COINS_MAX
+		#define MP_CRYPTO_KEM_COINS_MAX MP_CRYPTO_X448_COINS
+	#endif
+
 	#if defined(SUPPORT_COMMON_CRYPTO_KEM_MLKEM) && (MP_CRYPTO_MLKEM_PRIV > MP_CRYPTO_KEM_PRIV_MAX)
 		#undef MP_CRYPTO_KEM_PRIV_MAX
 		#define MP_CRYPTO_KEM_PRIV_MAX MP_CRYPTO_MLKEM_PRIV
@@ -194,6 +219,22 @@
 	 * Shared secret from a fuse slot. An algorithm with no accelerator prints once and returns NO.
 	 */
 	mp_bool_t mp_crypto_kem_decaps_fuse(const char *name, const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss);
+
+	#ifdef SUPPORT_COMMON_CRYPTO_KDF_HKDF
+		/** five bytes: "KEM" and the two-byte identifier */
+		#define MP_CRYPTO_DHKEM_SUITE 5
+		/** longest Diffie-Hellman shared secret ExtractAndExpand accepts */
+		#define MP_CRYPTO_DHKEM_DH_MAX 128
+		/** longest kem_context: ephemeral public key concatenated with the recipient public key */
+		#define MP_CRYPTO_DHKEM_CONTEXT_MAX 160
+
+		/**
+		 * ExtractAndExpand from RFC 9180. hash is a name of HASH.
+		 * suite is "KEM" followed by the identifier, for example 0x0020 for X25519.
+		 * Writes ssLen bytes and returns ssLen, or 0 when hash is absent or a length does not fit.
+		 */
+		unsigned int mp_crypto_dhkem(uint8_t *ss, unsigned int ssLen, const char *hash, const uint8_t suite[MP_CRYPTO_DHKEM_SUITE], const uint8_t *dh, unsigned int dhLen, const uint8_t *kem_context, unsigned int contextLen);
+	#endif
 
 #endif
 #endif

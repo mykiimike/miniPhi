@@ -55,7 +55,7 @@ static mp_bool_t _sysinfo_crypto_hardware(const char *name) {
 	return(NO);
 }
 
-/* HMAC and HMAC-DRBG each run over every hash of the build: list them */
+/* HMAC, HKDF and HMAC-DRBG each run over every hash of the build: list them */
 static void _sysinfo_crypto_hashes(mp_tui_widget_t *page, sysinfo_t *sysinfo, int y, const mp_tui_column_t *columns) {
 	const mp_crypto_hash_algo_t *algo;
 	int rows = mp_crypto_hash_count();
@@ -293,6 +293,8 @@ static void _sysinfo_crypto_detail(mp_tui_widget_t *page, void *user) {
 #endif
 #if defined(SUPPORT_COMMON_CRYPTO_MAC_HMAC) && MP_CRYPTO_COUNT > 0
 		if(pick >= 0 && pick < MP_CRYPTO_COUNT && strcmp(mp_crypto[pick].name, "HMAC") == 0)
+			_sysinfo_crypto_hashes(page, sysinfo, y + 2, _sysinfo_hmac_columns);
+		else if(pick >= 0 && pick < MP_CRYPTO_COUNT && strcmp(mp_crypto[pick].name, "HKDF") == 0)
 			_sysinfo_crypto_hashes(page, sysinfo, y + 2, _sysinfo_hmac_columns);
 		else if(pick >= 0 && pick < MP_CRYPTO_COUNT && strcmp(mp_crypto[pick].name, "HMAC_DRBG") == 0)
 			_sysinfo_crypto_hashes(page, sysinfo, y + 2, _sysinfo_drbg_columns);

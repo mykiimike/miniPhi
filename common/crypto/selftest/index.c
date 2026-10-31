@@ -73,6 +73,9 @@ static const mp_crypto_selftest_t _table[] = {
 #if defined(MP_CRYPTO_SELFTEST_HMAC) && defined(SUPPORT_COMMON_CRYPTO_MAC_HMAC) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA256)
 	{ "HMAC", "HMAC", "mac", mp_crypto_selftest_hmac },
 #endif
+#if defined(MP_CRYPTO_SELFTEST_HKDF) && defined(SUPPORT_COMMON_CRYPTO_KDF_HKDF) && defined(SUPPORT_COMMON_CRYPTO_MAC_HMAC) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA256)
+	{ "HKDF", "HKDF", "kdf", mp_crypto_selftest_hkdf },
+#endif
 #if defined(MP_CRYPTO_SELFTEST_POLY1305) && defined(SUPPORT_COMMON_CRYPTO_MAC_POLY1305)
 	{ "POLY1305", "Poly1305", "mac", mp_crypto_selftest_poly1305 },
 #endif
@@ -84,6 +87,9 @@ static const mp_crypto_selftest_t _table[] = {
 #endif
 #if defined(MP_CRYPTO_SELFTEST_X25519) && defined(SUPPORT_COMMON_CRYPTO_KEM_X25519)
 	{ "X25519", "X25519", "kem", mp_crypto_selftest_x25519 },
+#endif
+#if defined(MP_CRYPTO_SELFTEST_X448) && defined(SUPPORT_COMMON_CRYPTO_KEM_X448)
+	{ "X448", "X448", "kem", mp_crypto_selftest_x448 },
 #endif
 #if defined(MP_CRYPTO_SELFTEST_RSAKEM) && defined(SUPPORT_COMMON_CRYPTO_KEM_RSAKEM) && defined(SUPPORT_COMMON_CRYPTO_SIGN_RSA)
 	{ "RSAKEM", "RSA-KEM", "kem", mp_crypto_selftest_rsakem },

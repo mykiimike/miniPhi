@@ -203,6 +203,12 @@
 	#ifdef SUPPORT_COMMON_CRYPTO_MAC
 		#include <crypto/mac.h>
 	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_KDF_HKDF
+		#include <crypto/hkdf.h>
+	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_KDF
+		#include <crypto/kdf.h>
+	#endif
 	#ifdef SUPPORT_COMMON_CRYPTO_RNG_HSM
 		#include <crypto/hsm.h>
 	#endif
@@ -246,6 +252,9 @@
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_KEM_X25519
 	#include <crypto/x25519.h>
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_KEM_X448
+	#include <crypto/x448.h>
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_KEM_RSAKEM
 	#include <crypto/rsakem.h>

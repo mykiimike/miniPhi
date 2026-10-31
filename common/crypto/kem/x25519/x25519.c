@@ -31,6 +31,7 @@
 
 The ladder always runs from bit 254 down to bit 0 and swaps through a mask.
 The swap bit is hidden from the compiler: a visible 0 or 1 becomes a branch.
+The shared secret is mp_crypto_dhkem() with SHA-256 and suite 0x0020.
 A field element is eight little-endian words. Reduction is a fixed sequence
 of adds, so a secret coordinate never selects a branch or a table entry.
 One ladder runs at a time.
@@ -340,58 +341,6 @@ void mp_crypto_x25519(uint8_t out[32], const uint8_t scalar[32], const uint8_t p
 	memset(k, 0, sizeof(k));
 }
 
-static void _labeled_extract(uint8_t prk[32], const uint8_t *ikm, unsigned ikmlen, const char *label) {
-	uint8_t buf[80];
-	unsigned n = 0;
-	unsigned labellen = 0;
-
-	while(label[labellen])
-		labellen++;
-	memcpy(buf + n, "HPKE-v1", 7);
-	n += 7;
-	memcpy(buf + n, _suite, sizeof(_suite));
-	n += sizeof(_suite);
-	memcpy(buf + n, label, labellen);
-	n += labellen;
-	memcpy(buf + n, ikm, ikmlen);
-	n += ikmlen;
-	mp_crypto_hmac("SHA256", (const uint8_t[32]){ 0 }, 32, buf, n, prk);
-	memset(buf, 0, sizeof(buf));
-}
-
-static void _labeled_expand(uint8_t *out, unsigned L, const uint8_t prk[32], const char *label, const uint8_t *info, unsigned infolen) {
-	uint8_t buf[128];
-	uint8_t tag[32];
-	unsigned n = 0;
-	unsigned labellen = 0;
-
-	while(label[labellen])
-		labellen++;
-	buf[n++] = (uint8_t)(L >> 8);
-	buf[n++] = (uint8_t)L;
-	memcpy(buf + n, "HPKE-v1", 7);
-	n += 7;
-	memcpy(buf + n, _suite, sizeof(_suite));
-	n += sizeof(_suite);
-	memcpy(buf + n, label, labellen);
-	n += labellen;
-	memcpy(buf + n, info, infolen);
-	n += infolen;
-	buf[n++] = 1;
-	mp_crypto_hmac("SHA256", prk, 32, buf, n, tag);
-	memcpy(out, tag, L);
-	memset(buf, 0, sizeof(buf));
-	memset(tag, 0, sizeof(tag));
-}
-
-static void _dhkem(uint8_t ss[32], const uint8_t dh[32], const uint8_t *kem_context, unsigned n) {
-	uint8_t prk[32];
-
-	_labeled_extract(prk, dh, 32, "eae_prk");
-	_labeled_expand(ss, 32, prk, "shared_secret", kem_context, n);
-	memset(prk, 0, sizeof(prk));
-}
-
 /**
  * @brief Build an X25519 key pair
  * @param[in] seed 32-byte private key
@@ -419,6 +368,7 @@ mp_ret_t mp_crypto_x25519_keypair(const void *seed, unsigned int seedlen, void *
  */
 unsigned int mp_crypto_x25519_encaps(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
 	uint8_t dh[32], ctx[64];
+	unsigned int n;
 
 	if(!pub || !coins || !ss || !ct || coinslen < 32)
 		return(0);
@@ -426,10 +376,10 @@ unsigned int mp_crypto_x25519_encaps(const void *pub, const void *coins, unsigne
 	mp_crypto_x25519(dh, coins, pub);
 	memcpy(ctx, ct, 32);
 	memcpy(ctx + 32, pub, 32);
-	_dhkem(ss, dh, ctx, 64);
+	n = mp_crypto_dhkem(ss, 32, "SHA256", _suite, dh, 32, ctx, 64);
 	memset(dh, 0, sizeof(dh));
 	memset(ctx, 0, sizeof(ctx));
-	return(32);
+	return(n);
 }
 
 /**
@@ -442,6 +392,7 @@ unsigned int mp_crypto_x25519_encaps(const void *pub, const void *coins, unsigne
  */
 mp_bool_t mp_crypto_x25519_decaps(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
 	uint8_t dh[32], pk[32], ctx[64];
+	unsigned int n;
 
 	if(!priv || !ct || !ss || ctlen != 32)
 		return(NO);
@@ -449,11 +400,11 @@ mp_bool_t mp_crypto_x25519_decaps(const void *priv, const void *ct, unsigned int
 	mp_crypto_x25519(dh, priv, ct);
 	memcpy(ctx, ct, 32);
 	memcpy(ctx + 32, pk, 32);
-	_dhkem(ss, dh, ctx, 64);
+	n = mp_crypto_dhkem(ss, 32, "SHA256", _suite, dh, 32, ctx, 64);
 	memset(dh, 0, sizeof(dh));
 	memset(pk, 0, sizeof(pk));
 	memset(ctx, 0, sizeof(ctx));
-	return(YES);
+	return(n == 32 ? YES : NO);
 }
 
 /**

@@ -36,7 +36,7 @@
 		/** module name, "AES" */
 		const char *name;
 		const char *label;
-		/** cipher, hash, mac or kem */
+		/** cipher, hash, mac, kdf or kem */
 		const char *family;
 		/** YES when the known answer matches */
 		mp_bool_t (*run)(void);
@@ -103,6 +103,9 @@
 	#if defined(MP_CRYPTO_SELFTEST_HMAC) && defined(SUPPORT_COMMON_CRYPTO_MAC_HMAC) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA256)
 		mp_bool_t mp_crypto_selftest_hmac(void);
 	#endif
+	#if defined(MP_CRYPTO_SELFTEST_HKDF) && defined(SUPPORT_COMMON_CRYPTO_KDF_HKDF) && defined(SUPPORT_COMMON_CRYPTO_MAC_HMAC) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA256)
+		mp_bool_t mp_crypto_selftest_hkdf(void);
+	#endif
 	#if defined(MP_CRYPTO_SELFTEST_POLY1305) && defined(SUPPORT_COMMON_CRYPTO_MAC_POLY1305)
 		mp_bool_t mp_crypto_selftest_poly1305(void);
 	#endif
@@ -114,6 +117,9 @@
 	#endif
 	#if defined(MP_CRYPTO_SELFTEST_X25519) && defined(SUPPORT_COMMON_CRYPTO_KEM_X25519)
 		mp_bool_t mp_crypto_selftest_x25519(void);
+	#endif
+	#if defined(MP_CRYPTO_SELFTEST_X448) && defined(SUPPORT_COMMON_CRYPTO_KEM_X448)
+		mp_bool_t mp_crypto_selftest_x448(void);
 	#endif
 	#if defined(MP_CRYPTO_SELFTEST_RSAKEM) && defined(SUPPORT_COMMON_CRYPTO_KEM_RSAKEM) && defined(SUPPORT_COMMON_CRYPTO_SIGN_RSA)
 		mp_bool_t mp_crypto_selftest_rsakem(void);

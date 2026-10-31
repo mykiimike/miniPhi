@@ -4,7 +4,7 @@ export const phi = {
 	vendor: "Seeed Studio",
 	label: "Seeed Studio XIAO ESP32-C6",
 	tested: true,
-	description: "ESP32-C6 on the XIAO module. The yellow user LED lights when the pin is low. GPIO3 and GPIO14 select the antenna and stay untouched, so the ceramic antenna remains selected. The image clears the USB reset strap so opening the console does not reboot the module. A later esptool run needs BOOT held while the port opens. The firmware also links SHA-3 / SHAKE, Ed25519, ECDSA P-256, LMS, SLH-DSA and ML-DSA, the largest signature set this build can hold with the hashes and ciphers, and the KEMs ML-KEM, HQC-128 and X25519. RSA-KEM is the build that selects the RSA module.",
+	description: "ESP32-C6 on the XIAO module. The yellow user LED lights when the pin is low. GPIO3 and GPIO14 select the antenna and stay untouched, so the ceramic antenna remains selected. The image clears the USB reset strap so opening the console does not reboot the module. A later esptool run needs BOOT held while the port opens. This image links every hash, MAC, cipher, mode, KDF and the HMAC-DRBG, Ed25519, ECDSA P-256, LMS, SLH-DSA and ML-DSA, and the KEMs ML-KEM, HQC-128, X25519 and X448. RSA and RSA-KEM stay out: the resolver refuses them beside LMS, SLH-DSA and ML-DSA.",
 	specs: {
 		crystal: "40 MHz",
 		flash: "4 MB",
@@ -17,7 +17,18 @@ export const phi = {
 	requires: ["esp-usb-jtag"],
 	app: "sysinfo",
 	defines: [],
-	modules: ["SERIAL", "DEVICE", "SHAKE", "ED25519", "ECDSA_P256", "LMS", "SLH", "MLDSA", "KEM", "MLKEM", "HQC", "X25519"],
+	modules: [
+		"SERIAL", "DEVICE",
+		"HASH", "SHA1", "SHA256", "SHA384", "SHA512", "BLAKE2S", "SHAKE",
+		"MAC", "HMAC", "POLY1305",
+		"CIPHER", "AES", "CHACHA20", "XTS",
+		"MODE", "CBC", "CTR", "GCM", "CCM", "CHACHA20_POLY1305",
+		"KDF", "HKDF",
+		"RNG", "HMAC_DRBG",
+		"SIGN", "ED25519", "ECDSA_P256", "LMS", "SLH", "MLDSA",
+		"KEM", "MLKEM", "HQC", "X25519", "X448",
+		"SELFTEST",
+	],
 	drivers: ["LED"],
 	settings: {
 		MP_MEM_SIZE: 12288,
