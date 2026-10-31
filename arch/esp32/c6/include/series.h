@@ -37,8 +37,8 @@
 	#define C6_EFUSE            0x600B0800UL
 	#define C6_LP_AON           0x600B1000UL
 	#define C6_LP_WDT           0x600B1C00UL
-	/* HP-core PLIC. Priority n is at +0x10 + n*4. The threshold resets to 1. */
-	#define C6_PLIC             0x20001000UL
+	/* INTPRI. Priority n is at +0x0c + n*4. The threshold is at +0x8c. */
+	#define C6_INTPRI           0x600C5000UL
 
 	#define C6_WDT_KEY          0x50D83AA1UL
 

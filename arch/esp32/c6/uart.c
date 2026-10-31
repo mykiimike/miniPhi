@@ -83,8 +83,12 @@ static void _usb_isr(void *user) {
 			uart->onWrite(uart);
 			n++;
 		}
-		c6_write(_EP1_CONF, _WR_DONE);
-		c6_write(_INT_CLR, _IN_INT);
+		/* onWrite flushes when the buffer runs out. A second WR_DONE
+		 * replaces that packet with an empty one. */
+		if(c6_read(_INT_ENA) & _IN_INT) {
+			c6_write(_EP1_CONF, _WR_DONE);
+			c6_write(_INT_CLR, _IN_INT);
+		}
 	}
 }
 
