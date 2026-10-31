@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -35,19 +34,19 @@
 	 */
 
 	/** Poly1305 key (r || s), one-time, 32 bytes */
-	#define MP_POLY1305_KEY 32
+	#define MP_CRYPTO_POLY1305_KEY 32
 
 	/** Poly1305 tag, 16 bytes */
-	#define MP_POLY1305_SIZE 16
+	#define MP_CRYPTO_POLY1305_SIZE 16
 
 	/** Poly1305 block, 16 bytes */
-	#define MP_POLY1305_BLOCK 16
+	#define MP_CRYPTO_POLY1305_BLOCK 16
 
-	typedef struct mp_poly1305_s mp_poly1305_t;
+	typedef struct mp_crypto_poly1305_s mp_crypto_poly1305_t;
 
 	/** Poly1305 context. The key is one-time: a fresh key per message,
 	 *  never reused. Owned by the caller. */
-	struct mp_poly1305_s {
+	struct mp_crypto_poly1305_s {
 		/** r, clamped, five 26-bit limbs */
 		uint32_t r[5];
 		/** s, four 32-bit words */
@@ -55,19 +54,19 @@
 		/** accumulator, five 26-bit limbs */
 		uint32_t h[5];
 		/** buffered bytes < 16 */
-		uint8_t buf[MP_POLY1305_BLOCK];
+		uint8_t buf[MP_CRYPTO_POLY1305_BLOCK];
 		/** bytes in buf */
 		unsigned int bufLeft;
 	};
 
 	/** FALSE when the key length is not 32 */
-	mp_ret_t mp_poly1305_init(mp_poly1305_t *ctx, const void *key, unsigned int keylen);
+	mp_ret_t mp_crypto_poly1305_init(mp_crypto_poly1305_t *ctx, const void *key, unsigned int keylen);
 	/** absorb any length; the time does not depend on the key */
-	void mp_poly1305_update(mp_poly1305_t *ctx, const void *in, unsigned int inlen);
+	void mp_crypto_poly1305_update(mp_crypto_poly1305_t *ctx, const void *in, unsigned int inlen);
 	/** writes 16 bytes, returns 16, 0 when not started; wipes the context */
-	unsigned int mp_poly1305_final(mp_poly1305_t *ctx, uint8_t *tag);
+	unsigned int mp_crypto_poly1305_final(mp_crypto_poly1305_t *ctx, uint8_t *tag);
 	/** wipes the context; safe on a MAC already ended */
-	void mp_poly1305_free(mp_poly1305_t *ctx);
+	void mp_crypto_poly1305_free(mp_crypto_poly1305_t *ctx);
 
 	/** @} */
 

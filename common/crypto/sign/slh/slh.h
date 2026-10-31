@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -23,6 +22,14 @@
 	#define _HAVE_MP_COMMON_SLH_H
 
 	#include <stdint.h>
+	#ifdef SUPPORT_COMMON_CRYPTO_FUSE
+		#include <crypto/fuse.h>
+	#else
+		#ifndef _HAVE_MP_FUSE_T
+			#define _HAVE_MP_FUSE_T
+			typedef struct mp_crypto_fuse_s mp_crypto_fuse_t;
+		#endif
+	#endif
 
 	/**
 	 * @defgroup mpCommonSlh
@@ -38,44 +45,52 @@
 	 * Constant time: the secret seed only ever enters a SHA-256 input; no
 	 * branch, table index or memory address is ever derived from it. */
 
-	#define MP_SLH_N       16
-	#define MP_SLH_H       63
-	#define MP_SLH_D       7
-	#define MP_SLH_HP      9      /* h' = h / d */
-	#define MP_SLH_A       12
-	#define MP_SLH_K       14
-	#define MP_SLH_W       16     /* w = 2^lg_w, lg_w = 4 */
-	#define MP_SLH_LG_W    4
-	#define MP_SLH_M       30
-	#define MP_SLH_LEN1    32
-	#define MP_SLH_LEN2    3
-	#define MP_SLH_LEN     35     /* wots_len */
+	#define MP_CRYPTO_SLH_N       16
+	#define MP_CRYPTO_SLH_H       63
+	#define MP_CRYPTO_SLH_D       7
+	#define MP_CRYPTO_SLH_HP      9      /* h' = h / d */
+	#define MP_CRYPTO_SLH_A       12
+	#define MP_CRYPTO_SLH_K       14
+	#define MP_CRYPTO_SLH_W       16     /* w = 2^lg_w, lg_w = 4 */
+	#define MP_CRYPTO_SLH_LG_W    4
+	#define MP_CRYPTO_SLH_M       30
+	#define MP_CRYPTO_SLH_LEN1    32
+	#define MP_CRYPTO_SLH_LEN2    3
+	#define MP_CRYPTO_SLH_LEN     35     /* wots_len */
 
-	#define MP_SLH_PK_SIZE  (2*MP_SLH_N)            /* 32  */
-	#define MP_SLH_SK_SIZE  (4*MP_SLH_N)            /* 64  */
-	#define MP_SLH_SIG_SIZE (MP_SLH_N + MP_SLH_K*(MP_SLH_A+1)*MP_SLH_N + MP_SLH_D*(MP_SLH_HP+MP_SLH_LEN)*MP_SLH_N)  /* 7856 */
+	#define MP_CRYPTO_SLH_PK_SIZE  (2*MP_CRYPTO_SLH_N)            /* 32  */
+	#define MP_CRYPTO_SLH_SK_SIZE  (4*MP_CRYPTO_SLH_N)            /* 64  */
+	#define MP_CRYPTO_SLH_SIG_SIZE (MP_CRYPTO_SLH_N + MP_CRYPTO_SLH_K*(MP_CRYPTO_SLH_A+1)*MP_CRYPTO_SLH_N + MP_CRYPTO_SLH_D*(MP_CRYPTO_SLH_HP+MP_CRYPTO_SLH_LEN)*MP_CRYPTO_SLH_N)  /* 7856 */
 
 	/* ADRS type codes (FIPS 205). */
-	#define MP_SLH_ADRS_WOTS_HASH   0
-	#define MP_SLH_ADRS_WOTS_PK     1
-	#define MP_SLH_ADRS_TREE        2
-	#define MP_SLH_ADRS_FORS_TREE   3
-	#define MP_SLH_ADRS_FORS_ROOTS  4
-	#define MP_SLH_ADRS_WOTS_PRF    5
-	#define MP_SLH_ADRS_FORS_PRF    6
+	#define MP_CRYPTO_SLH_ADRS_WOTS_HASH   0
+	#define MP_CRYPTO_SLH_ADRS_WOTS_PK     1
+	#define MP_CRYPTO_SLH_ADRS_TREE        2
+	#define MP_CRYPTO_SLH_ADRS_FORS_TREE   3
+	#define MP_CRYPTO_SLH_ADRS_FORS_ROOTS  4
+	#define MP_CRYPTO_SLH_ADRS_WOTS_PRF    5
+	#define MP_CRYPTO_SLH_ADRS_FORS_PRF    6
 
 	/**
 	 * Build a key pair from `seedlen` bytes of entropy (needs 48: SK.seed,
 	 * SK.prf, PK.seed). Returns FALSE if the seed is too short. Finalises
 	 * priv (64 bytes) and pub (32 bytes).
 	 */
-	mp_ret_t mp_slh_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub);
+	mp_ret_t mp_crypto_slh_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub);
 
-	/** Deterministic signature (OpTRand = 0). Writes MP_SLH_SIG_SIZE bytes; returns the size. */
-	unsigned int mp_slh_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig);
+	/** Deterministic signature (OpTRand = 0). Writes MP_CRYPTO_SLH_SIG_SIZE bytes; returns the size. */
+	unsigned int mp_crypto_slh_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig);
+	/**
+	 * Role MP_CRYPTO_FUSE_SLH. wrapped is the blob the series arch defines.
+	 * Returns the signature size, or 0 when this series has no SLH-DSA accelerator.
+	 */
+	unsigned int mp_crypto_slh_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig);
+	#ifdef MP_ARCH_SLH
+		unsigned int mp_arch_slh_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig);
+	#endif
 
 	/** Returns YES if the signature verifies against pub, NO otherwise. */
-	mp_bool_t mp_slh_verify(const void *pub, const void *msg, unsigned int len,
+	mp_bool_t mp_crypto_slh_verify(const void *pub, const void *msg, unsigned int len,
 		const void *sig, unsigned int siglen);
 
 	/** @}*/

@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -31,36 +30,36 @@
 @brief The running generator
 
 One task, started with the kernel. It reseeds HMAC-DRBG after
-MP_RNG_RESEED draws, or on the first draw once the seed is
-MP_RNG_PERIOD milliseconds old; nobody drawing, it sleeps. With an HSM
+MP_CRYPTO_RNG_RESEED draws, or on the first draw once the seed is
+MP_CRYPTO_RNG_PERIOD milliseconds old; nobody drawing, it sleeps. With an HSM
 in the build the reseed passes a NULL entropy pointer and the DRBG
 reads the block. Without one, the task samples the low byte of the die
 temperature and of the internal reference and passes those bytes.
 SHA-256 is the hash when the build carries it.
 
-mp_rng_bytes() draws from that generator. It stays FALSE until the
+mp_crypto_rng_bytes() draws from that generator. It stays FALSE until the
 first seed. The HSM, or the die sensors, is the entropy; this is the draw.
 
 @{
 */
 
 /* retry of a seed that found no noise */
-#define _MP_RNG_RETRY 100
+#define _MP_CRYPTO_RNG_RETRY 100
 
-static mp_task_t *_mp_rng_task;
-static mp_hmac_drbg_t _mp_rng_drbg;
-static mp_bool_t _mp_rng_ready;
+static mp_task_t *_mp_crypto_rng_task;
+static mp_crypto_hmac_drbg_t _mp_crypto_rng_drbg;
+static mp_bool_t _mp_crypto_rng_ready;
 #ifndef SUPPORT_COMMON_CRYPTO_RNG_HSM
-static uint32_t _mp_rng_stir;
+static uint32_t _mp_crypto_rng_stir;
 #endif
-static volatile unsigned long _mp_rng_draws;
+static volatile unsigned long _mp_crypto_rng_draws;
 static unsigned long _mp_rng_seededAt;
 #ifdef SUPPORT_COMMON_MEM
-static mp_kernel_t *_mp_rng_kernel;
+static mp_kernel_t *_mp_crypto_rng_kernel;
 static mp_bool_t _mp_rng_memKeyed;
 #endif
 
-static unsigned long _mp_rng_ticks(unsigned long ms) {
+static unsigned long _mp_crypto_rng_ticks(unsigned long ms) {
 	unsigned long hz = mp_clock_tick_hz();
 	unsigned long ticks;
 
@@ -70,33 +69,33 @@ static unsigned long _mp_rng_ticks(unsigned long ms) {
 	return(ticks ? ticks : 1);
 }
 
-static const char *_mp_rng_hash(void) {
-	const mp_hash_algo_t *algo;
+static const char *_mp_crypto_rng_hash(void) {
+	const mp_crypto_hash_algo_t *algo;
 
-	if(mp_hash_find("SHA256"))
+	if(mp_crypto_hash_find("SHA256"))
 		return("SHA256");
-	algo = mp_hash_at(0);
+	algo = mp_crypto_hash_at(0);
 	return(algo ? algo->name : NULL);
 }
 
 #ifdef SUPPORT_COMMON_CRYPTO_RNG_HSM
 
-static mp_bool_t _mp_rng_reseed(void) {
+static mp_bool_t _mp_crypto_rng_reseed(void) {
 	const char *hash;
 
-	if(_mp_rng_ready == YES)
-		return(mp_hmac_drbg_reseed(&_mp_rng_drbg, NULL, 0, NULL, 0) == TRUE ? YES : NO);
+	if(_mp_crypto_rng_ready == YES)
+		return(mp_crypto_hmac_drbg_reseed(&_mp_crypto_rng_drbg, NULL, 0, NULL, 0) == TRUE ? YES : NO);
 
-	hash = _mp_rng_hash();
-	if(hash && mp_hmac_drbg_init(&_mp_rng_drbg, hash, NULL, 0, NULL, 0, NULL, 0) == TRUE)
-		_mp_rng_ready = YES;
-	return(_mp_rng_ready);
+	hash = _mp_crypto_rng_hash();
+	if(hash && mp_crypto_hmac_drbg_init(&_mp_crypto_rng_drbg, hash, NULL, 0, NULL, 0, NULL, 0) == TRUE)
+		_mp_crypto_rng_ready = YES;
+	return(_mp_crypto_rng_ready);
 }
 
 #else
 
 /* low bytes of the die sensors; 0 when the converter is down or busy */
-static unsigned int _mp_rng_noise(uint8_t *out, unsigned int cap) {
+static unsigned int _mp_crypto_rng_noise(uint8_t *out, unsigned int cap) {
 	unsigned int n = 0;
 
 #ifdef MP_ADC_CHANNEL_TEMP
@@ -115,14 +114,14 @@ static unsigned int _mp_rng_noise(uint8_t *out, unsigned int cap) {
 	return(n);
 }
 
-static mp_bool_t _mp_rng_reseed(void) {
+static mp_bool_t _mp_crypto_rng_reseed(void) {
 	uint8_t noise[32];
 	uint8_t nonce[4];
 	unsigned long ticks = mp_clock_ticks();
 	unsigned int n;
 	const char *hash;
 
-	n = _mp_rng_noise(noise, sizeof(noise) - 8);
+	n = _mp_crypto_rng_noise(noise, sizeof(noise) - 8);
 	if(n == 0)
 		return(NO);
 
@@ -130,46 +129,46 @@ static mp_bool_t _mp_rng_reseed(void) {
 	noise[n++] = (uint8_t)(ticks >> 8);
 	noise[n++] = (uint8_t)(ticks >> 16);
 	noise[n++] = (uint8_t)(ticks >> 24);
-	noise[n++] = (uint8_t)_mp_rng_stir;
-	noise[n++] = (uint8_t)(_mp_rng_stir >> 8);
-	noise[n++] = (uint8_t)(_mp_rng_stir >> 16);
-	noise[n++] = (uint8_t)(_mp_rng_stir >> 24);
-	_mp_rng_stir++;
+	noise[n++] = (uint8_t)_mp_crypto_rng_stir;
+	noise[n++] = (uint8_t)(_mp_crypto_rng_stir >> 8);
+	noise[n++] = (uint8_t)(_mp_crypto_rng_stir >> 16);
+	noise[n++] = (uint8_t)(_mp_crypto_rng_stir >> 24);
+	_mp_crypto_rng_stir++;
 
-	if(_mp_rng_ready == YES) {
-		mp_hmac_drbg_reseed(&_mp_rng_drbg, noise, n, NULL, 0);
+	if(_mp_crypto_rng_ready == YES) {
+		mp_crypto_hmac_drbg_reseed(&_mp_crypto_rng_drbg, noise, n, NULL, 0);
 		memset(noise, 0, sizeof(noise));
 		return(YES);
 	}
 
-	hash = _mp_rng_hash();
+	hash = _mp_crypto_rng_hash();
 	nonce[0] = (uint8_t)ticks;
 	nonce[1] = (uint8_t)(ticks >> 8);
 	nonce[2] = (uint8_t)(ticks >> 16);
 	nonce[3] = (uint8_t)(ticks >> 24);
-	if(hash && mp_hmac_drbg_init(&_mp_rng_drbg, hash, noise, n, nonce, 4, NULL, 0) == TRUE)
-		_mp_rng_ready = YES;
+	if(hash && mp_crypto_hmac_drbg_init(&_mp_crypto_rng_drbg, hash, noise, n, nonce, 4, NULL, 0) == TRUE)
+		_mp_crypto_rng_ready = YES;
 	memset(noise, 0, sizeof(noise));
 	memset(nonce, 0, sizeof(nonce));
-	return(_mp_rng_ready);
+	return(_mp_crypto_rng_ready);
 }
 
 #endif
 
-static MP_TASK(_mp_rng_wake) {
+static MP_TASK(_mp_crypto_rng_wake) {
 	if(task->signal == MP_TASK_SIG_STOP) {
 		task->signal = MP_TASK_SIG_DEAD;
 		return;
 	}
-	if(_mp_rng_reseed() == NO) {
-		mp_task_delay(task, _mp_rng_ticks(_MP_RNG_RETRY));
+	if(_mp_crypto_rng_reseed() == NO) {
+		mp_task_delay(task, _mp_crypto_rng_ticks(_MP_CRYPTO_RNG_RETRY));
 		return;
 	}
-	_mp_rng_draws = 0;
+	_mp_crypto_rng_draws = 0;
 	_mp_rng_seededAt = mp_clock_ticks();
 #ifdef SUPPORT_COMMON_MEM
 	/* the memory canaries leave their boot key as soon as there is a secret */
-	if(_mp_rng_memKeyed == NO && mp_mem_rekey(_mp_rng_kernel) == TRUE)
+	if(_mp_rng_memKeyed == NO && mp_mem_rekey(_mp_crypto_rng_kernel) == TRUE)
 		_mp_rng_memKeyed = YES;
 #endif
 	mp_task_signal(task, MP_TASK_SIG_SLEEP);
@@ -182,21 +181,21 @@ static MP_TASK(_mp_rng_wake) {
  *
  * @param[in] kernel Kernel
  */
-void mp_rng_start(mp_kernel_t *kernel) {
-	if(_mp_rng_task || !kernel)
+void mp_crypto_rng_start(mp_kernel_t *kernel) {
+	if(_mp_crypto_rng_task || !kernel)
 		return;
-	_mp_rng_ready = NO;
+	_mp_crypto_rng_ready = NO;
 #ifndef SUPPORT_COMMON_CRYPTO_RNG_HSM
-	_mp_rng_stir = 0;
+	_mp_crypto_rng_stir = 0;
 #endif
-	_mp_rng_draws = 0;
+	_mp_crypto_rng_draws = 0;
 #ifdef SUPPORT_COMMON_MEM
-	_mp_rng_kernel = kernel;
+	_mp_crypto_rng_kernel = kernel;
 	_mp_rng_memKeyed = NO;
 #endif
-	memset(&_mp_rng_drbg, 0, sizeof(_mp_rng_drbg));
-	_mp_rng_task = mp_task_create(&kernel->tasks, "RNG", _mp_rng_wake, NULL, _mp_rng_ticks(_MP_RNG_RETRY));
-	if(!_mp_rng_task)
+	memset(&_mp_crypto_rng_drbg, 0, sizeof(_mp_crypto_rng_drbg));
+	_mp_crypto_rng_task = mp_task_create(&kernel->tasks, "RNG", _mp_crypto_rng_wake, NULL, _mp_crypto_rng_ticks(_MP_CRYPTO_RNG_RETRY));
+	if(!_mp_crypto_rng_task)
 		mp_printk("RNG: no task slot");
 }
 
@@ -205,39 +204,39 @@ void mp_rng_start(mp_kernel_t *kernel) {
  *
  * Wipes the DRBG. The task dies on the next tick of the pool.
  */
-void mp_rng_stop(void) {
-	if(_mp_rng_task) {
-		mp_task_destroy(_mp_rng_task);
-		_mp_rng_task = NULL;
+void mp_crypto_rng_stop(void) {
+	if(_mp_crypto_rng_task) {
+		mp_task_destroy(_mp_crypto_rng_task);
+		_mp_crypto_rng_task = NULL;
 	}
-	mp_hmac_drbg_free(&_mp_rng_drbg);
-	_mp_rng_ready = NO;
+	mp_crypto_hmac_drbg_free(&_mp_crypto_rng_drbg);
+	_mp_crypto_rng_ready = NO;
 }
 
 /**
  * @brief Draw random bytes
  *
- * Wakes the task for a reseed after MP_RNG_RESEED draws, or when the
- * seed is older than MP_RNG_PERIOD ms.
+ * Wakes the task for a reseed after MP_CRYPTO_RNG_RESEED draws, or when the
+ * seed is older than MP_CRYPTO_RNG_PERIOD ms.
  *
  * @param[out] out Buffer
- * @param[in] size 1 to MP_HMAC_DRBG_MAX
+ * @param[in] size 1 to MP_CRYPTO_HMAC_DRBG_MAX
  * @return FALSE until the task has seeded, or when size is empty
  */
-mp_ret_t mp_rng_bytes(void *out, unsigned int size) {
-	if(_mp_rng_ready != YES || !out || !size)
+mp_ret_t mp_crypto_rng_bytes(void *out, unsigned int size) {
+	if(_mp_crypto_rng_ready != YES || !out || !size)
 		return(FALSE);
-	if(++_mp_rng_draws >= MP_RNG_RESEED || mp_clock_ticks() - _mp_rng_seededAt >= _mp_rng_ticks(MP_RNG_PERIOD)) {
-		if(_mp_rng_task)
-			mp_task_wake(_mp_rng_task);
+	if(++_mp_crypto_rng_draws >= MP_CRYPTO_RNG_RESEED || mp_clock_ticks() - _mp_rng_seededAt >= _mp_crypto_rng_ticks(MP_CRYPTO_RNG_PERIOD)) {
+		if(_mp_crypto_rng_task)
+			mp_task_wake(_mp_crypto_rng_task);
 	}
-	return(mp_hmac_drbg_generate(&_mp_rng_drbg, out, size, NULL, 0));
+	return(mp_crypto_hmac_drbg_generate(&_mp_crypto_rng_drbg, out, size, NULL, 0));
 }
 
 /**
  * @brief Name of the generator
  */
-const char *mp_rng_generator(void) {
+const char *mp_crypto_rng_generator(void) {
 	return("HMAC-DRBG");
 }
 
@@ -246,8 +245,8 @@ const char *mp_rng_generator(void) {
  *
  * @return "SHA-256", or NULL when the build carries no hash
  */
-const char *mp_rng_hash(void) {
-	const mp_hash_algo_t *algo = mp_hash_find(_mp_rng_hash());
+const char *mp_crypto_rng_hash(void) {
+	const mp_crypto_hash_algo_t *algo = mp_crypto_hash_find(_mp_crypto_rng_hash());
 
 	return(algo ? algo->label : NULL);
 }

@@ -21,6 +21,7 @@
 /*
  * Home page: one button per class (hash, mac, cipher, kdf, rng, sign).
  * A class lists its algorithms. Opening one says whether the chip accelerates it.
+ * When that algorithm's self-test is in the build, opening it runs the known answer.
  * A signature also shows its sizes and runs a self-test.
  * The list is include/gen/crypto.h, written with the build.
  */
@@ -56,8 +57,8 @@ static mp_bool_t _sysinfo_crypto_hardware(const char *name) {
 
 /* HMAC and HMAC-DRBG each run over every hash of the build: list them */
 static void _sysinfo_crypto_hashes(mp_tui_widget_t *page, sysinfo_t *sysinfo, int y, const mp_tui_column_t *columns) {
-	const mp_hash_algo_t *algo;
-	int rows = mp_hash_count();
+	const mp_crypto_hash_algo_t *algo;
+	int rows = mp_crypto_hash_count();
 	int n;
 
 	if(rows > MP_CRYPTO_MAX)
@@ -66,7 +67,7 @@ static void _sysinfo_crypto_hashes(mp_tui_widget_t *page, sysinfo_t *sysinfo, in
 		columns, 3, &sysinfo->screen.cryptoCell[0][0], MP_CRYPTO_MAX);
 	mp_tui_table_rows(&sysinfo->screen.cryptoTable, rows);
 	for(n = 0; n < rows; n++) {
-		algo = mp_hash_at(n);
+		algo = mp_crypto_hash_at(n);
 		mp_tui_table_set(&sysinfo->screen.cryptoTable, n, 0, "%s", algo->label);
 		mp_tui_table_set(&sysinfo->screen.cryptoTable, n, 1, "%u B", algo->size);
 		mp_tui_table_set(&sysinfo->screen.cryptoTable, n, 2, "%s", _sysinfo_crypto_hardware(algo->name) == YES ? "yes" : "no");
@@ -75,9 +76,9 @@ static void _sysinfo_crypto_hashes(mp_tui_widget_t *page, sysinfo_t *sysinfo, in
 #endif
 
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN
-#if MP_RSA_BITS == 3072
+#if MP_CRYPTO_RSA_BITS == 3072
 /* PKCS#1 v1.5 SHA-256 signature of "miniPhi". The page verifies this and does not sign. */
-static const uint8_t _sysinfo_rsa_pub[MP_RSA_PUB] = {
+static const uint8_t _sysinfo_rsa_pub[MP_CRYPTO_RSA_PUB] = {
 	0x79, 0x46, 0x20, 0x6b, 0x4d, 0x0e, 0xdd, 0xb4, 0x60, 0x7a, 0x85, 0x64,
 	0xc1, 0x42, 0x41, 0xf9, 0x38, 0x87, 0x4e, 0xde, 0xdf, 0x04, 0xe8, 0xc5,
 	0x70, 0xde, 0x1c, 0x1c, 0xd9, 0x1d, 0x04, 0x91, 0x7d, 0x65, 0xe8, 0x4b,
@@ -113,7 +114,7 @@ static const uint8_t _sysinfo_rsa_pub[MP_RSA_PUB] = {
 	0x00, 0x01, 0x00, 0x01,
 };
 
-static const uint8_t _sysinfo_rsa_sig[MP_RSA_SIG] = {
+static const uint8_t _sysinfo_rsa_sig[MP_CRYPTO_RSA_SIG] = {
 	0x5c, 0xf3, 0xff, 0x5d, 0xc2, 0xbd, 0x22, 0xcc, 0x93, 0xa5, 0x7d, 0x60,
 	0xe5, 0xa5, 0xb8, 0xe9, 0xe7, 0x1b, 0x2a, 0xfd, 0x1d, 0x14, 0x55, 0x2b,
 	0x9a, 0x64, 0xb2, 0x8d, 0x7f, 0x5c, 0xef, 0xbb, 0x73, 0x52, 0xc4, 0x7a,
@@ -150,22 +151,22 @@ static const uint8_t _sysinfo_rsa_sig[MP_RSA_SIG] = {
 #endif
 
 /* verify-only vectors for the post-quantum schemes; see vectors.c */
-#if defined(SUPPORT_COMMON_CRYPTO_SIGN_LMS) && defined(MP_LMS_PUB)
-extern const uint8_t _sysinfo_lms_pub[MP_LMS_PUB];
+#if defined(SUPPORT_COMMON_CRYPTO_SIGN_LMS) && defined(MP_CRYPTO_LMS_PUB)
+extern const uint8_t _sysinfo_lms_pub[MP_CRYPTO_LMS_PUB];
 extern const uint8_t _sysinfo_lms_msg[131];
-extern const uint8_t _sysinfo_lms_sig[MP_LMS_SIG];
+extern const uint8_t _sysinfo_lms_sig[MP_CRYPTO_LMS_SIG];
 #endif
-#if defined(SUPPORT_COMMON_CRYPTO_SIGN_SLH) && defined(MP_SLH_PK_SIZE)
-extern const uint8_t _sysinfo_slh_pub[MP_SLH_PK_SIZE];
-extern const uint8_t _sysinfo_slh_sig[MP_SLH_SIG_SIZE];
+#if defined(SUPPORT_COMMON_CRYPTO_SIGN_SLH) && defined(MP_CRYPTO_SLH_PK_SIZE)
+extern const uint8_t _sysinfo_slh_pub[MP_CRYPTO_SLH_PK_SIZE];
+extern const uint8_t _sysinfo_slh_sig[MP_CRYPTO_SLH_SIG_SIZE];
 #endif
-#if defined(SUPPORT_COMMON_CRYPTO_SIGN_MLDSA) && defined(MP_MLDSA_PK_SIZE) && (MP_MLDSA_SIG_SIZE == 2420)
-extern const uint8_t _sysinfo_mldsa_pub[MP_MLDSA_PK_SIZE];
+#if defined(SUPPORT_COMMON_CRYPTO_SIGN_MLDSA) && defined(MP_CRYPTO_MLDSA_PK_SIZE) && (MP_CRYPTO_MLDSA_SIG_SIZE == 2420)
+extern const uint8_t _sysinfo_mldsa_pub[MP_CRYPTO_MLDSA_PK_SIZE];
 extern const uint8_t _sysinfo_mldsa_msg[7];
-extern const uint8_t _sysinfo_mldsa_sig[MP_MLDSA_SIG_SIZE];
+extern const uint8_t _sysinfo_mldsa_sig[MP_CRYPTO_MLDSA_SIG_SIZE];
 #endif
 
-static void _sysinfo_sign_test(sysinfo_t *sysinfo, const mp_sign_algo_t *algo) {
+static void _sysinfo_sign_test(sysinfo_t *sysinfo, const mp_crypto_sign_algo_t *algo) {
 	static uint8_t priv[32];
 	static uint8_t pub[64];
 	static uint8_t sigbuf[64];
@@ -186,8 +187,8 @@ static void _sysinfo_sign_test(sysinfo_t *sysinfo, const mp_sign_algo_t *algo) {
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_RSA
 	if(strcmp(algo->name, "RSA") == 0) {
 		vector = 1;
-#if MP_RSA_BITS == 3072
-		ok = mp_sign_verify(algo->name, _sysinfo_rsa_pub, msg, 7, _sysinfo_rsa_sig, MP_RSA_SIG);
+#if MP_CRYPTO_RSA_BITS == 3072
+		ok = mp_crypto_sign_verify(algo->name, _sysinfo_rsa_pub, msg, 7, _sysinfo_rsa_sig, MP_CRYPTO_RSA_SIG);
 #else
 		stored = 0;
 #endif
@@ -197,27 +198,27 @@ static void _sysinfo_sign_test(sysinfo_t *sysinfo, const mp_sign_algo_t *algo) {
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_LMS
 	if(strcmp(algo->name, "LMS") == 0) {
 		vector = 1;
-		ok = mp_sign_verify(algo->name, _sysinfo_lms_pub, _sysinfo_lms_msg, sizeof(_sysinfo_lms_msg), _sysinfo_lms_sig, MP_LMS_SIG);
+		ok = mp_crypto_sign_verify(algo->name, _sysinfo_lms_pub, _sysinfo_lms_msg, sizeof(_sysinfo_lms_msg), _sysinfo_lms_sig, MP_CRYPTO_LMS_SIG);
 	}
 	else
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_SLH
 	if(strcmp(algo->name, "SLH") == 0) {
 		vector = 1;
-		ok = mp_sign_verify(algo->name, _sysinfo_slh_pub, msg, 7, _sysinfo_slh_sig, MP_SLH_SIG_SIZE);
+		ok = mp_crypto_sign_verify(algo->name, _sysinfo_slh_pub, msg, 7, _sysinfo_slh_sig, MP_CRYPTO_SLH_SIG_SIZE);
 	}
 	else
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_MLDSA
 	if(strcmp(algo->name, "MLDSA") == 0) {
 		vector = 1;
-		ok = mp_sign_verify(algo->name, _sysinfo_mldsa_pub, _sysinfo_mldsa_msg, sizeof(_sysinfo_mldsa_msg), _sysinfo_mldsa_sig, MP_MLDSA_SIG_SIZE);
+		ok = mp_crypto_sign_verify(algo->name, _sysinfo_mldsa_pub, _sysinfo_mldsa_msg, sizeof(_sysinfo_mldsa_msg), _sysinfo_mldsa_sig, MP_CRYPTO_MLDSA_SIG_SIZE);
 	}
 	else
 #endif
-	if(mp_sign_keypair(algo->name, seed, sizeof(seed), priv, pub) == TRUE) {
-		n = mp_sign(algo->name, priv, msg, 7, sigbuf);
-		if(n && mp_sign_verify(algo->name, pub, msg, 7, sigbuf, n) == YES)
+	if(mp_crypto_sign_keypair(algo->name, seed, sizeof(seed), priv, pub) == TRUE) {
+		n = mp_crypto_sign(algo->name, priv, msg, 7, sigbuf);
+		if(n && mp_crypto_sign_verify(algo->name, pub, msg, 7, sigbuf, n) == YES)
 			ok = YES;
 	}
 	memset(priv, 0, sizeof(priv));
@@ -256,28 +257,48 @@ static void _sysinfo_crypto_detail(mp_tui_widget_t *page, void *user) {
 	mp_tui_label(&sysinfo->screen.cryptoState, page, 8, 12, page->rect.w - 16, line,
 		accelerated ? "Accelerated" : "Not accelerated");
 	mp_tui_label_color(&sysinfo->screen.cryptoState, accelerated ? page->tui->theme.accent : page->tui->theme.muted);
-#ifdef SUPPORT_COMMON_CRYPTO_SIGN
-	if(pick >= 0 && pick < MP_CRYPTO_COUNT && strcmp(mp_crypto[pick].family, "sign") == 0) {
-		const mp_sign_algo_t *algo = mp_sign_find(mp_crypto[pick].name);
+	{
 		int y = 12 + line + 8;
 
-		mp_tui_label(&sysinfo->screen.signInfo, page, 8, y, page->rect.w - 16, line, "");
-		y += line + 4;
-		mp_tui_label(&sysinfo->screen.signResult, page, 8, y, page->rect.w - 16, line, "");
-		if(algo)
-			_sysinfo_sign_test(sysinfo, algo);
-		else {
-			mp_tui_label_set(&sysinfo->screen.signResult, "Failed");
-			mp_tui_label_color(&sysinfo->screen.signResult, page->tui->theme.muted);
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+#if MP_CRYPTO_COUNT > 0
+		if(pick >= 0 && pick < MP_CRYPTO_COUNT && mp_crypto_selftest_find(mp_crypto[pick].name)) {
+			mp_tui_label(&sysinfo->screen.selftestResult, page, 8, y, page->rect.w - 16, line, "");
+			if(mp_crypto_selftest(mp_crypto[pick].name) == YES) {
+				mp_tui_label_set(&sysinfo->screen.selftestResult, "Self-test passed");
+				mp_tui_label_color(&sysinfo->screen.selftestResult, page->tui->theme.accent);
+			}
+			else {
+				mp_tui_label_set(&sysinfo->screen.selftestResult, "Self-test failed");
+				mp_tui_label_color(&sysinfo->screen.selftestResult, page->tui->theme.muted);
+			}
+			y += line + 8;
 		}
-	}
+#endif
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_SIGN
+		if(pick >= 0 && pick < MP_CRYPTO_COUNT && strcmp(mp_crypto[pick].family, "sign") == 0) {
+			const mp_crypto_sign_algo_t *algo = mp_crypto_sign_find(mp_crypto[pick].name);
+
+			mp_tui_label(&sysinfo->screen.signInfo, page, 8, y, page->rect.w - 16, line, "");
+			y += line + 4;
+			mp_tui_label(&sysinfo->screen.signResult, page, 8, y, page->rect.w - 16, line, "");
+			if(algo)
+				_sysinfo_sign_test(sysinfo, algo);
+			else {
+				mp_tui_label_set(&sysinfo->screen.signResult, "Failed");
+				mp_tui_label_color(&sysinfo->screen.signResult, page->tui->theme.muted);
+			}
+		}
 #endif
 #if defined(SUPPORT_COMMON_CRYPTO_MAC_HMAC) && MP_CRYPTO_COUNT > 0
-	if(pick >= 0 && pick < MP_CRYPTO_COUNT && strcmp(mp_crypto[pick].name, "HMAC") == 0)
-		_sysinfo_crypto_hashes(page, sysinfo, 12 + line + 10, _sysinfo_hmac_columns);
-	else if(pick >= 0 && pick < MP_CRYPTO_COUNT && strcmp(mp_crypto[pick].name, "HMAC_DRBG") == 0)
-		_sysinfo_crypto_hashes(page, sysinfo, 12 + line + 10, _sysinfo_drbg_columns);
+		if(pick >= 0 && pick < MP_CRYPTO_COUNT && strcmp(mp_crypto[pick].name, "HMAC") == 0)
+			_sysinfo_crypto_hashes(page, sysinfo, y + 2, _sysinfo_hmac_columns);
+		else if(pick >= 0 && pick < MP_CRYPTO_COUNT && strcmp(mp_crypto[pick].name, "HMAC_DRBG") == 0)
+			_sysinfo_crypto_hashes(page, sysinfo, y + 2, _sysinfo_drbg_columns);
 #endif
+		(void)y;
+	}
 }
 
 #if MP_CRYPTO_COUNT > 0
@@ -345,7 +366,7 @@ static void _sysinfo_rng_draw(sysinfo_t *sysinfo) {
 	int n;
 
 	sysinfo->screen.rngLast = mp_clock_ticks();
-	if(mp_rng_bytes(bytes, sizeof(bytes)) != TRUE) {
+	if(mp_crypto_rng_bytes(bytes, sizeof(bytes)) != TRUE) {
 		mp_tui_label_set(&sysinfo->screen.rngValue, "Seeding...");
 		mp_tui_label_color(&sysinfo->screen.rngValue, sysinfo->screen.tui.theme.muted);
 		return;
@@ -362,14 +383,14 @@ static int _sysinfo_rng_head(mp_tui_widget_t *page, sysinfo_t *sysinfo) {
 	const mp_tui_font_t *font = page->tui->theme.font;
 	int line = font->lineHeight + 1;
 	int width = page->rect.w - 16;
-	const char *hash = mp_rng_hash();
+	const char *hash = mp_crypto_rng_hash();
 	int y = 8;
 
 	mp_tui_label(&sysinfo->screen.rngGenerator, page, 8, y, width, line, "");
 	if(hash)
-		mp_tui_label_set(&sysinfo->screen.rngGenerator, "%s / %s", mp_rng_generator(), hash);
+		mp_tui_label_set(&sysinfo->screen.rngGenerator, "%s / %s", mp_crypto_rng_generator(), hash);
 	else
-		mp_tui_label_set(&sysinfo->screen.rngGenerator, "%s", mp_rng_generator());
+		mp_tui_label_set(&sysinfo->screen.rngGenerator, "%s", mp_crypto_rng_generator());
 	mp_tui_label_color(&sysinfo->screen.rngGenerator, page->tui->theme.accent);
 	y += line + 6;
 

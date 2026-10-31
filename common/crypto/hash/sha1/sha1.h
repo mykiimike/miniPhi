@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -35,18 +34,18 @@
 	 * @{
 	 */
 
-	#define MP_SHA1_SIZE 20
-	#define MP_SHA1_BLOCK 64
+	#define MP_CRYPTO_SHA1_SIZE 20
+	#define MP_CRYPTO_SHA1_BLOCK 64
 
-	typedef struct mp_sha1_s mp_sha1_t;
+	typedef struct mp_crypto_sha1_s mp_crypto_sha1_t;
 
-	struct mp_sha1_s {
+	struct mp_crypto_sha1_s {
 		uint32_t state[5];
 
 		/** bytes hashed so far */
 		uint64_t length;
 
-		uint8_t block[MP_SHA1_BLOCK];
+		uint8_t block[MP_CRYPTO_SHA1_BLOCK];
 		uint8_t used;
 
 	#ifdef MP_ARCH_SHA1
@@ -57,16 +56,16 @@
 
 	/** @} */
 
-	void mp_sha1_init(mp_sha1_t *ctx);
-	void mp_sha1_update(mp_sha1_t *ctx, const void *data, unsigned int size);
-	void mp_sha1_final(mp_sha1_t *ctx, uint8_t digest[MP_SHA1_SIZE]);
-	void mp_sha1(const void *data, unsigned int size, uint8_t digest[MP_SHA1_SIZE]);
+	void mp_crypto_sha1_init(mp_crypto_sha1_t *ctx);
+	void mp_crypto_sha1_update(mp_crypto_sha1_t *ctx, const void *data, unsigned int size);
+	void mp_crypto_sha1_final(mp_crypto_sha1_t *ctx, uint8_t digest[MP_CRYPTO_SHA1_SIZE]);
+	void mp_crypto_sha1(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA1_SIZE]);
 
 	/* an arch with a SHA1 accelerator provides these; init returns NO when the block is busy or off, and the context then runs in software */
 	#ifdef MP_ARCH_SHA1
 		mp_bool_t mp_arch_sha1_init(mp_arch_sha1_t *hw);
 		void mp_arch_sha1_update(mp_arch_sha1_t *hw, const uint8_t *data, unsigned int size);
-		void mp_arch_sha1_final(mp_arch_sha1_t *hw, uint8_t digest[MP_SHA1_SIZE]);
+		void mp_arch_sha1_final(mp_arch_sha1_t *hw, uint8_t digest[MP_CRYPTO_SHA1_SIZE]);
 	#endif
 
 #endif

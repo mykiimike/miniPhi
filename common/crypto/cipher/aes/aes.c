@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -120,7 +119,7 @@ static uint32_t _aes_subword(uint32_t w) {
 }
 
 /* expand the key into roundKeys[0..Nr] (each 4 words = 16 bytes) */
-static void _aes_expand(mp_aes_t *ctx, const uint8_t *key) {
+static void _aes_expand(mp_crypto_aes_t *ctx, const uint8_t *key) {
 	unsigned int nk = ctx->keylen / 4;       /* 4, 6 or 8 */
 	unsigned int nr = nk + 6;                /* 10, 12 or 14 */
 	unsigned int total = 4 * (nr + 1);       /* words to produce */
@@ -226,7 +225,7 @@ static void _aes_inv_mix_columns(uint8_t *s) {
  * @param[in] keylen Length of key
  * @return TRUE when the key length is 16, 24 or 32, FALSE otherwise
  */
-mp_ret_t mp_aes_init(mp_aes_t *ctx, const void *key, unsigned int keylen) {
+mp_ret_t mp_crypto_aes_init(mp_crypto_aes_t *ctx, const void *key, unsigned int keylen) {
 	if(!ctx || !key)
 		return(FALSE);
 	if(keylen != 16 && keylen != 24 && keylen != 32)
@@ -252,7 +251,7 @@ mp_ret_t mp_aes_init(mp_aes_t *ctx, const void *key, unsigned int keylen) {
  * @param[out] out 16 bytes
  * @return 16, or 0 when the context was not started
  */
-unsigned int mp_aes_update_block(mp_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
+unsigned int mp_crypto_aes_update_block(mp_crypto_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
 	if(!ctx || !ctx->rounds || !in || !out)
 		return(0);
 #ifdef MP_ARCH_AES
@@ -291,7 +290,7 @@ unsigned int mp_aes_update_block(mp_aes_t *ctx, const void *in, unsigned int inl
  * @param[out] out 16 bytes
  * @return 16, or 0 when the context was not started
  */
-unsigned int mp_aes_update_block_inv(mp_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
+unsigned int mp_crypto_aes_update_block_inv(mp_crypto_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
 	if(!ctx || !ctx->rounds || !in || !out)
 		return(0);
 #ifdef MP_ARCH_AES
@@ -326,7 +325,7 @@ unsigned int mp_aes_update_block_inv(mp_aes_t *ctx, const void *in, unsigned int
  *
  * @param[in] ctx Started context (or NULL)
  */
-void mp_aes_free(mp_aes_t *ctx) {
+void mp_crypto_aes_free(mp_crypto_aes_t *ctx) {
 	if(!ctx)
 		return;
 	memset(ctx, 0, sizeof(*ctx));

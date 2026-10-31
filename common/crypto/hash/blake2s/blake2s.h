@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -35,19 +34,19 @@
 	 * @{
 	 */
 
-	#define MP_BLAKE2S_SIZE 32
-	#define MP_BLAKE2S_BLOCK 64
-	#define MP_BLAKE2S_KEY 32
+	#define MP_CRYPTO_BLAKE2S_SIZE 32
+	#define MP_CRYPTO_BLAKE2S_BLOCK 64
+	#define MP_CRYPTO_BLAKE2S_KEY 32
 
-	typedef struct mp_blake2s_s mp_blake2s_t;
+	typedef struct mp_crypto_blake2s_s mp_crypto_blake2s_t;
 
-	struct mp_blake2s_s {
+	struct mp_crypto_blake2s_s {
 		uint32_t state[8];
 
 		/** bytes compressed so far, not counting what is still in block */
 		uint64_t count;
 
-		uint8_t block[MP_BLAKE2S_BLOCK];
+		uint8_t block[MP_CRYPTO_BLAKE2S_BLOCK];
 		uint8_t used;
 
 	#ifdef MP_ARCH_BLAKE2S
@@ -58,18 +57,18 @@
 
 	/** @} */
 
-	void mp_blake2s_init(mp_blake2s_t *ctx);
-	/** key NULL or keylen 0 is the unkeyed digest; a longer key is cut at MP_BLAKE2S_KEY */
-	void mp_blake2s_init_key(mp_blake2s_t *ctx, const void *key, unsigned int keylen);
-	void mp_blake2s_update(mp_blake2s_t *ctx, const void *data, unsigned int size);
-	void mp_blake2s_final(mp_blake2s_t *ctx, uint8_t digest[MP_BLAKE2S_SIZE]);
-	void mp_blake2s(const void *data, unsigned int size, uint8_t digest[MP_BLAKE2S_SIZE]);
+	void mp_crypto_blake2s_init(mp_crypto_blake2s_t *ctx);
+	/** key NULL or keylen 0 is the unkeyed digest; a longer key is cut at MP_CRYPTO_BLAKE2S_KEY */
+	void mp_crypto_blake2s_init_key(mp_crypto_blake2s_t *ctx, const void *key, unsigned int keylen);
+	void mp_crypto_blake2s_update(mp_crypto_blake2s_t *ctx, const void *data, unsigned int size);
+	void mp_crypto_blake2s_final(mp_crypto_blake2s_t *ctx, uint8_t digest[MP_CRYPTO_BLAKE2S_SIZE]);
+	void mp_crypto_blake2s(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_BLAKE2S_SIZE]);
 
 	/* an arch with a BLAKE2S accelerator provides these; init returns NO when the block is busy or off, and the context then runs in software. Keyed digests do not call them */
 	#ifdef MP_ARCH_BLAKE2S
 		mp_bool_t mp_arch_blake2s_init(mp_arch_blake2s_t *hw);
 		void mp_arch_blake2s_update(mp_arch_blake2s_t *hw, const uint8_t *data, unsigned int size);
-		void mp_arch_blake2s_final(mp_arch_blake2s_t *hw, uint8_t digest[MP_BLAKE2S_SIZE]);
+		void mp_arch_blake2s_final(mp_arch_blake2s_t *hw, uint8_t digest[MP_CRYPTO_BLAKE2S_SIZE]);
 	#endif
 
 #endif

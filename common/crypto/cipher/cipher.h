@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -32,15 +31,15 @@
 	 */
 
 	/** the largest block any cipher accepts (AES = 16) */
-	#define MP_CIPHER_BLOCK_MAX 16
+	#define MP_CRYPTO_CIPHER_BLOCK_MAX 16
 
 	/** the largest key any cipher accepts (AES-256 = 32) */
-	#define MP_CIPHER_KEY_MAX 32
+	#define MP_CRYPTO_CIPHER_KEY_MAX 32
 
-	typedef struct mp_cipher_algo_s mp_cipher_algo_t;
+	typedef struct mp_crypto_cipher_algo_s mp_crypto_cipher_algo_t;
 
 	/** one cipher of the build */
-	struct mp_cipher_algo_s {
+	struct mp_crypto_cipher_algo_s {
 		/** module name, "AES" */
 		const char *name;
 		/** display name, "AES" */
@@ -73,37 +72,37 @@
 
 	/** user-facing cipher context: the chosen algorithm plus room for any
 	 *  cipher context the build carries. Owned by the caller. */
-	typedef struct mp_cipher_s mp_cipher_t;
+	typedef struct mp_crypto_cipher_s mp_crypto_cipher_t;
 
-	struct mp_cipher_s {
+	struct mp_crypto_cipher_s {
 		/** the chosen algorithm, NULL before init */
-		const mp_cipher_algo_t *algo;
+		const mp_crypto_cipher_algo_t *algo;
 		/** room for any cipher context of the build */
 		union {
 	#ifdef SUPPORT_COMMON_CRYPTO_CIPHER_AES
-			mp_aes_t aes;
+			mp_crypto_aes_t aes;
 	#endif
-			uint8_t raw[MP_CIPHER_KEY_MAX * 4];
+			uint8_t raw[MP_CRYPTO_CIPHER_KEY_MAX * 4];
 		} ctx;
 	};
 
 	/** @} */
 
 	/** how many ciphers the build carries */
-	int mp_cipher_count(void);
-	const mp_cipher_algo_t *mp_cipher_at(int index);
+	int mp_crypto_cipher_count(void);
+	const mp_crypto_cipher_algo_t *mp_crypto_cipher_at(int index);
 	/** "AES", "aes"...; NULL when the build does not carry it */
-	const mp_cipher_algo_t *mp_cipher_find(const char *name);
+	const mp_crypto_cipher_algo_t *mp_crypto_cipher_find(const char *name);
 
 	/** FALSE when name is not in the build or the key length is wrong */
-	mp_ret_t mp_cipher_init(mp_cipher_t *ctx, const char *name, const void *key, unsigned int keylen);
+	mp_ret_t mp_crypto_cipher_init(mp_crypto_cipher_t *ctx, const char *name, const void *key, unsigned int keylen);
 	/** bytes written, at most the block, 0 when the cipher was not started */
-	unsigned int mp_cipher_update_block(mp_cipher_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
+	unsigned int mp_crypto_cipher_update_block(mp_crypto_cipher_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
 	/** bytes written, at most the block, 0 when the cipher was not started;
 	 *  the inverse cipher is used by the modes that need to decrypt (CBC, GCM) */
-	unsigned int mp_cipher_update_block_inv(mp_cipher_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
+	unsigned int mp_crypto_cipher_update_block_inv(mp_crypto_cipher_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
 	/** wipes the context; safe on a cipher that will not be used again */
-	void mp_cipher_free(mp_cipher_t *ctx);
+	void mp_crypto_cipher_free(mp_crypto_cipher_t *ctx);
 
 #endif
 #endif

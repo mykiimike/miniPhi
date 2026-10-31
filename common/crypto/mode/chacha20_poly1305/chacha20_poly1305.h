@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -35,11 +34,11 @@
 	 */
 
 	/** key, 32 bytes */
-	#define MP_CHACHA20_POLY1305_KEY 32
+	#define MP_CRYPTO_CHACHA20_POLY1305_KEY 32
 	/** nonce, 12 bytes */
-	#define MP_CHACHA20_POLY1305_NONCE 12
+	#define MP_CRYPTO_CHACHA20_POLY1305_NONCE 12
 	/** tag, 16 bytes */
-	#define MP_CHACHA20_POLY1305_TAG 16
+	#define MP_CRYPTO_CHACHA20_POLY1305_TAG 16
 
 	/**
 	 * @brief Encrypt and authenticate
@@ -54,7 +53,7 @@
 	 * @param[out] tag 16 bytes
 	 * @return TRUE on success
 	 */
-	mp_ret_t mp_chacha20_poly1305_encrypt(const void *key, unsigned int keylen,
+	mp_ret_t mp_crypto_chacha20_poly1305_encrypt(const void *key, unsigned int keylen,
 		const void *nonce, unsigned int noncelen,
 		const void *aad, unsigned int aadlen,
 		const void *pt, unsigned int ptlen,
@@ -73,7 +72,7 @@
 	 * @param[out] pt At least ctlen bytes (wiped on a tag mismatch)
 	 * @return TRUE when the tag matches, FALSE otherwise
 	 */
-	mp_ret_t mp_chacha20_poly1305_decrypt(const void *key, unsigned int keylen,
+	mp_ret_t mp_crypto_chacha20_poly1305_decrypt(const void *key, unsigned int keylen,
 		const void *nonce, unsigned int noncelen,
 		const void *aad, unsigned int aadlen,
 		const void *ct, unsigned int ctlen,

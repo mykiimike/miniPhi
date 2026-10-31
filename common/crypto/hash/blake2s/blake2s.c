@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -77,7 +76,7 @@ static void _blake2s_store(uint8_t *p, uint32_t value) {
 	v[b] = ROR(v[b] ^ v[c], 7); \
 } while(0)
 
-static void _blake2s_compress(mp_blake2s_t *ctx, const uint8_t *block, int last) {
+static void _blake2s_compress(mp_crypto_blake2s_t *ctx, const uint8_t *block, int last) {
 	uint32_t m[16];
 	uint32_t v[16];
 	uint32_t t0, t1;
@@ -118,14 +117,14 @@ static void _blake2s_compress(mp_blake2s_t *ctx, const uint8_t *block, int last)
 
 #undef G
 
-static void _blake2s_soft_update(mp_blake2s_t *ctx, const uint8_t *data, unsigned int size) {
+static void _blake2s_soft_update(mp_crypto_blake2s_t *ctx, const uint8_t *data, unsigned int size) {
 	unsigned int fill;
 
 	while(size > 0) {
-		fill = MP_BLAKE2S_BLOCK - ctx->used;
+		fill = MP_CRYPTO_BLAKE2S_BLOCK - ctx->used;
 		if(size > fill) {
 			memcpy(ctx->block + ctx->used, data, fill);
-			ctx->used = MP_BLAKE2S_BLOCK;
+			ctx->used = MP_CRYPTO_BLAKE2S_BLOCK;
 			_blake2s_compress(ctx, ctx->block, 0);
 			data += fill;
 			size -= fill;
@@ -138,15 +137,15 @@ static void _blake2s_soft_update(mp_blake2s_t *ctx, const uint8_t *data, unsigne
 	}
 }
 
-static void _blake2s_soft_init(mp_blake2s_t *ctx, const uint8_t *key, unsigned int keylen) {
+static void _blake2s_soft_init(mp_crypto_blake2s_t *ctx, const uint8_t *key, unsigned int keylen) {
 	memcpy(ctx->state, _blake2s_iv, sizeof(ctx->state));
-	ctx->state[0] ^= 0x01010000UL | ((uint32_t)keylen << 8) | MP_BLAKE2S_SIZE;
+	ctx->state[0] ^= 0x01010000UL | ((uint32_t)keylen << 8) | MP_CRYPTO_BLAKE2S_SIZE;
 	ctx->count = 0;
 	ctx->used = 0;
 	if(keylen > 0) {
-		memset(ctx->block, 0, MP_BLAKE2S_BLOCK);
+		memset(ctx->block, 0, MP_CRYPTO_BLAKE2S_BLOCK);
 		memcpy(ctx->block, key, keylen);
-		ctx->used = MP_BLAKE2S_BLOCK;
+		ctx->used = MP_CRYPTO_BLAKE2S_BLOCK;
 	}
 }
 
@@ -155,7 +154,7 @@ static void _blake2s_soft_init(mp_blake2s_t *ctx, const uint8_t *key, unsigned i
  *
  * @param[in] ctx Context, owned by the caller
  */
-void mp_blake2s_init(mp_blake2s_t *ctx) {
+void mp_crypto_blake2s_init(mp_crypto_blake2s_t *ctx) {
 	_blake2s_soft_init(ctx, NULL, 0);
 #ifdef MP_ARCH_BLAKE2S
 	ctx->onHardware = mp_arch_blake2s_init(&ctx->hw);
@@ -169,11 +168,11 @@ void mp_blake2s_init(mp_blake2s_t *ctx) {
  *
  * @param[in] ctx Context, owned by the caller
  * @param[in] key Key bytes, ignored when keylen is 0
- * @param[in] keylen Key length, cut at MP_BLAKE2S_KEY
+ * @param[in] keylen Key length, cut at MP_CRYPTO_BLAKE2S_KEY
  */
-void mp_blake2s_init_key(mp_blake2s_t *ctx, const void *key, unsigned int keylen) {
-	if(keylen > MP_BLAKE2S_KEY)
-		keylen = MP_BLAKE2S_KEY;
+void mp_crypto_blake2s_init_key(mp_crypto_blake2s_t *ctx, const void *key, unsigned int keylen) {
+	if(keylen > MP_CRYPTO_BLAKE2S_KEY)
+		keylen = MP_CRYPTO_BLAKE2S_KEY;
 	if(!key)
 		keylen = 0;
 	_blake2s_soft_init(ctx, key, keylen);
@@ -191,7 +190,7 @@ void mp_blake2s_init_key(mp_blake2s_t *ctx, const void *key, unsigned int keylen
  * @param[in] data Bytes
  * @param[in] size Number of bytes
  */
-void mp_blake2s_update(mp_blake2s_t *ctx, const void *data, unsigned int size) {
+void mp_crypto_blake2s_update(mp_crypto_blake2s_t *ctx, const void *data, unsigned int size) {
 #ifdef MP_ARCH_BLAKE2S
 	if(ctx->onHardware) {
 		mp_arch_blake2s_update(&ctx->hw, data, size);
@@ -204,12 +203,12 @@ void mp_blake2s_update(mp_blake2s_t *ctx, const void *data, unsigned int size) {
 /**
  * @brief End a digest
  *
- * The context is wiped, start again with mp_blake2s_init().
+ * The context is wiped, start again with mp_crypto_blake2s_init().
  *
  * @param[in] ctx Context
- * @param[out] digest MP_BLAKE2S_SIZE bytes
+ * @param[out] digest MP_CRYPTO_BLAKE2S_SIZE bytes
  */
-void mp_blake2s_final(mp_blake2s_t *ctx, uint8_t digest[MP_BLAKE2S_SIZE]) {
+void mp_crypto_blake2s_final(mp_crypto_blake2s_t *ctx, uint8_t digest[MP_CRYPTO_BLAKE2S_SIZE]) {
 	int i;
 
 #ifdef MP_ARCH_BLAKE2S
@@ -218,7 +217,7 @@ void mp_blake2s_final(mp_blake2s_t *ctx, uint8_t digest[MP_BLAKE2S_SIZE]) {
 	else
 #endif
 	{
-		memset(ctx->block + ctx->used, 0, MP_BLAKE2S_BLOCK - ctx->used);
+		memset(ctx->block + ctx->used, 0, MP_CRYPTO_BLAKE2S_BLOCK - ctx->used);
 		_blake2s_compress(ctx, ctx->block, 1);
 		for(i = 0; i < 8; i++)
 			_blake2s_store(digest + i * 4, ctx->state[i]);
@@ -231,14 +230,14 @@ void mp_blake2s_final(mp_blake2s_t *ctx, uint8_t digest[MP_BLAKE2S_SIZE]) {
  *
  * @param[in] data Bytes
  * @param[in] size Number of bytes
- * @param[out] digest MP_BLAKE2S_SIZE bytes
+ * @param[out] digest MP_CRYPTO_BLAKE2S_SIZE bytes
  */
-void mp_blake2s(const void *data, unsigned int size, uint8_t digest[MP_BLAKE2S_SIZE]) {
-	mp_blake2s_t ctx;
+void mp_crypto_blake2s(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_BLAKE2S_SIZE]) {
+	mp_crypto_blake2s_t ctx;
 
-	mp_blake2s_init(&ctx);
-	mp_blake2s_update(&ctx, data, size);
-	mp_blake2s_final(&ctx, digest);
+	mp_crypto_blake2s_init(&ctx);
+	mp_crypto_blake2s_update(&ctx, data, size);
+	mp_crypto_blake2s_final(&ctx, digest);
 }
 
 /**@}*/

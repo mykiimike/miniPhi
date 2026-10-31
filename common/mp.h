@@ -190,6 +190,9 @@
 	#ifdef SUPPORT_COMMON_CRYPTO_HASH
 		#include <crypto/hash.h>
 	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_FUSE
+		#include <crypto/fuse.h>
+	#endif
 	#ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
 		#include <crypto/hmac.h>
 	#endif
@@ -228,16 +231,35 @@
 	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_SLH
 		#include <crypto/slh.h>
 	#endif
-	#ifdef SUPPORT_COMMON_CRYPTO_SIGN_MLDSA
-		#include <crypto/mldsa.h>
-	#endif
+#ifdef SUPPORT_COMMON_CRYPTO_SIGN_MLDSA
+	#include <crypto/mldsa.h>
+#endif
 /* after the algorithms: the index calls them by name */
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN
 	#include <crypto/sign.h>
 #endif
+#ifdef SUPPORT_COMMON_CRYPTO_KEM_MLKEM
+	#include <crypto/mlkem.h>
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_KEM_HQC
+	#include <crypto/hqc.h>
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_KEM_X25519
+	#include <crypto/x25519.h>
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_KEM_RSAKEM
+	#include <crypto/rsakem.h>
+#endif
+/* after the algorithms: the index calls them by name */
+#ifdef SUPPORT_COMMON_CRYPTO_KEM
+	#include <crypto/kem.h>
+#endif
 
 #ifdef SUPPORT_COMMON_CRYPTO_CIPHER_AES
 	#include <crypto/aes.h>
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_CIPHER_XTS
+	#include <crypto/xts.h>
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_CIPHER_CHACHA20
 	#include <crypto/chacha20.h>
@@ -255,6 +277,9 @@
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_MODE
 	#include <crypto/mode.h>
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+	#include <crypto/selftest.h>
 #endif
 
 	#ifdef SUPPORT_DRV_LED

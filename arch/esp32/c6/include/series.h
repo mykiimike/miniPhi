@@ -29,8 +29,12 @@
 	#define C6_TIMG1            0x60009000UL
 	#define C6_SYSTIMER         0x6000A000UL
 	#define C6_USB              0x6000F000UL
+	#define C6_SPI0             0x60002000UL
 	#define C6_AES              0x60088000UL
 	#define C6_SHA              0x60089000UL
+	#define C6_DS               0x6008C000UL
+	#define C6_HMAC             0x6008D000UL
+	#define C6_HP_SYS           0x60095000UL
 	/* LP peripheral. The RNG data word is at +0x8. Its clock enable is bit 24 of +0. */
 	#define C6_LPPERI           0x600B2800UL
 	#define C6_INTMTX           0x60010000UL

@@ -10,7 +10,7 @@ export const phi = {
 	requires: ["CIPHER", "AES", "MAC"],
 	settings: [
 		{
-			name: "MP_CCM_RAM",
+			name: "MP_CRYPTO_CCM_RAM",
 			label: "RAM",
 			type: "number",
 			unit: "bytes",

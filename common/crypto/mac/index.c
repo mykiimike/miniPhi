@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -31,14 +30,14 @@
 @brief Any MAC of the build, picked by name
 
 @code
-mp_mac_t mac;
-uint8_t tag[MP_MAC_SIZE_MAX];
+mp_crypto_mac_t mac;
+uint8_t tag[MP_CRYPTO_MAC_SIZE_MAX];
 
-if(mp_mac_init(&mac, "HMAC-SHA256", key, keylen) == TRUE) {
-	mp_mac_update(&mac, data, size);
-	mp_mac_final(&mac, tag);
+if(mp_crypto_mac_init(&mac, "HMAC-SHA256", key, keylen) == TRUE) {
+	mp_crypto_mac_update(&mac, data, size);
+	mp_crypto_mac_final(&mac, tag);
 }
-if(mp_mac_equal(tag, received, 32) == YES)
+if(mp_crypto_mac_equal(tag, received, 32) == YES)
 	...
 @endcode
 
@@ -48,20 +47,20 @@ A new MAC adds a kind, its branches below, and a member in the union of mac.h.
 */
 
 enum {
-	_MP_MAC_NONE = 0,
-	_MP_MAC_HMAC,
-	_MP_MAC_BLAKE2S,
-	_MP_MAC_POLY1305,
+	_MP_CRYPTO_MAC_NONE = 0,
+	_MP_CRYPTO_MAC_HMAC,
+	_MP_CRYPTO_MAC_BLAKE2S,
+	_MP_CRYPTO_MAC_POLY1305,
 };
 
-static char _mp_mac_upper(char c) {
+static char _mp_crypto_mac_upper(char c) {
 	return(c >= 'a' && c <= 'z' ? c - ('a' - 'A') : c);
 }
 
 /* the rest of name after prefix, any case; NULL when name does not start with it */
-static const char *_mp_mac_after(const char *name, const char *prefix) {
+static const char *_mp_crypto_mac_after(const char *name, const char *prefix) {
 	while(*prefix) {
-		if(_mp_mac_upper(*name) != *prefix)
+		if(_mp_crypto_mac_upper(*name) != *prefix)
 			return(NULL);
 		name++;
 		prefix++;
@@ -75,10 +74,10 @@ static const char *_mp_mac_after(const char *name, const char *prefix) {
  * @param[in] mac Context, owned by the caller
  * @param[in] name "HMAC-" and a hash of the build, or "BLAKE2S"; any case
  * @param[in] key Key bytes
- * @param[in] keylen Key length; BLAKE2s takes at most MP_BLAKE2S_KEY
+ * @param[in] keylen Key length; BLAKE2s takes at most MP_CRYPTO_BLAKE2S_KEY
  * @return FALSE when the build does not carry name or the key does not fit
  */
-mp_ret_t mp_mac_init(mp_mac_t *mac, const char *name, const void *key, unsigned int keylen) {
+mp_ret_t mp_crypto_mac_init(mp_crypto_mac_t *mac, const char *name, const void *key, unsigned int keylen) {
 	const char *rest;
 
 	memset(mac, 0, sizeof(*mac));
@@ -88,30 +87,30 @@ mp_ret_t mp_mac_init(mp_mac_t *mac, const char *name, const void *key, unsigned 
 		keylen = 0;
 
 #ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
-	rest = _mp_mac_after(name, "HMAC-");
-	if(rest && mp_hmac_init(&mac->ctx.hmac, rest, key, keylen) == TRUE) {
-		mac->kind = _MP_MAC_HMAC;
+	rest = _mp_crypto_mac_after(name, "HMAC-");
+	if(rest && mp_crypto_hmac_init(&mac->ctx.hmac, rest, key, keylen) == TRUE) {
+		mac->kind = _MP_CRYPTO_MAC_HMAC;
 		mac->size = mac->ctx.hmac.algo->size;
 		return(TRUE);
 	}
 #endif
 
 #ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
-	rest = _mp_mac_after(name, "BLAKE2S");
+	rest = _mp_crypto_mac_after(name, "BLAKE2S");
 	/* without a key it is a hash, not a MAC */
-	if(rest && !*rest && keylen > 0 && keylen <= MP_BLAKE2S_KEY) {
-		mp_blake2s_init_key(&mac->ctx.blake2s, key, keylen);
-		mac->kind = _MP_MAC_BLAKE2S;
-		mac->size = MP_BLAKE2S_SIZE;
+	if(rest && !*rest && keylen > 0 && keylen <= MP_CRYPTO_BLAKE2S_KEY) {
+		mp_crypto_blake2s_init_key(&mac->ctx.blake2s, key, keylen);
+		mac->kind = _MP_CRYPTO_MAC_BLAKE2S;
+		mac->size = MP_CRYPTO_BLAKE2S_SIZE;
 		return(TRUE);
 	}
 #endif
 
 #ifdef SUPPORT_COMMON_CRYPTO_MAC_POLY1305
-	rest = _mp_mac_after(name, "POLY1305");
-	if(rest && !*rest && mp_poly1305_init(&mac->ctx.poly1305, key, keylen) == TRUE) {
-		mac->kind = _MP_MAC_POLY1305;
-		mac->size = MP_POLY1305_SIZE;
+	rest = _mp_crypto_mac_after(name, "POLY1305");
+	if(rest && !*rest && mp_crypto_poly1305_init(&mac->ctx.poly1305, key, keylen) == TRUE) {
+		mac->kind = _MP_CRYPTO_MAC_POLY1305;
+		mac->size = MP_CRYPTO_POLY1305_SIZE;
 		return(TRUE);
 	}
 #endif
@@ -130,21 +129,21 @@ mp_ret_t mp_mac_init(mp_mac_t *mac, const char *name, const void *key, unsigned 
  * @param[in] data Bytes
  * @param[in] size Number of bytes
  */
-void mp_mac_update(mp_mac_t *mac, const void *data, unsigned int size) {
+void mp_crypto_mac_update(mp_crypto_mac_t *mac, const void *data, unsigned int size) {
 	switch(mac->kind) {
 #ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
-		case _MP_MAC_HMAC:
-			mp_hmac_update(&mac->ctx.hmac, data, size);
+		case _MP_CRYPTO_MAC_HMAC:
+			mp_crypto_hmac_update(&mac->ctx.hmac, data, size);
 			break;
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
-		case _MP_MAC_BLAKE2S:
-			mp_blake2s_update(&mac->ctx.blake2s, data, size);
+		case _MP_CRYPTO_MAC_BLAKE2S:
+			mp_crypto_blake2s_update(&mac->ctx.blake2s, data, size);
 			break;
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_MAC_POLY1305
-		case _MP_MAC_POLY1305:
-			mp_poly1305_update(&mac->ctx.poly1305, data, size);
+		case _MP_CRYPTO_MAC_POLY1305:
+			mp_crypto_poly1305_update(&mac->ctx.poly1305, data, size);
 			break;
 #endif
 		default:
@@ -160,26 +159,26 @@ void mp_mac_update(mp_mac_t *mac, const void *data, unsigned int size) {
  * The context is wiped afterwards.
  *
  * @param[in] mac Context
- * @param[out] tag At least MP_MAC_SIZE_MAX bytes, or mp_mac_size()
+ * @param[out] tag At least MP_CRYPTO_MAC_SIZE_MAX bytes, or mp_crypto_mac_size()
  * @return Bytes written, 0 when mac was not started
  */
-unsigned int mp_mac_final(mp_mac_t *mac, uint8_t *tag) {
+unsigned int mp_crypto_mac_final(mp_crypto_mac_t *mac, uint8_t *tag) {
 	unsigned int size = mac->size;
 
 	switch(mac->kind) {
 #ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
-		case _MP_MAC_HMAC:
-			mp_hmac_final(&mac->ctx.hmac, tag);
+		case _MP_CRYPTO_MAC_HMAC:
+			mp_crypto_hmac_final(&mac->ctx.hmac, tag);
 			break;
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
-		case _MP_MAC_BLAKE2S:
-			mp_blake2s_final(&mac->ctx.blake2s, tag);
+		case _MP_CRYPTO_MAC_BLAKE2S:
+			mp_crypto_blake2s_final(&mac->ctx.blake2s, tag);
 			break;
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_MAC_POLY1305
-		case _MP_MAC_POLY1305:
-			size = mp_poly1305_final(&mac->ctx.poly1305, tag);
+		case _MP_CRYPTO_MAC_POLY1305:
+			size = mp_crypto_poly1305_final(&mac->ctx.poly1305, tag);
 			break;
 #endif
 		default:
@@ -187,7 +186,7 @@ unsigned int mp_mac_final(mp_mac_t *mac, uint8_t *tag) {
 			size = 0;
 			break;
 	}
-	mp_mac_free(mac);
+	mp_crypto_mac_free(mac);
 	return(size);
 }
 
@@ -198,7 +197,7 @@ unsigned int mp_mac_final(mp_mac_t *mac, uint8_t *tag) {
  *
  * @param[in] mac Context
  */
-void mp_mac_free(mp_mac_t *mac) {
+void mp_crypto_mac_free(mp_crypto_mac_t *mac) {
 	memset(mac, 0, sizeof(*mac));
 }
 
@@ -208,8 +207,8 @@ void mp_mac_free(mp_mac_t *mac) {
  * @param[in] mac Context
  * @return Bytes, 0 when not started
  */
-unsigned int mp_mac_size(const mp_mac_t *mac) {
-	return(mac->kind != _MP_MAC_NONE ? mac->size : 0);
+unsigned int mp_crypto_mac_size(const mp_crypto_mac_t *mac) {
+	return(mac->kind != _MP_CRYPTO_MAC_NONE ? mac->size : 0);
 }
 
 /**
@@ -223,7 +222,7 @@ unsigned int mp_mac_size(const mp_mac_t *mac) {
  * @param[in] size Bytes to compare
  * @return YES when they match
  */
-mp_bool_t mp_mac_equal(const void *a, const void *b, unsigned int size) {
+mp_bool_t mp_crypto_mac_equal(const void *a, const void *b, unsigned int size) {
 	const volatile uint8_t *x = a;
 	const volatile uint8_t *y = b;
 	uint8_t diff = 0;

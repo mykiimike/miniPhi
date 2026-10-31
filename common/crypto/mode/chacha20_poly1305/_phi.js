@@ -10,7 +10,7 @@ export const phi = {
 	requires: ["CHACHA20", "POLY1305", "MAC"],
 	settings: [
 		{
-			name: "MP_CHACHA20_POLY1305_RAM",
+			name: "MP_CRYPTO_CHACHA20_POLY1305_RAM",
 			label: "RAM",
 			type: "number",
 			unit: "bytes",

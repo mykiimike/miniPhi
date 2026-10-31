@@ -19,7 +19,9 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Opens the first display of the board, then the pages in pages/. The console
+ * Opens the first display of the board, then the pages in pages/. While the splash
+ * is up, the self-tests run and the first LED blinks; Morse starts when they finish.
+ * The console
  * is a keyboard for the TUI; j, k and b stand for down, up and back. The task
  * refreshes the live figures every 250 ms, 50 ms on an accelerometer,
  * 20 ms while a camera picture is on screen, and every second while the screen is off.

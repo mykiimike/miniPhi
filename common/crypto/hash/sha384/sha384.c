@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -45,8 +44,8 @@ static const uint64_t _sha384_iv[8] = {
  *
  * @param[in] ctx Context, owned by the caller
  */
-void mp_sha384_init(mp_sha384_t *ctx) {
-	mp_sha512_init_iv(&ctx->raw, _sha384_iv, MP_SHA384_SIZE);
+void mp_crypto_sha384_init(mp_crypto_sha384_t *ctx) {
+	mp_crypto_sha512_init_iv(&ctx->raw, _sha384_iv, MP_CRYPTO_SHA384_SIZE);
 #ifdef MP_ARCH_SHA384
 	ctx->onHardware = mp_arch_sha384_init(&ctx->hw);
 #endif
@@ -59,31 +58,31 @@ void mp_sha384_init(mp_sha384_t *ctx) {
  * @param[in] data Bytes
  * @param[in] size Number of bytes
  */
-void mp_sha384_update(mp_sha384_t *ctx, const void *data, unsigned int size) {
+void mp_crypto_sha384_update(mp_crypto_sha384_t *ctx, const void *data, unsigned int size) {
 #ifdef MP_ARCH_SHA384
 	if(ctx->onHardware) {
 		mp_arch_sha384_update(&ctx->hw, data, size);
 		return;
 	}
 #endif
-	mp_sha512_update(&ctx->raw, data, size);
+	mp_crypto_sha512_update(&ctx->raw, data, size);
 }
 
 /**
  * @brief End a digest
  *
- * The context is wiped, start again with mp_sha384_init().
+ * The context is wiped, start again with mp_crypto_sha384_init().
  *
  * @param[in] ctx Context
- * @param[out] digest MP_SHA384_SIZE bytes
+ * @param[out] digest MP_CRYPTO_SHA384_SIZE bytes
  */
-void mp_sha384_final(mp_sha384_t *ctx, uint8_t digest[MP_SHA384_SIZE]) {
+void mp_crypto_sha384_final(mp_crypto_sha384_t *ctx, uint8_t digest[MP_CRYPTO_SHA384_SIZE]) {
 #ifdef MP_ARCH_SHA384
 	if(ctx->onHardware)
 		mp_arch_sha384_final(&ctx->hw, digest);
 	else
 #endif
-	mp_sha512_final(&ctx->raw, digest);
+	mp_crypto_sha512_final(&ctx->raw, digest);
 	memset(ctx, 0, sizeof(*ctx));
 }
 
@@ -92,14 +91,14 @@ void mp_sha384_final(mp_sha384_t *ctx, uint8_t digest[MP_SHA384_SIZE]) {
  *
  * @param[in] data Bytes
  * @param[in] size Number of bytes
- * @param[out] digest MP_SHA384_SIZE bytes
+ * @param[out] digest MP_CRYPTO_SHA384_SIZE bytes
  */
-void mp_sha384(const void *data, unsigned int size, uint8_t digest[MP_SHA384_SIZE]) {
-	mp_sha384_t ctx;
+void mp_crypto_sha384(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA384_SIZE]) {
+	mp_crypto_sha384_t ctx;
 
-	mp_sha384_init(&ctx);
-	mp_sha384_update(&ctx, data, size);
-	mp_sha384_final(&ctx, digest);
+	mp_crypto_sha384_init(&ctx);
+	mp_crypto_sha384_update(&ctx, data, size);
+	mp_crypto_sha384_final(&ctx, digest);
 }
 
 /**@}*/

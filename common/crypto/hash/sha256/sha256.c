@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -105,38 +104,38 @@ static void _sha256_block(uint32_t state[8], const uint8_t *block) {
 	state[7] += h;
 }
 
-static void _sha256_soft_update(mp_sha256_t *ctx, const uint8_t *data, unsigned int size) {
+static void _sha256_soft_update(mp_crypto_sha256_t *ctx, const uint8_t *data, unsigned int size) {
 	unsigned int take;
 
 	ctx->length += size;
 	while(size > 0) {
-		take = MP_SHA256_BLOCK - ctx->used;
+		take = MP_CRYPTO_SHA256_BLOCK - ctx->used;
 		if(take > size)
 			take = size;
 		memcpy(ctx->block + ctx->used, data, take);
 		ctx->used += take;
 		data += take;
 		size -= take;
-		if(ctx->used == MP_SHA256_BLOCK) {
+		if(ctx->used == MP_CRYPTO_SHA256_BLOCK) {
 			_sha256_block(ctx->state, ctx->block);
 			ctx->used = 0;
 		}
 	}
 }
 
-static void _sha256_soft_final(mp_sha256_t *ctx, uint8_t *digest) {
+static void _sha256_soft_final(mp_crypto_sha256_t *ctx, uint8_t *digest) {
 	uint64_t bits = ctx->length * 8;
 	int i;
 
 	ctx->block[ctx->used++] = 0x80;
-	if(ctx->used > MP_SHA256_BLOCK - 8) {
-		memset(ctx->block + ctx->used, 0, MP_SHA256_BLOCK - ctx->used);
+	if(ctx->used > MP_CRYPTO_SHA256_BLOCK - 8) {
+		memset(ctx->block + ctx->used, 0, MP_CRYPTO_SHA256_BLOCK - ctx->used);
 		_sha256_block(ctx->state, ctx->block);
 		ctx->used = 0;
 	}
-	memset(ctx->block + ctx->used, 0, MP_SHA256_BLOCK - 8 - ctx->used);
+	memset(ctx->block + ctx->used, 0, MP_CRYPTO_SHA256_BLOCK - 8 - ctx->used);
 	for(i = 0; i < 8; i++)
-		ctx->block[MP_SHA256_BLOCK - 8 + i] = (uint8_t)(bits >> (56 - i * 8));
+		ctx->block[MP_CRYPTO_SHA256_BLOCK - 8 + i] = (uint8_t)(bits >> (56 - i * 8));
 	_sha256_block(ctx->state, ctx->block);
 
 	for(i = 0; i < 8; i++)
@@ -148,7 +147,7 @@ static void _sha256_soft_final(mp_sha256_t *ctx, uint8_t *digest) {
  *
  * @param[in] ctx Context, owned by the caller
  */
-void mp_sha256_init(mp_sha256_t *ctx) {
+void mp_crypto_sha256_init(mp_crypto_sha256_t *ctx) {
 	memcpy(ctx->state, _sha256_iv, sizeof(ctx->state));
 	ctx->length = 0;
 	ctx->used = 0;
@@ -164,7 +163,7 @@ void mp_sha256_init(mp_sha256_t *ctx) {
  * @param[in] data Bytes
  * @param[in] size Number of bytes
  */
-void mp_sha256_update(mp_sha256_t *ctx, const void *data, unsigned int size) {
+void mp_crypto_sha256_update(mp_crypto_sha256_t *ctx, const void *data, unsigned int size) {
 #ifdef MP_ARCH_SHA256
 	if(ctx->onHardware) {
 		mp_arch_sha256_update(&ctx->hw, data, size);
@@ -177,12 +176,12 @@ void mp_sha256_update(mp_sha256_t *ctx, const void *data, unsigned int size) {
 /**
  * @brief End a digest
  *
- * The context is wiped, start again with mp_sha256_init().
+ * The context is wiped, start again with mp_crypto_sha256_init().
  *
  * @param[in] ctx Context
- * @param[out] digest MP_SHA256_SIZE bytes
+ * @param[out] digest MP_CRYPTO_SHA256_SIZE bytes
  */
-void mp_sha256_final(mp_sha256_t *ctx, uint8_t digest[MP_SHA256_SIZE]) {
+void mp_crypto_sha256_final(mp_crypto_sha256_t *ctx, uint8_t digest[MP_CRYPTO_SHA256_SIZE]) {
 #ifdef MP_ARCH_SHA256
 	if(ctx->onHardware)
 		mp_arch_sha256_final(&ctx->hw, digest);
@@ -199,14 +198,14 @@ void mp_sha256_final(mp_sha256_t *ctx, uint8_t digest[MP_SHA256_SIZE]) {
  *
  * @param[in] data Bytes
  * @param[in] size Number of bytes
- * @param[out] digest MP_SHA256_SIZE bytes
+ * @param[out] digest MP_CRYPTO_SHA256_SIZE bytes
  */
-void mp_sha256(const void *data, unsigned int size, uint8_t digest[MP_SHA256_SIZE]) {
-	mp_sha256_t ctx;
+void mp_crypto_sha256(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA256_SIZE]) {
+	mp_crypto_sha256_t ctx;
 
-	mp_sha256_init(&ctx);
-	mp_sha256_update(&ctx, data, size);
-	mp_sha256_final(&ctx, digest);
+	mp_crypto_sha256_init(&ctx);
+	mp_crypto_sha256_update(&ctx, data, size);
+	mp_crypto_sha256_final(&ctx, digest);
 }
 
 /**@}*/

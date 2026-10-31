@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -23,6 +22,14 @@
 	#define _HAVE_MP_COMMON_MLDSA_H
 
 	#include <stdint.h>
+	#ifdef SUPPORT_COMMON_CRYPTO_FUSE
+		#include <crypto/fuse.h>
+	#else
+		#ifndef _HAVE_MP_FUSE_T
+			#define _HAVE_MP_FUSE_T
+			typedef struct mp_crypto_fuse_s mp_crypto_fuse_t;
+		#endif
+	#endif
 
 	/**
 	 * @defgroup mpCommonMldsa
@@ -30,7 +37,7 @@
 	 */
 
 	/* ML-DSA (FIPS 204). The security level is a build setting picked by
-	 * MP_MLDSA_LEVEL (2, 3 or 5). Common to all levels: q = 8380417, n = 256,
+	 * MP_CRYPTO_MLDSA_LEVEL (2, 3 or 5). Common to all levels: q = 8380417, n = 256,
 	 * the 512th root of unity zeta = 1753, d = 13 (dropped bits). Sizes:
 	 *   level 2 (ML-DSA-44): k=4, l=4, eta=2, tau=39, pk=1312, sk=2560, sig=2420
 	 *   level 3 (ML-DSA-65): k=6, l=5, eta=4, tau=49, pk=1952, sk=4032, sig=3309
@@ -39,71 +46,79 @@
 	 * the full state, the rejection loop uses constant-time selection, and no
 	 * branch or table index reads a secret. */
 
-	#define MP_MLDSA_Q    8380417
-	#define MP_MLDSA_N    256
-	#define MP_MLDSA_ZETA 1753
-	#define MP_MLDSA_D    13
+	#define MP_CRYPTO_MLDSA_Q    8380417
+	#define MP_CRYPTO_MLDSA_N    256
+	#define MP_CRYPTO_MLDSA_ZETA 1753
+	#define MP_CRYPTO_MLDSA_D    13
 
-	#if !defined(MP_MLDSA_LEVEL)
-		#define MP_MLDSA_LEVEL 2
+	#if !defined(MP_CRYPTO_MLDSA_LEVEL)
+		#define MP_CRYPTO_MLDSA_LEVEL 2
 	#endif
 
-	#if MP_MLDSA_LEVEL == 2
-		#define MP_MLDSA_K    4
-		#define MP_MLDSA_L    4
-		#define MP_MLDSA_ETA  2
-		#define MP_MLDSA_TAU  39
-		#define MP_MLDSA_BETA 78
-		#define MP_MLDSA_GAMMA1  131072        /* 2^17  */
-		#define MP_MLDSA_GAMMA2  95232         /* (q-1)/88 */
-		#define MP_MLDSA_OMEGA 80
-		#define MP_MLDSA_LAMBDA 128
-		#define MP_MLDSA_PK_SIZE  1312
-		#define MP_MLDSA_SK_SIZE  2560
-		#define MP_MLDSA_SIG_SIZE 2420
-	#elif MP_MLDSA_LEVEL == 3
-		#define MP_MLDSA_K    6
-		#define MP_MLDSA_L    5
-		#define MP_MLDSA_ETA  4
-		#define MP_MLDSA_TAU  49
-		#define MP_MLDSA_BETA 196
-		#define MP_MLDSA_GAMMA1  524288        /* 2^19  */
-		#define MP_MLDSA_GAMMA2  261888        /* (q-1)/32 */
-		#define MP_MLDSA_OMEGA 55
-		#define MP_MLDSA_LAMBDA 192
-		#define MP_MLDSA_PK_SIZE  1952
-		#define MP_MLDSA_SK_SIZE  4032
-		#define MP_MLDSA_SIG_SIZE 3309
-	#elif MP_MLDSA_LEVEL == 5
-		#define MP_MLDSA_K    8
-		#define MP_MLDSA_L    7
-		#define MP_MLDSA_ETA  2
-		#define MP_MLDSA_TAU  60
-		#define MP_MLDSA_BETA 120
-		#define MP_MLDSA_GAMMA1  524288        /* 2^19  */
-		#define MP_MLDSA_GAMMA2  261888        /* (q-1)/32 */
-		#define MP_MLDSA_OMEGA 75
-		#define MP_MLDSA_LAMBDA 256
-		#define MP_MLDSA_PK_SIZE  2592
-		#define MP_MLDSA_SK_SIZE  4896
-		#define MP_MLDSA_SIG_SIZE 4627
+	#if MP_CRYPTO_MLDSA_LEVEL == 2
+		#define MP_CRYPTO_MLDSA_K    4
+		#define MP_CRYPTO_MLDSA_L    4
+		#define MP_CRYPTO_MLDSA_ETA  2
+		#define MP_CRYPTO_MLDSA_TAU  39
+		#define MP_CRYPTO_MLDSA_BETA 78
+		#define MP_CRYPTO_MLDSA_GAMMA1  131072        /* 2^17  */
+		#define MP_CRYPTO_MLDSA_GAMMA2  95232         /* (q-1)/88 */
+		#define MP_CRYPTO_MLDSA_OMEGA 80
+		#define MP_CRYPTO_MLDSA_LAMBDA 128
+		#define MP_CRYPTO_MLDSA_PK_SIZE  1312
+		#define MP_CRYPTO_MLDSA_SK_SIZE  2560
+		#define MP_CRYPTO_MLDSA_SIG_SIZE 2420
+	#elif MP_CRYPTO_MLDSA_LEVEL == 3
+		#define MP_CRYPTO_MLDSA_K    6
+		#define MP_CRYPTO_MLDSA_L    5
+		#define MP_CRYPTO_MLDSA_ETA  4
+		#define MP_CRYPTO_MLDSA_TAU  49
+		#define MP_CRYPTO_MLDSA_BETA 196
+		#define MP_CRYPTO_MLDSA_GAMMA1  524288        /* 2^19  */
+		#define MP_CRYPTO_MLDSA_GAMMA2  261888        /* (q-1)/32 */
+		#define MP_CRYPTO_MLDSA_OMEGA 55
+		#define MP_CRYPTO_MLDSA_LAMBDA 192
+		#define MP_CRYPTO_MLDSA_PK_SIZE  1952
+		#define MP_CRYPTO_MLDSA_SK_SIZE  4032
+		#define MP_CRYPTO_MLDSA_SIG_SIZE 3309
+	#elif MP_CRYPTO_MLDSA_LEVEL == 5
+		#define MP_CRYPTO_MLDSA_K    8
+		#define MP_CRYPTO_MLDSA_L    7
+		#define MP_CRYPTO_MLDSA_ETA  2
+		#define MP_CRYPTO_MLDSA_TAU  60
+		#define MP_CRYPTO_MLDSA_BETA 120
+		#define MP_CRYPTO_MLDSA_GAMMA1  524288        /* 2^19  */
+		#define MP_CRYPTO_MLDSA_GAMMA2  261888        /* (q-1)/32 */
+		#define MP_CRYPTO_MLDSA_OMEGA 75
+		#define MP_CRYPTO_MLDSA_LAMBDA 256
+		#define MP_CRYPTO_MLDSA_PK_SIZE  2592
+		#define MP_CRYPTO_MLDSA_SK_SIZE  4896
+		#define MP_CRYPTO_MLDSA_SIG_SIZE 4627
 	#else
-		#error "MP_MLDSA_LEVEL must be 2, 3 or 5"
+		#error "MP_CRYPTO_MLDSA_LEVEL must be 2, 3 or 5"
 	#endif
 
 	/* c~ hash length: ceil(lambda/4) bytes. */
-	#define MP_MLDSA_CHASH  (MP_MLDSA_LAMBDA / 4)
+	#define MP_CRYPTO_MLDSA_CHASH  (MP_CRYPTO_MLDSA_LAMBDA / 4)
 
-	/* Build a key pair from 32 bytes of entropy. Writes priv (MP_MLDSA_SK_SIZE)
-	 * and pub (MP_MLDSA_PK_SIZE). Returns FALSE on a bad seed. */
-	mp_ret_t mp_mldsa_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub);
+	/* Build a key pair from 32 bytes of entropy. Writes priv (MP_CRYPTO_MLDSA_SK_SIZE)
+	 * and pub (MP_CRYPTO_MLDSA_PK_SIZE). Returns FALSE on a bad seed. */
+	mp_ret_t mp_crypto_mldsa_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub);
 
-	/* Deterministic signature (rnd = 0). Writes MP_MLDSA_SIG_SIZE bytes and
+	/* Deterministic signature (rnd = 0). Writes MP_CRYPTO_MLDSA_SIG_SIZE bytes and
 	 * returns the size, or 0 on failure. */
-	unsigned int mp_mldsa_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig);
+	unsigned int mp_crypto_mldsa_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig);
+	/**
+	 * Role MP_CRYPTO_FUSE_MLDSA. wrapped is the blob the series arch defines.
+	 * Returns the signature size, or 0 when this series has no ML-DSA accelerator.
+	 */
+	unsigned int mp_crypto_mldsa_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig);
+	#ifdef MP_ARCH_MLDSA
+		unsigned int mp_arch_mldsa_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig);
+	#endif
 
 	/* Returns YES if the signature verifies, NO otherwise. */
-	mp_bool_t mp_mldsa_verify(const void *pub, const void *msg, unsigned int len,
+	mp_bool_t mp_crypto_mldsa_verify(const void *pub, const void *msg, unsigned int len,
 		const void *sig, unsigned int siglen);
 
 	/** @}*/

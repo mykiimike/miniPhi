@@ -23,6 +23,11 @@
  * uptime, tasks and sensors every SYSINFO_PERIOD ms.
  * Delays are milliseconds and follow mp_clock_tick_hz().
  * When the board has LEDs, morse.c blinks SOS on the first and HELP on the second.
+ * When a self-test is in the build, those tests run before Morse at the high clock
+ * and the first LED blinks once per test. The series starts once the banner
+ * has been printed, and each result is printed as that check runs, while the
+ * clock is held high.
+ * With a TUI they wait until the splash logo is on screen.
  * On the first display of the board, screen.c opens the TUI and the pages in pages/. System is a scrollable page
  * with about, version, copyright, license and the live figures. Back returns
  * to the home.
@@ -170,11 +175,121 @@ void _sysinfo_hibernate_enable(sysinfo_t *sysinfo, mp_bool_t on) {
 	_sysinfo_hibernate_apply(sysinfo);
 }
 
+/* YES when a self-test is in the image, so Morse waits until it finishes */
+static int _sysinfo_morse_later(void) {
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+	if(mp_crypto_selftest_count() > 0)
+		return(1);
+#endif
+	return(0);
+}
+
+static void _sysinfo_morse_unless(sysinfo_t *sysinfo, int later) {
+	if(!later)
+		return;
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+	if(sysinfo->selftest)
+		return;
+#endif
+	_sysinfo_morse_start(sysinfo);
+}
+
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+static MP_TASK(_sysinfo_selftest) {
+	sysinfo_t *sysinfo = task->user;
+	const mp_crypto_selftest_t *test;
+	unsigned long t0;
+	unsigned long us;
+	mp_bool_t ok;
+
+	if(task->signal == MP_TASK_SIG_STOP) {
+		mp_power_release(&sysinfo->kernel, &sysinfo->selftestPower);
+		if(sysinfo->selftestLed && !sysinfo->morse)
+			mp_device_set(sysinfo->selftestLed, 0);
+		sysinfo->selftestLed = NULL;
+		sysinfo->selftest = NULL;
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+
+#ifdef SYSINFO_SCREEN
+	/* the logo is on screen once the splash holds; before that, keep waiting */
+	if(sysinfo->screen.ready == YES && sysinfo->screen.tui.splash < 3 && !sysinfo->screen.tui.splashHold) {
+		mp_task_delay(task, 1);
+		return;
+	}
+#endif
+	/* the banner task owns the console until its last line */
+	if(sysinfo->task && sysinfo->line >= 0) {
+		mp_task_delay(task, 1);
+		return;
+	}
+
+	/* one wake so the governor applies the floor before the first check */
+	if(sysinfo->selftestPower.held == NO) {
+		mp_power_hold(&sysinfo->kernel, &sysinfo->selftestPower, MP_POWER_HIGH, "Selftest");
+		mp_task_delay(task, 1);
+		return;
+	}
+
+	if(sysinfo->selftestIndex >= mp_crypto_selftest_count()) {
+		mp_printk("SELFTEST: %lu MHz, %lu us",
+			(mp_clock_get_speed() + 500000UL) / 1000000UL, sysinfo->selftestUs);
+		mp_power_release(&sysinfo->kernel, &sysinfo->selftestPower);
+		if(sysinfo->selftestLed)
+			mp_device_set(sysinfo->selftestLed, 0);
+		sysinfo->selftestLed = NULL;
+		sysinfo->selftest = NULL;
+		_sysinfo_morse_start(sysinfo);
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+
+	if(!sysinfo->selftestLed) {
+		mp_device_t *led = mp_device_find(MP_DEVICE_LED, 0);
+
+		if(mp_device_open(&sysinfo->kernel, led) == TRUE)
+			sysinfo->selftestLed = led;
+	}
+
+	if(sysinfo->selftestIndex == 0)
+		mp_printk("SELFTEST: %s %lu MHz",
+			mp_power_name(mp_power_level(&sysinfo->kernel)),
+			(mp_clock_get_speed() + 500000UL) / 1000000UL);
+
+	if(sysinfo->selftestLed) {
+		sysinfo->selftestOn = sysinfo->selftestOn == YES ? NO : YES;
+		mp_device_set(sysinfo->selftestLed, sysinfo->selftestOn == YES);
+	}
+	test = mp_crypto_selftest_at(sysinfo->selftestIndex);
+	if(test && test->run) {
+		t0 = mp_clock_us();
+		ok = test->run() == YES ? YES : NO;
+		us = mp_clock_us() - t0;
+		sysinfo->selftestUs += us;
+		mp_printk("SELFTEST: %s %s %lu us",
+			test->label, ok == YES ? "passed" : "failed", us);
+	}
+	sysinfo->selftestIndex++;
+	mp_task_delay(task, _sysinfo_ticks(SYSINFO_MORSE_UNIT));
+}
+
+void _sysinfo_selftest_start(sysinfo_t *sysinfo) {
+	if(sysinfo->selftest || mp_crypto_selftest_count() <= 0)
+		return;
+	sysinfo->selftest = mp_task_create(
+		&sysinfo->kernel.tasks, "Selftest", _sysinfo_selftest, sysinfo, 1
+	);
+}
+#endif
+
 static void _sysinfo_op_set(void *user) {
 	sysinfo_t *sysinfo = user;
 	mp_options_t console[] = PHI_CONSOLE;
+	int morseLater = _sysinfo_morse_later();
 
-	_sysinfo_morse_start(sysinfo);
+	if(!morseLater)
+		_sysinfo_morse_start(sysinfo);
 
 #ifdef SUPPORT_COMMON_KFLASH
 	sysinfo->accelListened = mp_kflash_listen_bool(&sysinfo->kernel, &sysinfo->accelVar,
@@ -192,6 +307,11 @@ static void _sysinfo_op_set(void *user) {
 
 	if(mp_serial_open(&sysinfo->kernel, &sysinfo->serial, console, "Console") == FALSE) {
 		_sysinfo_screen_open(sysinfo);
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+		if(morseLater)
+			_sysinfo_selftest_start(sysinfo);
+#endif
+		_sysinfo_morse_unless(sysinfo, morseLater);
 		return;
 	}
 
@@ -200,6 +320,11 @@ static void _sysinfo_op_set(void *user) {
 
 	/* after the console, so the driver messages show */
 	_sysinfo_screen_open(sysinfo);
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+	if(morseLater)
+		_sysinfo_selftest_start(sysinfo);
+#endif
+	_sysinfo_morse_unless(sysinfo, morseLater);
 
 	/* lets the arch publish its own sensors, such as the die temperature */
 	mp_machine_state_set(&sysinfo->kernel);
@@ -224,6 +349,12 @@ static void _sysinfo_op_unset(void *user) {
 
 	_sysinfo_accel_run(sysinfo, NO);
 	sysinfo->accelRunning = NO;
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+	if(sysinfo->selftest) {
+		mp_task_destroy(sysinfo->selftest);
+		sysinfo->selftest = NULL;
+	}
+#endif
 	_sysinfo_screen_close(sysinfo);
 	_sysinfo_morse_stop(sysinfo);
 	_sysinfo_devices_shutdown(sysinfo);
@@ -269,6 +400,15 @@ static MP_TASK(_sysinfo_task) {
 		task->delay = _sysinfo_ticks(SYSINFO_PERIOD);
 	}
 
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+	/* the series prints next; the uptime report follows it */
+	if(sysinfo->selftest) {
+		mp_task_delay(task, 1);
+		return;
+	}
+#endif
+
+	task->delay = _sysinfo_ticks(SYSINFO_PERIOD);
 	_sysinfo_report(sysinfo);
 }
 

@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -36,13 +35,13 @@
 	 * @{
 	 */
 
-	#define MP_SHA384_SIZE 48
+	#define MP_CRYPTO_SHA384_SIZE 48
 
-	typedef struct mp_sha384_s mp_sha384_t;
+	typedef struct mp_crypto_sha384_s mp_crypto_sha384_t;
 
-	struct mp_sha384_s {
+	struct mp_crypto_sha384_s {
 		/** the SHA-512 compression, with the SHA-384 initial value */
-		mp_sha512_t raw;
+		mp_crypto_sha512_t raw;
 
 	#ifdef MP_ARCH_SHA384
 		mp_bool_t onHardware;
@@ -52,16 +51,16 @@
 
 	/** @} */
 
-	void mp_sha384_init(mp_sha384_t *ctx);
-	void mp_sha384_update(mp_sha384_t *ctx, const void *data, unsigned int size);
-	void mp_sha384_final(mp_sha384_t *ctx, uint8_t digest[MP_SHA384_SIZE]);
-	void mp_sha384(const void *data, unsigned int size, uint8_t digest[MP_SHA384_SIZE]);
+	void mp_crypto_sha384_init(mp_crypto_sha384_t *ctx);
+	void mp_crypto_sha384_update(mp_crypto_sha384_t *ctx, const void *data, unsigned int size);
+	void mp_crypto_sha384_final(mp_crypto_sha384_t *ctx, uint8_t digest[MP_CRYPTO_SHA384_SIZE]);
+	void mp_crypto_sha384(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA384_SIZE]);
 
 	/* an arch with a SHA384 accelerator provides these; init returns NO when the block is busy or off, and the context then runs in software */
 	#ifdef MP_ARCH_SHA384
 		mp_bool_t mp_arch_sha384_init(mp_arch_sha384_t *hw);
 		void mp_arch_sha384_update(mp_arch_sha384_t *hw, const uint8_t *data, unsigned int size);
-		void mp_arch_sha384_final(mp_arch_sha384_t *hw, uint8_t digest[MP_SHA384_SIZE]);
+		void mp_arch_sha384_final(mp_arch_sha384_t *hw, uint8_t digest[MP_CRYPTO_SHA384_SIZE]);
 	#endif
 
 #endif

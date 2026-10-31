@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -31,53 +30,54 @@
 @brief Any signature of the build, picked by name
 
 @code
-uint8_t priv[MP_SIGN_PRIV_MAX];
-uint8_t pub[MP_SIGN_PUB_MAX];
-uint8_t sig[MP_SIGN_SIG_MAX];
+uint8_t priv[MP_CRYPTO_SIGN_PRIV_MAX];
+uint8_t pub[MP_CRYPTO_SIGN_PUB_MAX];
+uint8_t sig[MP_CRYPTO_SIGN_SIG_MAX];
 unsigned int n;
 
-if(mp_sign_keypair("Ed25519", seed, 32, priv, pub) == TRUE) {
-	n = mp_sign("Ed25519", priv, msg, len, sig);
-	if(n && mp_sign_verify("Ed25519", pub, msg, len, sig, n) == YES)
+if(mp_crypto_sign_keypair("Ed25519", seed, 32, priv, pub) == TRUE) {
+	n = mp_crypto_sign("Ed25519", priv, msg, len, sig);
+	if(n && mp_crypto_sign_verify("Ed25519", pub, msg, len, sig, n) == YES)
 		;
 }
 @endcode
 
-The caller owns every buffer. An RSA private key is MP_SIGN_PRIV_MAX bytes,
+The caller owns every buffer. An RSA private key is MP_CRYPTO_SIGN_PRIV_MAX bytes,
 so this module keeps no context of its own. A new algorithm needs one line
-in the table below.
+in the table below and mp_<algo>_sign_fuse(). That function calls the arch
+when the series declares the algorithm's accelerator.
 
 @{
 */
 
-#define _MP_SIGN_ENTRY(id, name, label, priv, pub, sig) \
-	{ name, label, priv, pub, sig, mp_##id##_keypair, mp_##id##_sign, mp_##id##_verify }
+#define _MP_CRYPTO_SIGN_ENTRY(id, name, label, priv, pub, sig) \
+	{ name, label, priv, pub, sig, mp_crypto_##id##_keypair, mp_crypto_##id##_sign, mp_crypto_##id##_verify, mp_crypto_##id##_sign_fuse }
 
-static const mp_sign_algo_t _mp_sign_algos[] = {
+static const mp_crypto_sign_algo_t _mp_crypto_sign_algos[] = {
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_ED25519
-	_MP_SIGN_ENTRY(ed25519, "ED25519", "Ed25519", MP_ED25519_PRIV, MP_ED25519_PUB, MP_ED25519_SIG),
+	_MP_CRYPTO_SIGN_ENTRY(ed25519, "ED25519", "Ed25519", MP_CRYPTO_ED25519_PRIV, MP_CRYPTO_ED25519_PUB, MP_CRYPTO_ED25519_SIG),
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_ECDSA_P256
-	_MP_SIGN_ENTRY(ecdsa_p256, "ECDSA_P256", "ECDSA P-256", MP_ECDSA_P256_PRIV, MP_ECDSA_P256_PUB, MP_ECDSA_P256_SIG),
+	_MP_CRYPTO_SIGN_ENTRY(ecdsa_p256, "ECDSA_P256", "ECDSA P-256", MP_CRYPTO_ECDSA_P256_PRIV, MP_CRYPTO_ECDSA_P256_PUB, MP_CRYPTO_ECDSA_P256_SIG),
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_RSA
-	_MP_SIGN_ENTRY(rsa, "RSA", "RSA", MP_RSA_PRIV, MP_RSA_PUB, MP_RSA_SIG),
+	_MP_CRYPTO_SIGN_ENTRY(rsa, "RSA", "RSA", MP_CRYPTO_RSA_PRIV, MP_CRYPTO_RSA_PUB, MP_CRYPTO_RSA_SIG),
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_LMS
-	_MP_SIGN_ENTRY(lms, "LMS", "LMS (RFC 8554)", MP_LMS_PRIV, MP_LMS_PUB, MP_LMS_SIG),
+	_MP_CRYPTO_SIGN_ENTRY(lms, "LMS", "LMS (RFC 8554)", MP_CRYPTO_LMS_PRIV, MP_CRYPTO_LMS_PUB, MP_CRYPTO_LMS_SIG),
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_SLH
-	_MP_SIGN_ENTRY(slh, "SLH", "SLH-DSA (FIPS 205)", MP_SLH_SK_SIZE, MP_SLH_PK_SIZE, MP_SLH_SIG_SIZE),
+	_MP_CRYPTO_SIGN_ENTRY(slh, "SLH", "SLH-DSA (FIPS 205)", MP_CRYPTO_SLH_SK_SIZE, MP_CRYPTO_SLH_PK_SIZE, MP_CRYPTO_SLH_SIG_SIZE),
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_SIGN_MLDSA
-	_MP_SIGN_ENTRY(mldsa, "MLDSA", "ML-DSA (FIPS 204)", MP_MLDSA_SK_SIZE, MP_MLDSA_PK_SIZE, MP_MLDSA_SIG_SIZE),
+	_MP_CRYPTO_SIGN_ENTRY(mldsa, "MLDSA", "ML-DSA (FIPS 204)", MP_CRYPTO_MLDSA_SK_SIZE, MP_CRYPTO_MLDSA_PK_SIZE, MP_CRYPTO_MLDSA_SIG_SIZE),
 #endif
-	{ NULL, NULL, 0, 0, 0, NULL, NULL, NULL },
+	{ NULL, NULL, 0, 0, 0, NULL, NULL, NULL, NULL },
 };
 
-#define _MP_SIGN_COUNT ((int)(sizeof(_mp_sign_algos) / sizeof(_mp_sign_algos[0])) - 1)
+#define _MP_CRYPTO_SIGN_COUNT ((int)(sizeof(_mp_crypto_sign_algos) / sizeof(_mp_crypto_sign_algos[0])) - 1)
 
-static int _mp_sign_same(const char *a, const char *b) {
+static int _mp_crypto_sign_same(const char *a, const char *b) {
 	char x, y;
 
 	while(*a && *b) {
@@ -96,19 +96,19 @@ static int _mp_sign_same(const char *a, const char *b) {
 /**
  * @brief Number of algorithms in the build
  */
-int mp_sign_count(void) {
-	return(_MP_SIGN_COUNT);
+int mp_crypto_sign_count(void) {
+	return(_MP_CRYPTO_SIGN_COUNT);
 }
 
 /**
  * @brief Algorithm at index, NULL past the end
  *
- * @param[in] index From 0 to mp_sign_count() - 1
+ * @param[in] index From 0 to mp_crypto_sign_count() - 1
  */
-const mp_sign_algo_t *mp_sign_at(int index) {
-	if(index < 0 || index >= _MP_SIGN_COUNT)
+const mp_crypto_sign_algo_t *mp_crypto_sign_at(int index) {
+	if(index < 0 || index >= _MP_CRYPTO_SIGN_COUNT)
 		return(NULL);
-	return(&_mp_sign_algos[index]);
+	return(&_mp_crypto_sign_algos[index]);
 }
 
 /**
@@ -117,14 +117,14 @@ const mp_sign_algo_t *mp_sign_at(int index) {
  * @param[in] name Module name or label, any case: "ED25519", "ed25519"
  * @return NULL when the build does not carry it
  */
-const mp_sign_algo_t *mp_sign_find(const char *name) {
+const mp_crypto_sign_algo_t *mp_crypto_sign_find(const char *name) {
 	int n;
 
 	if(!name)
 		return(NULL);
-	for(n = 0; n < _MP_SIGN_COUNT; n++) {
-		if(_mp_sign_same(name, _mp_sign_algos[n].name) || _mp_sign_same(name, _mp_sign_algos[n].label))
-			return(&_mp_sign_algos[n]);
+	for(n = 0; n < _MP_CRYPTO_SIGN_COUNT; n++) {
+		if(_mp_crypto_sign_same(name, _mp_crypto_sign_algos[n].name) || _mp_crypto_sign_same(name, _mp_crypto_sign_algos[n].label))
+			return(&_mp_crypto_sign_algos[n]);
 	}
 	return(NULL);
 }
@@ -138,8 +138,8 @@ const mp_sign_algo_t *mp_sign_find(const char *name) {
  * @param[out] pub At least the algorithm's pubSize
  * @return FALSE when name is unknown or the seed is too short
  */
-mp_ret_t mp_sign_keypair(const char *name, const void *seed, unsigned int seedlen, void *priv, void *pub) {
-	const mp_sign_algo_t *algo = mp_sign_find(name);
+mp_ret_t mp_crypto_sign_keypair(const char *name, const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	const mp_crypto_sign_algo_t *algo = mp_crypto_sign_find(name);
 
 	if(!algo)
 		return(FALSE);
@@ -153,12 +153,32 @@ mp_ret_t mp_sign_keypair(const char *name, const void *seed, unsigned int seedle
  * @param[out] sig At least the algorithm's sigSize
  * @return Bytes written, 0 when name is unknown or the key cannot sign
  */
-unsigned int mp_sign(const char *name, const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
-	const mp_sign_algo_t *algo = mp_sign_find(name);
+unsigned int mp_crypto_sign(const char *name, const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+	const mp_crypto_sign_algo_t *algo = mp_crypto_sign_find(name);
 
 	if(!algo)
 		return(0);
 	return(algo->sign(priv, msg, len, sig));
+}
+
+/**
+ * @brief Sign with a fuse slot
+ *
+ * @param[in] name Module name or label, any case
+ * @param[in] fuse Slot the algorithm names
+ * @param[in] wrapped That algorithm's wrapped key
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] msg Message
+ * @param[in] len Message length
+ * @param[out] sig At least the algorithm's sigSize
+ * @return Bytes written, 0 when name is unknown, the algorithm has no fuse path, or the slot refuses
+ */
+unsigned int mp_crypto_sign_fuse(const char *name, const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+	const mp_crypto_sign_algo_t *algo = mp_crypto_sign_find(name);
+
+	if(!algo || !algo->sign_fuse)
+		return(0);
+	return(algo->sign_fuse(fuse, wrapped, wrappedlen, msg, len, sig));
 }
 
 /**
@@ -167,8 +187,8 @@ unsigned int mp_sign(const char *name, const void *priv, const void *msg, unsign
  * @param[in] name Module name or label, any case
  * @return YES when it checks, NO otherwise
  */
-mp_bool_t mp_sign_verify(const char *name, const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
-	const mp_sign_algo_t *algo = mp_sign_find(name);
+mp_bool_t mp_crypto_sign_verify(const char *name, const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+	const mp_crypto_sign_algo_t *algo = mp_crypto_sign_find(name);
 
 	if(!algo)
 		return(NO);

@@ -9,7 +9,7 @@ export const phi = {
 	headerDir: "crypto",
 	settings: [
 		{
-			name: "MP_POLY1305_RAM",
+			name: "MP_CRYPTO_POLY1305_RAM",
 			label: "RAM",
 			type: "number",
 			unit: "bytes",

@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -30,23 +29,23 @@
 	 * @{
 	 */
 
-	/** bytes one mp_hmac_drbg_generate() may return (NIST: 2^19 bits) */
-	#define MP_HMAC_DRBG_MAX (1u << 16)
+	/** bytes one mp_crypto_hmac_drbg_generate() may return (NIST: 2^19 bits) */
+	#define MP_CRYPTO_HMAC_DRBG_MAX (1u << 16)
 
-	/** generates before the next one asks for mp_hmac_drbg_reseed(); NIST allows 2^48 */
-	#define MP_HMAC_DRBG_RESEED (1u << 20)
+	/** generates before the next one asks for mp_crypto_hmac_drbg_reseed(); NIST allows 2^48 */
+	#define MP_CRYPTO_HMAC_DRBG_RESEED (1u << 20)
 
-	typedef struct mp_hmac_drbg_s mp_hmac_drbg_t;
+	typedef struct mp_crypto_hmac_drbg_s mp_crypto_hmac_drbg_t;
 
-	struct mp_hmac_drbg_s {
+	struct mp_crypto_hmac_drbg_s {
 		/** NULL before init and after free */
-		const mp_hash_algo_t *algo;
+		const mp_crypto_hash_algo_t *algo;
 
 		/** HMAC key, algo->size bytes */
-		uint8_t key[MP_HASH_SIZE_MAX];
+		uint8_t key[MP_CRYPTO_HASH_SIZE_MAX];
 
 		/** chaining value, algo->size bytes */
-		uint8_t v[MP_HASH_SIZE_MAX];
+		uint8_t v[MP_CRYPTO_HASH_SIZE_MAX];
 
 		/** successful generates since the last seed; 1 after init and reseed */
 		uint32_t reseed;
@@ -60,16 +59,16 @@
 	 * An entropy buffer is the deterministic seed. FALSE when the build does not
 	 * carry hash, the HSM is absent or returned nothing, or a supplied entropy is empty.
 	 */
-	mp_ret_t mp_hmac_drbg_init(mp_hmac_drbg_t *ctx, const char *hash, const void *entropy, unsigned int entropylen, const void *nonce, unsigned int noncelen, const void *personal, unsigned int personlen);
+	mp_ret_t mp_crypto_hmac_drbg_init(mp_crypto_hmac_drbg_t *ctx, const char *hash, const void *entropy, unsigned int entropylen, const void *nonce, unsigned int noncelen, const void *personal, unsigned int personlen);
 	/** mixes new entropy in. A NULL entropy pointer reads one digest from the HSM when the series declares one. FALSE when ctx is not started, the HSM is absent or returned nothing, or a supplied entropy is empty; ctx is then unchanged */
-	mp_ret_t mp_hmac_drbg_reseed(mp_hmac_drbg_t *ctx, const void *entropy, unsigned int entropylen, const void *additional, unsigned int addlen);
+	mp_ret_t mp_crypto_hmac_drbg_reseed(mp_crypto_hmac_drbg_t *ctx, const void *entropy, unsigned int entropylen, const void *additional, unsigned int addlen);
 	/**
-	 * Writes size bytes, at most MP_HMAC_DRBG_MAX. additional may be NULL with a length of 0.
+	 * Writes size bytes, at most MP_CRYPTO_HMAC_DRBG_MAX. additional may be NULL with a length of 0.
 	 * FALSE when a reseed is due, size is 0 or too big, or ctx is not started; out is then unchanged.
 	 */
-	mp_ret_t mp_hmac_drbg_generate(mp_hmac_drbg_t *ctx, void *out, unsigned int size, const void *additional, unsigned int addlen);
+	mp_ret_t mp_crypto_hmac_drbg_generate(mp_crypto_hmac_drbg_t *ctx, void *out, unsigned int size, const void *additional, unsigned int addlen);
 	/** wipes the context, the key with it */
-	void mp_hmac_drbg_free(mp_hmac_drbg_t *ctx);
+	void mp_crypto_hmac_drbg_free(mp_crypto_hmac_drbg_t *ctx);
 
 #endif
 #endif

@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -54,7 +53,7 @@ static void _le32_put(uint8_t *p, uint32_t v) {
 
 /* absorb one 16-byte block; hibit is (1<<24) for a full block, 0 for a
  * padded final partial block (the 0x01 pad byte is already in m) */
-static void _poly1305_block(mp_poly1305_t *ctx, const uint8_t *m, uint32_t hibit) {
+static void _poly1305_block(mp_crypto_poly1305_t *ctx, const uint8_t *m, uint32_t hibit) {
 	uint32_t t0 = _le32(m + 0);
 	uint32_t t1 = _le32(m + 4);
 	uint32_t t2 = _le32(m + 8);
@@ -100,10 +99,10 @@ static void _poly1305_block(mp_poly1305_t *ctx, const uint8_t *m, uint32_t hibit
  * @param[in] keylen Must be 32
  * @return TRUE when the key length is 32, FALSE otherwise
  */
-mp_ret_t mp_poly1305_init(mp_poly1305_t *ctx, const void *key, unsigned int keylen) {
+mp_ret_t mp_crypto_poly1305_init(mp_crypto_poly1305_t *ctx, const void *key, unsigned int keylen) {
 	if(!ctx || !key)
 		return(FALSE);
-	if(keylen != MP_POLY1305_KEY)
+	if(keylen != MP_CRYPTO_POLY1305_KEY)
 		return(FALSE);
 	const uint8_t *k = (const uint8_t *)key;
 	uint32_t t0 = _le32(k + 0);
@@ -132,7 +131,7 @@ mp_ret_t mp_poly1305_init(mp_poly1305_t *ctx, const void *key, unsigned int keyl
  * @param[in] in Any length
  * @param[in] inlen Bytes to take from in
  */
-void mp_poly1305_update(mp_poly1305_t *ctx, const void *in, unsigned int inlen) {
+void mp_crypto_poly1305_update(mp_crypto_poly1305_t *ctx, const void *in, unsigned int inlen) {
 	if(!ctx || !in || !inlen)
 		return;
 	const uint8_t *p = (const uint8_t *)in;
@@ -140,21 +139,21 @@ void mp_poly1305_update(mp_poly1305_t *ctx, const void *in, unsigned int inlen) 
 
 	/* drain the buffer first */
 	if(ctx->bufLeft) {
-		unsigned int want = MP_POLY1305_BLOCK - ctx->bufLeft;
+		unsigned int want = MP_CRYPTO_POLY1305_BLOCK - ctx->bufLeft;
 		unsigned int take = want < n ? want : n;
 		memcpy(ctx->buf + ctx->bufLeft, p, take);
 		ctx->bufLeft += take;
 		p += take; n -= take;
-		if(ctx->bufLeft == MP_POLY1305_BLOCK) {
+		if(ctx->bufLeft == MP_CRYPTO_POLY1305_BLOCK) {
 			_poly1305_block(ctx, ctx->buf, (1 << 24));
 			ctx->bufLeft = 0;
 		}
 	}
 	/* full blocks straight from the input */
-	while(n >= MP_POLY1305_BLOCK) {
+	while(n >= MP_CRYPTO_POLY1305_BLOCK) {
 		_poly1305_block(ctx, p, (1 << 24));
-		p += MP_POLY1305_BLOCK;
-		n -= MP_POLY1305_BLOCK;
+		p += MP_CRYPTO_POLY1305_BLOCK;
+		n -= MP_CRYPTO_POLY1305_BLOCK;
 	}
 	/* buffer the rest */
 	if(n) {
@@ -170,7 +169,7 @@ void mp_poly1305_update(mp_poly1305_t *ctx, const void *in, unsigned int inlen) 
  * @param[out] tag 16 bytes
  * @return 16, 0 when not started; wipes the context
  */
-unsigned int mp_poly1305_final(mp_poly1305_t *ctx, uint8_t *tag) {
+unsigned int mp_crypto_poly1305_final(mp_crypto_poly1305_t *ctx, uint8_t *tag) {
 	if(!ctx || !tag)
 		return(0);
 	uint32_t h0, h1, h2, h3, h4, g0, g1, g2, g3, g4;
@@ -179,7 +178,7 @@ unsigned int mp_poly1305_final(mp_poly1305_t *ctx, uint8_t *tag) {
 	/* final partial block: pad with 0x01 then zeros, no hibit */
 	if(ctx->bufLeft) {
 		ctx->buf[ctx->bufLeft++] = 1;
-		while(ctx->bufLeft < MP_POLY1305_BLOCK)
+		while(ctx->bufLeft < MP_CRYPTO_POLY1305_BLOCK)
 			ctx->buf[ctx->bufLeft++] = 0;
 		_poly1305_block(ctx, ctx->buf, 0);
 	}
@@ -236,8 +235,8 @@ unsigned int mp_poly1305_final(mp_poly1305_t *ctx, uint8_t *tag) {
 	_le32_put(tag + 8, h2);
 	_le32_put(tag + 12, h3);
 
-	mp_poly1305_free(ctx);
-	return(MP_POLY1305_SIZE);
+	mp_crypto_poly1305_free(ctx);
+	return(MP_CRYPTO_POLY1305_SIZE);
 }
 
 /**
@@ -245,7 +244,7 @@ unsigned int mp_poly1305_final(mp_poly1305_t *ctx, uint8_t *tag) {
  *
  * @param[in] ctx Started context (or NULL)
  */
-void mp_poly1305_free(mp_poly1305_t *ctx) {
+void mp_crypto_poly1305_free(mp_crypto_poly1305_t *ctx) {
 	if(!ctx)
 		return;
 	memset(ctx, 0, sizeof(*ctx));

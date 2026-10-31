@@ -1,0 +1,23 @@
+export const phi = {
+	kind: "module",
+	name: "XTS",
+	label: "XTS",
+	description: "XTS-AES (IEEE 1619), one data unit at a time. The key is Key1 || Key2, 32 bytes for AES-128 or 64 for AES-256. mp_crypto_xts_set_tweak() takes the 16-byte little-endian data-unit number, then mp_crypto_xts_update() encrypts and mp_crypto_xts_update_inv() decrypts. A unit shorter than 16 bytes is refused; any other length uses ciphertext stealing. The tweak multiplication is a branchless mask. Runs in software everywhere, on the AES block when that accelerator accepts the key. When the series also declares an XTS accelerator, mp_crypto_xts_crypt() encrypts one 16, 32 or 64 byte flash line from a fuse slot of role MP_CRYPTO_FUSE_XTS. The caller owns the context, so nothing is allocated.",
+	define: "SUPPORT_COMMON_CRYPTO_CIPHER_XTS",
+	sources: ["xts.c"],
+	headers: ["xts.h"],
+	headerDir: "crypto",
+	requires: ["AES"],
+	settings: [
+		{
+			name: "MP_CRYPTO_XTS_RAM",
+			label: "RAM",
+			type: "number",
+			unit: "bytes",
+			default: 640,
+			min: 512,
+			max: 4096,
+			ram: true,
+		},
+	],
+}

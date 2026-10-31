@@ -16,12 +16,14 @@ export const phi = {
 	vendor: "Espressif",
 	label: "ESP32-C6",
 	tested: true,
-	description: "The PLL stays up so the USB console does not drop. SHA-1, SHA-256, AES-128 and AES-256 run on the accelerators. The HSM reads the hardware RNG; HMAC-DRBG conditions it.",
+	description: "The PLL stays up so the USB console does not drop. SHA-1, SHA-256, AES-128 and AES-256 run on the accelerators. The HSM reads the hardware RNG; HMAC-DRBG conditions it. A fuse slot is checked before HMAC upstream, RSA_DS or XTS uses it.",
 	accelerators: {
 		SHA1: { sources: ["../crypto/hash/sha.c"], headers: ["../crypto/hash/sha1.h"] },
 		SHA256: { sources: ["../crypto/hash/sha.c"], headers: ["../crypto/hash/sha256.h"] },
 		AES: { sources: ["../crypto/cipher/aes.c"], headers: ["../crypto/cipher/aes.h"] },
 		HSM: { sources: ["../crypto/rng/hsm.c"], headers: [] },
+		FUSE: { sources: ["../crypto/fuse/fuse.c", "../crypto/mac/hmac.c", "../crypto/sign/ds.c"], headers: [] },
+		XTS: { sources: ["../crypto/cipher/xts.c"], headers: [] },
 	},
 	specs: {
 		core: "HP RV32IMAC",

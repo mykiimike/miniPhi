@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -29,6 +28,14 @@
 	#ifdef MP_ARCH_HMAC
 		#include <arch/hmac.h>
 	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_FUSE
+		#include <crypto/fuse.h>
+	#else
+		#ifndef _HAVE_MP_FUSE_T
+			#define _HAVE_MP_FUSE_T
+			typedef struct mp_crypto_fuse_s mp_crypto_fuse_t;
+		#endif
+	#endif
 
 	/**
 	 * @defgroup mpCommonHmac
@@ -36,43 +43,59 @@
 	 */
 
 	/** the largest tag: the largest digest */
-	#define MP_HMAC_SIZE_MAX MP_HASH_SIZE_MAX
+	#define MP_CRYPTO_HMAC_SIZE_MAX MP_CRYPTO_HASH_SIZE_MAX
 
-	typedef struct mp_hmac_s mp_hmac_t;
+	typedef struct mp_crypto_hmac_s mp_crypto_hmac_t;
 
-	struct mp_hmac_s {
+	struct mp_crypto_hmac_s {
 		/** NULL before init and after final */
-		const mp_hash_algo_t *algo;
+		const mp_crypto_hash_algo_t *algo;
 
 		/** runs over key ^ ipad, then the message */
-		mp_hash_t inner;
+		mp_crypto_hash_t inner;
 
 		/** key ^ opad, one block of algo */
-		uint8_t outer[MP_HASH_BLOCK_MAX];
+		uint8_t outer[MP_CRYPTO_HASH_BLOCK_MAX];
 
 	#ifdef MP_ARCH_HMAC
 		mp_bool_t onHardware;
 		mp_arch_hmac_t hw;
+	#endif
+	#ifdef MP_ARCH_FUSE
+		/** generation of the fuse MAC, 0 when this context holds a key in RAM */
+		uint8_t fuse_gen;
 	#endif
 	};
 
 	/** @} */
 
 	/** hash is a name of HASH, "SHA256"; FALSE when the build does not carry it */
-	mp_ret_t mp_hmac_init(mp_hmac_t *ctx, const char *hash, const void *key, unsigned int keylen);
-	void mp_hmac_update(mp_hmac_t *ctx, const void *data, unsigned int size);
+	mp_ret_t mp_crypto_hmac_init(mp_crypto_hmac_t *ctx, const char *hash, const void *key, unsigned int keylen);
+	/**
+	 * Same as mp_crypto_hmac_init() with the key in an eFuse slot of role MP_CRYPTO_FUSE_HMAC.
+	 * SHA-256 only. FALSE when the build has no fuse block, the slot refuses, or hash is not SHA-256.
+	 */
+	mp_ret_t mp_crypto_hmac_init_fuse(mp_crypto_hmac_t *ctx, const char *hash, const mp_crypto_fuse_t *fuse);
+	void mp_crypto_hmac_update(mp_crypto_hmac_t *ctx, const void *data, unsigned int size);
 	/** writes the tag, the digest size of the hash, and returns that size; wipes the context */
-	unsigned int mp_hmac_final(mp_hmac_t *ctx, uint8_t *tag);
-	/** wipes a context that will not reach mp_hmac_final() */
-	void mp_hmac_free(mp_hmac_t *ctx);
+	unsigned int mp_crypto_hmac_final(mp_crypto_hmac_t *ctx, uint8_t *tag);
+	/** wipes a context that will not reach mp_crypto_hmac_final() */
+	void mp_crypto_hmac_free(mp_crypto_hmac_t *ctx);
 	/** one shot; 0 when the build does not carry hash */
-	unsigned int mp_hmac(const char *hash, const void *key, unsigned int keylen, const void *data, unsigned int size, uint8_t *tag);
+	unsigned int mp_crypto_hmac(const char *hash, const void *key, unsigned int keylen, const void *data, unsigned int size, uint8_t *tag);
 
 	/* an arch with an HMAC accelerator provides these; init returns NO when it does not take that hash or the block is busy, and the context then runs in software */
 	#ifdef MP_ARCH_HMAC
-		mp_bool_t mp_arch_hmac_init(mp_arch_hmac_t *hw, const mp_hash_algo_t *algo, const uint8_t *key, unsigned int keylen);
+		mp_bool_t mp_arch_hmac_init(mp_arch_hmac_t *hw, const mp_crypto_hash_algo_t *algo, const uint8_t *key, unsigned int keylen);
 		void mp_arch_hmac_update(mp_arch_hmac_t *hw, const uint8_t *data, unsigned int size);
 		void mp_arch_hmac_final(mp_arch_hmac_t *hw, uint8_t *tag);
+	#endif
+	#ifdef MP_ARCH_FUSE
+		mp_bool_t mp_arch_hmac_fuse_init(uint8_t *gen, unsigned int slot);
+		void mp_arch_hmac_fuse_update(uint8_t gen, const void *data, unsigned int size);
+		mp_bool_t mp_arch_hmac_fuse_final(uint8_t gen, uint8_t *tag);
+		void mp_arch_hmac_fuse_drop(uint8_t gen);
+		mp_bool_t mp_arch_hmac_downstream(unsigned int slot);
 	#endif
 
 #endif

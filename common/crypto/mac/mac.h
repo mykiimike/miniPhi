@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -31,11 +30,11 @@
 	 */
 
 	/** the largest tag any MAC writes (HMAC-SHA-512) */
-	#define MP_MAC_SIZE_MAX 64
+	#define MP_CRYPTO_MAC_SIZE_MAX 64
 
-	typedef struct mp_mac_s mp_mac_t;
+	typedef struct mp_crypto_mac_s mp_crypto_mac_t;
 
-	struct mp_mac_s {
+	struct mp_crypto_mac_s {
 		/** 0 before init, after final and after free */
 		int kind;
 		/** tag bytes */
@@ -44,13 +43,13 @@
 		/** as large as the largest MAC in the build */
 		union {
 		#ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
-			mp_hmac_t hmac;
+			mp_crypto_hmac_t hmac;
 		#endif
 		#ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
-			mp_blake2s_t blake2s;
+			mp_crypto_blake2s_t blake2s;
 		#endif
 		#ifdef SUPPORT_COMMON_CRYPTO_MAC_POLY1305
-			mp_poly1305_t poly1305;
+			mp_crypto_poly1305_t poly1305;
 		#endif
 			uint8_t none;
 		} ctx;
@@ -62,16 +61,16 @@
 	 * "HMAC-SHA256", "hmac-sha-256", "BLAKE2S"...
 	 * FALSE when the build does not carry name or the key does not fit; mac is then cleared.
 	 */
-	mp_ret_t mp_mac_init(mp_mac_t *mac, const char *name, const void *key, unsigned int keylen);
-	void mp_mac_update(mp_mac_t *mac, const void *data, unsigned int size);
-	/** writes the tag, at most MP_MAC_SIZE_MAX bytes, returns its size, 0 when not started; wipes the context */
-	unsigned int mp_mac_final(mp_mac_t *mac, uint8_t *tag);
-	/** wipes a context that will not reach mp_mac_final() */
-	void mp_mac_free(mp_mac_t *mac);
+	mp_ret_t mp_crypto_mac_init(mp_crypto_mac_t *mac, const char *name, const void *key, unsigned int keylen);
+	void mp_crypto_mac_update(mp_crypto_mac_t *mac, const void *data, unsigned int size);
+	/** writes the tag, at most MP_CRYPTO_MAC_SIZE_MAX bytes, returns its size, 0 when not started; wipes the context */
+	unsigned int mp_crypto_mac_final(mp_crypto_mac_t *mac, uint8_t *tag);
+	/** wipes a context that will not reach mp_crypto_mac_final() */
+	void mp_crypto_mac_free(mp_crypto_mac_t *mac);
 	/** tag bytes of a started MAC, 0 otherwise */
-	unsigned int mp_mac_size(const mp_mac_t *mac);
+	unsigned int mp_crypto_mac_size(const mp_crypto_mac_t *mac);
 	/** YES when the size bytes match; the time does not depend on where they differ */
-	mp_bool_t mp_mac_equal(const void *a, const void *b, unsigned int size);
+	mp_bool_t mp_crypto_mac_equal(const void *a, const void *b, unsigned int size);
 
 #endif
 #endif

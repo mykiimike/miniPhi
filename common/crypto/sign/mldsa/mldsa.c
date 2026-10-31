@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -33,7 +32,7 @@
 
 @brief Module-lattice signatures, FIPS 204, ML-DSA-44 / 65 / 87
 
-The security level is a build setting (MP_MLDSA_LEVEL = 2, 3 or 5) that
+The security level is a build setting (MP_CRYPTO_MLDSA_LEVEL = 2, 3 or 5) that
 selects ML-DSA-44, ML-DSA-65 or ML-DSA-87. The modulus q = 8380417, the
 ring is Z_q[x]/(x^256+1) and the NTT root is zeta = 1753. Keys and
 signatures are fixed-length byte strings (see mldsa.h for the sizes).
@@ -57,8 +56,8 @@ verifies a stored signature.
  * signing runs on the host. */
 
 #define _Q      8380417
-#define _DEXP   8192          /* 2^MP_MLDSA_D */
-#define _DHALF  4096          /* 2^(MP_MLDSA_D-1) */
+#define _DEXP   8192          /* 2^MP_CRYPTO_MLDSA_D */
+#define _DHALF  4096          /* 2^(MP_CRYPTO_MLDSA_D-1) */
 
 static uint32_t _modq(uint64_t x) { return (uint32_t)(x % _Q); }
 static uint32_t _mulmod(uint32_t a, uint32_t b) { return _modq((uint64_t)a * b); }
@@ -102,16 +101,16 @@ static int32_t _cmod(int32_t a) {
  * in Decompose and the comparison in MakeHint use arithmetic, not branches. */
 
 /* 2*gamma2 divides q-1: level 2 -> 190464, level 3/5 -> 523776. */
-#define _G2   (2 * MP_MLDSA_GAMMA2)
+#define _G2   (2 * MP_CRYPTO_MLDSA_GAMMA2)
 /* m = (q-1)/(2*gamma2): the number of high-bit buckets. level 2 -> 44, else 16. */
 #define _HM   ((_Q - 1) / _G2)
 
 static void _power2round(uint32_t r, uint32_t *r1, int32_t *t0) {
 	uint32_t rp = _modq(r);
 	uint32_t r0 = rp & (_DEXP - 1);        /* rp mod 2^d, in [0, 2^d) */
-	uint32_t hi = rp >> MP_MLDSA_D;        /* floor(rp / 2^d) */
+	uint32_t hi = rp >> MP_CRYPTO_MLDSA_D;        /* floor(rp / 2^d) */
 	/* r0 = rp mod± 2^d  (centered into (-2^(d-1), 2^(d-1)]); r1 = (rp - r0)/2^d */
-	if(r0 > (uint32_t)(1u << (MP_MLDSA_D - 1))) {
+	if(r0 > (uint32_t)(1u << (MP_CRYPTO_MLDSA_D - 1))) {
 		r0 -= _DEXP;
 		hi  += 1;
 	}
@@ -122,7 +121,7 @@ static void _power2round(uint32_t r, uint32_t *r1, int32_t *t0) {
 static void _decompose(uint32_t r, uint32_t *r1, int32_t *r0) {
 	uint32_t rp = _modq(r);
 	int32_t lo = (int32_t)(rp % _G2);
-	if(lo > (int32_t)MP_MLDSA_GAMMA2) lo -= (int32_t)_G2;   /* centered (-g2, g2] */
+	if(lo > (int32_t)MP_CRYPTO_MLDSA_GAMMA2) lo -= (int32_t)_G2;   /* centered (-g2, g2] */
 	/* rp - lo mod q (handles negative lo) */
 	uint32_t diff = _submod(rp, _modq_i(lo));
 	if(diff == (uint32_t)(_Q - 1)) {
@@ -189,7 +188,7 @@ static void _zetas_init(void) {
 	if(_zetas_ready) return;
 	_zetas[0] = 1;
 	for(uint32_t i = 1; i < 256; i++)
-		_zetas[i] = _powmod(MP_MLDSA_ZETA, _bitrev8(i));
+		_zetas[i] = _powmod(MP_CRYPTO_MLDSA_ZETA, _bitrev8(i));
 	_zetas_ready = 1;
 }
 
@@ -198,7 +197,7 @@ static void _ntt(uint32_t *a) {
 	unsigned int k = 0, len = 128;
 	while(len >= 1) {
 		unsigned int start = 0;
-		while(start < MP_MLDSA_N) {
+		while(start < MP_CRYPTO_MLDSA_N) {
 			k++;
 			uint32_t z = _zetas[k];
 			for(unsigned int j = start; j < start + len; j++) {
@@ -215,9 +214,9 @@ static void _ntt(uint32_t *a) {
 static void _intt(uint32_t *a) {
 	_zetas_init();
 	unsigned int k = 256, len = 1;
-	while(len < MP_MLDSA_N) {
+	while(len < MP_CRYPTO_MLDSA_N) {
 		unsigned int start = 0;
-		while(start < MP_MLDSA_N) {
+		while(start < MP_CRYPTO_MLDSA_N) {
 			k--;
 			uint32_t z = _Q - _zetas[k];
 			for(unsigned int j = start; j < start + len; j++) {
@@ -230,19 +229,19 @@ static void _intt(uint32_t *a) {
 		len <<= 1;
 	}
 	uint32_t f = 8347681;   /* 256^-1 mod q */
-	for(unsigned int i = 0; i < MP_MLDSA_N; i++)
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_N; i++)
 		a[i] = _mulmod(a[i], f);
 }
 
 /* pointwise product of two NTT representations. */
 static void _pmul(uint32_t *out, const uint32_t *a, const uint32_t *b) {
-	for(unsigned int i = 0; i < MP_MLDSA_N; i++)
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_N; i++)
 		out[i] = _mulmod(a[i], b[i]);
 }
 
 /* out = a + b (pointwise, NTT domain). */
 static void _padd(uint32_t *out, const uint32_t *a, const uint32_t *b) {
-	for(unsigned int i = 0; i < MP_MLDSA_N; i++)
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_N; i++)
 		out[i] = _addmod(a[i], b[i]);
 }
 
@@ -259,7 +258,7 @@ static void _simplebitpack(uint8_t *out, const int32_t *w, uint32_t b) {
 	unsigned int bits = _bitlen(b);
 	unsigned int nbytes = 32 * bits;
 	memset(out, 0, nbytes);
-	for(unsigned int i = 0; i < MP_MLDSA_N; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_N; i++) {
 		uint32_t v = (uint32_t)w[i];
 		for(unsigned int k = 0; k < bits; k++) {
 			unsigned int p = i * bits + k;
@@ -273,7 +272,7 @@ static void _bitpack(uint8_t *out, const int32_t *w, uint32_t a, uint32_t b) {
 	unsigned int bits = _bitlen(a + b);
 	unsigned int nbytes = 32 * bits;
 	memset(out, 0, nbytes);
-	for(unsigned int i = 0; i < MP_MLDSA_N; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_N; i++) {
 		uint32_t v = (uint32_t)(w[i] + (int32_t)a);
 		for(unsigned int k = 0; k < bits; k++) {
 			unsigned int p = i * bits + k;
@@ -284,7 +283,7 @@ static void _bitpack(uint8_t *out, const int32_t *w, uint32_t a, uint32_t b) {
 
 static void _simplebitunpack(int32_t *w, const uint8_t *buf, uint32_t b) {
 	unsigned int bits = _bitlen(b);
-	for(unsigned int i = 0; i < MP_MLDSA_N; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_N; i++) {
 		uint32_t v = 0;
 		for(unsigned int k = 0; k < bits; k++) {
 			unsigned int p = i * bits + k;
@@ -296,7 +295,7 @@ static void _simplebitunpack(int32_t *w, const uint8_t *buf, uint32_t b) {
 
 static void _bitunpack(int32_t *w, const uint8_t *buf, uint32_t a, uint32_t b) {
 	unsigned int bits = _bitlen(a + b);
-	for(unsigned int i = 0; i < MP_MLDSA_N; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_N; i++) {
 		uint32_t v = 0;
 		for(unsigned int k = 0; k < bits; k++) {
 			unsigned int p = i * bits + k;
@@ -307,32 +306,32 @@ static void _bitunpack(int32_t *w, const uint8_t *buf, uint32_t a, uint32_t b) {
 }
 
 /* hint pack: k polynomials of 256 binary coeffs, at most omega ones total. */
-static void _hintbitpack(uint8_t *out, const int32_t (*h)[MP_MLDSA_N]) {
-	memset(out, 0, MP_MLDSA_OMEGA + MP_MLDSA_K);
+static void _hintbitpack(uint8_t *out, const int32_t (*h)[MP_CRYPTO_MLDSA_N]) {
+	memset(out, 0, MP_CRYPTO_MLDSA_OMEGA + MP_CRYPTO_MLDSA_K);
 	unsigned int idx = 0;
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		for(unsigned int j = 0; j < MP_MLDSA_N && idx < MP_MLDSA_OMEGA; j++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		for(unsigned int j = 0; j < MP_CRYPTO_MLDSA_N && idx < MP_CRYPTO_MLDSA_OMEGA; j++) {
 			if(h[i][j] != 0) { out[idx] = (uint8_t)j; idx++; }
 		}
-		out[MP_MLDSA_OMEGA + i] = (uint8_t)idx;
+		out[MP_CRYPTO_MLDSA_OMEGA + i] = (uint8_t)idx;
 	}
 }
 
 /* hint unpack: returns 1 on success, 0 on malformed input. */
-static int _hintbitunpack(int32_t (*h)[MP_MLDSA_N], const uint8_t *buf) {
-	memset(h, 0, MP_MLDSA_K * MP_MLDSA_N * sizeof(int32_t));
+static int _hintbitunpack(int32_t (*h)[MP_CRYPTO_MLDSA_N], const uint8_t *buf) {
+	memset(h, 0, MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N * sizeof(int32_t));
 	unsigned int idx = 0;
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		if(buf[MP_MLDSA_OMEGA + i] < idx || buf[MP_MLDSA_OMEGA + i] > MP_MLDSA_OMEGA)
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		if(buf[MP_CRYPTO_MLDSA_OMEGA + i] < idx || buf[MP_CRYPTO_MLDSA_OMEGA + i] > MP_CRYPTO_MLDSA_OMEGA)
 			return 0;
 		unsigned int first = idx;
-		while(idx < buf[MP_MLDSA_OMEGA + i]) {
+		while(idx < buf[MP_CRYPTO_MLDSA_OMEGA + i]) {
 			if(idx > first && buf[idx - 1] >= buf[idx]) return 0;
 			h[i][buf[idx]] = 1;
 			idx++;
 		}
 	}
-	for(; idx < MP_MLDSA_OMEGA; idx++)
+	for(; idx < MP_CRYPTO_MLDSA_OMEGA; idx++)
 		if(buf[idx] != 0) return 0;
 	return 1;
 }
@@ -352,11 +351,11 @@ static int32_t _coeff3(uint8_t b0, uint8_t b1, uint8_t b2) {
 
 /* CoeffFromHalfByte for the secret-key range [-eta, eta]. Returns -1 on reject. */
 static int32_t _coeffhalf(uint8_t b) {
-	if(MP_MLDSA_ETA == 2) {
+	if(MP_CRYPTO_MLDSA_ETA == 2) {
 		if(b < 15) return 2 - (int32_t)(b % 5);
 		return -1;
 	}
-	if(MP_MLDSA_ETA == 4) {
+	if(MP_CRYPTO_MLDSA_ETA == 4) {
 		if(b < 9) return 4 - (int32_t)b;
 		return -1;
 	}
@@ -365,14 +364,14 @@ static int32_t _coeffhalf(uint8_t b) {
 
 /* RejNTTPoly: uniform in [0,q) via SHAKE-128 (G). seed is 34 bytes. */
 static void _rejnttpoly(uint32_t *a, const uint8_t *seed) {
-	mp_shake128_t ctx;
-	mp_shake128_init(&ctx);
-	mp_shake128_absorb(&ctx, seed, 34);
-	mp_shake128_finalize(&ctx);
+	mp_crypto_shake128_t ctx;
+	mp_crypto_shake128_init(&ctx);
+	mp_crypto_shake128_absorb(&ctx, seed, 34);
+	mp_crypto_shake128_finalize(&ctx);
 	unsigned int i = 0;
-	while(i < MP_MLDSA_N) {
+	while(i < MP_CRYPTO_MLDSA_N) {
 		uint8_t buf[3];
-		mp_shake128_squeeze(&ctx, buf, 3);
+		mp_crypto_shake128_squeeze(&ctx, buf, 3);
 		int32_t z = _coeff3(buf[0], buf[1], buf[2]);
 		if(z >= 0) a[i++] = (uint32_t)z;
 	}
@@ -380,18 +379,18 @@ static void _rejnttpoly(uint32_t *a, const uint8_t *seed) {
 
 /* RejBoundedPoly: coeffs in [-eta, eta] via SHAKE-256 (H). seed is 66 bytes. */
 static void _rejboundedpoly(int32_t *a, const uint8_t *seed) {
-	mp_shake256_t ctx;
-	mp_shake256_init(&ctx);
-	mp_shake256_absorb(&ctx, seed, 66);
-	mp_shake256_finalize(&ctx);
+	mp_crypto_shake256_t ctx;
+	mp_crypto_shake256_init(&ctx);
+	mp_crypto_shake256_absorb(&ctx, seed, 66);
+	mp_crypto_shake256_finalize(&ctx);
 	unsigned int i = 0;
-	while(i < MP_MLDSA_N) {
+	while(i < MP_CRYPTO_MLDSA_N) {
 		uint8_t b;
-		mp_shake256_squeeze(&ctx, &b, 1);
+		mp_crypto_shake256_squeeze(&ctx, &b, 1);
 		int32_t z0 = _coeffhalf(b & 0x0F);
 		int32_t z1 = _coeffhalf(b >> 4);
 		if(z0 >= 0) a[i++] = z0;
-		if(z1 >= 0 && i < MP_MLDSA_N) a[i++] = z1;
+		if(z1 >= 0 && i < MP_CRYPTO_MLDSA_N) a[i++] = z1;
 	}
 }
 
@@ -399,11 +398,11 @@ static void _rejboundedpoly(int32_t *a, const uint8_t *seed) {
 static void _expandA(uint32_t *Ahat, const uint8_t *rho) {
 	uint8_t seed[34];
 	memcpy(seed, rho, 32);
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
 		seed[32] = (uint8_t)i;
-		for(unsigned int j = 0; j < MP_MLDSA_L; j++) {
+		for(unsigned int j = 0; j < MP_CRYPTO_MLDSA_L; j++) {
 			seed[33] = (uint8_t)j;
-			_rejnttpoly(&Ahat[(i * MP_MLDSA_L + j) * MP_MLDSA_N], seed);
+			_rejnttpoly(&Ahat[(i * MP_CRYPTO_MLDSA_L + j) * MP_CRYPTO_MLDSA_N], seed);
 		}
 	}
 }
@@ -412,16 +411,16 @@ static void _expandA(uint32_t *Ahat, const uint8_t *rho) {
 static void _expandS(int32_t *s1, int32_t *s2, const uint8_t *rhop) {
 	uint8_t seed[66];
 	memcpy(seed, rhop, 64);
-	for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
 		seed[64] = (uint8_t)(i & 0xFF);
 		seed[65] = (uint8_t)(i >> 8);
-		_rejboundedpoly(&s1[i * MP_MLDSA_N], seed);
+		_rejboundedpoly(&s1[i * MP_CRYPTO_MLDSA_N], seed);
 	}
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		unsigned int r = i + MP_MLDSA_L;
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		unsigned int r = i + MP_CRYPTO_MLDSA_L;
 		seed[64] = (uint8_t)(r & 0xFF);
 		seed[65] = (uint8_t)(r >> 8);
-		_rejboundedpoly(&s2[i * MP_MLDSA_N], seed);
+		_rejboundedpoly(&s2[i * MP_CRYPTO_MLDSA_N], seed);
 	}
 }
 
@@ -432,24 +431,24 @@ static void _expandmask(int32_t *y, const uint8_t *rhopp, unsigned int k) {
 	memcpy(seed, rhopp, 64);
 	seed[64] = (uint8_t)(k & 0xFF);
 	seed[65] = (uint8_t)(k >> 8);
-	uint32_t two_g1 = 2 * MP_MLDSA_GAMMA1;
-	for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
+	uint32_t two_g1 = 2 * MP_CRYPTO_MLDSA_GAMMA1;
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
 		seed[66] = (uint8_t)i;
-		mp_shake256_t ctx;
-		mp_shake256_init(&ctx);
-		mp_shake256_absorb(&ctx, seed, 67);
-		mp_shake256_finalize(&ctx);
+		mp_crypto_shake256_t ctx;
+		mp_crypto_shake256_init(&ctx);
+		mp_crypto_shake256_absorb(&ctx, seed, 67);
+		mp_crypto_shake256_finalize(&ctx);
 		unsigned int n = 0;
-		while(n < MP_MLDSA_N) {
+		while(n < MP_CRYPTO_MLDSA_N) {
 			uint8_t buf[3];
-			mp_shake256_squeeze(&ctx, buf, 3);
+			mp_crypto_shake256_squeeze(&ctx, buf, 3);
 			uint32_t z2 = buf[2];
 			if(z2 > 127) z2 -= 128;
 			uint32_t z = (z2 << 16) | ((uint32_t)buf[1] << 8) | buf[0];
 			if(z < two_g1) {
 				int32_t c = (int32_t)z;
-				if((uint32_t)c > MP_MLDSA_GAMMA1) c -= (int32_t)two_g1;
-				y[i * MP_MLDSA_N + n] = c;
+				if((uint32_t)c > MP_CRYPTO_MLDSA_GAMMA1) c -= (int32_t)two_g1;
+				y[i * MP_CRYPTO_MLDSA_N + n] = c;
 				n++;
 			}
 		}
@@ -458,18 +457,18 @@ static void _expandmask(int32_t *y, const uint8_t *rhopp, unsigned int k) {
 
 /* SampleInBall: poly with tau coefficients in {-1,1}, rest 0, from c~ (hash). */
 static void _sampleinball(int32_t *c, const uint8_t *seed, unsigned int slen) {
-	memset(c, 0, MP_MLDSA_N * sizeof(int32_t));
-	mp_shake256_t ctx;
-	mp_shake256_init(&ctx);
-	mp_shake256_absorb(&ctx, seed, slen);
-	mp_shake256_finalize(&ctx);
+	memset(c, 0, MP_CRYPTO_MLDSA_N * sizeof(int32_t));
+	mp_crypto_shake256_t ctx;
+	mp_crypto_shake256_init(&ctx);
+	mp_crypto_shake256_absorb(&ctx, seed, slen);
+	mp_crypto_shake256_finalize(&ctx);
 	uint8_t s[8];
-	mp_shake256_squeeze(&ctx, s, 8);
-	for(unsigned int i = MP_MLDSA_N - MP_MLDSA_TAU; i < MP_MLDSA_N; i++) {
+	mp_crypto_shake256_squeeze(&ctx, s, 8);
+	for(unsigned int i = MP_CRYPTO_MLDSA_N - MP_CRYPTO_MLDSA_TAU; i < MP_CRYPTO_MLDSA_N; i++) {
 		uint8_t b;
-		do { mp_shake256_squeeze(&ctx, &b, 1); } while(b > i);
+		do { mp_crypto_shake256_squeeze(&ctx, &b, 1); } while(b > i);
 		c[i] = c[b];
-		unsigned int bit = i - (MP_MLDSA_N - MP_MLDSA_TAU);
+		unsigned int bit = i - (MP_CRYPTO_MLDSA_N - MP_CRYPTO_MLDSA_TAU);
 		int32_t sign = 1 - 2 * (int32_t)((s[bit >> 3] >> (bit & 7)) & 1);
 		c[b] = sign;
 	}
@@ -480,25 +479,25 @@ static void _sampleinball(int32_t *c, const uint8_t *seed, unsigned int slen) {
 #define _T1BITS   10                                   /* bitlen(q-1) - d = 23 - 13 */
 #define _T1BOUND  ((1u << _T1BITS) - 1)                 /* 1023 */
 #define _T1BYTES  (32 * _T1BITS)                        /* 320 bytes/poly */
-#define _ETA2B   (32 * _bitlen(2 * MP_MLDSA_ETA))       /* s1/s2 poly bytes */
-#define _T0A     ((1u << (MP_MLDSA_D - 1)) - 1)         /* 4095 */
-#define _T0B     (1u << (MP_MLDSA_D - 1))               /* 4096 */
+#define _ETA2B   (32 * _bitlen(2 * MP_CRYPTO_MLDSA_ETA))       /* s1/s2 poly bytes */
+#define _T0A     ((1u << (MP_CRYPTO_MLDSA_D - 1)) - 1)         /* 4095 */
+#define _T0B     (1u << (MP_CRYPTO_MLDSA_D - 1))               /* 4096 */
 #define _T0BYTES (32 * _bitlen(_T0A + _T0B))            /* 416 bytes/poly */
-#define _ZBYTES  (32 * _bitlen(2 * MP_MLDSA_GAMMA1 - 1))/* z poly bytes */
+#define _ZBYTES  (32 * _bitlen(2 * MP_CRYPTO_MLDSA_GAMMA1 - 1))/* z poly bytes */
 
-static void _pkencode(uint8_t *pk, const uint8_t *rho, const int32_t (*t1)[MP_MLDSA_N]) {
+static void _pkencode(uint8_t *pk, const uint8_t *rho, const int32_t (*t1)[MP_CRYPTO_MLDSA_N]) {
 	memcpy(pk, rho, 32);
 	uint8_t *p = pk + 32;
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
 		_simplebitpack(p, t1[i], _T1BOUND);
 		p += _T1BYTES;
 	}
 }
 
-static void _pkdecode(uint8_t *rho, int32_t (*t1)[MP_MLDSA_N], const uint8_t *pk) {
+static void _pkdecode(uint8_t *rho, int32_t (*t1)[MP_CRYPTO_MLDSA_N], const uint8_t *pk) {
 	memcpy(rho, pk, 32);
 	const uint8_t *p = pk + 32;
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
 		_simplebitunpack(t1[i], p, _T1BOUND);
 		p += _T1BYTES;
 	}
@@ -506,71 +505,71 @@ static void _pkdecode(uint8_t *rho, int32_t (*t1)[MP_MLDSA_N], const uint8_t *pk
 
 static void _skencode(uint8_t *sk, const uint8_t *rho, const uint8_t *K,
 		const uint8_t *tr, const int32_t *s1, const int32_t *s2,
-		const int32_t (*t0)[MP_MLDSA_N]) {
+		const int32_t (*t0)[MP_CRYPTO_MLDSA_N]) {
 	uint8_t *p = sk;
 	memcpy(p, rho, 32); p += 32;
 	memcpy(p, K, 32); p += 32;
 	memcpy(p, tr, 64); p += 64;
-	for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
-		_bitpack(p, &s1[i * MP_MLDSA_N], MP_MLDSA_ETA, MP_MLDSA_ETA);
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+		_bitpack(p, &s1[i * MP_CRYPTO_MLDSA_N], MP_CRYPTO_MLDSA_ETA, MP_CRYPTO_MLDSA_ETA);
 		p += _ETA2B;
 	}
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		_bitpack(p, &s2[i * MP_MLDSA_N], MP_MLDSA_ETA, MP_MLDSA_ETA);
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		_bitpack(p, &s2[i * MP_CRYPTO_MLDSA_N], MP_CRYPTO_MLDSA_ETA, MP_CRYPTO_MLDSA_ETA);
 		p += _ETA2B;
 	}
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
 		_bitpack(p, t0[i], _T0A, _T0B);
 		p += _T0BYTES;
 	}
 }
 
 static void _skdecode(uint8_t *rho, uint8_t *K, uint8_t *tr,
-		int32_t *s1, int32_t *s2, int32_t (*t0)[MP_MLDSA_N], const uint8_t *sk) {
+		int32_t *s1, int32_t *s2, int32_t (*t0)[MP_CRYPTO_MLDSA_N], const uint8_t *sk) {
 	const uint8_t *p = sk;
 	memcpy(rho, p, 32); p += 32;
 	memcpy(K, p, 32); p += 32;
 	memcpy(tr, p, 64); p += 64;
-	for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
-		_bitunpack(&s1[i * MP_MLDSA_N], p, MP_MLDSA_ETA, MP_MLDSA_ETA);
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+		_bitunpack(&s1[i * MP_CRYPTO_MLDSA_N], p, MP_CRYPTO_MLDSA_ETA, MP_CRYPTO_MLDSA_ETA);
 		p += _ETA2B;
 	}
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		_bitunpack(&s2[i * MP_MLDSA_N], p, MP_MLDSA_ETA, MP_MLDSA_ETA);
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		_bitunpack(&s2[i * MP_CRYPTO_MLDSA_N], p, MP_CRYPTO_MLDSA_ETA, MP_CRYPTO_MLDSA_ETA);
 		p += _ETA2B;
 	}
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
 		_bitunpack(t0[i], p, _T0A, _T0B);
 		p += _T0BYTES;
 	}
 }
 
 static void _sigencode(uint8_t *sig, const uint8_t *chat,
-		const int32_t *z, const int32_t (*h)[MP_MLDSA_N]) {
-	memcpy(sig, chat, MP_MLDSA_CHASH);
-	uint8_t *p = sig + MP_MLDSA_CHASH;
-	for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
-		_bitpack(p, &z[i * MP_MLDSA_N], MP_MLDSA_GAMMA1 - 1, MP_MLDSA_GAMMA1);
+		const int32_t *z, const int32_t (*h)[MP_CRYPTO_MLDSA_N]) {
+	memcpy(sig, chat, MP_CRYPTO_MLDSA_CHASH);
+	uint8_t *p = sig + MP_CRYPTO_MLDSA_CHASH;
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+		_bitpack(p, &z[i * MP_CRYPTO_MLDSA_N], MP_CRYPTO_MLDSA_GAMMA1 - 1, MP_CRYPTO_MLDSA_GAMMA1);
 		p += _ZBYTES;
 	}
 	_hintbitpack(p, h);
 }
 
-static int _sigdecode(uint8_t *chat, int32_t *z, int32_t (*h)[MP_MLDSA_N],
+static int _sigdecode(uint8_t *chat, int32_t *z, int32_t (*h)[MP_CRYPTO_MLDSA_N],
 		const uint8_t *sig) {
-	memcpy(chat, sig, MP_MLDSA_CHASH);
-	const uint8_t *p = sig + MP_MLDSA_CHASH;
-	for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
-		_bitunpack(&z[i * MP_MLDSA_N], p, MP_MLDSA_GAMMA1 - 1, MP_MLDSA_GAMMA1);
+	memcpy(chat, sig, MP_CRYPTO_MLDSA_CHASH);
+	const uint8_t *p = sig + MP_CRYPTO_MLDSA_CHASH;
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+		_bitunpack(&z[i * MP_CRYPTO_MLDSA_N], p, MP_CRYPTO_MLDSA_GAMMA1 - 1, MP_CRYPTO_MLDSA_GAMMA1);
 		p += _ZBYTES;
 	}
 	return _hintbitunpack(h, p);
 }
 
-static void _w1encode(uint8_t *out, const int32_t (*w1)[MP_MLDSA_N]) {
+static void _w1encode(uint8_t *out, const int32_t (*w1)[MP_CRYPTO_MLDSA_N]) {
 	uint8_t *p = out;
 	unsigned int wb = 32 * _bitlen(_HM - 1);
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
 		_simplebitpack(p, w1[i], _HM - 1);
 		p += wb;
 	}
@@ -582,10 +581,10 @@ static void _w1encode(uint8_t *out, const int32_t (*w1)[MP_MLDSA_N]) {
 static void _h_seed(uint8_t *rho, uint8_t *rhop, uint8_t *K, const uint8_t *xi) {
 	uint8_t seed[34];
 	memcpy(seed, xi, 32);
-	seed[32] = (uint8_t)MP_MLDSA_K;
-	seed[33] = (uint8_t)MP_MLDSA_L;
+	seed[32] = (uint8_t)MP_CRYPTO_MLDSA_K;
+	seed[33] = (uint8_t)MP_CRYPTO_MLDSA_L;
 	uint8_t out[128];
-	mp_shake256(out, 128, seed, 34);
+	mp_crypto_shake256(out, 128, seed, 34);
 	memcpy(rho, out, 32);
 	memcpy(rhop, out + 32, 64);
 	memcpy(K, out + 96, 32);
@@ -594,87 +593,87 @@ static void _h_seed(uint8_t *rho, uint8_t *rhop, uint8_t *K, const uint8_t *xi) 
 /* mu = H(BytesToBits(tr) || M', 64); M' bytes = 0x00 || len(ctx) || ctx || M.
  * Empty context here, so M' = 0x00 || 0x00 || msg. */
 static void _h_mu(uint8_t *mu, const uint8_t *tr, const uint8_t *msg, unsigned int mlen) {
-	mp_shake256_t ctx;
-	mp_shake256_init(&ctx);
-	mp_shake256_absorb(&ctx, tr, 64);
+	mp_crypto_shake256_t ctx;
+	mp_crypto_shake256_init(&ctx);
+	mp_crypto_shake256_absorb(&ctx, tr, 64);
 	uint8_t pre[2] = { 0, 0 };
-	mp_shake256_absorb(&ctx, pre, 2);
-	mp_shake256_absorb(&ctx, msg, mlen);
-	mp_shake256_finalize(&ctx);
-	mp_shake256_squeeze(&ctx, mu, 64);
+	mp_crypto_shake256_absorb(&ctx, pre, 2);
+	mp_crypto_shake256_absorb(&ctx, msg, mlen);
+	mp_crypto_shake256_finalize(&ctx);
+	mp_crypto_shake256_squeeze(&ctx, mu, 64);
 }
 
 /* rho'' = H(K || rnd || mu, 64); deterministic signing uses rnd = 0^32. */
 static void _h_rhopp(uint8_t *rhopp, const uint8_t *K, const uint8_t *mu) {
-	mp_shake256_t ctx;
-	mp_shake256_init(&ctx);
-	mp_shake256_absorb(&ctx, K, 32);
+	mp_crypto_shake256_t ctx;
+	mp_crypto_shake256_init(&ctx);
+	mp_crypto_shake256_absorb(&ctx, K, 32);
 	uint8_t rnd[32];
 	memset(rnd, 0, 32);
-	mp_shake256_absorb(&ctx, rnd, 32);
-	mp_shake256_absorb(&ctx, mu, 64);
-	mp_shake256_finalize(&ctx);
-	mp_shake256_squeeze(&ctx, rhopp, 64);
+	mp_crypto_shake256_absorb(&ctx, rnd, 32);
+	mp_crypto_shake256_absorb(&ctx, mu, 64);
+	mp_crypto_shake256_finalize(&ctx);
+	mp_crypto_shake256_squeeze(&ctx, rhopp, 64);
 }
 
 /* c~ = H(rho || w1Encode(w1), ceil(lambda/4)). */
 static void _h_chat(uint8_t *chat, const uint8_t *rho, const uint8_t *w1bytes, unsigned int w1len) {
-	mp_shake256_t ctx;
-	mp_shake256_init(&ctx);
-	mp_shake256_absorb(&ctx, rho, 32);
-	mp_shake256_absorb(&ctx, w1bytes, w1len);
-	mp_shake256_finalize(&ctx);
-	mp_shake256_squeeze(&ctx, chat, MP_MLDSA_CHASH);
+	mp_crypto_shake256_t ctx;
+	mp_crypto_shake256_init(&ctx);
+	mp_crypto_shake256_absorb(&ctx, rho, 32);
+	mp_crypto_shake256_absorb(&ctx, w1bytes, w1len);
+	mp_crypto_shake256_finalize(&ctx);
+	mp_crypto_shake256_squeeze(&ctx, chat, MP_CRYPTO_MLDSA_CHASH);
 }
 
 /* ---- matrix-vector product in the NTT domain ------------------------- *
  * out[i] = sum_j Ahat[i][j] (circ) vhat[j], for i in [0,k), j in [0,l). */
 static void _matvec_ntt(uint32_t *out, const uint32_t *Ahat, const uint32_t *vhat) {
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		uint32_t acc[MP_MLDSA_N];
-		_pmul(acc, &Ahat[(i * MP_MLDSA_L + 0) * MP_MLDSA_N], &vhat[0 * MP_MLDSA_N]);
-		for(unsigned int j = 1; j < MP_MLDSA_L; j++) {
-			uint32_t tmp[MP_MLDSA_N];
-			_pmul(tmp, &Ahat[(i * MP_MLDSA_L + j) * MP_MLDSA_N], &vhat[j * MP_MLDSA_N]);
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		uint32_t acc[MP_CRYPTO_MLDSA_N];
+		_pmul(acc, &Ahat[(i * MP_CRYPTO_MLDSA_L + 0) * MP_CRYPTO_MLDSA_N], &vhat[0 * MP_CRYPTO_MLDSA_N]);
+		for(unsigned int j = 1; j < MP_CRYPTO_MLDSA_L; j++) {
+			uint32_t tmp[MP_CRYPTO_MLDSA_N];
+			_pmul(tmp, &Ahat[(i * MP_CRYPTO_MLDSA_L + j) * MP_CRYPTO_MLDSA_N], &vhat[j * MP_CRYPTO_MLDSA_N]);
 			_padd(acc, acc, tmp);
 		}
-		memcpy(&out[i * MP_MLDSA_N], acc, MP_MLDSA_N * sizeof(uint32_t));
+		memcpy(&out[i * MP_CRYPTO_MLDSA_N], acc, MP_CRYPTO_MLDSA_N * sizeof(uint32_t));
 	}
 }
 
 /* ---- ML-DSA. KeyGen_internal (FIPS 204 Alg 6) ------------------------- */
-mp_ret_t mp_mldsa_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+mp_ret_t mp_crypto_mldsa_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
 	if(seedlen < 32)
 		return FALSE;
 	const uint8_t *xi = seed;
 	uint8_t rho[32], rhop[64], K[32];
 	_h_seed(rho, rhop, K, xi);
 
-	static uint32_t Ahat[MP_MLDSA_K * MP_MLDSA_L * MP_MLDSA_N];
+	static uint32_t Ahat[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
 	_expandA(Ahat, rho);
 
-	static int32_t s1[MP_MLDSA_L * MP_MLDSA_N];
-	static int32_t s2[MP_MLDSA_K * MP_MLDSA_N];
+	static int32_t s1[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
+	static int32_t s2[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
 	_expandS(s1, s2, rhop);
 
-	static uint32_t s1hat[MP_MLDSA_L * MP_MLDSA_N];
-	for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++)
-			s1hat[i * MP_MLDSA_N + n] = _modq_i(s1[i * MP_MLDSA_N + n]);
-		_ntt(&s1hat[i * MP_MLDSA_N]);
+	static uint32_t s1hat[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++)
+			s1hat[i * MP_CRYPTO_MLDSA_N + n] = _modq_i(s1[i * MP_CRYPTO_MLDSA_N + n]);
+		_ntt(&s1hat[i * MP_CRYPTO_MLDSA_N]);
 	}
 
-	static uint32_t thathat[MP_MLDSA_K * MP_MLDSA_N];
+	static uint32_t thathat[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
 	_matvec_ntt(thathat, Ahat, s1hat);
 
-	static int32_t t1[MP_MLDSA_K][MP_MLDSA_N];
-	static int32_t t0[MP_MLDSA_K][MP_MLDSA_N];
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		uint32_t tmp[MP_MLDSA_N];
-		memcpy(tmp, &thathat[i * MP_MLDSA_N], MP_MLDSA_N * sizeof(uint32_t));
+	static int32_t t1[MP_CRYPTO_MLDSA_K][MP_CRYPTO_MLDSA_N];
+	static int32_t t0[MP_CRYPTO_MLDSA_K][MP_CRYPTO_MLDSA_N];
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		uint32_t tmp[MP_CRYPTO_MLDSA_N];
+		memcpy(tmp, &thathat[i * MP_CRYPTO_MLDSA_N], MP_CRYPTO_MLDSA_N * sizeof(uint32_t));
 		_intt(tmp);
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++) {
-			uint32_t r = _addmod(tmp[n], _modq_i(s2[i * MP_MLDSA_N + n]));
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) {
+			uint32_t r = _addmod(tmp[n], _modq_i(s2[i * MP_CRYPTO_MLDSA_N + n]));
 			uint32_t hi; int32_t lo;
 			_power2round(r, &hi, &lo);
 			t1[i][n] = (int32_t)hi;
@@ -686,7 +685,7 @@ mp_ret_t mp_mldsa_keypair(const void *seed, unsigned int seedlen, void *priv, vo
 	_pkencode(pk, rho, t1);
 
 	uint8_t tr[64];
-	mp_shake256(tr, 64, pk, MP_MLDSA_PK_SIZE);
+	mp_crypto_shake256(tr, 64, pk, MP_CRYPTO_MLDSA_PK_SIZE);
 
 	uint8_t *sk = priv;
 	_skencode(sk, rho, K, tr, s1, s2, t0);
@@ -705,28 +704,28 @@ static int32_t _infnorm(const int32_t *a, unsigned int cnt) {
 }
 
 /* ---- ML-DSA. Sign_internal (FIPS 204 Alg 7), deterministic ------------- */
-unsigned int mp_mldsa_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+unsigned int mp_crypto_mldsa_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
 	uint8_t rho[32], K[32], tr[64];
-	static int32_t s1[MP_MLDSA_L * MP_MLDSA_N];
-	static int32_t s2[MP_MLDSA_K * MP_MLDSA_N];
-	static int32_t t0[MP_MLDSA_K][MP_MLDSA_N];
+	static int32_t s1[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
+	static int32_t s2[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
+	static int32_t t0[MP_CRYPTO_MLDSA_K][MP_CRYPTO_MLDSA_N];
 	_skdecode(rho, K, tr, s1, s2, t0, priv);
 
-	static uint32_t s1hat[MP_MLDSA_L * MP_MLDSA_N];
-	static uint32_t s2hat[MP_MLDSA_K * MP_MLDSA_N];
-	static uint32_t t0hat[MP_MLDSA_K * MP_MLDSA_N];
-	for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++) s1hat[i * MP_MLDSA_N + n] = _modq_i(s1[i * MP_MLDSA_N + n]);
-		_ntt(&s1hat[i * MP_MLDSA_N]);
+	static uint32_t s1hat[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
+	static uint32_t s2hat[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
+	static uint32_t t0hat[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) s1hat[i * MP_CRYPTO_MLDSA_N + n] = _modq_i(s1[i * MP_CRYPTO_MLDSA_N + n]);
+		_ntt(&s1hat[i * MP_CRYPTO_MLDSA_N]);
 	}
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++) s2hat[i * MP_MLDSA_N + n] = _modq_i(s2[i * MP_MLDSA_N + n]);
-		_ntt(&s2hat[i * MP_MLDSA_N]);
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++) t0hat[i * MP_MLDSA_N + n] = _modq_i(t0[i][n]);
-		_ntt(&t0hat[i * MP_MLDSA_N]);
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) s2hat[i * MP_CRYPTO_MLDSA_N + n] = _modq_i(s2[i * MP_CRYPTO_MLDSA_N + n]);
+		_ntt(&s2hat[i * MP_CRYPTO_MLDSA_N]);
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) t0hat[i * MP_CRYPTO_MLDSA_N + n] = _modq_i(t0[i][n]);
+		_ntt(&t0hat[i * MP_CRYPTO_MLDSA_N]);
 	}
 
-	static uint32_t Ahat[MP_MLDSA_K * MP_MLDSA_L * MP_MLDSA_N];
+	static uint32_t Ahat[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
 	_expandA(Ahat, rho);
 
 	uint8_t mu[64];
@@ -734,173 +733,217 @@ unsigned int mp_mldsa_sign(const void *priv, const void *msg, unsigned int len, 
 	uint8_t rhopp[64];
 	_h_rhopp(rhopp, K, mu);
 
-	static int32_t z[MP_MLDSA_L * MP_MLDSA_N];
-	static int32_t h[MP_MLDSA_K][MP_MLDSA_N];
-	static uint8_t chat[MP_MLDSA_CHASH];
-	unsigned int w1bytes = MP_MLDSA_K * 32 * _bitlen(_HM - 1);
+	static int32_t z[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
+	static int32_t h[MP_CRYPTO_MLDSA_K][MP_CRYPTO_MLDSA_N];
+	static uint8_t chat[MP_CRYPTO_MLDSA_CHASH];
+	unsigned int w1bytes = MP_CRYPTO_MLDSA_K * 32 * _bitlen(_HM - 1);
 	static uint8_t w1b[1024];
 
-	for(unsigned int k = 0; ; k += MP_MLDSA_L) {
+	for(unsigned int k = 0; ; k += MP_CRYPTO_MLDSA_L) {
 		if(k > 2000) return 0; /* rejection-sampling cap */
-		static int32_t y[MP_MLDSA_L * MP_MLDSA_N];
+		static int32_t y[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
 		_expandmask(y, rhopp, k);
 
-		static uint32_t yhat[MP_MLDSA_L * MP_MLDSA_N];
-		for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
-			for(unsigned int n = 0; n < MP_MLDSA_N; n++) yhat[i * MP_MLDSA_N + n] = _modq_i(y[i * MP_MLDSA_N + n]);
-			_ntt(&yhat[i * MP_MLDSA_N]);
+		static uint32_t yhat[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
+		for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+			for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) yhat[i * MP_CRYPTO_MLDSA_N + n] = _modq_i(y[i * MP_CRYPTO_MLDSA_N + n]);
+			_ntt(&yhat[i * MP_CRYPTO_MLDSA_N]);
 		}
 
-		static uint32_t what[MP_MLDSA_K * MP_MLDSA_N];
+		static uint32_t what[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
 		_matvec_ntt(what, Ahat, yhat);
-		static uint32_t w[MP_MLDSA_K * MP_MLDSA_N];
-		static int32_t w1[MP_MLDSA_K][MP_MLDSA_N];
-		for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-			memcpy(&w[i * MP_MLDSA_N], &what[i * MP_MLDSA_N], MP_MLDSA_N * sizeof(uint32_t));
-			_intt(&w[i * MP_MLDSA_N]);
-			for(unsigned int n = 0; n < MP_MLDSA_N; n++) {
-				w1[i][n] = (int32_t)_highbits(w[i * MP_MLDSA_N + n]);
+		static uint32_t w[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
+		static int32_t w1[MP_CRYPTO_MLDSA_K][MP_CRYPTO_MLDSA_N];
+		for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+			memcpy(&w[i * MP_CRYPTO_MLDSA_N], &what[i * MP_CRYPTO_MLDSA_N], MP_CRYPTO_MLDSA_N * sizeof(uint32_t));
+			_intt(&w[i * MP_CRYPTO_MLDSA_N]);
+			for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) {
+				w1[i][n] = (int32_t)_highbits(w[i * MP_CRYPTO_MLDSA_N + n]);
 			}
 		}
 
-		_w1encode(w1b, (const int32_t (*)[MP_MLDSA_N])w1);
+		_w1encode(w1b, (const int32_t (*)[MP_CRYPTO_MLDSA_N])w1);
 		_h_chat(chat, rho, w1b, w1bytes);
 
-		static int32_t c[MP_MLDSA_N];
-		_sampleinball(c, chat, MP_MLDSA_CHASH);
-		static uint32_t chat_hat[MP_MLDSA_N];
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++) chat_hat[n] = _modq_i(c[n]);
+		static int32_t c[MP_CRYPTO_MLDSA_N];
+		_sampleinball(c, chat, MP_CRYPTO_MLDSA_CHASH);
+		static uint32_t chat_hat[MP_CRYPTO_MLDSA_N];
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) chat_hat[n] = _modq_i(c[n]);
 		_ntt(chat_hat);
 
 		/* z = y + NTT^-1(chat_hat (circ) s1hat) ; r0 = LowBits(w - NTT^-1(chat_hat (circ) s2hat)) */
 		int32_t zn = 0, r0n = 0;
-		for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
-			uint32_t tmp[MP_MLDSA_N];
-			_pmul(tmp, chat_hat, &s1hat[i * MP_MLDSA_N]);
+		for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+			uint32_t tmp[MP_CRYPTO_MLDSA_N];
+			_pmul(tmp, chat_hat, &s1hat[i * MP_CRYPTO_MLDSA_N]);
 			_intt(tmp);
-			for(unsigned int n = 0; n < MP_MLDSA_N; n++) {
-				int32_t v = _cmod((int32_t)tmp[n] + y[i * MP_MLDSA_N + n]);
-				z[i * MP_MLDSA_N + n] = v;
+			for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) {
+				int32_t v = _cmod((int32_t)tmp[n] + y[i * MP_CRYPTO_MLDSA_N + n]);
+				z[i * MP_CRYPTO_MLDSA_N + n] = v;
 				if(v > zn) zn = v;
 				if(-v > zn) zn = -v;
 			}
 		}
-		for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-			uint32_t tmp[MP_MLDSA_N];
-			_pmul(tmp, chat_hat, &s2hat[i * MP_MLDSA_N]);
+		for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+			uint32_t tmp[MP_CRYPTO_MLDSA_N];
+			_pmul(tmp, chat_hat, &s2hat[i * MP_CRYPTO_MLDSA_N]);
 			_intt(tmp);
-			for(unsigned int n = 0; n < MP_MLDSA_N; n++) {
+			for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) {
 				int32_t s2p = _cmod((int32_t)tmp[n]);
-				uint32_t r = _submod(w[i * MP_MLDSA_N + n], _modq_i(s2p));
+				uint32_t r = _submod(w[i * MP_CRYPTO_MLDSA_N + n], _modq_i(s2p));
 				int32_t r0 = _lowbits(r);
 				if(r0 > r0n) r0n = r0;
 				if(-r0 > r0n) r0n = -r0;
 			}
 		}
 
-		if(zn < (int32_t)(MP_MLDSA_GAMMA1 - MP_MLDSA_BETA) &&
-		   r0n < (int32_t)(MP_MLDSA_GAMMA2 - MP_MLDSA_BETA)) {
+		if(zn < (int32_t)(MP_CRYPTO_MLDSA_GAMMA1 - MP_CRYPTO_MLDSA_BETA) &&
+		   r0n < (int32_t)(MP_CRYPTO_MLDSA_GAMMA2 - MP_CRYPTO_MLDSA_BETA)) {
 			/* hint: h = MakeHint(-<t0>, w - <s2> + <t0>); check <t0> and weight */
 			int32_t t0n = 0;
 			unsigned int hw = 0;
 			memset(h, 0, sizeof(h));
-			for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-				uint32_t t0p_hat[MP_MLDSA_N];
-				_pmul(t0p_hat, chat_hat, &t0hat[i * MP_MLDSA_N]);
+			for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+				uint32_t t0p_hat[MP_CRYPTO_MLDSA_N];
+				_pmul(t0p_hat, chat_hat, &t0hat[i * MP_CRYPTO_MLDSA_N]);
 				_intt(t0p_hat);
-				uint32_t s2p_hat[MP_MLDSA_N];
-				_pmul(s2p_hat, chat_hat, &s2hat[i * MP_MLDSA_N]);
+				uint32_t s2p_hat[MP_CRYPTO_MLDSA_N];
+				_pmul(s2p_hat, chat_hat, &s2hat[i * MP_CRYPTO_MLDSA_N]);
 				_intt(s2p_hat);
-				for(unsigned int n = 0; n < MP_MLDSA_N; n++) {
+				for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) {
 					int32_t t0p = _cmod((int32_t)t0p_hat[n]);
 					if(t0p > t0n) t0n = t0p;
 					if(-t0p > t0n) t0n = -t0p;
 					int32_t s2p = _cmod((int32_t)s2p_hat[n]);
-					uint32_t r = _addmod(_submod(w[i * MP_MLDSA_N + n], _modq_i(s2p)), _modq_i(t0p));
+					uint32_t r = _addmod(_submod(w[i * MP_CRYPTO_MLDSA_N + n], _modq_i(s2p)), _modq_i(t0p));
 					h[i][n] = (int32_t)_makehint(-t0p, r);
 					if(h[i][n]) hw++;
 				}
 			}
-		if(t0n < (int32_t)MP_MLDSA_GAMMA2 && hw <= MP_MLDSA_OMEGA) {
-			_sigencode(sig, chat, z, (const int32_t (*)[MP_MLDSA_N])h);
-			return MP_MLDSA_SIG_SIZE;
+		if(t0n < (int32_t)MP_CRYPTO_MLDSA_GAMMA2 && hw <= MP_CRYPTO_MLDSA_OMEGA) {
+			_sigencode(sig, chat, z, (const int32_t (*)[MP_CRYPTO_MLDSA_N])h);
+			return MP_CRYPTO_MLDSA_SIG_SIZE;
 		}
 		}
 	}
 }
 
 /* ---- ML-DSA. Verify_internal (FIPS 204 Alg 8) ------------------------- */
-mp_bool_t mp_mldsa_verify(const void *pub, const void *msg, unsigned int len,
+mp_bool_t mp_crypto_mldsa_verify(const void *pub, const void *msg, unsigned int len,
 		const void *sig, unsigned int siglen) {
-	if(siglen != MP_MLDSA_SIG_SIZE)
+	if(siglen != MP_CRYPTO_MLDSA_SIG_SIZE)
 		return NO;
 	uint8_t rho[32];
-	static int32_t t1[MP_MLDSA_K][MP_MLDSA_N];
+	static int32_t t1[MP_CRYPTO_MLDSA_K][MP_CRYPTO_MLDSA_N];
 	_pkdecode(rho, t1, pub);
 
-	static uint8_t chat[MP_MLDSA_CHASH];
-	static int32_t z[MP_MLDSA_L * MP_MLDSA_N];
-	static int32_t h[MP_MLDSA_K][MP_MLDSA_N];
+	static uint8_t chat[MP_CRYPTO_MLDSA_CHASH];
+	static int32_t z[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
+	static int32_t h[MP_CRYPTO_MLDSA_K][MP_CRYPTO_MLDSA_N];
 	if(!_sigdecode(chat, z, h, sig))
 		return NO;
 
-	static uint32_t Ahat[MP_MLDSA_K * MP_MLDSA_L * MP_MLDSA_N];
+	static uint32_t Ahat[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
 	_expandA(Ahat, rho);
 
 	uint8_t tr[64];
-	mp_shake256(tr, 64, pub, MP_MLDSA_PK_SIZE);
+	mp_crypto_shake256(tr, 64, pub, MP_CRYPTO_MLDSA_PK_SIZE);
 	uint8_t mu[64];
 	_h_mu(mu, tr, msg, len);
 
-	static int32_t c[MP_MLDSA_N];
-	_sampleinball(c, chat, MP_MLDSA_CHASH);
-	static uint32_t chat_hat[MP_MLDSA_N];
-	for(unsigned int n = 0; n < MP_MLDSA_N; n++) chat_hat[n] = _modq_i(c[n]);
+	static int32_t c[MP_CRYPTO_MLDSA_N];
+	_sampleinball(c, chat, MP_CRYPTO_MLDSA_CHASH);
+	static uint32_t chat_hat[MP_CRYPTO_MLDSA_N];
+	for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) chat_hat[n] = _modq_i(c[n]);
 	_ntt(chat_hat);
 
 	/* NTT(t1 * 2^d) */
-	static uint32_t t1d_hat[MP_MLDSA_K * MP_MLDSA_N];
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++)
-			t1d_hat[i * MP_MLDSA_N + n] = _modq((uint64_t)t1[i][n] << MP_MLDSA_D);
-		_ntt(&t1d_hat[i * MP_MLDSA_N]);
+	static uint32_t t1d_hat[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++)
+			t1d_hat[i * MP_CRYPTO_MLDSA_N + n] = _modq((uint64_t)t1[i][n] << MP_CRYPTO_MLDSA_D);
+		_ntt(&t1d_hat[i * MP_CRYPTO_MLDSA_N]);
 	}
 	/* NTT(z) */
-	static uint32_t zhat[MP_MLDSA_L * MP_MLDSA_N];
-	for(unsigned int i = 0; i < MP_MLDSA_L; i++) {
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++) zhat[i * MP_MLDSA_N + n] = _modq_i(z[i * MP_MLDSA_N + n]);
-		_ntt(&zhat[i * MP_MLDSA_N]);
+	static uint32_t zhat[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++) zhat[i * MP_CRYPTO_MLDSA_N + n] = _modq_i(z[i * MP_CRYPTO_MLDSA_N + n]);
+		_ntt(&zhat[i * MP_CRYPTO_MLDSA_N]);
 	}
 	/* w' = NTT^-1(ScalarVectorNTT(chat_hat, t1d_hat) - MatrixVectorNTT(Ahat, zhat)) */
-	static uint32_t matvec[MP_MLDSA_K * MP_MLDSA_N];
+	static uint32_t matvec[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
 	_matvec_ntt(matvec, Ahat, zhat);
-	static uint32_t wphat[MP_MLDSA_K * MP_MLDSA_N];
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		uint32_t tmp[MP_MLDSA_N];
-		_pmul(tmp, chat_hat, &t1d_hat[i * MP_MLDSA_N]);
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++)
-			wphat[i * MP_MLDSA_N + n] = _submod(matvec[i * MP_MLDSA_N + n], tmp[n]);
+	static uint32_t wphat[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		uint32_t tmp[MP_CRYPTO_MLDSA_N];
+		_pmul(tmp, chat_hat, &t1d_hat[i * MP_CRYPTO_MLDSA_N]);
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++)
+			wphat[i * MP_CRYPTO_MLDSA_N + n] = _submod(matvec[i * MP_CRYPTO_MLDSA_N + n], tmp[n]);
 	}
-	static uint32_t wp[MP_MLDSA_K * MP_MLDSA_N];
-	static int32_t w1p[MP_MLDSA_K][MP_MLDSA_N];
-	for(unsigned int i = 0; i < MP_MLDSA_K; i++) {
-		memcpy(&wp[i * MP_MLDSA_N], &wphat[i * MP_MLDSA_N], MP_MLDSA_N * sizeof(uint32_t));
-		_intt(&wp[i * MP_MLDSA_N]);
-		for(unsigned int n = 0; n < MP_MLDSA_N; n++)
-			w1p[i][n] = (int32_t)_usehint((uint32_t)h[i][n], wp[i * MP_MLDSA_N + n]);
+	static uint32_t wp[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
+	static int32_t w1p[MP_CRYPTO_MLDSA_K][MP_CRYPTO_MLDSA_N];
+	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
+		memcpy(&wp[i * MP_CRYPTO_MLDSA_N], &wphat[i * MP_CRYPTO_MLDSA_N], MP_CRYPTO_MLDSA_N * sizeof(uint32_t));
+		_intt(&wp[i * MP_CRYPTO_MLDSA_N]);
+		for(unsigned int n = 0; n < MP_CRYPTO_MLDSA_N; n++)
+			w1p[i][n] = (int32_t)_usehint((uint32_t)h[i][n], wp[i * MP_CRYPTO_MLDSA_N + n]);
 	}
 
-	unsigned int w1bl = MP_MLDSA_K * 32 * _bitlen(_HM - 1);
+	unsigned int w1bl = MP_CRYPTO_MLDSA_K * 32 * _bitlen(_HM - 1);
 	static uint8_t w1pb[1024];
-	_w1encode(w1pb, (const int32_t (*)[MP_MLDSA_N])w1p);
-	uint8_t chatp[MP_MLDSA_CHASH];
+	_w1encode(w1pb, (const int32_t (*)[MP_CRYPTO_MLDSA_N])w1p);
+	uint8_t chatp[MP_CRYPTO_MLDSA_CHASH];
 	_h_chat(chatp, rho, w1pb, w1bl);
 
-	if(_infnorm(z, MP_MLDSA_L * MP_MLDSA_N) >= (int32_t)(MP_MLDSA_GAMMA1 - MP_MLDSA_BETA))
+	if(_infnorm(z, MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N) >= (int32_t)(MP_CRYPTO_MLDSA_GAMMA1 - MP_CRYPTO_MLDSA_BETA))
 		return NO;
-	if(memcmp(chat, chatp, MP_MLDSA_CHASH) != 0)
+	if(memcmp(chat, chatp, MP_CRYPTO_MLDSA_CHASH) != 0)
 		return NO;
 	return YES;
+}
+
+/**
+ * @brief Sign with a fuse slot
+ *
+ * A series that declares an ML-DSA accelerator provides mp_arch_mldsa_sign_fuse().
+ * wrapped is the blob that arch defines.
+ *
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_MLDSA
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] msg Message
+ * @param[in] len Message length
+ * @param[out] sig MP_CRYPTO_MLDSA_SIG_SIZE bytes
+ * @return The signature size, or 0 when this series has no such accelerator
+ */
+unsigned int mp_crypto_mldsa_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+	static mp_bool_t said;
+
+	if(!sig || (len && !msg))
+		return(0);
+#ifdef MP_ARCH_MLDSA
+	unsigned int n;
+
+#ifdef SUPPORT_COMMON_CRYPTO_FUSE
+	if(mp_crypto_fuse_check(fuse, MP_CRYPTO_FUSE_MLDSA) != YES)
+		return(0);
+#endif
+	n = mp_arch_mldsa_sign_fuse(fuse, wrapped, wrappedlen, msg, len, sig);
+	if(!n && said == NO) {
+		mp_printk("ML-DSA: the accelerator refused the fuse");
+		said = YES;
+	}
+	return(n);
+#else
+	(void)fuse;
+	(void)wrapped;
+	(void)wrappedlen;
+	if(said == NO) {
+		mp_printk("ML-DSA: this build has no fuse");
+		said = YES;
+	}
+	return(0);
+#endif
 }
 
 /**@}*/

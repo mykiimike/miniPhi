@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -35,43 +34,43 @@
 	 */
 
 	/** ChaCha20 keystream block (bytes) */
-	#define MP_CHACHA20_BLOCK 64
+	#define MP_CRYPTO_CHACHA20_BLOCK 64
 
 	/** ChaCha20 key (bytes) */
-	#define MP_CHACHA20_KEY 32
+	#define MP_CRYPTO_CHACHA20_KEY 32
 
 	/** ChaCha20 nonce (bytes), the RFC 8439 96-bit nonce */
-	#define MP_CHACHA20_NONCE 12
+	#define MP_CRYPTO_CHACHA20_NONCE 12
 
-	typedef struct mp_chacha20_s mp_chacha20_t;
+	typedef struct mp_crypto_chacha20_s mp_crypto_chacha20_t;
 
 	/** ChaCha20 context, owned by the caller. A stream cipher: the
 	 *  keystream is buffered so any length can be XORed. */
-	struct mp_chacha20_s {
+	struct mp_crypto_chacha20_s {
 		/** 256-bit key */
-		uint8_t key[MP_CHACHA20_KEY];
+		uint8_t key[MP_CRYPTO_CHACHA20_KEY];
 		/** 96-bit nonce */
-		uint8_t nonce[MP_CHACHA20_NONCE];
+		uint8_t nonce[MP_CRYPTO_CHACHA20_NONCE];
 		/** 32-bit block counter */
 		uint32_t counter;
 		/** buffered keystream block */
-		uint8_t ks[MP_CHACHA20_BLOCK];
+		uint8_t ks[MP_CRYPTO_CHACHA20_BLOCK];
 		/** bytes left in ks */
 		unsigned int ksLeft;
 	};
 
 	/** FALSE when the key length is not 32 */
-	mp_ret_t mp_chacha20_init(mp_chacha20_t *ctx, const void *key, unsigned int keylen);
+	mp_ret_t mp_crypto_chacha20_init(mp_crypto_chacha20_t *ctx, const void *key, unsigned int keylen);
 	/** set the 96-bit nonce (call before the first update_block) */
-	void mp_chacha20_set_nonce(mp_chacha20_t *ctx, const void *nonce, unsigned int noncelen);
+	void mp_crypto_chacha20_set_nonce(mp_crypto_chacha20_t *ctx, const void *nonce, unsigned int noncelen);
 	/** set the 32-bit block counter (1 for RFC 8439 data, 0 for the AEAD key block) */
-	void mp_chacha20_set_counter(mp_chacha20_t *ctx, uint32_t counter);
+	void mp_crypto_chacha20_set_counter(mp_crypto_chacha20_t *ctx, uint32_t counter);
 	/** bytes written, at most inlen; XORs in with the keystream (encrypt = decrypt) */
-	unsigned int mp_chacha20_update_block(mp_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
+	unsigned int mp_crypto_chacha20_update_block(mp_crypto_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
 	/** bytes written, at most inlen; the same as update_block (stream cipher) */
-	unsigned int mp_chacha20_update_block_inv(mp_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
+	unsigned int mp_crypto_chacha20_update_block_inv(mp_crypto_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
 	/** wipes the context; safe on a cipher already freed */
-	void mp_chacha20_free(mp_chacha20_t *ctx);
+	void mp_crypto_chacha20_free(mp_crypto_chacha20_t *ctx);
 
 	/** @} */
 

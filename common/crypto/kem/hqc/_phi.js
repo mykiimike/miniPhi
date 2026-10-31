@@ -1,0 +1,23 @@
+export const phi = {
+	kind: "module",
+	name: "HQC",
+	label: "HQC-128",
+	description: "HQC-128, the code-based key encapsulation NIST kept beside the lattice schemes. A seed is 96 bytes: the 40-byte secret seed, the 16-byte rejection string sigma, then the 40-byte public seed. Encapsulation coins are 32 bytes: the 16-byte message and the 16-byte salt. The public key is 2249 bytes, the secret key 2305, the ciphertext 4433 and the shared secret 64. Constant time: fixed-weight positions are reduced with Barrett and written with a bit mask, a secret rotation scans every word, and the Reed-Solomon decoder always runs the same number of steps. No log table is indexed by a secret. Needs SHAKE. One operation at a time. mp_crypto_hqc_decaps_fuse() is the fuse path, role MP_CRYPTO_FUSE_HQC. Nothing here burns a fuse.",
+	define: "SUPPORT_COMMON_CRYPTO_KEM_HQC",
+	requires: ["SHAKE"],
+	sources: ["hqc.c"],
+	headers: ["hqc.h"],
+	headerDir: "crypto",
+	settings: [
+		{
+			name: "MP_CRYPTO_HQC_RAM",
+			label: "RAM",
+			type: "number",
+			unit: "bytes",
+			default: 40960,
+			min: 16384,
+			max: 131072,
+			ram: true,
+		},
+	],
+}

@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -38,53 +37,53 @@
 	 * Constant time: the permutation is a fixed function of the full state,
 	 * so no branch or memory access depends on a secret. */
 
-	#define MP_SHAKE_STATE 200   /* 25 lanes * 8 bytes */
+	#define MP_CRYPTO_SHAKE_STATE 200   /* 25 lanes * 8 bytes */
 
 	typedef struct {
 		uint64_t a[25];          /* sponge state, lanes x + 5*y */
-		uint8_t buf[MP_SHAKE_STATE];
+		uint8_t buf[MP_CRYPTO_SHAKE_STATE];
 		unsigned int rate;       /* absorb/squeeze rate in bytes */
 		unsigned int idx;        /* bytes pending in buf */
 		uint8_t suffix;         /* domain suffix (0x06 SHA3, 0x1f SHAKE) */
 		uint8_t squeezing;      /* 1 once the pad has been applied */
 		uint8_t firstperm;      /* 1: next squeeze must skip the permutation */
-	} mp_keccak_t;
+	} mp_crypto_keccak_t;
 
 	/* generic sponge: rate in bytes, suffix byte. */
-	void mp_keccak_init(mp_keccak_t *k, unsigned int rate, uint8_t suffix);
-	void mp_keccak_absorb(mp_keccak_t *k, const void *data, unsigned int len);
-	void mp_keccak_pad(mp_keccak_t *k);
-	void mp_keccak_squeeze(mp_keccak_t *k, uint8_t *out, unsigned int len);
+	void mp_crypto_keccak_init(mp_crypto_keccak_t *k, unsigned int rate, uint8_t suffix);
+	void mp_crypto_keccak_absorb(mp_crypto_keccak_t *k, const void *data, unsigned int len);
+	void mp_crypto_keccak_pad(mp_crypto_keccak_t *k);
+	void mp_crypto_keccak_squeeze(mp_crypto_keccak_t *k, uint8_t *out, unsigned int len);
 
 	/* SHA3-256: fixed 32-byte digest. */
-	typedef mp_keccak_t mp_sha3_256_t;
-	void mp_sha3_256_init(mp_sha3_256_t *c);
-	void mp_sha3_256_update(mp_sha3_256_t *c, const void *data, unsigned int len);
-	void mp_sha3_256_final(mp_sha3_256_t *c, uint8_t *digest);
-	void mp_sha3_256(const void *in, unsigned int len, uint8_t *out);
+	typedef mp_crypto_keccak_t mp_crypto_sha3_256_t;
+	void mp_crypto_sha3_256_init(mp_crypto_sha3_256_t *c);
+	void mp_crypto_sha3_256_update(mp_crypto_sha3_256_t *c, const void *data, unsigned int len);
+	void mp_crypto_sha3_256_final(mp_crypto_sha3_256_t *c, uint8_t *digest);
+	void mp_crypto_sha3_256(const void *in, unsigned int len, uint8_t *out);
 
 	/* SHA3-512: fixed 64-byte digest. */
-	typedef mp_keccak_t mp_sha3_512_t;
-	void mp_sha3_512_init(mp_sha3_512_t *c);
-	void mp_sha3_512_update(mp_sha3_512_t *c, const void *data, unsigned int len);
-	void mp_sha3_512_final(mp_sha3_512_t *c, uint8_t *digest);
-	void mp_sha3_512(const void *in, unsigned int len, uint8_t *out);
+	typedef mp_crypto_keccak_t mp_crypto_sha3_512_t;
+	void mp_crypto_sha3_512_init(mp_crypto_sha3_512_t *c);
+	void mp_crypto_sha3_512_update(mp_crypto_sha3_512_t *c, const void *data, unsigned int len);
+	void mp_crypto_sha3_512_final(mp_crypto_sha3_512_t *c, uint8_t *digest);
+	void mp_crypto_sha3_512(const void *in, unsigned int len, uint8_t *out);
 
 	/* SHAKE-128: extendable output. Absorb, then squeeze any length. */
-	typedef mp_keccak_t mp_shake128_t;
-	void mp_shake128_init(mp_shake128_t *c);
-	void mp_shake128_absorb(mp_shake128_t *c, const void *data, unsigned int len);
-	void mp_shake128_finalize(mp_shake128_t *c);
-	void mp_shake128_squeeze(mp_shake128_t *c, uint8_t *out, unsigned int len);
-	void mp_shake128(uint8_t *out, unsigned int outlen, const void *in, unsigned int inlen);
+	typedef mp_crypto_keccak_t mp_crypto_shake128_t;
+	void mp_crypto_shake128_init(mp_crypto_shake128_t *c);
+	void mp_crypto_shake128_absorb(mp_crypto_shake128_t *c, const void *data, unsigned int len);
+	void mp_crypto_shake128_finalize(mp_crypto_shake128_t *c);
+	void mp_crypto_shake128_squeeze(mp_crypto_shake128_t *c, uint8_t *out, unsigned int len);
+	void mp_crypto_shake128(uint8_t *out, unsigned int outlen, const void *in, unsigned int inlen);
 
 	/* SHAKE-256: extendable output. Absorb, then squeeze any length. */
-	typedef mp_keccak_t mp_shake256_t;
-	void mp_shake256_init(mp_shake256_t *c);
-	void mp_shake256_absorb(mp_shake256_t *c, const void *data, unsigned int len);
-	void mp_shake256_finalize(mp_shake256_t *c);
-	void mp_shake256_squeeze(mp_shake256_t *c, uint8_t *out, unsigned int len);
-	void mp_shake256(uint8_t *out, unsigned int outlen, const void *in, unsigned int inlen);
+	typedef mp_crypto_keccak_t mp_crypto_shake256_t;
+	void mp_crypto_shake256_init(mp_crypto_shake256_t *c);
+	void mp_crypto_shake256_absorb(mp_crypto_shake256_t *c, const void *data, unsigned int len);
+	void mp_crypto_shake256_finalize(mp_crypto_shake256_t *c);
+	void mp_crypto_shake256_squeeze(mp_crypto_shake256_t *c, uint8_t *out, unsigned int len);
+	void mp_crypto_shake256(uint8_t *out, unsigned int outlen, const void *in, unsigned int inlen);
 
 	/** @}*/
 #endif

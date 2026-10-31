@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -123,23 +122,23 @@ static void fe_reduce(uint32_t r[W], const uint32_t *c, int words) {
 			}
 		}
 	}
-	mp_bn_sub(tmp, acc, _p, W);
-	mp_bn_cmov(acc, tmp, W, (uint32_t)(mp_bn_cmp(acc, _p, W) >= 0));
-	mp_bn_copy(r, acc, W);
+	mp_crypto_bn_sub(tmp, acc, _p, W);
+	mp_crypto_bn_cmov(acc, tmp, W, (uint32_t)(mp_crypto_bn_cmp(acc, _p, W) >= 0));
+	mp_crypto_bn_copy(r, acc, W);
 }
 
 static void fe_add(uint32_t r[W], const uint32_t a[W], const uint32_t b[W]) {
-	mp_bn_add_mod(r, a, b, _p, W);
+	mp_crypto_bn_add_mod(r, a, b, _p, W);
 }
 
 static void fe_sub(uint32_t r[W], const uint32_t a[W], const uint32_t b[W]) {
-	mp_bn_sub_mod(r, a, b, _p, W);
+	mp_crypto_bn_sub_mod(r, a, b, _p, W);
 }
 
 static void fe_mul(uint32_t r[W], const uint32_t a[W], const uint32_t b[W]) {
 	uint32_t t[W * 2];
 
-	mp_bn_mul(t, a, b, W);
+	mp_crypto_bn_mul(t, a, b, W);
 	fe_reduce(r, t, W * 2);
 }
 
@@ -151,38 +150,38 @@ static void fe_inv(uint32_t r[W], const uint32_t a[W]) {
 	uint32_t e[W];
 	uint32_t one[W];
 
-	mp_bn_zero(one, W);
+	mp_crypto_bn_zero(one, W);
 	one[0] = 2;
-	mp_bn_sub(e, _p, one, W);
-	mp_bn_modexp(r, a, e, W, _p, W);
+	mp_crypto_bn_sub(e, _p, one, W);
+	mp_crypto_bn_modexp(r, a, e, W, _p, W);
 }
 
 static void sc_reduce(uint32_t r[W], const uint32_t a[W]) {
-	if(mp_bn_cmp(a, _n, W) >= 0)
-		mp_bn_sub(r, a, _n, W);
+	if(mp_crypto_bn_cmp(a, _n, W) >= 0)
+		mp_crypto_bn_sub(r, a, _n, W);
 	else
-		mp_bn_copy(r, a, W);
+		mp_crypto_bn_copy(r, a, W);
 }
 
 static void sc_add(uint32_t r[W], const uint32_t a[W], const uint32_t b[W]) {
-	mp_bn_add_mod(r, a, b, _n, W);
+	mp_crypto_bn_add_mod(r, a, b, _n, W);
 }
 
 static void sc_mul(uint32_t r[W], const uint32_t a[W], const uint32_t b[W]) {
 	uint32_t t[W * 2];
 
-	mp_bn_mul(t, a, b, W);
-	mp_bn_mod(r, t, W * 2, _n, W);
+	mp_crypto_bn_mul(t, a, b, W);
+	mp_crypto_bn_mod(r, t, W * 2, _n, W);
 }
 
 static void sc_inv(uint32_t r[W], const uint32_t a[W]) {
 	uint32_t e[W];
 	uint32_t one[W];
 
-	mp_bn_zero(one, W);
+	mp_crypto_bn_zero(one, W);
 	one[0] = 2;
-	mp_bn_sub(e, _n, one, W);
-	mp_bn_modexp(r, a, e, W, _n, W);
+	mp_crypto_bn_sub(e, _n, one, W);
+	mp_crypto_bn_modexp(r, a, e, W, _n, W);
 }
 
 static void pt_inf(pt *p) {
@@ -191,24 +190,24 @@ static void pt_inf(pt *p) {
 }
 
 static void pt_cmov(pt *d, const pt *s, uint32_t bit) {
-	mp_bn_cmov(d->x, s->x, W, bit);
-	mp_bn_cmov(d->y, s->y, W, bit);
-	mp_bn_cmov(d->z, s->z, W, bit);
+	mp_crypto_bn_cmov(d->x, s->x, W, bit);
+	mp_crypto_bn_cmov(d->y, s->y, W, bit);
+	mp_crypto_bn_cmov(d->z, s->z, W, bit);
 	d->inf ^= (d->inf ^ s->inf) & (0u - (bit & 1u));
 }
 
 static void pt_affine_G(pt *p) {
-	mp_bn_copy(p->x, _gx, W);
-	mp_bn_copy(p->y, _gy, W);
-	mp_bn_zero(p->z, W);
+	mp_crypto_bn_copy(p->x, _gx, W);
+	mp_crypto_bn_copy(p->y, _gy, W);
+	mp_crypto_bn_zero(p->z, W);
 	p->z[0] = 1;
 	p->inf = 0;
 }
 
 static void pt_set_xy(pt *p, const uint32_t x[W], const uint32_t y[W]) {
-	mp_bn_copy(p->x, x, W);
-	mp_bn_copy(p->y, y, W);
-	mp_bn_zero(p->z, W);
+	mp_crypto_bn_copy(p->x, x, W);
+	mp_crypto_bn_copy(p->y, y, W);
+	mp_crypto_bn_zero(p->z, W);
 	p->z[0] = 1;
 	p->inf = 0;
 }
@@ -263,8 +262,8 @@ static void pt_add(pt *r, const pt *p, const pt *q) {
 	fe_mul(_f[3], q->y, _f[1]);
 	fe_sub(_f[4], _f[2], src.x);
 	fe_sub(_f[5], _f[3], src.y);
-	hzero = (uint32_t)mp_bn_is_zero(_f[4], W);
-	rzero = (uint32_t)mp_bn_is_zero(_f[5], W);
+	hzero = (uint32_t)mp_crypto_bn_is_zero(_f[4], W);
+	rzero = (uint32_t)mp_crypto_bn_is_zero(_f[5], W);
 	dbl_case = hzero & rzero;
 	inv_case = hzero & (rzero ^ 1u);
 	pzero = (uint32_t)src.inf;
@@ -318,7 +317,7 @@ static void pt_mul(pt *r, const uint8_t k[32], const pt *base) {
 }
 
 static int pt_x(uint32_t x[W], const pt *p) {
-	if(p->inf || mp_bn_is_zero(p->z, W))
+	if(p->inf || mp_crypto_bn_is_zero(p->z, W))
 		return(0);
 	fe_inv(_f[0], p->z);
 	fe_sqr(_f[1], _f[0]);
@@ -334,11 +333,11 @@ static int pt_on_curve(const uint32_t x[W], const uint32_t y[W]) {
 	fe_add(_f[2], _f[2], x);
 	fe_sub(_f[1], _f[1], _f[2]);
 	fe_add(_f[1], _f[1], _b);
-	return(mp_bn_cmp(_f[0], _f[1], W) == 0);
+	return(mp_crypto_bn_cmp(_f[0], _f[1], W) == 0);
 }
 
 static void hash_int(uint32_t e[W], const uint8_t digest[32]) {
-	mp_bn_from_be(e, W, digest, 32);
+	mp_crypto_bn_from_be(e, W, digest, 32);
 	sc_reduce(e, e);
 }
 
@@ -348,38 +347,38 @@ static void rfc6979(uint32_t k[W], const uint8_t priv[32], const uint8_t digest[
 	uint32_t t[W];
 	int guard;
 
-	mp_bn_from_be(t, W, digest, 32);
+	mp_crypto_bn_from_be(t, W, digest, 32);
 	sc_reduce(t, t);
-	mp_bn_to_be(h1, 32, t, W);
+	mp_crypto_bn_to_be(h1, 32, t, W);
 	memset(v, 0x01, 32);
 	memset(K, 0x00, 32);
 	memcpy(block, v, 32);
 	block[32] = 0x00;
 	memcpy(block + 33, priv, 32);
 	memcpy(block + 65, h1, 32);
-	mp_hmac("SHA256", K, 32, block, sizeof(block), K);
-	mp_hmac("SHA256", K, 32, v, 32, v);
+	mp_crypto_hmac("SHA256", K, 32, block, sizeof(block), K);
+	mp_crypto_hmac("SHA256", K, 32, v, 32, v);
 	memcpy(block, v, 32);
 	block[32] = 0x01;
-	mp_hmac("SHA256", K, 32, block, sizeof(block), K);
-	mp_hmac("SHA256", K, 32, v, 32, v);
+	mp_crypto_hmac("SHA256", K, 32, block, sizeof(block), K);
+	mp_crypto_hmac("SHA256", K, 32, v, 32, v);
 	for(guard = 0; guard < 8; guard++) {
-		mp_hmac("SHA256", K, 32, v, 32, v);
-		mp_bn_from_be(k, W, v, 32);
-		if(!mp_bn_is_zero(k, W) && mp_bn_cmp(k, _n, W) < 0)
+		mp_crypto_hmac("SHA256", K, 32, v, 32, v);
+		mp_crypto_bn_from_be(k, W, v, 32);
+		if(!mp_crypto_bn_is_zero(k, W) && mp_crypto_bn_cmp(k, _n, W) < 0)
 			break;
 		memcpy(block, v, 32);
 		block[32] = 0x00;
-		mp_hmac("SHA256", K, 32, block, 33, K);
-		mp_hmac("SHA256", K, 32, v, 32, v);
+		mp_crypto_hmac("SHA256", K, 32, block, 33, K);
+		mp_crypto_hmac("SHA256", K, 32, v, 32, v);
 	}
 	memset(v, 0, sizeof(v));
 	memset(K, 0, sizeof(K));
 }
 
 static int load_priv(uint32_t d[W], const uint8_t priv[32]) {
-	mp_bn_from_be(d, W, priv, 32);
-	if(mp_bn_is_zero(d, W) || mp_bn_cmp(d, _n, W) >= 0)
+	mp_crypto_bn_from_be(d, W, priv, 32);
+	if(mp_crypto_bn_is_zero(d, W) || mp_crypto_bn_cmp(d, _n, W) >= 0)
 		return(0);
 	return(1);
 }
@@ -392,17 +391,17 @@ static int load_priv(uint32_t d[W], const uint8_t priv[32]) {
  *
  * @return FALSE when the seed is shorter than 32 bytes or reduces to 0
  */
-mp_ret_t mp_ecdsa_p256_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+mp_ret_t mp_crypto_ecdsa_p256_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
 	uint32_t d[W];
 
-	if(!seed || !priv || !pub || seedlen < MP_ECDSA_P256_PRIV)
+	if(!seed || !priv || !pub || seedlen < MP_CRYPTO_ECDSA_P256_PRIV)
 		return(FALSE);
-	mp_bn_from_be(d, W, seed, MP_ECDSA_P256_PRIV);
+	mp_crypto_bn_from_be(d, W, seed, MP_CRYPTO_ECDSA_P256_PRIV);
 	sc_reduce(d, d);
-	if(mp_bn_is_zero(d, W))
+	if(mp_crypto_bn_is_zero(d, W))
 		return(FALSE);
-	mp_bn_to_be(priv, 32, d, W);
-	mp_ecdsa_p256_public(priv, pub);
+	mp_crypto_bn_to_be(priv, 32, d, W);
+	mp_crypto_ecdsa_p256_public(priv, pub);
 	memset(d, 0, sizeof(d));
 	return(TRUE);
 }
@@ -410,22 +409,22 @@ mp_ret_t mp_ecdsa_p256_keypair(const void *seed, unsigned int seedlen, void *pri
 /**
  * @brief Public key, x then y, 32 bytes each
  */
-void mp_ecdsa_p256_public(const void *priv, void *pub) {
+void mp_crypto_ecdsa_p256_public(const void *priv, void *pub) {
 	uint32_t d[W];
 	uint8_t k[32];
 	pt g, r;
 	uint8_t *out = pub;
 
-	mp_bn_from_be(d, W, priv, 32);
-	mp_bn_to_be(k, 32, d, W);
+	mp_crypto_bn_from_be(d, W, priv, 32);
+	mp_crypto_bn_to_be(k, 32, d, W);
 	pt_affine_G(&g);
 	pt_mul(&r, k, &g);
 	pt_x(_f[12], &r);
 	/* pt_x left Z^{-2} in _f[1] and Z^{-1} in _f[0]; y = Y * Z^{-3} = Y * Z^{-1} * Z^{-2} */
 	fe_mul(_f[13], r.y, _f[0]);
 	fe_mul(_f[13], _f[13], _f[1]);
-	mp_bn_to_be(out, 32, _f[12], W);
-	mp_bn_to_be(out + 32, 32, _f[13], W);
+	mp_crypto_bn_to_be(out, 32, _f[12], W);
+	mp_crypto_bn_to_be(out + 32, 32, _f[13], W);
 	memset(d, 0, sizeof(d));
 	memset(k, 0, sizeof(k));
 }
@@ -435,62 +434,62 @@ void mp_ecdsa_p256_public(const void *priv, void *pub) {
  *
  * @return 64, or 0 when the private key is out of range
  */
-unsigned int mp_ecdsa_p256_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+unsigned int mp_crypto_ecdsa_p256_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
 	uint8_t digest[32], kbe[32];
 	uint32_t d[W], e[W], k[W], r[W], s[W];
 	pt g, point;
 
 	if(!priv || !sig || (len && !msg) || !load_priv(d, priv))
 		return(0);
-	mp_sha256(msg, len, digest);
+	mp_crypto_sha256(msg, len, digest);
 	hash_int(e, digest);
-	mp_bn_to_be(kbe, 32, d, W);
+	mp_crypto_bn_to_be(kbe, 32, d, W);
 	rfc6979(k, kbe, digest);
-	mp_bn_to_be(kbe, 32, k, W);
+	mp_crypto_bn_to_be(kbe, 32, k, W);
 	pt_affine_G(&g);
 	pt_mul(&point, kbe, &g);
 	if(!pt_x(r, &point))
 		return(0);
 	sc_reduce(r, r);
-	if(mp_bn_is_zero(r, W))
+	if(mp_crypto_bn_is_zero(r, W))
 		return(0);
 	sc_inv(_f[14], k);
 	sc_mul(_f[15], r, d);
 	sc_add(_f[15], _f[15], e);
 	sc_mul(s, _f[14], _f[15]);
-	if(mp_bn_is_zero(s, W))
+	if(mp_crypto_bn_is_zero(s, W))
 		return(0);
-	mp_bn_to_be(sig, 32, r, W);
-	mp_bn_to_be(sig + 32, 32, s, W);
+	mp_crypto_bn_to_be(sig, 32, r, W);
+	mp_crypto_bn_to_be(sig + 32, 32, s, W);
 	memset(d, 0, sizeof(d));
 	memset(k, 0, sizeof(k));
 	memset(kbe, 0, sizeof(kbe));
-	return(MP_ECDSA_P256_SIG);
+	return(MP_CRYPTO_ECDSA_P256_SIG);
 }
 
 /**
  * @brief Check r||s against the public key x||y
  */
-mp_bool_t mp_ecdsa_p256_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+mp_bool_t mp_crypto_ecdsa_p256_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
 	const uint8_t *in = sig;
 	const uint8_t *pk = pub;
 	uint8_t digest[32];
 	uint32_t e[W], r[W], s[W], w[W], u1[W], u2[W], x[W], y[W], v[W];
 	pt g, q, p1, p2;
 
-	if(!pub || !sig || siglen != MP_ECDSA_P256_SIG || (len && !msg))
+	if(!pub || !sig || siglen != MP_CRYPTO_ECDSA_P256_SIG || (len && !msg))
 		return(NO);
-	mp_bn_from_be(x, W, pk, 32);
-	mp_bn_from_be(y, W, pk + 32, 32);
-	mp_bn_from_be(r, W, in, 32);
-	mp_bn_from_be(s, W, in + 32, 32);
-	if(mp_bn_is_zero(r, W) || mp_bn_cmp(r, _n, W) >= 0)
+	mp_crypto_bn_from_be(x, W, pk, 32);
+	mp_crypto_bn_from_be(y, W, pk + 32, 32);
+	mp_crypto_bn_from_be(r, W, in, 32);
+	mp_crypto_bn_from_be(s, W, in + 32, 32);
+	if(mp_crypto_bn_is_zero(r, W) || mp_crypto_bn_cmp(r, _n, W) >= 0)
 		return(NO);
-	if(mp_bn_is_zero(s, W) || mp_bn_cmp(s, _n, W) >= 0)
+	if(mp_crypto_bn_is_zero(s, W) || mp_crypto_bn_cmp(s, _n, W) >= 0)
 		return(NO);
-	if(mp_bn_cmp(x, _p, W) >= 0 || mp_bn_cmp(y, _p, W) >= 0 || !pt_on_curve(x, y))
+	if(mp_crypto_bn_cmp(x, _p, W) >= 0 || mp_crypto_bn_cmp(y, _p, W) >= 0 || !pt_on_curve(x, y))
 		return(NO);
-	mp_sha256(msg, len, digest);
+	mp_crypto_sha256(msg, len, digest);
 	hash_int(e, digest);
 	sc_inv(w, s);
 	sc_mul(u1, e, w);
@@ -499,10 +498,10 @@ mp_bool_t mp_ecdsa_p256_verify(const void *pub, const void *msg, unsigned int le
 	{
 		uint8_t be[32];
 
-		mp_bn_to_be(be, 32, u1, W);
+		mp_crypto_bn_to_be(be, 32, u1, W);
 		pt_mul(&p1, be, &g);
 		pt_set_xy(&q, x, y);
-		mp_bn_to_be(be, 32, u2, W);
+		mp_crypto_bn_to_be(be, 32, u2, W);
 		pt_mul(&p2, be, &q);
 		memset(be, 0, sizeof(be));
 	}
@@ -515,7 +514,51 @@ mp_bool_t mp_ecdsa_p256_verify(const void *pub, const void *msg, unsigned int le
 	if(!pt_x(v, &p1))
 		return(NO);
 	sc_reduce(v, v);
-	return(mp_bn_cmp(v, r, W) == 0 ? YES : NO);
+	return(mp_crypto_bn_cmp(v, r, W) == 0 ? YES : NO);
+}
+
+/**
+ * @brief Sign with a fuse slot
+ *
+ * A series that declares an ECDSA P-256 accelerator provides
+ * mp_arch_ecdsa_p256_sign_fuse(). wrapped is the blob that arch defines.
+ *
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_ECDSA_P256
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] msg Message
+ * @param[in] len Message length
+ * @param[out] sig 64 bytes
+ * @return 64, or 0 when this series has no such accelerator
+ */
+unsigned int mp_crypto_ecdsa_p256_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+	static mp_bool_t said;
+
+	if(!sig || (len && !msg))
+		return(0);
+#ifdef MP_ARCH_ECDSA_P256
+	unsigned int n;
+
+#ifdef SUPPORT_COMMON_CRYPTO_FUSE
+	if(mp_crypto_fuse_check(fuse, MP_CRYPTO_FUSE_ECDSA_P256) != YES)
+		return(0);
+#endif
+	n = mp_arch_ecdsa_p256_sign_fuse(fuse, wrapped, wrappedlen, msg, len, sig);
+	if(!n && said == NO) {
+		mp_printk("ECDSA P-256: the accelerator refused the fuse");
+		said = YES;
+	}
+	return(n);
+#else
+	(void)fuse;
+	(void)wrapped;
+	(void)wrappedlen;
+	if(said == NO) {
+		mp_printk("ECDSA P-256: this build has no fuse");
+		said = YES;
+	}
+	return(0);
+#endif
 }
 
 /**@}*/

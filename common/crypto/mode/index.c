@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -32,18 +31,18 @@
 @brief Any mode of the build, picked by name, wrapping a started cipher
 
 @code
-mp_cipher_t cipher;
-mp_cipher_mode_t mode;
+mp_crypto_cipher_t cipher;
+mp_crypto_cipher_mode_t mode;
 uint8_t out[32], tag[16];
 
-if(mp_cipher_init(&cipher, "AES", key, 16) == TRUE) {
-	if(mp_cipher_mode_init(&mode, "GCM", &cipher, iv, 12, TRUE) == TRUE) {
-		mp_cipher_mode_aad(&mode, aad, aadlen);
-		mp_cipher_mode_update(&mode, in, inlen, out);
-		mp_cipher_mode_final(&mode, NULL, tag);
-		mp_cipher_mode_free(&mode);
+if(mp_crypto_cipher_init(&cipher, "AES", key, 16) == TRUE) {
+	if(mp_crypto_cipher_mode_init(&mode, "GCM", &cipher, iv, 12, TRUE) == TRUE) {
+		mp_crypto_cipher_mode_aad(&mode, aad, aadlen);
+		mp_crypto_cipher_mode_update(&mode, in, inlen, out);
+		mp_crypto_cipher_mode_final(&mode, NULL, tag);
+		mp_crypto_cipher_mode_free(&mode);
 	}
-	mp_cipher_free(&cipher);
+	mp_crypto_cipher_free(&cipher);
 }
 @endcode
 
@@ -53,31 +52,31 @@ A new mode needs its functions and one line in the table below.
 */
 
 #ifdef SUPPORT_COMMON_CRYPTO_MODE_CBC
-	extern const mp_cipher_mode_algo_t mp_cipher_mode_cbc_algo;
+	extern const mp_crypto_cipher_mode_algo_t mp_crypto_cipher_mode_cbc_algo;
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_MODE_CTR
-	extern const mp_cipher_mode_algo_t mp_cipher_mode_ctr_algo;
+	extern const mp_crypto_cipher_mode_algo_t mp_crypto_cipher_mode_ctr_algo;
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_MODE_GCM
-	extern const mp_cipher_mode_algo_t mp_cipher_mode_gcm_algo;
+	extern const mp_crypto_cipher_mode_algo_t mp_crypto_cipher_mode_gcm_algo;
 #endif
 
-static const mp_cipher_mode_algo_t *_mp_mode_algos[] = {
+static const mp_crypto_cipher_mode_algo_t *_mp_crypto_mode_algos[] = {
 #ifdef SUPPORT_COMMON_CRYPTO_MODE_CBC
-	&mp_cipher_mode_cbc_algo,
+	&mp_crypto_cipher_mode_cbc_algo,
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_MODE_CTR
-	&mp_cipher_mode_ctr_algo,
+	&mp_crypto_cipher_mode_ctr_algo,
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_MODE_GCM
-	&mp_cipher_mode_gcm_algo,
+	&mp_crypto_cipher_mode_gcm_algo,
 #endif
 	NULL,
 };
 
-#define _MP_MODE_COUNT ((int)(sizeof(_mp_mode_algos) / sizeof(_mp_mode_algos[0])) - 1)
+#define _MP_CRYPTO_MODE_COUNT ((int)(sizeof(_mp_crypto_mode_algos) / sizeof(_mp_crypto_mode_algos[0])) - 1)
 
-static int _mp_mode_same(const char *a, const char *b) {
+static int _mp_crypto_mode_same(const char *a, const char *b) {
 	char x, y;
 	while(*a && *b) {
 		x = *a++;
@@ -95,19 +94,19 @@ static int _mp_mode_same(const char *a, const char *b) {
 /**
  * @brief Number of modes in the build
  */
-int mp_cipher_mode_count(void) {
-	return(_MP_MODE_COUNT);
+int mp_crypto_cipher_mode_count(void) {
+	return(_MP_CRYPTO_MODE_COUNT);
 }
 
 /**
  * @brief Mode at index, NULL past the end
  *
- * @param[in] index From 0 to mp_cipher_mode_count() - 1
+ * @param[in] index From 0 to mp_crypto_cipher_mode_count() - 1
  */
-const mp_cipher_mode_algo_t *mp_cipher_mode_at(int index) {
-	if(index < 0 || index >= _MP_MODE_COUNT)
+const mp_crypto_cipher_mode_algo_t *mp_crypto_cipher_mode_at(int index) {
+	if(index < 0 || index >= _MP_CRYPTO_MODE_COUNT)
 		return(NULL);
-	return(_mp_mode_algos[index]);
+	return(_mp_crypto_mode_algos[index]);
 }
 
 /**
@@ -116,12 +115,12 @@ const mp_cipher_mode_algo_t *mp_cipher_mode_at(int index) {
  * @param[in] name Module name or label, any case: "GCM", "gcm"
  * @return NULL when the build does not carry it
  */
-const mp_cipher_mode_algo_t *mp_cipher_mode_find(const char *name) {
+const mp_crypto_cipher_mode_algo_t *mp_crypto_cipher_mode_find(const char *name) {
 	if(!name)
 		return(NULL);
-	for(int n = 0; n < _MP_MODE_COUNT; n++) {
-		if(_mp_mode_same(name, _mp_mode_algos[n]->name) || _mp_mode_same(name, _mp_mode_algos[n]->label))
-			return(_mp_mode_algos[n]);
+	for(int n = 0; n < _MP_CRYPTO_MODE_COUNT; n++) {
+		if(_mp_crypto_mode_same(name, _mp_crypto_mode_algos[n]->name) || _mp_crypto_mode_same(name, _mp_crypto_mode_algos[n]->label))
+			return(_mp_crypto_mode_algos[n]);
 	}
 	return(NULL);
 }
@@ -137,8 +136,8 @@ const mp_cipher_mode_algo_t *mp_cipher_mode_find(const char *name) {
  * @param[in] encrypt TRUE for encryption, FALSE for decryption
  * @return TRUE on success, FALSE when name is unknown, the IV is wrong or the cipher is not started
  */
-mp_ret_t mp_cipher_mode_init(mp_cipher_mode_t *m, const char *name, mp_cipher_t *cipher, const void *iv, unsigned int ivlen, mp_bool_t encrypt) {
-	const mp_cipher_mode_algo_t *algo = mp_cipher_mode_find(name);
+mp_ret_t mp_crypto_cipher_mode_init(mp_crypto_cipher_mode_t *m, const char *name, mp_crypto_cipher_t *cipher, const void *iv, unsigned int ivlen, mp_bool_t encrypt) {
+	const mp_crypto_cipher_mode_algo_t *algo = mp_crypto_cipher_mode_find(name);
 	if(!m)
 		return(FALSE);
 	memset(m, 0, sizeof(*m));
@@ -162,7 +161,7 @@ mp_ret_t mp_cipher_mode_init(mp_cipher_mode_t *m, const char *name, mp_cipher_t 
  * @param[out] out At least inlen bytes
  * @return Bytes written to out
  */
-unsigned int mp_cipher_mode_update(mp_cipher_mode_t *m, const void *in, unsigned int inlen, uint8_t *out) {
+unsigned int mp_crypto_cipher_mode_update(mp_crypto_cipher_mode_t *m, const void *in, unsigned int inlen, uint8_t *out) {
 	if(!m || !m->algo)
 		return(0);
 	return(m->algo->update(m, in, inlen, out));
@@ -171,12 +170,12 @@ unsigned int mp_cipher_mode_update(mp_cipher_mode_t *m, const void *in, unsigned
 /**
  * @brief Feed associated data (AEAD only)
  *
- * @param[in] m Started mode, before any mp_cipher_mode_update()
+ * @param[in] m Started mode, before any mp_crypto_cipher_mode_update()
  * @param[in] aad Associated data bytes
  * @param[in] len Length of aad
  * @return Bytes absorbed, 0 on a non-AEAD mode
  */
-unsigned int mp_cipher_mode_aad(mp_cipher_mode_t *m, const void *aad, unsigned int len) {
+unsigned int mp_crypto_cipher_mode_aad(mp_crypto_cipher_mode_t *m, const void *aad, unsigned int len) {
 	if(!m || !m->algo)
 		return(0);
 	return(m->algo->update_aad(m, aad, len));
@@ -190,7 +189,7 @@ unsigned int mp_cipher_mode_aad(mp_cipher_mode_t *m, const void *aad, unsigned i
  * @param[out] tag AEAD tag when the mode authenticates; may be NULL
  * @return Bytes written to out
  */
-unsigned int mp_cipher_mode_final(mp_cipher_mode_t *m, uint8_t *out, uint8_t *tag) {
+unsigned int mp_crypto_cipher_mode_final(mp_crypto_cipher_mode_t *m, uint8_t *out, uint8_t *tag) {
 	if(!m || !m->algo)
 		return(0);
 	return(m->algo->final(m, out, tag));
@@ -203,7 +202,7 @@ unsigned int mp_cipher_mode_final(mp_cipher_mode_t *m, uint8_t *out, uint8_t *ta
  *
  * @param[in] m Mode context (or NULL)
  */
-void mp_cipher_mode_free(mp_cipher_mode_t *m) {
+void mp_crypto_cipher_mode_free(mp_crypto_cipher_mode_t *m) {
 	if(!m)
 		return;
 	if(m->algo)

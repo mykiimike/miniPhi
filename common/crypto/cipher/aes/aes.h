@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -32,17 +31,17 @@
 	 */
 
 	/** AES block size (bytes) */
-	#define MP_AES_BLOCK 16
+	#define MP_CRYPTO_AES_BLOCK 16
 
 	/* AES-128: 16, AES-192: 24, AES-256: 32 */
-	#if MP_AES_BITS == 128
-		#define MP_AES_KEY 16
-	#elif MP_AES_BITS == 192
-		#define MP_AES_KEY 24
-	#elif MP_AES_BITS == 256
-		#define MP_AES_KEY 32
+	#if MP_CRYPTO_AES_BITS == 128
+		#define MP_CRYPTO_AES_KEY 16
+	#elif MP_CRYPTO_AES_BITS == 192
+		#define MP_CRYPTO_AES_KEY 24
+	#elif MP_CRYPTO_AES_BITS == 256
+		#define MP_CRYPTO_AES_KEY 32
 	#else
-		#error MP_AES_BITS must be 128, 192 or 256
+		#error MP_CRYPTO_AES_BITS must be 128, 192 or 256
 	#endif
 
 	/* the arch header defines mp_arch_aes_t, the state of one hardware cipher */
@@ -57,9 +56,9 @@
 	 * plus one), so a smaller key wastes the tail. The software version
 	 * below always builds.
 	 */
-	typedef struct mp_aes_s mp_aes_t;
+	typedef struct mp_crypto_aes_s mp_crypto_aes_t;
 
-	struct mp_aes_s {
+	struct mp_crypto_aes_s {
 		/** number of rounds for this key (10, 12 or 14) */
 		unsigned int rounds;
 		/** key length in bytes (16, 24 or 32) */
@@ -76,14 +75,14 @@
 	/** @} */
 
 	/** FALSE when the key length is not 16, 24 or 32 */
-	mp_ret_t mp_aes_init(mp_aes_t *ctx, const void *key, unsigned int keylen);
-	/** bytes written, at most MP_AES_BLOCK, 0 when the cipher was not started */
-	unsigned int mp_aes_update_block(mp_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
-	/** bytes written, at most MP_AES_BLOCK, 0 when the cipher was not started;
+	mp_ret_t mp_crypto_aes_init(mp_crypto_aes_t *ctx, const void *key, unsigned int keylen);
+	/** bytes written, at most MP_CRYPTO_AES_BLOCK, 0 when the cipher was not started */
+	unsigned int mp_crypto_aes_update_block(mp_crypto_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
+	/** bytes written, at most MP_CRYPTO_AES_BLOCK, 0 when the cipher was not started;
 	 *  the inverse cipher is used by the modes that need to decrypt (CBC, GCM) */
-	unsigned int mp_aes_update_block_inv(mp_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
+	unsigned int mp_crypto_aes_update_block_inv(mp_crypto_aes_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
 	/** wipes the context; safe on a cipher already freed */
-	void mp_aes_free(mp_aes_t *ctx);
+	void mp_crypto_aes_free(mp_crypto_aes_t *ctx);
 
 	/* an arch with an AES accelerator provides these; init returns NO when
 	 * the block is busy or off, and the context then runs in software */

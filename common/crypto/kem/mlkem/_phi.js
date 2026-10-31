@@ -1,0 +1,31 @@
+export const phi = {
+	kind: "module",
+	name: "MLKEM",
+	label: "ML-KEM",
+	description: "Module-lattice key encapsulation (FIPS 203), ML-KEM-512 / 768 / 1024. MP_CRYPTO_MLKEM_LEVEL picks the parameter set. A seed is 64 bytes, d then z. Encapsulation coins are the 32-byte message m. The shared secret is 32 bytes. Constant time: the NTT, the Barrett reduction and compression are fixed functions of the full state, and no branch or table index reads a secret. Sampling the public matrix from rho may reject and take a variable number of SHAKE blocks; rho is public. Needs SHAKE. One operation at a time. mp_crypto_mlkem_decaps_fuse() is the fuse path, role MP_CRYPTO_FUSE_MLKEM: a series accelerator supplies mp_arch_mlkem_decaps_fuse(), and the wrapped blob is that arch's. Nothing here burns a fuse.",
+	define: "SUPPORT_COMMON_CRYPTO_KEM_MLKEM",
+	requires: ["SHAKE"],
+	sources: ["mlkem.c"],
+	headers: ["mlkem.h"],
+	headerDir: "crypto",
+	settings: [
+		{
+			name: "MP_CRYPTO_MLKEM_LEVEL",
+			label: "Level",
+			type: "enum",
+			values: ["512", "768", "1024"],
+			labels: ["512", "768", "1024"],
+			default: "512",
+		},
+		{
+			name: "MP_CRYPTO_MLKEM_RAM",
+			label: "RAM",
+			type: "number",
+			unit: "bytes",
+			default: 24576,
+			min: 8192,
+			max: 65536,
+			ram: true,
+		},
+	],
+}

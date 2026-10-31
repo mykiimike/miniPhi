@@ -2,7 +2,7 @@ export const phi = {
 	kind: "module",
 	name: "MLDSA",
 	label: "ML-DSA",
-	description: "Module-Lattice-Based Digital Signature Standard (FIPS 204), ML-DSA-44 / 65 / 87. The security level (2, 3 or 5) is a build setting: MP_MLDSA_LEVEL picks ML-DSA-44 (level 2), ML-DSA-65 (level 3) or ML-DSA-87 (level 5). Constant time: the NTT and Montgomery reduction are fixed functions of the full state, the rejection loop uses constant-time selection, and no branch or table index reads a secret. Needs SHAKE-128 and SHAKE-256 (the SHAKE module). One operation at a time; the page only verifies a stored signature.",
+	description: "Module-Lattice-Based Digital Signature Standard (FIPS 204), ML-DSA-44 / 65 / 87. The security level (2, 3 or 5) is a build setting: MP_CRYPTO_MLDSA_LEVEL picks ML-DSA-44 (level 2), ML-DSA-65 (level 3) or ML-DSA-87 (level 5). Constant time: the NTT and Montgomery reduction are fixed functions of the full state, the rejection loop uses constant-time selection, and no branch or table index reads a secret. Needs SHAKE-128 and SHAKE-256 (the SHAKE module). One operation at a time; the page only verifies a stored signature. mp_crypto_mldsa_sign_fuse() is the fuse path, role MP_CRYPTO_FUSE_MLDSA: a series accelerator supplies mp_arch_mldsa_sign_fuse(), and the wrapped blob is that arch's.",
 	define: "SUPPORT_COMMON_CRYPTO_SIGN_MLDSA",
 	requires: ["SHAKE"],
 	sources: ["mldsa.c"],
@@ -10,7 +10,7 @@ export const phi = {
 	headerDir: "crypto",
 	settings: [
 		{
-			name: "MP_MLDSA_LEVEL",
+			name: "MP_CRYPTO_MLDSA_LEVEL",
 			label: "Level",
 			type: "enum",
 			values: ["2", "3", "5"],
@@ -18,7 +18,7 @@ export const phi = {
 			default: "2",
 		},
 		{
-			name: "MP_MLDSA_RAM",
+			name: "MP_CRYPTO_MLDSA_RAM",
 			label: "RAM",
 			type: "number",
 			unit: "bytes",

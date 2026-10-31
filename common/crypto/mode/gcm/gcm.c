@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -46,7 +45,7 @@ is a mask too, so no branch, table index or address depends on H.
 
 /* X * Y in GF(2^128) with the NIST bit order; V starts as Y, bits of X are
  * tested with masks (constant time with respect to both operands) */
-static void _mp_gmul(const uint8_t *X, const uint8_t *Y, uint8_t *out) {
+static void _mp_crypto_gmul(const uint8_t *X, const uint8_t *Y, uint8_t *out) {
 	uint8_t shift[16], z[16];
 	memcpy(shift, Y, 16);
 	memset(z, 0, 16);
@@ -67,21 +66,21 @@ static void _mp_gmul(const uint8_t *X, const uint8_t *Y, uint8_t *out) {
 }
 
 /* S = (S XOR B) * H */
-static void _mp_ghash_block(mp_cipher_mode_t *m, const uint8_t *B) {
-	for(unsigned int i = 0; i < MP_MODE_BLOCK_MAX; i++)
+static void _mp_crypto_ghash_block(mp_crypto_cipher_mode_t *m, const uint8_t *B) {
+	for(unsigned int i = 0; i < MP_CRYPTO_MODE_BLOCK_MAX; i++)
 		m->auth[i] ^= B[i];
-	_mp_gmul(m->auth, m->tag, m->auth);
+	_mp_crypto_gmul(m->auth, m->tag, m->auth);
 }
 
 /* increment the rightmost 32 bits of the counter (big-endian) */
-static void _mp_gcm_inc32(uint8_t *c) {
+static void _mp_crypto_gcm_inc32(uint8_t *c) {
 	for(int i = 15; i >= 12; i--) {
 		if(++c[i])
 			break;
 	}
 }
 
-static mp_ret_t _mp_gcm_init(mp_cipher_mode_t *m, mp_cipher_t *cipher, const void *iv, unsigned int ivlen, mp_bool_t encrypt) {
+static mp_ret_t _mp_crypto_gcm_init(mp_crypto_cipher_mode_t *m, mp_crypto_cipher_t *cipher, const void *iv, unsigned int ivlen, mp_bool_t encrypt) {
 	if(!m || !cipher || !iv)
 		return(FALSE);
 	if(ivlen != 12) /* the 96-bit IV case, the only one this mode takes */
@@ -94,31 +93,31 @@ static mp_ret_t _mp_gcm_init(mp_cipher_mode_t *m, mp_cipher_t *cipher, const voi
 	m->phase = 0; /* AAD */
 
 	/* H = E(0) */
-	memset(m->tag, 0, MP_MODE_BLOCK_MAX);
-	mp_cipher_update_block(cipher, m->tag, MP_MODE_BLOCK_MAX, m->tag);
+	memset(m->tag, 0, MP_CRYPTO_MODE_BLOCK_MAX);
+	mp_crypto_cipher_update_block(cipher, m->tag, MP_CRYPTO_MODE_BLOCK_MAX, m->tag);
 
 	/* J0 = IV || 0x00000001 */
-	uint8_t j0[MP_MODE_BLOCK_MAX];
+	uint8_t j0[MP_CRYPTO_MODE_BLOCK_MAX];
 	memcpy(j0, iv, 12);
 	j0[12] = 0; j0[13] = 0; j0[14] = 0; j0[15] = 1;
 	/* tag mask = E(J0) */
-	mp_cipher_update_block(cipher, j0, MP_MODE_BLOCK_MAX, m->j0);
+	mp_crypto_cipher_update_block(cipher, j0, MP_CRYPTO_MODE_BLOCK_MAX, m->j0);
 	/* working counter = inc32(J0) */
-	memcpy(m->iv, j0, MP_MODE_BLOCK_MAX);
-	_mp_gcm_inc32(m->iv);
+	memcpy(m->iv, j0, MP_CRYPTO_MODE_BLOCK_MAX);
+	_mp_crypto_gcm_inc32(m->iv);
 	memset(j0, 0, sizeof(j0));
 	return(TRUE);
 }
 
-static unsigned int _mp_gcm_update_aad(mp_cipher_mode_t *m, const void *aad, unsigned int len) {
+static unsigned int _mp_crypto_gcm_update_aad(mp_crypto_cipher_mode_t *m, const void *aad, unsigned int len) {
 	if(!m || m->phase != 0 || (!aad && len))
 		return(0);
 	const uint8_t *p = (const uint8_t *)aad;
 	unsigned int n = len;
 	while(n--) {
 		m->buf[m->leftover++] = *p++;
-		if(m->leftover == MP_MODE_BLOCK_MAX) {
-			_mp_ghash_block(m, m->buf);
+		if(m->leftover == MP_CRYPTO_MODE_BLOCK_MAX) {
+			_mp_crypto_ghash_block(m, m->buf);
 			m->leftover = 0;
 		}
 	}
@@ -126,15 +125,15 @@ static unsigned int _mp_gcm_update_aad(mp_cipher_mode_t *m, const void *aad, uns
 	return(len);
 }
 
-static unsigned int _mp_gcm_update(mp_cipher_mode_t *m, const void *in, unsigned int inlen, uint8_t *out) {
+static unsigned int _mp_crypto_gcm_update(mp_crypto_cipher_mode_t *m, const void *in, unsigned int inlen, uint8_t *out) {
 	if(!m || !m->cipher || !m->cipher->algo || (!in && inlen))
 		return(0);
 	/* first data: close the AAD by padding its partial block */
 	if(m->phase == 0) {
 		if(m->leftover) {
-			while(m->leftover < MP_MODE_BLOCK_MAX)
+			while(m->leftover < MP_CRYPTO_MODE_BLOCK_MAX)
 				m->buf[m->leftover++] = 0;
-			_mp_ghash_block(m, m->buf);
+			_mp_crypto_ghash_block(m, m->buf);
 			m->leftover = 0;
 		}
 		m->phase = 1;
@@ -142,13 +141,13 @@ static unsigned int _mp_gcm_update(mp_cipher_mode_t *m, const void *in, unsigned
 	const uint8_t *p = (const uint8_t *)in;
 	uint8_t *o = out;
 	unsigned int written = 0;
-	unsigned int k = MP_MODE_BLOCK_MAX - m->ksLeft; /* next keystream byte */
+	unsigned int k = MP_CRYPTO_MODE_BLOCK_MAX - m->ksLeft; /* next keystream byte */
 
 	while(inlen--) {
 		if(m->ksLeft == 0) {
-			mp_cipher_update_block(m->cipher, m->iv, MP_MODE_BLOCK_MAX, m->ks);
-			_mp_gcm_inc32(m->iv);
-			m->ksLeft = MP_MODE_BLOCK_MAX;
+			mp_crypto_cipher_update_block(m->cipher, m->iv, MP_CRYPTO_MODE_BLOCK_MAX, m->ks);
+			_mp_crypto_gcm_inc32(m->iv);
+			m->ksLeft = MP_CRYPTO_MODE_BLOCK_MAX;
 			k = 0;
 		}
 		uint8_t inb = *p++;
@@ -158,8 +157,8 @@ static unsigned int _mp_gcm_update(mp_cipher_mode_t *m, const void *in, unsigned
 		 * decrypt it is the input we just read */
 		uint8_t ct = m->encrypt ? outb : inb;
 		m->buf[m->leftover++] = ct;
-		if(m->leftover == MP_MODE_BLOCK_MAX) {
-			_mp_ghash_block(m, m->buf);
+		if(m->leftover == MP_CRYPTO_MODE_BLOCK_MAX) {
+			_mp_crypto_ghash_block(m, m->buf);
 			m->leftover = 0;
 		}
 		m->ksLeft--;
@@ -169,58 +168,58 @@ static unsigned int _mp_gcm_update(mp_cipher_mode_t *m, const void *in, unsigned
 	return(written);
 }
 
-static unsigned int _mp_gcm_final(mp_cipher_mode_t *m, uint8_t *out, uint8_t *tag) {
+static unsigned int _mp_crypto_gcm_final(mp_crypto_cipher_mode_t *m, uint8_t *out, uint8_t *tag) {
 	if(!m)
 		return(0);
 	(void)out;
 	/* if we never left the AAD phase, close it now */
 	if(m->phase == 0) {
 		if(m->leftover) {
-			while(m->leftover < MP_MODE_BLOCK_MAX)
+			while(m->leftover < MP_CRYPTO_MODE_BLOCK_MAX)
 				m->buf[m->leftover++] = 0;
-			_mp_ghash_block(m, m->buf);
+			_mp_crypto_ghash_block(m, m->buf);
 			m->leftover = 0;
 		}
 		m->phase = 1;
 	}
 	/* pad the last ciphertext block */
 	if(m->leftover) {
-		while(m->leftover < MP_MODE_BLOCK_MAX)
+		while(m->leftover < MP_CRYPTO_MODE_BLOCK_MAX)
 			m->buf[m->leftover++] = 0;
-		_mp_ghash_block(m, m->buf);
+		_mp_crypto_ghash_block(m, m->buf);
 		m->leftover = 0;
 	}
 	/* length block: [aadLen]_64 || [ctrLen]_64 */
-	uint8_t lb[MP_MODE_BLOCK_MAX];
+	uint8_t lb[MP_CRYPTO_MODE_BLOCK_MAX];
 	for(int i = 7; i >= 0; i--)
 		lb[7 - i] = (uint8_t)(m->aadLen >> (i * 8));
 	for(int i = 7; i >= 0; i--)
 		lb[15 - i] = (uint8_t)(m->ctrLen >> (i * 8));
-	_mp_ghash_block(m, lb);
+	_mp_crypto_ghash_block(m, lb);
 	memset(lb, 0, sizeof(lb));
 	/* tag = E(J0) XOR S */
 	if(tag) {
-		for(unsigned int i = 0; i < MP_MODE_BLOCK_MAX; i++)
+		for(unsigned int i = 0; i < MP_CRYPTO_MODE_BLOCK_MAX; i++)
 			tag[i] = (uint8_t)(m->j0[i] ^ m->auth[i]);
 	}
 	m->phase = 2;
 	return(0);
 }
 
-static void _mp_gcm_free(mp_cipher_mode_t *m) {
+static void _mp_crypto_gcm_free(mp_crypto_cipher_mode_t *m) {
 	if(!m)
 		return;
 	memset(m, 0, sizeof(*m));
 }
 
-const mp_cipher_mode_algo_t mp_cipher_mode_gcm_algo = {
+const mp_crypto_cipher_mode_algo_t mp_crypto_cipher_mode_gcm_algo = {
 	"GCM", "GCM",
-	12, MP_MODE_BLOCK_MAX,
-	_mp_gcm_init,
-	_mp_gcm_update,
-	_mp_gcm_update_aad,
-	_mp_gcm_final,
-	_mp_gcm_free,
+	12, MP_CRYPTO_MODE_BLOCK_MAX,
+	_mp_crypto_gcm_init,
+	_mp_crypto_gcm_update,
+	_mp_crypto_gcm_update_aad,
+	_mp_crypto_gcm_final,
+	_mp_crypto_gcm_free,
 };
 
 /**@}*/

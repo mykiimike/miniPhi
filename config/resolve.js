@@ -225,7 +225,7 @@ export function analyze(catalog, sel, exists) {
 			headers: accelerated[record.name].headers || [],
 		}))
 	/* the directory under common/crypto/ is the class: hash, mac, cipher, kdf, rng, sign */
-	const cryptoFamilyLabel = { hash: "Hash", mac: "MAC", cipher: "Cipher", kdf: "KDF", rng: "RNG", sign: "Signature", mode: "Mode" }
+	const cryptoFamilyLabel = { hash: "Hash", mac: "MAC", cipher: "Cipher", kdf: "KDF", rng: "RNG", sign: "Signature", mode: "Mode", kem: "KEM" }
 	const cryptoFamily = (dir) => {
 		const parts = (dir || "").split("/")
 		const at = parts.indexOf("crypto")
@@ -256,7 +256,9 @@ export function analyze(catalog, sel, exists) {
 		})
 	}
 	for (const [name, spec] of Object.entries(accelerated)) {
-		if (!spec || cryptoSeen.has(name))
+		const record = catalog.modules.find((item) => item.name === name)
+		/* common/crypto/fuse is the registry, the same depth as the HASH and RNG API directories */
+		if (!spec || cryptoSeen.has(name) || (record && record.dir.startsWith("common/crypto/") && record.dir.split("/").length < 4))
 			continue
 		crypto.push({ name, label: name, family: "other", familyLabel: "Other", hardware: true, built: false })
 	}
@@ -563,9 +565,9 @@ export function analyze(catalog, sel, exists) {
 		return { ...item, value }
 	})
 
-	const rsaBits = settingValue("MP_RSA_BITS")
+	const rsaBits = settingValue("MP_CRYPTO_RSA_BITS")
 	if (rsaBits !== undefined && Number(rsaBits) % 64 !== 0)
-		issue("error", "kernel", "RSA modulus must be a multiple of 64 bits.", [{ setting: "MP_RSA_BITS" }])
+		issue("error", "kernel", "RSA modulus must be a multiple of 64 bits.", [{ setting: "MP_CRYPTO_RSA_BITS" }])
 
 	/* RSA and the post-quantum signature families are mutually exclusive */
 	const pqNames = ["LMS", "SLH", "MLDSA"]

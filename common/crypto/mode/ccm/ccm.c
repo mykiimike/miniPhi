@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -56,16 +55,16 @@ static void _ccm_ctr_block(uint8_t *b, const uint8_t *nonce, unsigned int nlen, 
 }
 
 /* CBC-MAC: process one 16-byte block (X = AES(X ^ block)) */
-static void _ccm_mac_block(mp_cipher_t *aes, uint8_t *X, const uint8_t *block) {
+static void _ccm_mac_block(mp_crypto_cipher_t *aes, uint8_t *X, const uint8_t *block) {
 	uint8_t t[_CCM_BLOCK];
 	for(int i = 0; i < _CCM_BLOCK; i++)
 		t[i] = X[i] ^ block[i];
-	mp_cipher_update_block(aes, t, _CCM_BLOCK, X);
+	mp_crypto_cipher_update_block(aes, t, _CCM_BLOCK, X);
 	memset(t, 0, sizeof(t));
 }
 
 /* run the CCM authentication over (B0 || aad-fmt || plaintext), write S */
-static void _ccm_mac(mp_cipher_t *aes,
+static void _ccm_mac(mp_crypto_cipher_t *aes,
 		const uint8_t *nonce, unsigned int nlen,
 		const void *aad, unsigned int aadlen,
 		const void *pt, unsigned int ptlen,
@@ -81,7 +80,7 @@ static void _ccm_mac(mp_cipher_t *aes,
 	blk[0] = (uint8_t)(((aadlen ? 0x40 : 0) | (((T - 2) / 2) << 3) | (L - 1)));
 	memcpy(blk + 1, nonce, nlen);
 	_ccm_put_be(blk + 1 + nlen, ptlen, L);
-	mp_cipher_update_block(aes, blk, _CCM_BLOCK, X);
+	mp_crypto_cipher_update_block(aes, blk, _CCM_BLOCK, X);
 
 	/* aad: length prefix then aad, padded to 16 */
 	if(aadlen) {
@@ -116,7 +115,7 @@ static void _ccm_mac(mp_cipher_t *aes,
 }
 
 /* CTR: XOR in[start..] with AES(CTR_start+i), write out */
-static void _ccm_ctr(mp_cipher_t *aes,
+static void _ccm_ctr(mp_crypto_cipher_t *aes,
 		const uint8_t *nonce, unsigned int nlen, unsigned int L,
 		const void *in, unsigned int inlen, uint8_t *out, unsigned int start) {
 	const uint8_t *p = (const uint8_t *)in;
@@ -125,7 +124,7 @@ static void _ccm_ctr(mp_cipher_t *aes,
 	unsigned int off = 0, counter = start;
 	while(off < inlen) {
 		_ccm_ctr_block(A, nonce, nlen, L, counter++);
-		mp_cipher_update_block(aes, A, _CCM_BLOCK, S);
+		mp_crypto_cipher_update_block(aes, A, _CCM_BLOCK, S);
 		unsigned int want = inlen - off < _CCM_BLOCK ? inlen - off : _CCM_BLOCK;
 		for(unsigned int i = 0; i < want; i++)
 			o[off + i] = p[off + i] ^ S[i];
@@ -138,7 +137,7 @@ static void _ccm_ctr(mp_cipher_t *aes,
 /**
  * @brief Encrypt and authenticate
  */
-mp_ret_t mp_ccm_seal(mp_cipher_t *aes,
+mp_ret_t mp_crypto_ccm_seal(mp_crypto_cipher_t *aes,
 		const void *nonce, unsigned int nlen,
 		const void *aad, unsigned int aadlen,
 		const void *pt, unsigned int ptlen,
@@ -168,7 +167,7 @@ mp_ret_t mp_ccm_seal(mp_cipher_t *aes,
 
 	/* tag = S XOR AES(CTR_0) */
 	_ccm_ctr_block(A0, nonce, nlen, L, 0);
-	mp_cipher_update_block(aes, A0, _CCM_BLOCK, U);
+	mp_crypto_cipher_update_block(aes, A0, _CCM_BLOCK, U);
 	for(unsigned int i = 0; i < T; i++)
 		tag[i] = S[i] ^ U[i];
 
@@ -181,7 +180,7 @@ mp_ret_t mp_ccm_seal(mp_cipher_t *aes,
 /**
  * @brief Verify and decrypt
  */
-mp_ret_t mp_ccm_open(mp_cipher_t *aes,
+mp_ret_t mp_crypto_ccm_open(mp_crypto_cipher_t *aes,
 		const void *nonce, unsigned int nlen,
 		const void *aad, unsigned int aadlen,
 		const void *ct, unsigned int ctlen,
@@ -207,15 +206,15 @@ mp_ret_t mp_ccm_open(mp_cipher_t *aes,
 
 	uint8_t S[_CCM_BLOCK];
 	uint8_t A0[_CCM_BLOCK], U[_CCM_BLOCK];
-	uint8_t want[MP_CCM_TAG_MAX];
+	uint8_t want[MP_CRYPTO_CCM_TAG_MAX];
 
 	_ccm_mac(aes, nonce, nlen, aad, aadlen, pt, ctlen, L, T, S);
 	_ccm_ctr_block(A0, nonce, nlen, L, 0);
-	mp_cipher_update_block(aes, A0, _CCM_BLOCK, U);
+	mp_crypto_cipher_update_block(aes, A0, _CCM_BLOCK, U);
 	for(unsigned int i = 0; i < T; i++)
 		want[i] = S[i] ^ U[i];
 
-	if(mp_mac_equal(want, tag, T) != YES) {
+	if(mp_crypto_mac_equal(want, tag, T) != YES) {
 		memset(S, 0, sizeof(S));
 		memset(A0, 0, sizeof(A0));
 		memset(U, 0, sizeof(U));

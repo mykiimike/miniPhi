@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -35,18 +34,18 @@
 	 * @{
 	 */
 
-	#define MP_SHA512_SIZE 64
-	#define MP_SHA512_BLOCK 128
+	#define MP_CRYPTO_SHA512_SIZE 64
+	#define MP_CRYPTO_SHA512_BLOCK 128
 
-	typedef struct mp_sha512_s mp_sha512_t;
+	typedef struct mp_crypto_sha512_s mp_crypto_sha512_t;
 
-	struct mp_sha512_s {
+	struct mp_crypto_sha512_s {
 		uint64_t state[8];
 
 		/** bytes hashed so far */
 		uint64_t length;
 
-		uint8_t block[MP_SHA512_BLOCK];
+		uint8_t block[MP_CRYPTO_SHA512_BLOCK];
 
 		/** bytes pending in block; a full block is 128, so this is not a uint8_t */
 		unsigned int used;
@@ -62,19 +61,19 @@
 
 	/** @} */
 
-	void mp_sha512_init(mp_sha512_t *ctx);
+	void mp_crypto_sha512_init(mp_crypto_sha512_t *ctx);
 	/** software only, no accelerator; SHA-384 starts a digest this way */
-	void mp_sha512_init_iv(mp_sha512_t *ctx, const uint64_t iv[8], unsigned int outlen);
-	void mp_sha512_update(mp_sha512_t *ctx, const void *data, unsigned int size);
-	void mp_sha512_final(mp_sha512_t *ctx, uint8_t *digest);
-	void mp_sha512(const void *data, unsigned int size, uint8_t digest[MP_SHA512_SIZE]);
-	void mp_sha512_block(uint64_t state[8], const uint8_t block[MP_SHA512_BLOCK]);
+	void mp_crypto_sha512_init_iv(mp_crypto_sha512_t *ctx, const uint64_t iv[8], unsigned int outlen);
+	void mp_crypto_sha512_update(mp_crypto_sha512_t *ctx, const void *data, unsigned int size);
+	void mp_crypto_sha512_final(mp_crypto_sha512_t *ctx, uint8_t *digest);
+	void mp_crypto_sha512(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA512_SIZE]);
+	void mp_crypto_sha512_block(uint64_t state[8], const uint8_t block[MP_CRYPTO_SHA512_BLOCK]);
 
 	/* an arch with a SHA512 accelerator provides these; init returns NO when the block is busy or off, and the context then runs in software */
 	#ifdef MP_ARCH_SHA512
 		mp_bool_t mp_arch_sha512_init(mp_arch_sha512_t *hw);
 		void mp_arch_sha512_update(mp_arch_sha512_t *hw, const uint8_t *data, unsigned int size);
-		void mp_arch_sha512_final(mp_arch_sha512_t *hw, uint8_t digest[MP_SHA512_SIZE]);
+		void mp_arch_sha512_final(mp_arch_sha512_t *hw, uint8_t digest[MP_CRYPTO_SHA512_SIZE]);
 	#endif
 
 #endif

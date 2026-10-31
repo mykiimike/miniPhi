@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -30,26 +29,26 @@
 
 	/** @} */
 
-	#ifndef MP_RNG_PERIOD
-		#define MP_RNG_PERIOD 60000
+	#ifndef MP_CRYPTO_RNG_PERIOD
+		#define MP_CRYPTO_RNG_PERIOD 60000
 	#endif
 
-	#ifndef MP_RNG_RESEED
-		#define MP_RNG_RESEED 64
+	#ifndef MP_CRYPTO_RNG_RESEED
+		#define MP_CRYPTO_RNG_RESEED 64
 	#endif
 
 	/** one task, reseeding while the generator is drawn from; called from the kernel */
-	void mp_rng_start(mp_kernel_t *kernel);
-	void mp_rng_stop(void);
+	void mp_crypto_rng_start(mp_kernel_t *kernel);
+	void mp_crypto_rng_stop(void);
 	/**
-	 * Draws size bytes, at most MP_HMAC_DRBG_MAX.
+	 * Draws size bytes, at most MP_CRYPTO_HMAC_DRBG_MAX.
 	 * FALSE until the task has seeded, or when size is empty.
 	 */
-	mp_ret_t mp_rng_bytes(void *out, unsigned int size);
+	mp_ret_t mp_crypto_rng_bytes(void *out, unsigned int size);
 	/** the generator the task reseeds, "HMAC-DRBG" */
-	const char *mp_rng_generator(void);
+	const char *mp_crypto_rng_generator(void);
 	/** the label of the hash under it, "SHA-256"; NULL when the build carries none */
-	const char *mp_rng_hash(void);
+	const char *mp_crypto_rng_hash(void);
 
 #endif
 #endif

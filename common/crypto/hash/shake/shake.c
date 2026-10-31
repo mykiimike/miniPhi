@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -97,7 +96,7 @@ static void _keccak_f1600(uint64_t *a) {
 	}
 }
 
-static void _keccak_absorb_block(mp_keccak_t *k) {
+static void _keccak_absorb_block(mp_crypto_keccak_t *k) {
 	unsigned int i;
 	uint64_t *s = k->a;
 	for(i = 0; i < k->rate / 8; i++) {
@@ -111,7 +110,7 @@ static void _keccak_absorb_block(mp_keccak_t *k) {
 	k->idx = 0;
 }
 
-void mp_keccak_init(mp_keccak_t *k, unsigned int rate, uint8_t suffix) {
+void mp_crypto_keccak_init(mp_crypto_keccak_t *k, unsigned int rate, uint8_t suffix) {
 	memset(k, 0, sizeof(*k));
 	k->rate = rate;
 	k->suffix = suffix;
@@ -119,7 +118,7 @@ void mp_keccak_init(mp_keccak_t *k, unsigned int rate, uint8_t suffix) {
 	k->squeezing = 0;
 }
 
-void mp_keccak_absorb(mp_keccak_t *k, const void *data, unsigned int len) {
+void mp_crypto_keccak_absorb(mp_crypto_keccak_t *k, const void *data, unsigned int len) {
 	const uint8_t *p = data;
 	while(len) {
 		unsigned int n = k->rate - k->idx;
@@ -133,7 +132,7 @@ void mp_keccak_absorb(mp_keccak_t *k, const void *data, unsigned int len) {
 	}
 }
 
-void mp_keccak_pad(mp_keccak_t *k) {
+void mp_crypto_keccak_pad(mp_crypto_keccak_t *k) {
 	/* pad10*1: set the suffix, then 1, fill with zeros, set the last bit. */
 	memset(k->buf + k->idx, 0, k->rate - k->idx);
 	k->buf[k->idx] = k->suffix;
@@ -144,7 +143,7 @@ void mp_keccak_pad(mp_keccak_t *k) {
 	k->idx = k->rate;   /* state holds fresh squeezed bytes, none drained yet */
 }
 
-void mp_keccak_squeeze(mp_keccak_t *k, uint8_t *out, unsigned int len) {
+void mp_crypto_keccak_squeeze(mp_crypto_keccak_t *k, uint8_t *out, unsigned int len) {
 	uint8_t *o = out;
 	while(len) {
 		if(k->idx >= k->rate) {
@@ -167,60 +166,60 @@ void mp_keccak_squeeze(mp_keccak_t *k, uint8_t *out, unsigned int len) {
 
 /* ---- SHA3-256 ---------------------------------------------------------- */
 
-void mp_sha3_256_init(mp_sha3_256_t *c) { mp_keccak_init(c, 136, 0x06); }
-void mp_sha3_256_update(mp_sha3_256_t *c, const void *data, unsigned int len) { mp_keccak_absorb(c, data, len); }
-void mp_sha3_256_final(mp_sha3_256_t *c, uint8_t *digest) {
-	mp_keccak_pad(c);
+void mp_crypto_sha3_256_init(mp_crypto_sha3_256_t *c) { mp_crypto_keccak_init(c, 136, 0x06); }
+void mp_crypto_sha3_256_update(mp_crypto_sha3_256_t *c, const void *data, unsigned int len) { mp_crypto_keccak_absorb(c, data, len); }
+void mp_crypto_sha3_256_final(mp_crypto_sha3_256_t *c, uint8_t *digest) {
+	mp_crypto_keccak_pad(c);
 	memcpy(digest, c->a, 32);
 }
-void mp_sha3_256(const void *in, unsigned int len, uint8_t *out) {
-	mp_sha3_256_t c;
-	mp_sha3_256_init(&c);
-	mp_sha3_256_update(&c, in, len);
-	mp_sha3_256_final(&c, out);
+void mp_crypto_sha3_256(const void *in, unsigned int len, uint8_t *out) {
+	mp_crypto_sha3_256_t c;
+	mp_crypto_sha3_256_init(&c);
+	mp_crypto_sha3_256_update(&c, in, len);
+	mp_crypto_sha3_256_final(&c, out);
 }
 
 /* ---- SHA3-512 ---------------------------------------------------------- */
 
-void mp_sha3_512_init(mp_sha3_512_t *c) { mp_keccak_init(c, 72, 0x06); }
-void mp_sha3_512_update(mp_sha3_512_t *c, const void *data, unsigned int len) { mp_keccak_absorb(c, data, len); }
-void mp_sha3_512_final(mp_sha3_512_t *c, uint8_t *digest) {
-	mp_keccak_pad(c);
+void mp_crypto_sha3_512_init(mp_crypto_sha3_512_t *c) { mp_crypto_keccak_init(c, 72, 0x06); }
+void mp_crypto_sha3_512_update(mp_crypto_sha3_512_t *c, const void *data, unsigned int len) { mp_crypto_keccak_absorb(c, data, len); }
+void mp_crypto_sha3_512_final(mp_crypto_sha3_512_t *c, uint8_t *digest) {
+	mp_crypto_keccak_pad(c);
 	memcpy(digest, c->a, 64);
 }
-void mp_sha3_512(const void *in, unsigned int len, uint8_t *out) {
-	mp_sha3_512_t c;
-	mp_sha3_512_init(&c);
-	mp_sha3_512_update(&c, in, len);
-	mp_sha3_512_final(&c, out);
+void mp_crypto_sha3_512(const void *in, unsigned int len, uint8_t *out) {
+	mp_crypto_sha3_512_t c;
+	mp_crypto_sha3_512_init(&c);
+	mp_crypto_sha3_512_update(&c, in, len);
+	mp_crypto_sha3_512_final(&c, out);
 }
 
 /* ---- SHAKE-128 --------------------------------------------------------- */
 
-void mp_shake128_init(mp_shake128_t *c) { mp_keccak_init(c, 168, 0x1f); }
-void mp_shake128_absorb(mp_shake128_t *c, const void *data, unsigned int len) { mp_keccak_absorb(c, data, len); }
-void mp_shake128_finalize(mp_shake128_t *c) { mp_keccak_pad(c); }
-void mp_shake128_squeeze(mp_shake128_t *c, uint8_t *out, unsigned int len) { mp_keccak_squeeze(c, out, len); }
-void mp_shake128(uint8_t *out, unsigned int outlen, const void *in, unsigned int inlen) {
-	mp_shake128_t c;
-	mp_shake128_init(&c);
-	mp_shake128_absorb(&c, in, inlen);
-	mp_shake128_finalize(&c);
-	mp_shake128_squeeze(&c, out, outlen);
+void mp_crypto_shake128_init(mp_crypto_shake128_t *c) { mp_crypto_keccak_init(c, 168, 0x1f); }
+void mp_crypto_shake128_absorb(mp_crypto_shake128_t *c, const void *data, unsigned int len) { mp_crypto_keccak_absorb(c, data, len); }
+void mp_crypto_shake128_finalize(mp_crypto_shake128_t *c) { mp_crypto_keccak_pad(c); }
+void mp_crypto_shake128_squeeze(mp_crypto_shake128_t *c, uint8_t *out, unsigned int len) { mp_crypto_keccak_squeeze(c, out, len); }
+void mp_crypto_shake128(uint8_t *out, unsigned int outlen, const void *in, unsigned int inlen) {
+	mp_crypto_shake128_t c;
+	mp_crypto_shake128_init(&c);
+	mp_crypto_shake128_absorb(&c, in, inlen);
+	mp_crypto_shake128_finalize(&c);
+	mp_crypto_shake128_squeeze(&c, out, outlen);
 }
 
 /* ---- SHAKE-256 --------------------------------------------------------- */
 
-void mp_shake256_init(mp_shake256_t *c) { mp_keccak_init(c, 136, 0x1f); }
-void mp_shake256_absorb(mp_shake256_t *c, const void *data, unsigned int len) { mp_keccak_absorb(c, data, len); }
-void mp_shake256_finalize(mp_shake256_t *c) { mp_keccak_pad(c); }
-void mp_shake256_squeeze(mp_shake256_t *c, uint8_t *out, unsigned int len) { mp_keccak_squeeze(c, out, len); }
-void mp_shake256(uint8_t *out, unsigned int outlen, const void *in, unsigned int inlen) {
-	mp_shake256_t c;
-	mp_shake256_init(&c);
-	mp_shake256_absorb(&c, in, inlen);
-	mp_shake256_finalize(&c);
-	mp_shake256_squeeze(&c, out, outlen);
+void mp_crypto_shake256_init(mp_crypto_shake256_t *c) { mp_crypto_keccak_init(c, 136, 0x1f); }
+void mp_crypto_shake256_absorb(mp_crypto_shake256_t *c, const void *data, unsigned int len) { mp_crypto_keccak_absorb(c, data, len); }
+void mp_crypto_shake256_finalize(mp_crypto_shake256_t *c) { mp_crypto_keccak_pad(c); }
+void mp_crypto_shake256_squeeze(mp_crypto_shake256_t *c, uint8_t *out, unsigned int len) { mp_crypto_keccak_squeeze(c, out, len); }
+void mp_crypto_shake256(uint8_t *out, unsigned int outlen, const void *in, unsigned int inlen) {
+	mp_crypto_shake256_t c;
+	mp_crypto_shake256_init(&c);
+	mp_crypto_shake256_absorb(&c, in, inlen);
+	mp_crypto_shake256_finalize(&c);
+	mp_crypto_shake256_squeeze(&c, out, outlen);
 }
 
 /**@}*/

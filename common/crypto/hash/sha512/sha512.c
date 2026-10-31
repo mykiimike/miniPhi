@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -31,7 +30,7 @@
 @brief SHA-512 digest (FIPS 180-4)
 
 The caller owns the context. SHA-384 starts the same compression with
-mp_sha512_init_iv() and a 48-byte result.
+mp_crypto_sha512_init_iv() and a 48-byte result.
 
 The schedule is a ring of 16 words, so the stack stays small on MSP430.
 
@@ -84,7 +83,7 @@ static void _sha512_store(uint8_t *p, uint64_t value) {
 	p[7] = (uint8_t)value;
 }
 
-void mp_sha512_block(uint64_t state[8], const uint8_t block[MP_SHA512_BLOCK]) {
+void mp_crypto_sha512_block(uint64_t state[8], const uint8_t block[MP_CRYPTO_SHA512_BLOCK]) {
 	uint64_t w[16];
 	uint64_t a = state[0], b = state[1], c = state[2], d = state[3];
 	uint64_t e = state[4], f = state[5], g = state[6], h = state[7];
@@ -123,39 +122,39 @@ void mp_sha512_block(uint64_t state[8], const uint8_t block[MP_SHA512_BLOCK]) {
 	state[7] += h;
 }
 
-static void _sha512_soft_update(mp_sha512_t *ctx, const uint8_t *data, unsigned int size) {
+static void _sha512_soft_update(mp_crypto_sha512_t *ctx, const uint8_t *data, unsigned int size) {
 	unsigned int take;
 
 	ctx->length += size;
 	while(size > 0) {
-		take = MP_SHA512_BLOCK - ctx->used;
+		take = MP_CRYPTO_SHA512_BLOCK - ctx->used;
 		if(take > size)
 			take = size;
 		memcpy(ctx->block + ctx->used, data, take);
 		ctx->used += take;
 		data += take;
 		size -= take;
-		if(ctx->used == MP_SHA512_BLOCK) {
-			mp_sha512_block(ctx->state, ctx->block);
+		if(ctx->used == MP_CRYPTO_SHA512_BLOCK) {
+			mp_crypto_sha512_block(ctx->state, ctx->block);
 			ctx->used = 0;
 		}
 	}
 }
 
-static void _sha512_soft_final(mp_sha512_t *ctx, uint8_t *digest) {
+static void _sha512_soft_final(mp_crypto_sha512_t *ctx, uint8_t *digest) {
 	uint64_t bits = ctx->length * 8;
 	unsigned int words, i;
 
 	ctx->block[ctx->used++] = 0x80;
-	if(ctx->used > MP_SHA512_BLOCK - 16) {
-		memset(ctx->block + ctx->used, 0, MP_SHA512_BLOCK - ctx->used);
-		mp_sha512_block(ctx->state, ctx->block);
+	if(ctx->used > MP_CRYPTO_SHA512_BLOCK - 16) {
+		memset(ctx->block + ctx->used, 0, MP_CRYPTO_SHA512_BLOCK - ctx->used);
+		mp_crypto_sha512_block(ctx->state, ctx->block);
 		ctx->used = 0;
 	}
-	memset(ctx->block + ctx->used, 0, MP_SHA512_BLOCK - ctx->used);
+	memset(ctx->block + ctx->used, 0, MP_CRYPTO_SHA512_BLOCK - ctx->used);
 	for(i = 0; i < 8; i++)
-		ctx->block[MP_SHA512_BLOCK - 8 + i] = (uint8_t)(bits >> (56 - i * 8));
-	mp_sha512_block(ctx->state, ctx->block);
+		ctx->block[MP_CRYPTO_SHA512_BLOCK - 8 + i] = (uint8_t)(bits >> (56 - i * 8));
+	mp_crypto_sha512_block(ctx->state, ctx->block);
 
 	words = ctx->outlen / 8;
 	if(words > 8)
@@ -173,7 +172,7 @@ static void _sha512_soft_final(mp_sha512_t *ctx, uint8_t *digest) {
  * @param[in] iv Eight words
  * @param[in] outlen Bytes final will write, 64 or 48
  */
-void mp_sha512_init_iv(mp_sha512_t *ctx, const uint64_t iv[8], unsigned int outlen) {
+void mp_crypto_sha512_init_iv(mp_crypto_sha512_t *ctx, const uint64_t iv[8], unsigned int outlen) {
 	memcpy(ctx->state, iv, sizeof(ctx->state));
 	ctx->length = 0;
 	ctx->used = 0;
@@ -188,8 +187,8 @@ void mp_sha512_init_iv(mp_sha512_t *ctx, const uint64_t iv[8], unsigned int outl
  *
  * @param[in] ctx Context, owned by the caller
  */
-void mp_sha512_init(mp_sha512_t *ctx) {
-	mp_sha512_init_iv(ctx, _sha512_iv, MP_SHA512_SIZE);
+void mp_crypto_sha512_init(mp_crypto_sha512_t *ctx) {
+	mp_crypto_sha512_init_iv(ctx, _sha512_iv, MP_CRYPTO_SHA512_SIZE);
 #ifdef MP_ARCH_SHA512
 	ctx->onHardware = mp_arch_sha512_init(&ctx->hw);
 #endif
@@ -202,7 +201,7 @@ void mp_sha512_init(mp_sha512_t *ctx) {
  * @param[in] data Bytes
  * @param[in] size Number of bytes
  */
-void mp_sha512_update(mp_sha512_t *ctx, const void *data, unsigned int size) {
+void mp_crypto_sha512_update(mp_crypto_sha512_t *ctx, const void *data, unsigned int size) {
 #ifdef MP_ARCH_SHA512
 	if(ctx->onHardware) {
 		mp_arch_sha512_update(&ctx->hw, data, size);
@@ -220,7 +219,7 @@ void mp_sha512_update(mp_sha512_t *ctx, const void *data, unsigned int size) {
  * @param[in] ctx Context
  * @param[out] digest ctx->outlen bytes
  */
-void mp_sha512_final(mp_sha512_t *ctx, uint8_t *digest) {
+void mp_crypto_sha512_final(mp_crypto_sha512_t *ctx, uint8_t *digest) {
 #ifdef MP_ARCH_SHA512
 	if(ctx->onHardware)
 		mp_arch_sha512_final(&ctx->hw, digest);
@@ -237,14 +236,14 @@ void mp_sha512_final(mp_sha512_t *ctx, uint8_t *digest) {
  *
  * @param[in] data Bytes
  * @param[in] size Number of bytes
- * @param[out] digest MP_SHA512_SIZE bytes
+ * @param[out] digest MP_CRYPTO_SHA512_SIZE bytes
  */
-void mp_sha512(const void *data, unsigned int size, uint8_t digest[MP_SHA512_SIZE]) {
-	mp_sha512_t ctx;
+void mp_crypto_sha512(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA512_SIZE]) {
+	mp_crypto_sha512_t ctx;
 
-	mp_sha512_init(&ctx);
-	mp_sha512_update(&ctx, data, size);
-	mp_sha512_final(&ctx, digest);
+	mp_crypto_sha512_init(&ctx);
+	mp_crypto_sha512_update(&ctx, data, size);
+	mp_crypto_sha512_final(&ctx, digest);
 }
 
 /**@}*/

@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -35,12 +34,12 @@
 	 */
 
 	/** largest tag CCM writes, 16 bytes */
-	#define MP_CCM_TAG_MAX 16
+	#define MP_CRYPTO_CCM_TAG_MAX 16
 
 	/**
 	 * @brief Encrypt and authenticate
 	 *
-	 * @param[in] aes AES cipher started with the key (mp_cipher_init)
+	 * @param[in] aes AES cipher started with the key (mp_crypto_cipher_init)
 	 * @param[in] nonce 7..13 bytes
 	 * @param[in] nlen Nonce bytes
 	 * @param[in] aad Additional data, or NULL
@@ -52,7 +51,7 @@
 	 * @param[in] T Tag size, one of 4,6,8,10,12,14,16
 	 * @return TRUE on success
 	 */
-	mp_ret_t mp_ccm_seal(mp_cipher_t *aes,
+	mp_ret_t mp_crypto_ccm_seal(mp_crypto_cipher_t *aes,
 		const void *nonce, unsigned int nlen,
 		const void *aad, unsigned int aadlen,
 		const void *pt, unsigned int ptlen,
@@ -73,7 +72,7 @@
 	 * @param[out] pt At least ctlen bytes (wiped on a tag mismatch)
 	 * @return TRUE when the tag matches, FALSE otherwise
 	 */
-	mp_ret_t mp_ccm_open(mp_cipher_t *aes,
+	mp_ret_t mp_crypto_ccm_open(mp_crypto_cipher_t *aes,
 		const void *nonce, unsigned int nlen,
 		const void *aad, unsigned int aadlen,
 		const void *ct, unsigned int ctlen,

@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -31,12 +30,12 @@
 @brief Any cipher of the build, picked by name
 
 @code
-mp_cipher_t cipher;
-uint8_t out[MP_CIPHER_BLOCK_MAX];
+mp_crypto_cipher_t cipher;
+uint8_t out[MP_CRYPTO_CIPHER_BLOCK_MAX];
 
-if(mp_cipher_init(&cipher, "AES", key, 16) == TRUE) {
-	unsigned int n = mp_cipher_update_block(&cipher, in, inlen, out);
-	mp_cipher_free(&cipher);
+if(mp_crypto_cipher_init(&cipher, "AES", key, 16) == TRUE) {
+	unsigned int n = mp_crypto_cipher_update_block(&cipher, in, inlen, out);
+	mp_crypto_cipher_free(&cipher);
 }
 @endcode
 
@@ -46,29 +45,29 @@ and a member in the union of cipher.h.
 @{
 */
 
-#define _MP_CIPHER_WRAP(id, type) \
-	static mp_ret_t _mp_cipher_##id##_init(void *ctx, const void *key, unsigned int keylen) { return mp_##id##_init((type *)ctx, key, keylen); } \
-	static unsigned int _mp_cipher_##id##_update_block(void *ctx, const void *in, unsigned int inlen, uint8_t *out) { return mp_##id##_update_block((type *)ctx, in, inlen, out); } \
-	static unsigned int _mp_cipher_##id##_update_block_inv(void *ctx, const void *in, unsigned int inlen, uint8_t *out) { return mp_##id##_update_block_inv((type *)ctx, in, inlen, out); } \
-	static void _mp_cipher_##id##_free(void *ctx) { mp_##id##_free((type *)ctx); }
+#define _MP_CRYPTO_CIPHER_WRAP(id, type) \
+	static mp_ret_t _mp_crypto_cipher_##id##_init(void *ctx, const void *key, unsigned int keylen) { return mp_crypto_##id##_init((type *)ctx, key, keylen); } \
+	static unsigned int _mp_crypto_cipher_##id##_update_block(void *ctx, const void *in, unsigned int inlen, uint8_t *out) { return mp_crypto_##id##_update_block((type *)ctx, in, inlen, out); } \
+	static unsigned int _mp_crypto_cipher_##id##_update_block_inv(void *ctx, const void *in, unsigned int inlen, uint8_t *out) { return mp_crypto_##id##_update_block_inv((type *)ctx, in, inlen, out); } \
+	static void _mp_crypto_cipher_##id##_free(void *ctx) { mp_crypto_##id##_free((type *)ctx); }
 
-#define _MP_CIPHER_ENTRY(id, name, label, block, key) \
-	{ name, label, block, key, _mp_cipher_##id##_init, _mp_cipher_##id##_update_block, _mp_cipher_##id##_update_block_inv, _mp_cipher_##id##_free }
+#define _MP_CRYPTO_CIPHER_ENTRY(id, name, label, block, key) \
+	{ name, label, block, key, _mp_crypto_cipher_##id##_init, _mp_crypto_cipher_##id##_update_block, _mp_crypto_cipher_##id##_update_block_inv, _mp_crypto_cipher_##id##_free }
 
 #ifdef SUPPORT_COMMON_CRYPTO_CIPHER_AES
-	_MP_CIPHER_WRAP(aes, mp_aes_t)
+	_MP_CRYPTO_CIPHER_WRAP(aes, mp_crypto_aes_t)
 #endif
 
-static const mp_cipher_algo_t _mp_cipher_algos[] = {
+static const mp_crypto_cipher_algo_t _mp_crypto_cipher_algos[] = {
 #ifdef SUPPORT_COMMON_CRYPTO_CIPHER_AES
-	_MP_CIPHER_ENTRY(aes, "AES", "AES", MP_AES_BLOCK, MP_AES_KEY),
+	_MP_CRYPTO_CIPHER_ENTRY(aes, "AES", "AES", MP_CRYPTO_AES_BLOCK, MP_CRYPTO_AES_KEY),
 #endif
 	{ NULL, NULL, 0, 0, NULL, NULL, NULL, NULL },
 };
 
-#define _MP_CIPHER_COUNT ((int)(sizeof(_mp_cipher_algos) / sizeof(_mp_cipher_algos[0])) - 1)
+#define _MP_CRYPTO_CIPHER_COUNT ((int)(sizeof(_mp_crypto_cipher_algos) / sizeof(_mp_crypto_cipher_algos[0])) - 1)
 
-static int _mp_cipher_same(const char *a, const char *b) {
+static int _mp_crypto_cipher_same(const char *a, const char *b) {
 	char x, y;
 
 	while(*a && *b) {
@@ -87,19 +86,19 @@ static int _mp_cipher_same(const char *a, const char *b) {
 /**
  * @brief Number of ciphers in the build
  */
-int mp_cipher_count(void) {
-	return(_MP_CIPHER_COUNT);
+int mp_crypto_cipher_count(void) {
+	return(_MP_CRYPTO_CIPHER_COUNT);
 }
 
 /**
  * @brief Cipher at index, NULL past the end
  *
- * @param[in] index From 0 to mp_cipher_count() - 1
+ * @param[in] index From 0 to mp_crypto_cipher_count() - 1
  */
-const mp_cipher_algo_t *mp_cipher_at(int index) {
-	if(index < 0 || index >= _MP_CIPHER_COUNT)
+const mp_crypto_cipher_algo_t *mp_crypto_cipher_at(int index) {
+	if(index < 0 || index >= _MP_CRYPTO_CIPHER_COUNT)
 		return(NULL);
-	return(&_mp_cipher_algos[index]);
+	return(&_mp_crypto_cipher_algos[index]);
 }
 
 /**
@@ -108,14 +107,14 @@ const mp_cipher_algo_t *mp_cipher_at(int index) {
  * @param[in] name Module name or label, any case: "AES", "aes"
  * @return NULL when the build does not carry it
  */
-const mp_cipher_algo_t *mp_cipher_find(const char *name) {
+const mp_crypto_cipher_algo_t *mp_crypto_cipher_find(const char *name) {
 	int n;
 
 	if(!name)
 		return(NULL);
-	for(n = 0; n < _MP_CIPHER_COUNT; n++) {
-		if(_mp_cipher_same(name, _mp_cipher_algos[n].name) || _mp_cipher_same(name, _mp_cipher_algos[n].label))
-			return(&_mp_cipher_algos[n]);
+	for(n = 0; n < _MP_CRYPTO_CIPHER_COUNT; n++) {
+		if(_mp_crypto_cipher_same(name, _mp_crypto_cipher_algos[n].name) || _mp_crypto_cipher_same(name, _mp_crypto_cipher_algos[n].label))
+			return(&_mp_crypto_cipher_algos[n]);
 	}
 	return(NULL);
 }
@@ -129,8 +128,8 @@ const mp_cipher_algo_t *mp_cipher_find(const char *name) {
  * @param[in] keylen Key bytes (AES-128 = 16, AES-192 = 24, AES-256 = 32)
  * @return FALSE when name is not in the build or the key length is wrong
  */
-mp_ret_t mp_cipher_init(mp_cipher_t *ctx, const char *name, const void *key, unsigned int keylen) {
-	const mp_cipher_algo_t *algo = mp_cipher_find(name);
+mp_ret_t mp_crypto_cipher_init(mp_crypto_cipher_t *ctx, const char *name, const void *key, unsigned int keylen) {
+	const mp_crypto_cipher_algo_t *algo = mp_crypto_cipher_find(name);
 
 	memset(ctx, 0, sizeof(*ctx));
 	if(!algo)
@@ -153,7 +152,7 @@ mp_ret_t mp_cipher_init(mp_cipher_t *ctx, const char *name, const void *key, uns
  * @param[out] out At least the block bytes
  * @return Bytes written, 0 when the cipher was not started
  */
-unsigned int mp_cipher_update_block(mp_cipher_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
+unsigned int mp_crypto_cipher_update_block(mp_crypto_cipher_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
 	if(!ctx->algo)
 		return(0);
 	return(ctx->algo->update_block(&ctx->ctx, in, inlen, out));
@@ -170,7 +169,7 @@ unsigned int mp_cipher_update_block(mp_cipher_t *ctx, const void *in, unsigned i
  * @param[out] out At least the block bytes
  * @return Bytes written, 0 when the cipher was not started
  */
-unsigned int mp_cipher_update_block_inv(mp_cipher_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
+unsigned int mp_crypto_cipher_update_block_inv(mp_crypto_cipher_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
 	if(!ctx->algo)
 		return(0);
 	return(ctx->algo->update_block_inv(&ctx->ctx, in, inlen, out));
@@ -183,7 +182,7 @@ unsigned int mp_cipher_update_block_inv(mp_cipher_t *ctx, const void *in, unsign
  *
  * @param[in] cipher Context
  */
-void mp_cipher_free(mp_cipher_t *ctx) {
+void mp_crypto_cipher_free(mp_crypto_cipher_t *ctx) {
 	memset(ctx, 0, sizeof(*ctx));
 }
 

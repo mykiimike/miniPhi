@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -385,10 +384,10 @@ static void _ready_up(void) {
 static void sc_reduce(uint8_t out[32], const uint8_t *in, unsigned int len) {
 	uint32_t x[16], l[8], r[8];
 
-	mp_bn_from_le(x, 16, in, len > 64 ? 64 : len);
-	mp_bn_from_le(l, 8, _L, 32);
-	mp_bn_mod(r, x, 16, l, 8);
-	mp_bn_to_le(out, 32, r, 8);
+	mp_crypto_bn_from_le(x, 16, in, len > 64 ? 64 : len);
+	mp_crypto_bn_from_le(l, 8, _L, 32);
+	mp_crypto_bn_mod(r, x, 16, l, 8);
+	mp_crypto_bn_to_le(out, 32, r, 8);
 	memset(x, 0, sizeof(x));
 }
 
@@ -397,20 +396,20 @@ static void sc_muladd(uint8_t out[32], const uint8_t *a, const uint8_t *b, const
 	uint32_t carry;
 	int i;
 
-	mp_bn_from_le(aa, 8, a, 32);
-	mp_bn_from_le(bb, 8, b, 32);
-	mp_bn_from_le(cc, 8, c, 32);
-	mp_bn_mul(prod, aa, bb, 8);
-	carry = mp_bn_add(prod, prod, cc, 8);
+	mp_crypto_bn_from_le(aa, 8, a, 32);
+	mp_crypto_bn_from_le(bb, 8, b, 32);
+	mp_crypto_bn_from_le(cc, 8, c, 32);
+	mp_crypto_bn_mul(prod, aa, bb, 8);
+	carry = mp_crypto_bn_add(prod, prod, cc, 8);
 	for(i = 8; carry && i < 16; i++) {
 		uint64_t s = (uint64_t)prod[i] + carry;
 
 		prod[i] = (uint32_t)s;
 		carry = (uint32_t)(s >> 32);
 	}
-	mp_bn_from_le(l, 8, _L, 32);
-	mp_bn_mod(r, prod, 16, l, 8);
-	mp_bn_to_le(out, 32, r, 8);
+	mp_crypto_bn_from_le(l, 8, _L, 32);
+	mp_crypto_bn_mod(r, prod, 16, l, 8);
+	mp_crypto_bn_to_le(out, 32, r, 8);
 	memset(aa, 0, sizeof(aa));
 	memset(bb, 0, sizeof(bb));
 	memset(prod, 0, sizeof(prod));
@@ -419,9 +418,9 @@ static void sc_muladd(uint8_t out[32], const uint8_t *a, const uint8_t *b, const
 static int sc_lt_L(const uint8_t s[32]) {
 	uint32_t a[8], l[8];
 
-	mp_bn_from_le(a, 8, s, 32);
-	mp_bn_from_le(l, 8, _L, 32);
-	return(mp_bn_cmp(a, l, 8) < 0);
+	mp_crypto_bn_from_le(a, 8, s, 32);
+	mp_crypto_bn_from_le(l, 8, _L, 32);
+	return(mp_crypto_bn_cmp(a, l, 8) < 0);
 }
 
 static void _clamp(uint8_t s[32]) {
@@ -435,7 +434,7 @@ static void _public_from(const uint8_t priv[32], uint8_t pub[32], uint8_t prefix
 	uint8_t s[32];
 
 	_ready_up();
-	mp_sha512(priv, 32, h);
+	mp_crypto_sha512(priv, 32, h);
 	memcpy(s, h, 32);
 	if(prefix)
 		memcpy(prefix, h + 32, 32);
@@ -455,11 +454,11 @@ static void _public_from(const uint8_t priv[32], uint8_t pub[32], uint8_t prefix
  * @param[out] pub 32 bytes
  * @return FALSE when the seed is shorter
  */
-mp_ret_t mp_ed25519_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
-	if(!seed || !priv || !pub || seedlen < MP_ED25519_PRIV)
+mp_ret_t mp_crypto_ed25519_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	if(!seed || !priv || !pub || seedlen < MP_CRYPTO_ED25519_PRIV)
 		return(FALSE);
-	memcpy(priv, seed, MP_ED25519_PRIV);
-	mp_ed25519_public(priv, pub);
+	memcpy(priv, seed, MP_CRYPTO_ED25519_PRIV);
+	mp_crypto_ed25519_public(priv, pub);
 	return(TRUE);
 }
 
@@ -469,7 +468,7 @@ mp_ret_t mp_ed25519_keypair(const void *seed, unsigned int seedlen, void *priv, 
  * @param[in] priv 32 bytes
  * @param[out] pub 32 bytes
  */
-void mp_ed25519_public(const void *priv, void *pub) {
+void mp_crypto_ed25519_public(const void *priv, void *pub) {
 	_public_from(priv, pub, NULL);
 }
 
@@ -482,30 +481,30 @@ void mp_ed25519_public(const void *priv, void *pub) {
  * @param[out] sig 64 bytes
  * @return 64, or 0 when priv or sig is missing
  */
-unsigned int mp_ed25519_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+unsigned int mp_crypto_ed25519_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
 	uint8_t prefix[32], pub[32], h[64], r[32], k[32], s[32];
-	mp_sha512_t sha;
+	mp_crypto_sha512_t sha;
 
 	if(!priv || !sig || (len && !msg))
 		return(0);
 	_public_from(priv, pub, prefix);
-	mp_sha512(priv, 32, h);
+	mp_crypto_sha512(priv, 32, h);
 	memcpy(s, h, 32);
 	_clamp(s);
-	mp_sha512_init(&sha);
-	mp_sha512_update(&sha, prefix, 32);
+	mp_crypto_sha512_init(&sha);
+	mp_crypto_sha512_update(&sha, prefix, 32);
 	if(len)
-		mp_sha512_update(&sha, msg, len);
-	mp_sha512_final(&sha, h);
+		mp_crypto_sha512_update(&sha, msg, len);
+	mp_crypto_sha512_final(&sha, h);
 	sc_reduce(r, h, 64);
 	ge_scalarmult(&_acc, r, &_base);
 	ge_encode(sig, &_acc);
-	mp_sha512_init(&sha);
-	mp_sha512_update(&sha, sig, 32);
-	mp_sha512_update(&sha, pub, 32);
+	mp_crypto_sha512_init(&sha);
+	mp_crypto_sha512_update(&sha, sig, 32);
+	mp_crypto_sha512_update(&sha, pub, 32);
 	if(len)
-		mp_sha512_update(&sha, msg, len);
-	mp_sha512_final(&sha, h);
+		mp_crypto_sha512_update(&sha, msg, len);
+	mp_crypto_sha512_final(&sha, h);
 	sc_reduce(k, h, 64);
 	sc_muladd(sig + 32, k, s, r);
 	memset(prefix, 0, sizeof(prefix));
@@ -513,7 +512,7 @@ unsigned int mp_ed25519_sign(const void *priv, const void *msg, unsigned int len
 	memset(r, 0, sizeof(r));
 	memset(k, 0, sizeof(k));
 	memset(s, 0, sizeof(s));
-	return(MP_ED25519_SIG);
+	return(MP_CRYPTO_ED25519_SIG);
 }
 
 /**
@@ -526,24 +525,24 @@ unsigned int mp_ed25519_sign(const void *priv, const void *msg, unsigned int len
  * @param[in] siglen Must be 64
  * @return YES when it checks
  */
-mp_bool_t mp_ed25519_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+mp_bool_t mp_crypto_ed25519_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
 	const uint8_t *in = sig;
 	uint8_t h[64], k[32], left[32], right[32];
-	mp_sha512_t sha;
+	mp_crypto_sha512_t sha;
 
-	if(!pub || !sig || siglen != MP_ED25519_SIG || (len && !msg))
+	if(!pub || !sig || siglen != MP_CRYPTO_ED25519_SIG || (len && !msg))
 		return(NO);
 	if(!sc_lt_L(in + 32))
 		return(NO);
 	_ready_up();
 	if(!ge_decode(&_A, pub) || !ge_decode(&_R, in))
 		return(NO);
-	mp_sha512_init(&sha);
-	mp_sha512_update(&sha, in, 32);
-	mp_sha512_update(&sha, pub, 32);
+	mp_crypto_sha512_init(&sha);
+	mp_crypto_sha512_update(&sha, in, 32);
+	mp_crypto_sha512_update(&sha, pub, 32);
 	if(len)
-		mp_sha512_update(&sha, msg, len);
-	mp_sha512_final(&sha, h);
+		mp_crypto_sha512_update(&sha, msg, len);
+	mp_crypto_sha512_final(&sha, h);
 	sc_reduce(k, h, 64);
 	ge_scalarmult(&_acc, in + 32, &_base);
 	ge_encode(left, &_acc);
@@ -553,6 +552,50 @@ mp_bool_t mp_ed25519_verify(const void *pub, const void *msg, unsigned int len, 
 	memset(h, 0, sizeof(h));
 	memset(k, 0, sizeof(k));
 	return(memcmp(left, right, 32) == 0 ? YES : NO);
+}
+
+/**
+ * @brief Sign with a fuse slot
+ *
+ * A series that declares an Ed25519 accelerator provides
+ * mp_arch_ed25519_sign_fuse(). wrapped is the blob that arch defines.
+ *
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_ED25519
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] msg Message
+ * @param[in] len Message length
+ * @param[out] sig MP_CRYPTO_ED25519_SIG bytes
+ * @return The signature size, or 0 when this series has no such accelerator
+ */
+unsigned int mp_crypto_ed25519_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+	static mp_bool_t said;
+
+	if(!sig || (len && !msg))
+		return(0);
+#ifdef MP_ARCH_ED25519
+	unsigned int n;
+
+#ifdef SUPPORT_COMMON_CRYPTO_FUSE
+	if(mp_crypto_fuse_check(fuse, MP_CRYPTO_FUSE_ED25519) != YES)
+		return(0);
+#endif
+	n = mp_arch_ed25519_sign_fuse(fuse, wrapped, wrappedlen, msg, len, sig);
+	if(!n && said == NO) {
+		mp_printk("Ed25519: the accelerator refused the fuse");
+		said = YES;
+	}
+	return(n);
+#else
+	(void)fuse;
+	(void)wrapped;
+	(void)wrappedlen;
+	if(said == NO) {
+		mp_printk("Ed25519: this build has no fuse");
+		said = YES;
+	}
+	return(0);
+#endif
 }
 
 /**@}*/

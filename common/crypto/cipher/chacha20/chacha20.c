@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -37,7 +36,7 @@ No table, no S-box: every step is adds, rotates and xors on 32-bit words,
 so the cipher is constant time by construction, including the key
 schedule (there is none: the key is loaded directly into the state).
 
-The keystream is buffered: mp_chacha20_update_block() XORs any length
+The keystream is buffered: mp_crypto_chacha20_update_block() XORs any length
 with the running keystream and refills the 64-byte block as needed.
 
 @{
@@ -84,7 +83,7 @@ static void _le32_put(uint8_t *p, uint32_t v) {
 }
 
 /* build the 16-word input state and run one block, writing 64 keystream bytes */
-static void _chacha20_keystream(mp_chacha20_t *ctx, uint8_t *ks) {
+static void _chacha20_keystream(mp_crypto_chacha20_t *ctx, uint8_t *ks) {
 	static const uint32_t c[4] = {0x61707865, 0x3320646e, 0x79622d32, 0x6b206574};
 	uint32_t in[16], out[16];
 	in[0] = c[0]; in[1] = c[1]; in[2] = c[2]; in[3] = c[3];
@@ -109,13 +108,13 @@ static void _chacha20_keystream(mp_chacha20_t *ctx, uint8_t *ks) {
  * @param[in] keylen Must be 32
  * @return TRUE when the key length is 32, FALSE otherwise
  */
-mp_ret_t mp_chacha20_init(mp_chacha20_t *ctx, const void *key, unsigned int keylen) {
+mp_ret_t mp_crypto_chacha20_init(mp_crypto_chacha20_t *ctx, const void *key, unsigned int keylen) {
 	if(!ctx || !key)
 		return(FALSE);
-	if(keylen != MP_CHACHA20_KEY)
+	if(keylen != MP_CRYPTO_CHACHA20_KEY)
 		return(FALSE);
 	memset(ctx, 0, sizeof(*ctx));
-	memcpy(ctx->key, key, MP_CHACHA20_KEY);
+	memcpy(ctx->key, key, MP_CRYPTO_CHACHA20_KEY);
 	ctx->counter = 0;
 	ctx->ksLeft = 0;
 	return(TRUE);
@@ -128,10 +127,10 @@ mp_ret_t mp_chacha20_init(mp_chacha20_t *ctx, const void *key, unsigned int keyl
  * @param[in] nonce 12 bytes
  * @param[in] noncelen Must be 12
  */
-void mp_chacha20_set_nonce(mp_chacha20_t *ctx, const void *nonce, unsigned int noncelen) {
-	if(!ctx || !nonce || noncelen != MP_CHACHA20_NONCE)
+void mp_crypto_chacha20_set_nonce(mp_crypto_chacha20_t *ctx, const void *nonce, unsigned int noncelen) {
+	if(!ctx || !nonce || noncelen != MP_CRYPTO_CHACHA20_NONCE)
 		return;
-	memcpy(ctx->nonce, nonce, MP_CHACHA20_NONCE);
+	memcpy(ctx->nonce, nonce, MP_CRYPTO_CHACHA20_NONCE);
 	ctx->ksLeft = 0;
 }
 
@@ -141,7 +140,7 @@ void mp_chacha20_set_nonce(mp_chacha20_t *ctx, const void *nonce, unsigned int n
  * @param[in] ctx Started context
  * @param[in] counter Block counter (1 for RFC 8439 data, 0 for the AEAD key)
  */
-void mp_chacha20_set_counter(mp_chacha20_t *ctx, uint32_t counter) {
+void mp_crypto_chacha20_set_counter(mp_crypto_chacha20_t *ctx, uint32_t counter) {
 	if(!ctx)
 		return;
 	ctx->counter = counter;
@@ -157,18 +156,18 @@ void mp_chacha20_set_counter(mp_chacha20_t *ctx, uint32_t counter) {
  * @param[out] out At least inlen bytes
  * @return Bytes written (== inlen)
  */
-unsigned int mp_chacha20_update_block(mp_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
+unsigned int mp_crypto_chacha20_update_block(mp_crypto_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
 	if(!ctx || !in || !out)
 		return(0);
 	const uint8_t *p = (const uint8_t *)in;
 	uint8_t *o = out;
 	unsigned int n = inlen;
-	unsigned int k = MP_CHACHA20_BLOCK - ctx->ksLeft;
+	unsigned int k = MP_CRYPTO_CHACHA20_BLOCK - ctx->ksLeft;
 	while(n--) {
 		if(ctx->ksLeft == 0) {
 			_chacha20_keystream(ctx, ctx->ks);
 			ctx->counter++;
-			ctx->ksLeft = MP_CHACHA20_BLOCK;
+			ctx->ksLeft = MP_CRYPTO_CHACHA20_BLOCK;
 			k = 0;
 		}
 		*o++ = *p++ ^ ctx->ks[k++];
@@ -177,8 +176,8 @@ unsigned int mp_chacha20_update_block(mp_chacha20_t *ctx, const void *in, unsign
 	return(inlen);
 }
 
-unsigned int mp_chacha20_update_block_inv(mp_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
-	return(mp_chacha20_update_block(ctx, in, inlen, out));
+unsigned int mp_crypto_chacha20_update_block_inv(mp_crypto_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
+	return(mp_crypto_chacha20_update_block(ctx, in, inlen, out));
 }
 
 /**
@@ -186,7 +185,7 @@ unsigned int mp_chacha20_update_block_inv(mp_chacha20_t *ctx, const void *in, un
  *
  * @param[in] ctx Started context (or NULL)
  */
-void mp_chacha20_free(mp_chacha20_t *ctx) {
+void mp_crypto_chacha20_free(mp_crypto_chacha20_t *ctx) {
 	if(!ctx)
 		return;
 	memset(ctx, 0, sizeof(*ctx));

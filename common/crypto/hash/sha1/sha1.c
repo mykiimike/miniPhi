@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -104,38 +103,38 @@ static void _sha1_block(uint32_t state[5], const uint8_t *block) {
 	state[4] += e;
 }
 
-static void _sha1_soft_update(mp_sha1_t *ctx, const uint8_t *data, unsigned int size) {
+static void _sha1_soft_update(mp_crypto_sha1_t *ctx, const uint8_t *data, unsigned int size) {
 	unsigned int take;
 
 	ctx->length += size;
 	while(size > 0) {
-		take = MP_SHA1_BLOCK - ctx->used;
+		take = MP_CRYPTO_SHA1_BLOCK - ctx->used;
 		if(take > size)
 			take = size;
 		memcpy(ctx->block + ctx->used, data, take);
 		ctx->used += take;
 		data += take;
 		size -= take;
-		if(ctx->used == MP_SHA1_BLOCK) {
+		if(ctx->used == MP_CRYPTO_SHA1_BLOCK) {
 			_sha1_block(ctx->state, ctx->block);
 			ctx->used = 0;
 		}
 	}
 }
 
-static void _sha1_soft_final(mp_sha1_t *ctx, uint8_t *digest) {
+static void _sha1_soft_final(mp_crypto_sha1_t *ctx, uint8_t *digest) {
 	uint64_t bits = ctx->length * 8;
 	int i;
 
 	ctx->block[ctx->used++] = 0x80;
-	if(ctx->used > MP_SHA1_BLOCK - 8) {
-		memset(ctx->block + ctx->used, 0, MP_SHA1_BLOCK - ctx->used);
+	if(ctx->used > MP_CRYPTO_SHA1_BLOCK - 8) {
+		memset(ctx->block + ctx->used, 0, MP_CRYPTO_SHA1_BLOCK - ctx->used);
 		_sha1_block(ctx->state, ctx->block);
 		ctx->used = 0;
 	}
-	memset(ctx->block + ctx->used, 0, MP_SHA1_BLOCK - 8 - ctx->used);
+	memset(ctx->block + ctx->used, 0, MP_CRYPTO_SHA1_BLOCK - 8 - ctx->used);
 	for(i = 0; i < 8; i++)
-		ctx->block[MP_SHA1_BLOCK - 8 + i] = (uint8_t)(bits >> (56 - i * 8));
+		ctx->block[MP_CRYPTO_SHA1_BLOCK - 8 + i] = (uint8_t)(bits >> (56 - i * 8));
 	_sha1_block(ctx->state, ctx->block);
 
 	for(i = 0; i < 5; i++)
@@ -147,7 +146,7 @@ static void _sha1_soft_final(mp_sha1_t *ctx, uint8_t *digest) {
  *
  * @param[in] ctx Context, owned by the caller
  */
-void mp_sha1_init(mp_sha1_t *ctx) {
+void mp_crypto_sha1_init(mp_crypto_sha1_t *ctx) {
 	memcpy(ctx->state, _sha1_iv, sizeof(ctx->state));
 	ctx->length = 0;
 	ctx->used = 0;
@@ -163,7 +162,7 @@ void mp_sha1_init(mp_sha1_t *ctx) {
  * @param[in] data Bytes
  * @param[in] size Number of bytes
  */
-void mp_sha1_update(mp_sha1_t *ctx, const void *data, unsigned int size) {
+void mp_crypto_sha1_update(mp_crypto_sha1_t *ctx, const void *data, unsigned int size) {
 #ifdef MP_ARCH_SHA1
 	if(ctx->onHardware) {
 		mp_arch_sha1_update(&ctx->hw, data, size);
@@ -176,12 +175,12 @@ void mp_sha1_update(mp_sha1_t *ctx, const void *data, unsigned int size) {
 /**
  * @brief End a digest
  *
- * The context is wiped, start again with mp_sha1_init().
+ * The context is wiped, start again with mp_crypto_sha1_init().
  *
  * @param[in] ctx Context
- * @param[out] digest MP_SHA1_SIZE bytes
+ * @param[out] digest MP_CRYPTO_SHA1_SIZE bytes
  */
-void mp_sha1_final(mp_sha1_t *ctx, uint8_t digest[MP_SHA1_SIZE]) {
+void mp_crypto_sha1_final(mp_crypto_sha1_t *ctx, uint8_t digest[MP_CRYPTO_SHA1_SIZE]) {
 #ifdef MP_ARCH_SHA1
 	if(ctx->onHardware)
 		mp_arch_sha1_final(&ctx->hw, digest);
@@ -198,14 +197,14 @@ void mp_sha1_final(mp_sha1_t *ctx, uint8_t digest[MP_SHA1_SIZE]) {
  *
  * @param[in] data Bytes
  * @param[in] size Number of bytes
- * @param[out] digest MP_SHA1_SIZE bytes
+ * @param[out] digest MP_CRYPTO_SHA1_SIZE bytes
  */
-void mp_sha1(const void *data, unsigned int size, uint8_t digest[MP_SHA1_SIZE]) {
-	mp_sha1_t ctx;
+void mp_crypto_sha1(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA1_SIZE]) {
+	mp_crypto_sha1_t ctx;
 
-	mp_sha1_init(&ctx);
-	mp_sha1_update(&ctx, data, size);
-	mp_sha1_final(&ctx, digest);
+	mp_crypto_sha1_init(&ctx);
+	mp_crypto_sha1_update(&ctx, data, size);
+	mp_crypto_sha1_final(&ctx, digest);
 }
 
 /**@}*/

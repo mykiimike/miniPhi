@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -36,7 +35,7 @@
 
 The series or the MCU declares the block, and that declaration is what
 puts this module in the build. One read fills the caller's buffer from
-the accelerator. A DRBG seeds from here. mp_rng_bytes() is the draw.
+the accelerator. A DRBG seeds from here. mp_crypto_rng_bytes() is the draw.
 
 @{
 */
@@ -48,7 +47,7 @@ the accelerator. A DRBG seeds from here. mp_rng_bytes() is the draw.
  * @param[in] size Number of bytes
  * @return FALSE when size is empty or the accelerator refuses; out is then unchanged
  */
-mp_ret_t mp_hsm_entropy(void *out, unsigned int size) {
+mp_ret_t mp_crypto_hsm_entropy(void *out, unsigned int size) {
 	if(!out || !size)
 		return(FALSE);
 	if(mp_arch_hsm_entropy(out, size) != YES) {

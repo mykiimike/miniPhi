@@ -262,7 +262,7 @@ mp_ret_t mp_mem_rekey(mp_kernel_t *kernel) {
 		return(FALSE);
 
 	do {
-		if(mp_rng_bytes(&key, sizeof(key)) != TRUE)
+		if(mp_crypto_rng_bytes(&key, sizeof(key)) != TRUE)
 			return(FALSE);
 	} while(key == __mem_key);
 

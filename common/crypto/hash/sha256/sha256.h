@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -35,18 +34,18 @@
 	 * @{
 	 */
 
-	#define MP_SHA256_SIZE 32
-	#define MP_SHA256_BLOCK 64
+	#define MP_CRYPTO_SHA256_SIZE 32
+	#define MP_CRYPTO_SHA256_BLOCK 64
 
-	typedef struct mp_sha256_s mp_sha256_t;
+	typedef struct mp_crypto_sha256_s mp_crypto_sha256_t;
 
-	struct mp_sha256_s {
+	struct mp_crypto_sha256_s {
 		uint32_t state[8];
 
 		/** bytes hashed so far */
 		uint64_t length;
 
-		uint8_t block[MP_SHA256_BLOCK];
+		uint8_t block[MP_CRYPTO_SHA256_BLOCK];
 		uint8_t used;
 
 	#ifdef MP_ARCH_SHA256
@@ -57,16 +56,16 @@
 
 	/** @} */
 
-	void mp_sha256_init(mp_sha256_t *ctx);
-	void mp_sha256_update(mp_sha256_t *ctx, const void *data, unsigned int size);
-	void mp_sha256_final(mp_sha256_t *ctx, uint8_t digest[MP_SHA256_SIZE]);
-	void mp_sha256(const void *data, unsigned int size, uint8_t digest[MP_SHA256_SIZE]);
+	void mp_crypto_sha256_init(mp_crypto_sha256_t *ctx);
+	void mp_crypto_sha256_update(mp_crypto_sha256_t *ctx, const void *data, unsigned int size);
+	void mp_crypto_sha256_final(mp_crypto_sha256_t *ctx, uint8_t digest[MP_CRYPTO_SHA256_SIZE]);
+	void mp_crypto_sha256(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA256_SIZE]);
 
 	/* an arch with a SHA256 accelerator provides these; init returns NO when the block is busy or off, and the context then runs in software */
 	#ifdef MP_ARCH_SHA256
 		mp_bool_t mp_arch_sha256_init(mp_arch_sha256_t *hw);
 		void mp_arch_sha256_update(mp_arch_sha256_t *hw, const uint8_t *data, unsigned int size);
-		void mp_arch_sha256_final(mp_arch_sha256_t *hw, uint8_t digest[MP_SHA256_SIZE]);
+		void mp_arch_sha256_final(mp_arch_sha256_t *hw, uint8_t digest[MP_CRYPTO_SHA256_SIZE]);
 	#endif
 
 #endif

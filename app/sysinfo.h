@@ -92,6 +92,17 @@ struct sysinfo_s {
 		int step;
 	} leds[2];
 	mp_task_t *morse;
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+	/** known answers, then Morse takes the LEDs; during a splash it waits for the logo */
+	mp_task_t *selftest;
+	int selftestIndex;
+	mp_device_t *selftestLed;
+	mp_bool_t selftestOn;
+	/** keeps the high clock for the whole series; the governor would otherwise drop it between blinks */
+	mp_power_hold_t selftestPower;
+	/** sum of the checks, without the LED delays */
+	unsigned long selftestUs;
+#endif
 
 #ifdef SYSINFO_SCREEN
 	struct {
@@ -237,6 +248,10 @@ struct sysinfo_s {
 			/** one algorithm */
 			struct {
 				mp_tui_label_t cryptoState;
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+				/** known-answer line, when this algorithm's self-test is in the build */
+				mp_tui_label_t selftestResult;
+#endif
 #ifdef SUPPORT_COMMON_CRYPTO_MAC_HMAC
 				/** HMAC and HMAC-DRBG: the hashes they run over, and whether the chip accelerates them */
 				mp_tui_table_t cryptoTable;
@@ -297,6 +312,10 @@ static inline unsigned long _sysinfo_ticks(unsigned long ms) {
 
 void _sysinfo_morse_start(sysinfo_t *sysinfo);
 void _sysinfo_morse_stop(sysinfo_t *sysinfo);
+#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
+/** one known answer per wake, the first LED flipped each time, then Morse */
+void _sysinfo_selftest_start(sysinfo_t *sysinfo);
+#endif
 void _sysinfo_screen_open(sysinfo_t *sysinfo);
 void _sysinfo_screen_close(sysinfo_t *sysinfo);
 

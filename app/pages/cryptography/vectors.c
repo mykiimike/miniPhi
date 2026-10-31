@@ -6,7 +6,7 @@
 #ifdef SYSINFO_SCREEN
 
 
-#if defined(SUPPORT_COMMON_CRYPTO_SIGN_LMS) && defined(MP_LMS_PUB)
+#if defined(SUPPORT_COMMON_CRYPTO_SIGN_LMS) && defined(MP_CRYPTO_LMS_PUB)
 const uint8_t _sysinfo_lms_pub[56] = {
 	0x00,0x00,0x00,0x05,0x00,0x00,0x00,0x04,
 	0x21,0x5f,0x83,0xb7,0xcc,0xb9,0xac,0xbc,
@@ -201,7 +201,7 @@ const uint8_t _sysinfo_lms_sig[1292] = {
 };
 #endif
 
-#if defined(SUPPORT_COMMON_CRYPTO_SIGN_SLH) && defined(MP_SLH_PK_SIZE)
+#if defined(SUPPORT_COMMON_CRYPTO_SIGN_SLH) && defined(MP_CRYPTO_SLH_PK_SIZE)
 const uint8_t _sysinfo_slh_pub[32] = {
 	0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,
 	0x28,0x29,0x2a,0x2b,0x2c,0x2d,0x2e,0x2f,
@@ -1194,7 +1194,7 @@ const uint8_t _sysinfo_slh_sig[7856] = {
 };
 #endif
 
-#if defined(SUPPORT_COMMON_CRYPTO_SIGN_MLDSA) && defined(MP_MLDSA_PK_SIZE) && (MP_MLDSA_SIG_SIZE == 2420)
+#if defined(SUPPORT_COMMON_CRYPTO_SIGN_MLDSA) && defined(MP_CRYPTO_MLDSA_PK_SIZE) && (MP_CRYPTO_MLDSA_SIG_SIZE == 2420)
 const uint8_t _sysinfo_mldsa_pub[1312] = {
 	0x09,	0x28,	0xad,	0xbe,	0x5f,	0xfa,	0xb0,	0xb7,
 	0xe6,	0x63,	0x1d,	0x71,	0xd1,	0xd3,	0xb3,	0xde,

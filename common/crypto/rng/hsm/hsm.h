@@ -1,7 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * miniPhi - RTOS                                                          *
  * Copyright (C) 2026  Michael VERGOZ                                      *
- * Copyright (C) 2026  VERMAN                                              *
  *                                                                         *
  * This program is free software; you can redistribute it and/or modify    *
  * it under the terms of the GNU General Public License as published by    *
@@ -33,9 +32,9 @@
 	/**
 	 * Fills out with size bytes from the accelerator.
 	 * FALSE when size is empty or the accelerator refuses; out is then unchanged.
-	 * This seeds a DRBG. Application random bytes come from mp_rng_bytes().
+	 * This seeds a DRBG. Application random bytes come from mp_crypto_rng_bytes().
 	 */
-	mp_ret_t mp_hsm_entropy(void *out, unsigned int size);
+	mp_ret_t mp_crypto_hsm_entropy(void *out, unsigned int size);
 
 	/** the series accelerator; NO when the block refuses the read */
 	mp_bool_t mp_arch_hsm_entropy(void *out, unsigned int size);
