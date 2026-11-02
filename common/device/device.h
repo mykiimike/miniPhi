@@ -87,6 +87,8 @@
 		MP_DEVICE_CLOCK,
 		/** address stem charge. Instance: mp_device_charge_t, the cycle the status lines report */
 		MP_DEVICE_CHARGER,
+		/** address stem pixel. Instance: mp_device_pixel_t, one frame of three-byte pixels */
+		MP_DEVICE_PIXEL,
 		/** not a class: the number of classes above, and the scan that visits every driver */
 		MP_DEVICE_CLASS_COUNT,
 		MP_DEVICE_ANY = MP_DEVICE_CLASS_COUNT
@@ -451,6 +453,57 @@
 	void mp_device_led_set(mp_device_led_t *led, int on);
 	void mp_device_led_turn(mp_device_led_t *led);
 	int mp_device_led_state(mp_device_led_t *led);
+
+	/**
+	 * An MP_DEVICE_PIXEL. One subscriber owns the pixel and every channel.
+	 * Red, green and blue each have the LED verbs and each write changes only
+	 * its own byte. The driver owns the channel storage. commit sends the frame.
+	 */
+	#define MP_DEVICE_PIXEL_RED 0
+	#define MP_DEVICE_PIXEL_GREEN 1
+	#define MP_DEVICE_PIXEL_BLUE 2
+	#define MP_DEVICE_PIXEL_CHANNELS 3
+
+	typedef struct mp_device_pixel_channel_s mp_device_pixel_channel_t;
+	typedef struct mp_device_pixel_s mp_device_pixel_t;
+
+	struct mp_device_pixel_channel_s {
+		/** 1 to 255, the shade this channel comes back to */
+		unsigned char level;
+		/** 1 while that byte is in the frame */
+		unsigned char on;
+	};
+
+	struct mp_device_pixel_s {
+		/** Sends the frame. NULL still updates the bytes. */
+		void (*commit)(mp_device_pixel_t *pixel);
+		/** count * MP_DEVICE_PIXEL_CHANNELS, index-major, red then green then blue */
+		mp_device_pixel_channel_t *channel;
+		int count;
+		void *user;
+	};
+
+	/** Subscribe and return the pixel. NULL when the output is taken or the device is gone. */
+	mp_device_pixel_t *mp_device_pixel(mp_device_registry_t *device, mp_device_subscribe_t *sub);
+	/** Replace the three bytes. Below 0 is off, above 255 is full. One commit. */
+	void mp_device_pixel_set(mp_device_pixel_t *pixel, int index, int red, int green, int blue);
+	/** on is anything but 0. A channel that was never given a shade comes on at 255. */
+	void mp_device_pixel_channel_set(mp_device_pixel_t *pixel, int index, int channel, int on);
+	void mp_device_pixel_channel_turn(mp_device_pixel_t *pixel, int index, int channel);
+	/**
+	 * The shade every channel of this pixel comes back to, 1 to 255.
+	 * Above 255 is full. 0 is ignored. A lit channel is sent again.
+	 */
+	void mp_device_pixel_level(mp_device_pixel_t *pixel, int index, int level);
+	/** The shade of one channel, same rules as mp_device_pixel_level. */
+	void mp_device_pixel_channel_level(mp_device_pixel_t *pixel, int index, int channel, int level);
+	/** 1 while the channel is on, 0 when it is off or the index is out of range */
+	int mp_device_pixel_channel_state(mp_device_pixel_t *pixel, int index, int channel);
+	/**
+	 * The three bytes of one pixel, 0 where the channel is off.
+	 * @return FALSE when the pixel or the index is missing
+	 */
+	mp_ret_t mp_device_pixel_color(mp_device_pixel_t *pixel, int index, unsigned char *red, unsigned char *green, unsigned char *blue);
 
 	/**
 	 * Input engine: the gesture stream a TUI reads. A driver owns an mp_device_input_t, feeds

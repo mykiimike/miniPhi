@@ -29,7 +29,7 @@
  */
 
 static mp_bool_t _mp_device_subscribe_output(mp_device_class_t class) {
-	if(class == MP_DEVICE_DISPLAY || class == MP_DEVICE_LED)
+	if(class == MP_DEVICE_DISPLAY || class == MP_DEVICE_LED || class == MP_DEVICE_PIXEL)
 		return(YES);
 	return(NO);
 }
