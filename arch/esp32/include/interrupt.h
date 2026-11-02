@@ -38,7 +38,7 @@
 	mp_interrupt_t *mp_interrupt_set(int vector, mp_interrupt_cb_t in, void *user, char *who);
 	mp_ret_t mp_interrupt_unset(int vector);
 
-	#ifdef ESP32C6
+	#if defined(ESP32C6) || defined(ESP32C3)
 		static inline void mp_interrupt_enable(void) {
 			__asm__ volatile ("csrs mstatus, %0" :: "r"(8) : "memory");
 		}
