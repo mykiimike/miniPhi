@@ -50,6 +50,73 @@ The tick is SYSTIMER unit 0. Its clock is the crystal divided by 2.5,
 #define _CPU_FREQ      (C6_PCR + 0x118UL)
 #define _SYSCLK        (C6_PCR + 0x110UL)
 
+/* High-power regulator. Reset leaves the bias generator off and the bias
+ * code at 24. The factory code is the low field of the eFuse word, plus
+ * two, which holds the core rail when the PA draws current. The block
+ * version is the next eFuse word: major in bits 31:30, minor in 29:27.
+ * Below version 3, or a zero code, the fallback is used.
+ */
+#define _PMU           0x600B0000UL
+#define _HP_CK         (_PMU + 0x14UL)
+#define _HP_BIAS       (_PMU + 0x18UL)
+#define _HP_REG        (_PMU + 0x28UL)
+#define _MDM_CK        (_PMU + 0x48UL)
+#define _MDM_REG       (_PMU + 0x5CUL)
+#define _LP_REG        (_PMU + 0x9CUL)
+#define _EF_SYS2       (C6_EFUSE + 0x4CUL)
+#define _EF_SYS3       (C6_EFUSE + 0x50UL)
+#define _DBIAS_SHIFT   27
+#define _XPD_BIAS      (1UL << 25)
+/* Sleep-domain copy kept in the active and modem regulator words:
+ * slp_mem_xpd, slp_logic_xpd, and both sleep bias codes. Reset leaves
+ * the enables set and the codes at 12. Active mode wants them clear.
+ */
+#define _SLP_XPD       ((1UL << 16) | (1UL << 17))
+#define _SLP_DBIAS     (0xffUL << 19)
+/* xpd_bb_i2c, xpd_bbpll_i2c, xpd_bbpll. The PLL itself stays running. */
+#define _XPD_PLL       ((1UL << 28) | (1UL << 29) | (1UL << 30))
+
+static unsigned _dbias(unsigned raw, unsigned fallback) {
+	unsigned long ver;
+	unsigned version;
+
+	ver = c6_read(_EF_SYS3);
+	version = (unsigned)(((ver >> 30) & 3UL) * 100UL + ((ver >> 27) & 7UL));
+	if(version < 3U || raw == 0U)
+		return(fallback);
+	raw += 2U;
+	if(raw > 31U)
+		raw = 31U;
+	return(raw);
+}
+
+static void _set_dbias(unsigned long addr, unsigned code) {
+	unsigned long word;
+
+	word = c6_read(addr);
+	word &= ~(0x1fUL << _DBIAS_SHIFT);
+	word |= (unsigned long)code << _DBIAS_SHIFT;
+	c6_write(addr, word);
+}
+
+static void _rail(void) {
+	unsigned long word;
+	unsigned hp;
+	unsigned lp;
+
+	word = c6_read(_EF_SYS2);
+	hp = _dbias((unsigned)(word & 0x1fUL), 25U);
+	lp = _dbias((unsigned)((word >> 5) & 0x1fUL), 26U);
+	_set_dbias(_HP_REG, hp);
+	_set_dbias(_MDM_REG, hp);
+	_set_dbias(_LP_REG, lp);
+	c6_clr(_HP_REG, _SLP_XPD | _SLP_DBIAS);
+	c6_clr(_MDM_REG, _SLP_XPD | _SLP_DBIAS);
+	c6_set(_HP_BIAS, _XPD_BIAS);
+	c6_set(_HP_CK, _XPD_PLL);
+	c6_set(_MDM_CK, _XPD_PLL);
+}
+
 static volatile unsigned long _ticks;
 static unsigned long _hz;
 static mp_kernel_t *_kernel;
@@ -98,6 +165,7 @@ mp_ret_t mp_clock_init(mp_kernel_t *kernel) {
 	_kernel = kernel;
 	_ticks = 0;
 	_hz = C6_XTAL_HZ;
+	_rail();
 
 	c6_set(C6_PCR + 0x54UL, 1UL);
 	c6_set(C6_PCR + 0x58UL, 1UL << 22);

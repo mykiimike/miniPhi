@@ -48,6 +48,28 @@
 	/* mp_task_idle() when nothing is due */
 	#define MP_TASK_FOREVER 0xFFFFFFFFUL
 
+	/* Numeric: generate.js writes `#define MP_TASK_SCHEDULER 0`, which #if can see. */
+	#define MP_TASK_SCHED_COOP     0
+	#define MP_TASK_SCHED_PRIORITY 1
+	#define MP_TASK_SCHED_PREEMPT  2
+	#ifndef MP_TASK_SCHEDULER
+	#define MP_TASK_SCHEDULER MP_TASK_SCHED_COOP
+	#endif
+	#ifndef MP_TASK_PRIORITIES
+	#define MP_TASK_PRIORITIES 4
+	#endif
+
+	/** The scheduler this build compiled. */
+	static inline const char *mp_task_scheduler_name(void) {
+		#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PRIORITY
+			return("priority");
+		#elif MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+			return("preemptive");
+		#else
+			return("cooperative");
+		#endif
+	}
+
 	struct mp_task_s {
 		/** Connected to handler */
 		mp_task_handler_t *handler;
@@ -72,6 +94,9 @@
 
 		/** wake ups since creation */
 		unsigned long runs;
+
+		/** 0 default, ignored by coop */
+		unsigned char priority;
 
 		/** list input */
 		mp_list_item_t item;
@@ -119,9 +144,29 @@
 	void mp_task_signal(mp_task_t *task, mp_task_signal_t signal);
 	void mp_task_wake(mp_task_t *task);
 	void mp_task_delay(mp_task_t *task, unsigned long delay);
+	void mp_task_priority(mp_task_t *task, unsigned char priority);
 	unsigned long mp_task_idle(mp_task_handler_t *hdl);
 
 	mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl);
+
+	/** Eight passes of a priority-0 task and a priority-2 task.
+	 * Prints SELFTEST: sched passed, or sched failed. The tasks die. */
+	void mp_task_selftest_start(mp_task_handler_t *hdl);
+
+	/* Ceiling lock. Coop and priority compile this to nothing.
+	 * Preempt raises the running priority so only a higher task can preempt.
+	 * Tasks never block, so the lock cannot deadlock. */
+	typedef unsigned char mp_task_lock_t;
+	#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+		mp_task_lock_t mp_task_lock(unsigned char ceiling);
+		void mp_task_unlock(mp_task_lock_t key);
+		/* The series pends its software interrupt. */
+		void mp_task_pend(void);
+	#else
+		#define mp_task_lock(ceiling) ((mp_task_lock_t)0)
+		#define mp_task_unlock(key)   ((void)(key))
+	#endif
+	#define MP_TASK_CEILING_KERNEL ((unsigned char)(MP_TASK_PRIORITIES - 1))
 
 	#define MP_TASK(name) void name(mp_task_t *task)
 

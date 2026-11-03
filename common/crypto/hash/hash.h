@@ -32,8 +32,10 @@
 	/** the largest digest any algorithm writes (SHA-512) */
 	#define MP_CRYPTO_HASH_SIZE_MAX 64
 
-	/** the largest block of the algorithms in the build */
-	#if defined(SUPPORT_COMMON_CRYPTO_HASH_SHA384) || defined(SUPPORT_COMMON_CRYPTO_HASH_SHA512)
+	/** the largest block of the algorithms in the build. SHAKE's rate is 168. */
+	#if defined(SUPPORT_COMMON_CRYPTO_HASH_SHAKE)
+		#define MP_CRYPTO_HASH_BLOCK_MAX 168
+	#elif defined(SUPPORT_COMMON_CRYPTO_HASH_SHA384) || defined(SUPPORT_COMMON_CRYPTO_HASH_SHA512)
 		#define MP_CRYPTO_HASH_BLOCK_MAX 128
 	#else
 		#define MP_CRYPTO_HASH_BLOCK_MAX 64
@@ -79,6 +81,10 @@
 		#endif
 		#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHA512
 			mp_crypto_sha512_t sha512;
+		#endif
+		#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHAKE
+			mp_crypto_sha3_256_t sha3_256;
+			mp_crypto_sha3_512_t sha3_512;
 		#endif
 			uint8_t none;
 		} ctx;

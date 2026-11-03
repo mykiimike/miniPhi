@@ -17,7 +17,6 @@ export const phi = {
 	mcu: "esp32s3",
 	toolchain: "xtensa",
 	requires: ["esp-usb-jtag"],
-	app: "sysinfo",
 	defines: [],
 	modules: ["SERIAL", "DEVICE", "BUTTON", "TUI"],
 	drivers: ["LED", "UC8179"],

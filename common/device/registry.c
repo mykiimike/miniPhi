@@ -38,12 +38,14 @@ typedef char _mp_device_registry_stem_ok[(sizeof(_mp_device_registry_stem) / siz
 static void _mp_device_registry_drop(mp_device_registry_t *device) {
 	mp_device_driver_t *driver = device->driver;
 	mp_kernel_t *kernel = driver->kernel;
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
 
 	device->removed = YES;
 	mp_device_subscribe_notify(device);
 	mp_list_remove(&kernel->devices, &device->item);
 	mp_list_remove(&driver->devices, &device->byDriver);
 	memset(device, 0, sizeof(*device));
+	mp_task_unlock(key);
 }
 
 void mp_device_registry_init(mp_kernel_t *kernel) {
@@ -60,12 +62,28 @@ void mp_device_registry_fini(mp_kernel_t *kernel) {
 }
 
 void mp_device_registry_unregister(mp_device_registry_t *device) {
-	if(!device || !device->driver)
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
+
+	if(!device || !device->driver) {
+		mp_task_unlock(key);
 		return;
+	}
 	_mp_device_registry_drop(device);
+	mp_task_unlock(key);
 }
 
+static mp_device_registry_t *_mp_device_registry_register(mp_device_driver_t *driver, mp_device_registry_t *device, mp_device_class_t class, int channel, void *instance, const char *model, const char *serial, const char *version);
+
 mp_device_registry_t *mp_device_registry_register(mp_device_driver_t *driver, mp_device_registry_t *device, mp_device_class_t class, int channel, void *instance, const char *model, const char *serial, const char *version) {
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
+	mp_device_registry_t *out;
+
+	out = _mp_device_registry_register(driver, device, class, channel, instance, model, serial, version);
+	mp_task_unlock(key);
+	return(out);
+}
+
+static mp_device_registry_t *_mp_device_registry_register(mp_device_driver_t *driver, mp_device_registry_t *device, mp_device_class_t class, int channel, void *instance, const char *model, const char *serial, const char *version) {
 	char built[MP_DEVICE_ADDRESS];
 	const char *ver = NULL;
 	const unsigned char *p;
@@ -206,16 +224,22 @@ mp_device_registry_t *mp_device_registry_address(mp_kernel_t *kernel, const char
 
 mp_device_registry_t *mp_device_registry_find(mp_kernel_t *kernel, mp_device_class_t class, int index) {
 	mp_list_item_t *item;
+	mp_device_registry_t *found = NULL;
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
 
 	if(!kernel)
-		return(NULL);
+		goto out;
 	for(item = kernel->devices.first; item; item = item->next) {
 		mp_device_registry_t *device = item->user;
 
-		if(device->class == class && device->index == index)
-			return(device);
+		if(device->class == class && device->index == index) {
+			found = device;
+			break;
+		}
 	}
-	return(NULL);
+out:
+	mp_task_unlock(key);
+	return(found);
 }
 
 #endif

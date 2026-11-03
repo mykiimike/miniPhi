@@ -63,34 +63,45 @@ static void _mp_device_subscribe_stop(mp_device_driver_t *driver) {
 }
 
 void *mp_device_subscribe(mp_device_registry_t *device, mp_device_subscribe_t *sub) {
+	void *instance = NULL;
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
+
 	if(!device || !device->driver || device->removed == YES || !sub)
-		return(NULL);
-	if(sub->device == device)
-		return(device->instance);
+		goto out;
+	if(sub->device == device) {
+		instance = device->instance;
+		goto out;
+	}
 	if(sub->device)
-		return(NULL);
+		goto out;
 	if(_mp_device_subscribe_output(device->class) == YES && device->subs.first)
-		return(NULL);
+		goto out;
 	sub->device = device;
 	sub->item.next = NULL;
 	sub->item.prev = NULL;
 	mp_list_add_last(&device->subs, &sub->item, sub);
 	_mp_device_subscribe_acquire(device->driver);
-	return(device->instance);
+	instance = device->instance;
+out:
+	mp_task_unlock(key);
+	return(instance);
 }
 
 void mp_device_subscribe_end(mp_device_subscribe_t *sub) {
 	mp_device_registry_t *device;
 	mp_device_driver_t *driver;
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
 
 	if(!sub || !sub->device)
-		return;
+		goto out;
 	device = sub->device;
 	driver = device->driver;
 	mp_list_remove(&device->subs, &sub->item);
 	sub->device = NULL;
 	if(driver)
 		_mp_device_subscribe_release(driver);
+out:
+	mp_task_unlock(key);
 }
 
 void mp_device_subscribe_notify(mp_device_registry_t *device) {

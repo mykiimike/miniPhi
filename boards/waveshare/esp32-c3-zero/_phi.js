@@ -15,7 +15,6 @@ export const phi = {
 	mcu: "esp32c3",
 	toolchain: "imc",
 	requires: ["esp-usb-jtag"],
-	app: "sysinfo",
 	defines: [],
 	modules: [
 		"SERIAL", "DEVICE",

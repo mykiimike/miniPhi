@@ -15,7 +15,6 @@ export const phi = {
 	mcu: "stm32f407zg",
 	toolchain: "gcc",
 	requires: ["arm-usb-ocd-h"],
-	app: "sysinfo",
 	defines: [],
 	modules: ["SERIAL", "DEVICE", "BUTTON", "ED25519", "ECDSA_P256"],
 	drivers: ["LED"],

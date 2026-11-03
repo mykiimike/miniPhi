@@ -66,6 +66,12 @@ static void _tick(void *user) {
 	(void)user;
 	s3_write(_INT_CLR, 1UL);
 	_ticks++;
+	/* Same level as this handler. The level-2 entry services that line
+	 * after this store, before rfi. A call here is what used to rotate
+	 * a window under a level-1 return and leave INTLEVEL at 1. */
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	s3_write(S3_FROM_CPU, 1);
+#endif
 }
 
 static void _cpu(unsigned long hz) {

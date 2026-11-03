@@ -54,13 +54,14 @@
 			return(mstatus & 8 ? TRUE : FALSE);
 		}
 	#elif defined(ESP32S3)
-		/* INTLEVEL 0 leaves the level-1 lines unmasked. WOE stays as _start set it. */
+		/* The tick, the console and the dispatcher are level 2.
+		 * rsil 1 would leave them running inside a critical section. */
 		static inline void mp_interrupt_enable(void) {
 			__asm__ volatile ("rsil a2, 0" ::: "a2", "memory");
 		}
 
 		static inline void mp_interrupt_disable(void) {
-			__asm__ volatile ("rsil a2, 1" ::: "a2", "memory");
+			__asm__ volatile ("rsil a2, 2" ::: "a2", "memory");
 		}
 
 		static inline mp_bool_t mp_interrupt_state(void) {

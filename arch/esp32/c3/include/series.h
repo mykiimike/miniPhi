@@ -55,11 +55,19 @@
 	#define C3_SRC_USB          26
 	#define C3_SRC_I2C          29
 	#define C3_SRC_SYSTIMER     37
+	#define C3_SRC_FROM_CPU     50
 
-	/* CPU lines. 0 stays free. Priority must be above the threshold. */
+	/* CPU lines. 0 stays free. A priority is delivered only when it is
+	 * above the threshold. */
 	#define C3_CPU_USB          1
 	#define C3_CPU_TICK         2
 	#define C3_CPU_GPIO         3
+	/* Preempt line. Priority 1, under the tick and the USB line at 2. */
+	#define C3_CPU_SCHED        5
+	#define C3_PRIO_SCHED       1UL
+	#define C3_PRIO_DEVICE      2UL
+	/* SYSTEM_CPU_INTR_FROM_CPU_0. Write 1 to pend, 0 to clear. Level source. */
+	#define C3_FROM_CPU         (C3_SYSTEM + 0x28UL)
 
 	#define C3_PIN_COUNT        22
 	#define C3_TICK_HZ          1000UL

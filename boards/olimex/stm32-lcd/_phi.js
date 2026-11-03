@@ -16,7 +16,6 @@ export const phi = {
 	mcu: "stm32f103ze",
 	toolchain: "gcc",
 	requires: ["arm-usb-ocd-h"],
-	app: "sysinfo",
 	defines: [],
 	modules: ["SERIAL", "DEVICE", "RESISTIVE", "TUI", "KFLASH", "RSA", "ED25519", "ECDSA_P256"],
 	drivers: ["ILI932X", "SMB380", "LEPTON", "MCP73833"],

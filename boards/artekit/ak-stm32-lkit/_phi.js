@@ -13,7 +13,6 @@ export const phi = {
 	mcu: "stm32f103t8",
 	toolchain: "gcc",
 	requires: ["ak-link"],
-	app: "sysinfo",
 	defines: [],
 	modules: ["SERIAL", "DEVICE"],
 	drivers: ["LED"],

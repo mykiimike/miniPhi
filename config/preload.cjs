@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron")
 
 contextBridge.exposeInMainWorld("phi", {
 	init: () => ipcRenderer.invoke("phi:init"),
-	reload: () => ipcRenderer.invoke("phi:reload"),
+	reload: (selection) => ipcRenderer.invoke("phi:reload", selection),
 	evaluate: (selection) => ipcRenderer.invoke("phi:evaluate", selection),
 	board: (name, previous) => ipcRenderer.invoke("phi:board", name, previous),
 	write: (selection) => ipcRenderer.invoke("phi:write", selection),

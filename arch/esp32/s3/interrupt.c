@@ -27,7 +27,10 @@
 
 Level-1 sources arrive through the exception vector with EXCCAUSE 4.
 The matrix register for a peripheral source selects the CPU line, and
-INTENABLE unmasks that line. There is no PLIC and no threshold.
+INTENABLE unmasks that line. There is no PLIC and no threshold. The
+tick, the USB console and FROM_CPU source 79 are level-2 lines. The
+dispatcher runs on that vector, so a long background task keeps
+taking the tick. GPIO stays on a level-1 line.
 
 @{
 */
@@ -43,6 +46,10 @@ static int _line(int source) {
 		return(S3_CPU_GPIO);
 	return(-1);
 }
+
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	static void _s3_sched_line(void);
+#endif
 
 static void _intenable(int line, int on) {
 	unsigned long value;
@@ -67,6 +74,9 @@ mp_ret_t mp_interrupt_init(void) {
 	}
 
 	__asm__ volatile ("wsr.intenable %0" :: "r"(zero) : "memory");
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	_s3_sched_line();
+#endif
 	mp_interrupt_disable();
 	return(TRUE);
 }
@@ -75,6 +85,9 @@ mp_ret_t mp_interrupt_fini(void) {
 	unsigned long zero = 0;
 
 	mp_interrupt_disable();
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	s3_write(S3_FROM_CPU, 0);
+#endif
 	__asm__ volatile ("wsr.intenable %0" :: "r"(zero) : "memory");
 	return(TRUE);
 }
@@ -106,5 +119,32 @@ mp_ret_t mp_interrupt_unset(int vector) {
 	s3_slot[line].who = NULL;
 	return(TRUE);
 }
+
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+
+void mp_task_sched_dispatch(void);
+
+/* The level-2 handler calls this with INTLEVEL already at 2. Clearing
+ * the source before the dispatcher lets a later pend fire again on rfi. */
+static void _s3_sched(void *user) {
+	(void)user;
+	s3_write(S3_FROM_CPU, 0);
+	mp_task_sched_dispatch();
+}
+
+static void _s3_sched_line(void) {
+	s3_slot[S3_CPU_SCHED].callback = _s3_sched;
+	s3_slot[S3_CPU_SCHED].user = NULL;
+	s3_slot[S3_CPU_SCHED].who = "task";
+	s3_write(S3_INTMTX + (unsigned long)S3_SRC_FROM_CPU * 4UL, S3_CPU_SCHED);
+	s3_write(S3_FROM_CPU, 0);
+	_intenable(S3_CPU_SCHED, 1);
+}
+
+void mp_task_pend(void) {
+	s3_write(S3_FROM_CPU, 1);
+}
+
+#endif
 
 /**@}*/

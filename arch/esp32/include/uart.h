@@ -53,6 +53,14 @@
 	void mp_uart_enable_rx_int(mp_uart_t *uart);
 	void mp_uart_disable_rx_int(mp_uart_t *uart);
 	void mp_uart_tx(mp_uart_t *uart, unsigned char data);
+	void mp_uart_write_sync(const unsigned char *data, int size);
+
+	/**
+	 * Wait until the USB host has opened the serial port.
+	 * @param ms How long to poll, in milliseconds
+	 * @returns YES when the host sets DTR
+	 */
+	mp_bool_t mp_uart_host_wait(unsigned long ms);
 	unsigned char mp_uart_rx(mp_uart_t *uart);
 
 	char mp_uart_isBusy(mp_uart_t *uart);

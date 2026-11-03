@@ -10,6 +10,17 @@ function block(name, items) {
 	return [name + " := \\", ...items.map((item, index) => "\t" + item + (index < items.length - 1 ? " \\" : ""))]
 }
 
+function outsideSource(source) {
+	return source.startsWith("../") || source.startsWith("/")
+}
+
+/* obj/out keeps a source that leaves the kernel tree from being rewritten through ".." */
+function outsideObject(source, object) {
+	const parts = source.split("/").filter((part) => part !== "" && part !== "." && part !== "..")
+	const file = parts.pop().replace(/\.c$/, object)
+	return "obj/out/" + [...parts, file].join("/")
+}
+
 function makefile(analysis, selection) {
 	const { arch, series, mcu, toolchain } = analysis.target
 	const flag = (template, value) => template.replace("{}", value)
@@ -48,9 +59,10 @@ function makefile(analysis, selection) {
 		"",
 		"LIBS := " + (toolchain.libs || []).join(" "),
 		"",
-		...block("SRCS", analysis.sources.map((source) => "$(ROOT)/" + source)),
+		...block("SRCS", analysis.sources.filter((source) => !outsideSource(source)).map((source) => "$(ROOT)/" + source)),
 		"",
-		"OBJS := $(patsubst $(ROOT)/%.c,obj/%" + object + ",$(SRCS))",
+		"OBJS := $(patsubst $(ROOT)/%.c,obj/%" + object + ",$(SRCS))" + (analysis.sources.some(outsideSource) ? " \\" : ""),
+		...analysis.sources.filter(outsideSource).map((source, index, list) => "\t" + outsideObject(source, object) + (index < list.length - 1 ? " \\" : "")),
 		"",
 		".PHONY: " + ["all", "clean", ...probeTargets.map((item) => item.name)].join(" "),
 		"",
@@ -63,6 +75,12 @@ function makefile(analysis, selection) {
 		"\t@mkdir -p $(@D)",
 		"\t" + toolchain.compile,
 		"",
+		...analysis.sources.filter(outsideSource).flatMap((source) => [
+			outsideObject(source, object) + ": $(ROOT)/" + source + " include/autoconf.h include/pinout.h $(wildcard include/gen/*.h)",
+			"\t@mkdir -p $(@D)",
+			"\t" + toolchain.compile,
+			"",
+		]),
 		"-include $(OBJS:" + object + "=.d)",
 		"",
 		...probeRules,
@@ -251,7 +269,6 @@ export function boardSource(dir, vendor, label, selection) {
 		mcu: selection.mcu,
 		toolchain: selection.toolchain,
 		requires: selection.probes || [],
-		app: selection.app || null,
 		sources: (selection.sources || []).map((source) => path.posix.relative(dir, source)),
 		defines: selection.defines || [],
 		modules: selection.modules || [],

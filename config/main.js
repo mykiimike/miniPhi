@@ -13,12 +13,21 @@ const root = path.resolve(here, "..")
 const buildDir = path.join(root, "build")
 
 let catalog = null
+let scanned = null
 let window = null
 let running = null
 
-async function reload() {
-	catalog = await loadCatalog(root)
-	return publicCatalog(catalog)
+function extraKey(selection) {
+	return JSON.stringify((selection && selection.externals) || [])
+}
+
+async function ensureCatalog(selection) {
+	const key = extraKey(selection)
+	if (catalog && key === scanned)
+		return catalog
+	catalog = await loadCatalog(root, (selection && selection.externals) || [])
+	scanned = key
+	return catalog
 }
 
 async function savedSelection() {
@@ -37,24 +46,40 @@ async function savedSelection() {
 const exists = (rel) => fs.existsSync(path.resolve(root, rel))
 
 async function evaluate(selection) {
+	await ensureCatalog(selection)
 	const analysis = analyze(catalog, selection, exists)
 	if (!analysis.target)
-		return { analysis, checks: [], files: {} }
+		return { analysis, checks: [], files: {}, catalog: publicCatalog(catalog) }
 	const checks = await runPrepare(root, catalog, analysis, selection)
 	const files = buildFiles(analysis, selection)
-	return { analysis, checks, files }
+	return { analysis, checks, files, catalog: publicCatalog(catalog) }
 }
 
 ipcMain.handle("phi:init", async () => {
-	const pub = await reload()
 	const saved = await savedSelection()
-	const board = catalog.boards[0]
-	let selection = saved || (board ? boardSelection(catalog, board) : emptySelection(catalog))
-	selection = { ...selection, devices: neededDevices(catalog, selection) }
-	return { catalog: pub, selection, saved: !!saved, root }
+	await ensureCatalog(saved)
+	if (!saved) {
+		const board = catalog.boards[0]
+		const selection = board ? boardSelection(catalog, board) : emptySelection(catalog)
+		if (extraKey(selection) !== scanned)
+			await ensureCatalog(selection)
+		return {
+			catalog: publicCatalog(catalog),
+			selection: { ...selection, devices: neededDevices(catalog, selection) },
+			saved: false,
+			root,
+		}
+	}
+	const selection = { ...saved, devices: neededDevices(catalog, saved) }
+	return { catalog: publicCatalog(catalog), selection, saved: true, root }
 })
 
-ipcMain.handle("phi:reload", () => reload())
+ipcMain.handle("phi:reload", async (_event, selection) => {
+	catalog = null
+	scanned = null
+	await ensureCatalog(selection)
+	return publicCatalog(catalog)
+})
 
 ipcMain.handle("phi:evaluate", (_event, selection) => evaluate(selection))
 
@@ -114,7 +139,10 @@ ipcMain.handle("phi:save-board", async (_event, { dir, label, selection, overwri
 		return { exists: true }
 	fs.mkdirSync(path.dirname(file), { recursive: true })
 	fs.writeFileSync(file, boardSource(rel, vendor, label, selection))
-	return { path: rel + "/_phi.js", board: name, catalog: await reload() }
+	catalog = null
+	scanned = null
+	await ensureCatalog(selection)
+	return { path: rel + "/_phi.js", board: name, catalog: publicCatalog(catalog) }
 })
 
 ipcMain.handle("phi:browse", async (_event, current) => {

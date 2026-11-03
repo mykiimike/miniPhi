@@ -197,6 +197,85 @@ void mp_uart_tx(mp_uart_t *uart, unsigned char data) {
 	c6_write(_EP1, data);
 }
 
+static int _usb_skip;
+
+static int _in_ep1_empty(void) {
+	unsigned long st;
+
+	st = c6_read(C6_USB + 0x2CUL);
+	return(((st >> 2) & 0x7FUL) == ((st >> 9) & 0x7FUL));
+}
+
+static int _wait_in_free(unsigned long us) {
+	unsigned long start;
+
+	if(c6_read(_EP1_CONF) & _IN_FREE)
+		return(1);
+	start = mp_clock_us();
+	while((c6_read(_EP1_CONF) & _IN_FREE) == 0) {
+		if((unsigned long)(mp_clock_us() - start) >= us)
+			return(0);
+	}
+	return(1);
+}
+
+mp_bool_t mp_uart_host_wait(unsigned long ms) {
+	unsigned long start;
+
+	start = mp_clock_us();
+	while((c6_read(C6_USB + 0x4CUL) & 2UL) == 0) {
+		if((unsigned long)(mp_clock_us() - start) >= ms * 1000UL)
+			return(NO);
+	}
+	start = mp_clock_us();
+	while((unsigned long)(mp_clock_us() - start) < 100000UL)
+		;
+	_usb_skip = 0;
+	return(YES);
+}
+
+void mp_uart_write_sync(const unsigned char *data, int size) {
+	int i;
+	int n;
+	unsigned long budget;
+
+	if(size <= 0 || !data)
+		return;
+
+	c6_clr(_INT_ENA, _IN_INT);
+	if((c6_read(_EP1_CONF) & _IN_FREE) == 0 && _in_ep1_empty())
+		c6_write(_EP1_CONF, _WR_DONE);
+
+	budget = _usb_skip ? 1000UL : 50000UL;
+	if(!_wait_in_free(budget)) {
+		_usb_skip = 1;
+		return;
+	}
+	_usb_skip = 0;
+	n = 0;
+	for(i = 0; i < size; i++) {
+		if(!_wait_in_free(50000UL)) {
+			_usb_skip = 1;
+			return;
+		}
+		c6_write(_EP1, data[i]);
+		n++;
+		if(n == 64) {
+			c6_write(_EP1_CONF, _WR_DONE);
+			if(!_wait_in_free(50000UL)) {
+				_usb_skip = 1;
+				return;
+			}
+			n = 0;
+		}
+	}
+	if(n) {
+		c6_write(_EP1_CONF, _WR_DONE);
+		if(!_wait_in_free(50000UL))
+			_usb_skip = 1;
+	}
+}
+
 unsigned char mp_uart_rx(mp_uart_t *uart) {
 	(void)uart;
 	return((unsigned char)c6_read(_EP1));

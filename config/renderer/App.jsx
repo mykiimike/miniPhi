@@ -13,7 +13,7 @@ import { Issues } from "./views/Issues.jsx"
 const views = [
 	{ id: "target", label: "Target", subtitle: "Architecture, series, microcontroller and toolchain.", View: Target },
 	{ id: "app", label: "App", subtitle: "The application the kernel boots into, and what it needs.", View: Application },
-	{ id: "kernel", label: "Kernel", subtitle: "Core settings and the common modules compiled in.", View: Kernel },
+	{ id: "kernel", label: "Kernel", subtitle: "Core settings, the common modules, and paths to external _phi.js modules.", View: Kernel },
 	{ id: "drivers", label: "Drivers", subtitle: "Driver code and the devices it runs.", View: Drivers },
 	{ id: "pinout", label: "Pinout", subtitle: "Who owns each pin and gate, plus the application peripherals.", View: Pinout },
 	{ id: "build", label: "Build", subtitle: "Sources, environment checks, generated files and make.", View: Build },
@@ -176,8 +176,11 @@ export function App() {
 		let live = true
 		const timer = setTimeout(() => {
 			window.phi.evaluate(selection).then((next) => {
-				if (live)
-					setResult(next)
+				if (!live)
+					return
+				setResult(next)
+				if (next.catalog)
+					setCatalog(next.catalog)
 			})
 		}, delay.current)
 		delay.current = 0
@@ -185,7 +188,7 @@ export function App() {
 			live = false
 			clearTimeout(timer)
 		}
-	}, [selection, catalog])
+	}, [selection])
 
 	const notify = useCallback((text, tone) => {
 		const id = Date.now()
@@ -279,7 +282,7 @@ export function App() {
 				})
 		},
 		async reload() {
-			setCatalog(await window.phi.reload())
+			setCatalog(await window.phi.reload(selection))
 			notify("Rescanned the _phi.js files")
 		},
 	}

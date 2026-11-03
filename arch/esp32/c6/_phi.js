@@ -16,7 +16,9 @@ export const phi = {
 	vendor: "Espressif",
 	label: "ESP32-C6",
 	tested: true,
-	description: "The PLL stays up so the USB console does not drop. SHA-1, SHA-256, AES-128 and AES-256 run on the accelerators. The HSM reads the hardware RNG; HMAC-DRBG conditions it. A fuse slot is checked before HMAC upstream, RSA_DS or XTS uses it.",
+	description: "The PLL stays up so the USB console does not drop. SHA-1, SHA-256, AES-128 and AES-256 run on the accelerators. The HSM reads the hardware RNG; HMAC-DRBG conditions it. A fuse slot is checked before HMAC upstream, RSA_DS or XTS uses it. The radio is the RF_C6 module: the shared open path stays in ../rf/, and the C6 calibration lives outside this tree until it is stable. Boot leaves the radio stopped. Tasks are preemptive on one stack: the FROM_CPU line sits under the tick.",
+	schedulers: ["0", "1", "2"],
+	scheduler: "2",
 	accelerators: {
 		SHA1: { sources: ["../crypto/hash/sha.c"], headers: ["../crypto/hash/sha1.h"] },
 		SHA256: { sources: ["../crypto/hash/sha.c"], headers: ["../crypto/hash/sha256.h"] },
@@ -33,7 +35,9 @@ export const phi = {
 		memory: "512 KB HP SRAM",
 		tick: "1 kHz, 16 MHz SYSTIMER",
 	},
-	boot: ["startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "interrupt.c", "uart.c"],
+	boot: [
+		"startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "interrupt.c", "uart.c",
+	],
 	headers: ["include/series.h"],
 	headerDir: "arch",
 	mcus: [

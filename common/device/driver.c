@@ -154,7 +154,18 @@ void mp_device_driver_fini(mp_kernel_t *kernel) {
 	}
 }
 
+static mp_ret_t _mp_device_driver_register(mp_kernel_t *kernel, mp_device_driver_t *driver, const mp_device_driver_ops_t *ops, void *self, mp_options_t *options);
+
 mp_ret_t mp_device_driver_register(mp_kernel_t *kernel, mp_device_driver_t *driver, const mp_device_driver_ops_t *ops, void *self, mp_options_t *options) {
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
+	mp_ret_t ret;
+
+	ret = _mp_device_driver_register(kernel, driver, ops, self, options);
+	mp_task_unlock(key);
+	return(ret);
+}
+
+static mp_ret_t _mp_device_driver_register(mp_kernel_t *kernel, mp_device_driver_t *driver, const mp_device_driver_ops_t *ops, void *self, mp_options_t *options) {
 	int i;
 
 	if(!kernel || !driver || !ops || !self)
@@ -203,14 +214,20 @@ mp_ret_t mp_device_driver_register(mp_kernel_t *kernel, mp_device_driver_t *driv
 }
 
 mp_ret_t mp_device_driver_unregister(mp_kernel_t *kernel, mp_device_driver_t *driver) {
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
+	mp_ret_t ret = FALSE;
+
 	if(!kernel || !driver || driver->kernel != kernel)
-		return(FALSE);
+		goto out;
 	if(driver->devices.first) {
 		mp_printk("Driver %s still has devices", driver->name);
-		return(FALSE);
+		goto out;
 	}
 	_mp_device_driver_detach(driver);
-	return(TRUE);
+	ret = TRUE;
+out:
+	mp_task_unlock(key);
+	return(ret);
 }
 
 int mp_device_driver_count(mp_kernel_t *kernel) {

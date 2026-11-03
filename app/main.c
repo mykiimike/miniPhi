@@ -22,11 +22,12 @@
  * System info: prints who is running on the console, then reports
  * uptime, tasks and sensors every SYSINFO_PERIOD ms.
  * Delays are milliseconds and follow mp_clock_tick_hz().
- * When the board has LEDs, morse.c blinks SOS on the first and HELP on the second.
- * When a self-test is in the build, those tests run before Morse at the high clock
- * and the first LED blinks once per test. The series starts once the banner
- * has been printed, and each result is printed as that check runs, while the
- * clock is held high.
+ * When the board has lamps, morse.c blinks SOS on the first and HELP on the second.
+ * A pixel's red and green fill the ranks a board LED left empty.
+ * When a self-test is in the build, Morse still owns the lamps. The checks
+ * start once the banner has been printed, at the high clock, and one result
+ * is printed per wake. The fast checks then repeat, still one per wake, so
+ * Morse keeps the lamps through the whole series. A KEM runs once more.
  * With a TUI they wait until the splash logo is on screen.
  * On the first display of the board, screen.c opens the TUI and the pages in pages/. System is a scrollable page
  * with about, version, copyright, license and the live figures. Back returns
@@ -175,26 +176,23 @@ void _sysinfo_hibernate_enable(sysinfo_t *sysinfo, mp_bool_t on) {
 	_sysinfo_hibernate_apply(sysinfo);
 }
 
-/* YES when a self-test is in the image, so Morse waits until it finishes */
-static int _sysinfo_morse_later(void) {
 #ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
-	if(mp_crypto_selftest_count() > 0)
-		return(1);
-#endif
-	return(0);
+/* extra silent passes after the printed one, one check per wake.
+ * A KEM is much slower than a hash, so it repeats less often. */
+#define SYSINFO_SELFTEST_PASSES 400
+#define SYSINFO_SELFTEST_KEM_PASSES 1
+
+static int _sysinfo_selftest_passes(const mp_crypto_selftest_t *test) {
+	const char *family;
+
+	if(!test || !test->family)
+		return(SYSINFO_SELFTEST_PASSES);
+	family = test->family;
+	if(family[0] == 'k' && family[1] == 'e' && family[2] == 'm' && family[3] == '\0')
+		return(SYSINFO_SELFTEST_KEM_PASSES);
+	return(SYSINFO_SELFTEST_PASSES);
 }
 
-static void _sysinfo_morse_unless(sysinfo_t *sysinfo, int later) {
-	if(!later)
-		return;
-#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
-	if(sysinfo->selftest)
-		return;
-#endif
-	_sysinfo_morse_start(sysinfo);
-}
-
-#ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
 static MP_TASK(_sysinfo_selftest) {
 	sysinfo_t *sysinfo = task->user;
 	const mp_crypto_selftest_t *test;
@@ -204,9 +202,8 @@ static MP_TASK(_sysinfo_selftest) {
 
 	if(task->signal == MP_TASK_SIG_STOP) {
 		mp_power_release(&sysinfo->kernel, &sysinfo->selftestPower);
-		if(sysinfo->selftestLed && !sysinfo->morse)
-			mp_device_set(sysinfo->selftestLed, 0);
-		sysinfo->selftestLed = NULL;
+		if(!sysinfo->morse)
+			_sysinfo_lamp_set(sysinfo, 0, 0);
 		sysinfo->selftest = NULL;
 		task->signal = MP_TASK_SIG_DEAD;
 		return;
@@ -233,23 +230,35 @@ static MP_TASK(_sysinfo_selftest) {
 	}
 
 	if(sysinfo->selftestIndex >= mp_crypto_selftest_count()) {
-		mp_printk("SELFTEST: %lu MHz, %lu us",
-			(mp_clock_get_speed() + 500000UL) / 1000000UL, sysinfo->selftestUs);
-		mp_power_release(&sysinfo->kernel, &sysinfo->selftestPower);
-		if(sysinfo->selftestLed)
-			mp_device_set(sysinfo->selftestLed, 0);
-		sysinfo->selftestLed = NULL;
-		sysinfo->selftest = NULL;
-		_sysinfo_morse_start(sysinfo);
-		task->signal = MP_TASK_SIG_DEAD;
+		int count = mp_crypto_selftest_count();
+		int extra = sysinfo->selftestIndex - count;
+
+		if(extra == 0) {
+			mp_printk("SELFTEST: %lu MHz, %lu us",
+				(mp_clock_get_speed() + 500000UL) / 1000000UL, sysinfo->selftestUs);
+			mp_printk("SELFTEST: burn %lu passes, kem %lu%s",
+				(unsigned long)SYSINFO_SELFTEST_PASSES,
+				(unsigned long)SYSINFO_SELFTEST_KEM_PASSES,
+				sysinfo->morse ? "" : ", Morse off");
+		}
+		if(extra >= count * SYSINFO_SELFTEST_PASSES) {
+			mp_printk("SELFTEST: burn done");
+			mp_power_release(&sysinfo->kernel, &sysinfo->selftestPower);
+			sysinfo->selftest = NULL;
+			task->signal = MP_TASK_SIG_DEAD;
+			return;
+		}
+		test = mp_crypto_selftest_at(extra % count);
+		if((extra / count) >= _sysinfo_selftest_passes(test)) {
+			sysinfo->selftestIndex++;
+			mp_task_delay(task, 0);
+			return;
+		}
+		if(test && test->run && test->run() != YES)
+			mp_printk("SELFTEST: %s failed", test->label);
+		sysinfo->selftestIndex++;
+		mp_task_delay(task, 1);
 		return;
-	}
-
-	if(!sysinfo->selftestLed) {
-		mp_device_t *led = mp_device_find(MP_DEVICE_LED, 0);
-
-		if(mp_device_open(&sysinfo->kernel, led) == TRUE)
-			sysinfo->selftestLed = led;
 	}
 
 	if(sysinfo->selftestIndex == 0)
@@ -257,10 +266,6 @@ static MP_TASK(_sysinfo_selftest) {
 			mp_power_name(mp_power_level(&sysinfo->kernel)),
 			(mp_clock_get_speed() + 500000UL) / 1000000UL);
 
-	if(sysinfo->selftestLed) {
-		sysinfo->selftestOn = sysinfo->selftestOn == YES ? NO : YES;
-		mp_device_set(sysinfo->selftestLed, sysinfo->selftestOn == YES);
-	}
 	test = mp_crypto_selftest_at(sysinfo->selftestIndex);
 	if(test && test->run) {
 		t0 = mp_clock_us();
@@ -271,7 +276,7 @@ static MP_TASK(_sysinfo_selftest) {
 			test->label, ok == YES ? "passed" : "failed", us);
 	}
 	sysinfo->selftestIndex++;
-	mp_task_delay(task, _sysinfo_ticks(SYSINFO_MORSE_UNIT));
+	mp_task_delay(task, 1);
 }
 
 void _sysinfo_selftest_start(sysinfo_t *sysinfo) {
@@ -286,10 +291,8 @@ void _sysinfo_selftest_start(sysinfo_t *sysinfo) {
 static void _sysinfo_op_set(void *user) {
 	sysinfo_t *sysinfo = user;
 	mp_options_t console[] = PHI_CONSOLE;
-	int morseLater = _sysinfo_morse_later();
 
-	if(!morseLater)
-		_sysinfo_morse_start(sysinfo);
+	_sysinfo_morse_start(sysinfo);
 
 #ifdef SUPPORT_COMMON_KFLASH
 	sysinfo->accelListened = mp_kflash_listen_bool(&sysinfo->kernel, &sysinfo->accelVar,
@@ -307,24 +310,29 @@ static void _sysinfo_op_set(void *user) {
 
 	if(mp_serial_open(&sysinfo->kernel, &sysinfo->serial, console, "Console") == FALSE) {
 		_sysinfo_screen_open(sysinfo);
+		_sysinfo_morse_start(sysinfo);
 #ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
-		if(morseLater)
-			_sysinfo_selftest_start(sysinfo);
+		_sysinfo_selftest_start(sysinfo);
 #endif
-		_sysinfo_morse_unless(sysinfo, morseLater);
+		mp_task_selftest_start(&sysinfo->kernel.tasks);
 		return;
 	}
 
 	sysinfo->console = YES;
 	mp_printk_set(_sysinfo_printk, sysinfo);
 
+#ifdef SUPPORT_ESP32_RF_C6
+	mp_uart_host_wait(15000);
+	mp_printk("RF open %s", mp_arch_rf_open(&sysinfo->kernel) == TRUE ? "ok" : "failed");
+#endif
+
 	/* after the console, so the driver messages show */
 	_sysinfo_screen_open(sysinfo);
+	_sysinfo_morse_start(sysinfo);
 #ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
-	if(morseLater)
-		_sysinfo_selftest_start(sysinfo);
+	_sysinfo_selftest_start(sysinfo);
 #endif
-	_sysinfo_morse_unless(sysinfo, morseLater);
+	mp_task_selftest_start(&sysinfo->kernel.tasks);
 
 	/* lets the arch publish its own sensors, such as the die temperature */
 	mp_machine_state_set(&sysinfo->kernel);
@@ -478,8 +486,9 @@ static mp_bool_t _sysinfo_line(sysinfo_t *sysinfo, int line) {
 			break;
 
 		case 9:
-			mp_printk("Kernel     %u tasks, %u states, %u bytes",
-				(unsigned int)MP_TASK_MAX, (unsigned int)MP_STATE_MAX, (unsigned int)sizeof(*kernel));
+			mp_printk("Kernel     %u tasks, %s, %u states, %u bytes",
+				(unsigned int)MP_TASK_MAX, mp_task_scheduler_name(),
+				(unsigned int)MP_STATE_MAX, (unsigned int)sizeof(*kernel));
 			break;
 
 		case 10:
@@ -616,5 +625,9 @@ static void _sysinfo_printk(void *user, char *fmt, ...) {
 	buffer[size++] = '\n';
 	buffer[size++] = '\r';
 
+#ifdef ESP32C6
+	mp_uart_write_sync(buffer, size);
+#else
 	mp_serial_write(&sysinfo->serial, buffer, size);
+#endif
 }

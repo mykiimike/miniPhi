@@ -54,11 +54,21 @@
 	#define S3_SRC_I2C       42
 	#define S3_SRC_SYSTIMER  57
 	#define S3_SRC_USB       96
+	#define S3_SRC_FROM_CPU  79
 
-	/* level-1 CPU lines: 8 and 12 are level, 10 is edge */
-	#define S3_CPU_USB   8
-	#define S3_CPU_TICK  10
+	/* Lines 19, 20 and 21 are level 2. A level-1 handler shares EPS1
+	 * with a window spill, so a full register file returns with INTLEVEL
+	 * left at 1 and the tick never comes back. Level 2 keeps the task
+	 * PS in EPS2. GPIO stays on level-1 line 12. */
+	#define S3_CPU_TICK  19
+	#define S3_CPU_SCHED 20
+	#define S3_CPU_USB   21
 	#define S3_CPU_GPIO  12
+	/* CPU lines whose level is 1. The level-1 dispatcher must not call
+	 * a level-2 callback from a stale INTERRUPT snapshot. */
+	#define S3_INTLEVEL1_MASK 0x000637FFUL
+	/* SYSTEM_CPU_INTR_FROM_CPU_0. Write 1 to pend, 0 to clear. Level source. */
+	#define S3_FROM_CPU  (S3_SYSTEM + 0x30UL)
 
 	static inline unsigned long s3_read(unsigned long addr) {
 		return(*(volatile unsigned long *)addr);

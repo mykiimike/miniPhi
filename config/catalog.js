@@ -55,18 +55,50 @@ function normalize(record) {
 	}
 }
 
-export async function loadCatalog(root) {
+function real(file) {
+	try {
+		return fs.realpathSync(file)
+	}
+	catch {
+		return file
+	}
+}
+
+export async function loadCatalog(root, extra = []) {
 	const files = []
+	const problems = []
 	for (const name of roots) {
 		const dir = path.join(root, name)
 		if (fs.existsSync(dir))
 			walk(dir, files)
 	}
+	for (const entry of extra || []) {
+		if (typeof entry !== "string" || entry.trim() === "")
+			continue
+		const full = path.resolve(root, entry)
+		if (!fs.existsSync(full) || !fs.statSync(full).isDirectory()) {
+			problems.push({ level: "error", view: "kernel", text: entry + " is not a directory with a _phi.js." })
+			continue
+		}
+		const before = files.length
+		walk(full, files)
+		if (files.length === before)
+			problems.push({ level: "warning", view: "kernel", text: entry + " contains no _phi.js." })
+	}
+
+	const seenFiles = new Set()
+	const unique = []
+	for (const file of files) {
+		const key = real(file)
+		if (seenFiles.has(key))
+			continue
+		seenFiles.add(key)
+		unique.push(file)
+	}
 
 	const records = []
-	const problems = []
 
-	for (const file of files) {
+	for (const file of unique) {
 		const rel = path.relative(root, file).split(path.sep).join("/")
 		let mod
 		try {

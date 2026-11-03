@@ -16,7 +16,7 @@ export const phi = {
 	vendor: "Espressif",
 	label: "ESP32-C3",
 	tested: true,
-	description: "RV32IMC, one core. The PLL stays selected so the USB console does not drop, and the lowest CPU level is 80 MHz because the 480 MHz PLL has no 40 MHz tap. GPIO, a 1 kHz SYSTIMER tick and the USB Serial/JTAG console come up. CHIP_RST bit 2 keeps a host open from resetting the chip. Wi-Fi and BLE are not in this port.",
+	description: "RV32IMC, one core. The PLL stays selected so the USB console does not drop, and the lowest CPU level is 80 MHz because the 480 MHz PLL has no 40 MHz tap. GPIO, a 1 kHz SYSTIMER tick and the USB Serial/JTAG console come up. CHIP_RST bit 2 keeps a host open from resetting the chip. Tasks are preemptive on one stack: FROM_CPU line 5 sits under the tick. Wi-Fi and BLE are not in this port.",
 	specs: {
 		core: "RV32IMC",
 		clock: "160 MHz",
@@ -26,6 +26,8 @@ export const phi = {
 		tick: "1 kHz, 16 MHz SYSTIMER",
 	},
 	boot: ["startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "pixel.c", "interrupt.c", "uart.c"],
+	schedulers: ["0", "1", "2"],
+	scheduler: "2",
 	headers: ["include/series.h"],
 	headerDir: "arch",
 	mcus: [

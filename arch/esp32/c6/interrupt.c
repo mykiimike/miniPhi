@@ -31,7 +31,9 @@ at 0x20001000 is what the core takes after the ROM boots: its
 threshold comes up at 1 and masks a priority of 1, so init writes it
 back to 0. INTPRI at 0x600C5000 is programmed the same way. Priority
 n lives at +0x10 + n*4 on the PLIC and at +0x0c + n*4 on INTPRI. Bit
-n of either type register is level when clear.
+n of either type register is level when clear. A preemptive build
+routes FROM_CPU source 22 to CPU line 5 at priority 1. The tick and
+the USB line stay at priority 2, so they can preempt the dispatcher.
 
 @{
 */
@@ -62,6 +64,11 @@ static void _mie_clr(int line) {
 	__asm__ volatile ("csrc mie, %0" :: "r"(bit) : "memory");
 }
 
+static void _pri(int line, unsigned long pri) {
+	c6_write(C6_PLIC + 0x10UL + (unsigned long)line * 4UL, pri);
+	c6_write(C6_INTPRI + 0x0cUL + (unsigned long)line * 4UL, pri);
+}
+
 static int _line(int source) {
 	if(source == C6_SRC_USB)
 		return(C6_CPU_USB);
@@ -71,6 +78,12 @@ static int _line(int source) {
 		return(C6_CPU_GPIO);
 	return(-1);
 }
+
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	static void _c6_sched_line(void);
+	static void _c6_sched(void);
+	void mp_task_sched_dispatch(void);
+#endif
 
 void __attribute__((interrupt("machine"), aligned(4), used)) mp_trap(void) {
 	unsigned long cause;
@@ -83,6 +96,12 @@ void __attribute__((interrupt("machine"), aligned(4), used)) mp_trap(void) {
 	}
 
 	line = (int)(cause & 31UL);
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	if(line == C6_CPU_SCHED) {
+		_c6_sched();
+		return;
+	}
+#endif
 	if(_slot[line].callback)
 		_slot[line].callback(_slot[line].user);
 }
@@ -104,12 +123,18 @@ mp_ret_t mp_interrupt_init(void) {
 	c6_write(C6_INTPRI + 0x4UL, 0);
 	__asm__ volatile ("csrw mtvec, %0" :: "r"(((unsigned long)_vectors & ~0xFFUL) | 1UL) : "memory");
 	__asm__ volatile ("csrw mie, zero" ::: "memory");
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	_c6_sched_line();
+#endif
 	mp_interrupt_disable();
 	return(TRUE);
 }
 
 mp_ret_t mp_interrupt_fini(void) {
 	mp_interrupt_disable();
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	c6_write(C6_FROM_CPU, 0);
+#endif
 	c6_write(C6_PLIC, 0);
 	c6_write(C6_INTPRI, 0);
 	return(TRUE);
@@ -127,10 +152,14 @@ mp_interrupt_t *mp_interrupt_set(int vector, mp_interrupt_cb_t in, void *user, c
 	_slot[line].user = user;
 	_slot[line].who = who;
 	c6_write(C6_INTMTX + (unsigned long)vector * 4UL, (unsigned long)line);
-	c6_write(C6_PLIC + 0x10UL + (unsigned long)line * 4UL, 1);
+	/* Above the scheduler line, so the tick and USB preempt a task. */
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	_pri(line, C6_PRIO_DEVICE);
+#else
+	_pri(line, 1);
+#endif
 	c6_clr(C6_PLIC + 0x4UL, 1UL << line);
 	c6_set(C6_PLIC, 1UL << line);
-	c6_write(C6_INTPRI + 0x0cUL + (unsigned long)line * 4UL, 1);
 	c6_clr(C6_INTPRI + 0x4UL, 1UL << line);
 	c6_set(C6_INTPRI, 1UL << line);
 	_mie_set(line);
@@ -150,5 +179,49 @@ mp_ret_t mp_interrupt_unset(int vector) {
 	_slot[line].who = NULL;
 	return(TRUE);
 }
+
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+
+/* FROM_CPU source 22, CPU line 5, priority 1, level. The tick and USB
+ * stay at priority 2. The PLIC masks a priority equal to its threshold,
+ * so 1 hides this line and still delivers 2. INTPRI masks a priority
+ * below its threshold, so 2 is the value that hides 1 and delivers 2. */
+static void _c6_sched_line(void) {
+	c6_write(C6_INTMTX + (unsigned long)C6_SRC_FROM_CPU * 4UL, C6_CPU_SCHED);
+	_pri(C6_CPU_SCHED, C6_PRIO_SCHED);
+	c6_clr(C6_PLIC + 0x4UL, 1UL << C6_CPU_SCHED);
+	c6_set(C6_PLIC, 1UL << C6_CPU_SCHED);
+	c6_clr(C6_INTPRI + 0x4UL, 1UL << C6_CPU_SCHED);
+	c6_set(C6_INTPRI, 1UL << C6_CPU_SCHED);
+	c6_write(C6_FROM_CPU, 0);
+	_mie_set(C6_CPU_SCHED);
+}
+
+static void _c6_sched(void) {
+	unsigned long epc;
+	unsigned long status;
+
+	__asm__ volatile ("csrr %0, mepc" : "=r"(epc));
+	__asm__ volatile ("csrr %0, mstatus" : "=r"(status));
+	c6_write(C6_FROM_CPU, 0);
+	c6_write(C6_PLIC + 0x90UL, C6_PRIO_SCHED);
+	c6_write(C6_INTPRI + 0x8cUL, C6_PRIO_DEVICE);
+	__asm__ volatile ("fence" ::: "memory");
+	__asm__ volatile ("csrs mstatus, %0" :: "r"(8) : "memory");
+	mp_task_sched_dispatch();
+	__asm__ volatile ("csrc mstatus, %0" :: "r"(8) : "memory");
+	c6_write(C6_PLIC + 0x90UL, 0);
+	c6_write(C6_INTPRI + 0x8cUL, 0);
+	__asm__ volatile ("fence" ::: "memory");
+	__asm__ volatile ("csrw mstatus, %0" :: "r"(status) : "memory");
+	__asm__ volatile ("csrw mepc, %0" :: "r"(epc) : "memory");
+}
+
+/* Strong symbol. The weak one in preempt.c runs the dispatcher inline. */
+void mp_task_pend(void) {
+	c6_write(C6_FROM_CPU, 1);
+}
+
+#endif
 
 /**@}*/

@@ -41,6 +41,7 @@ export function emptySelection(catalog, previous) {
 		app: null,
 		sources: [],
 		probes: [],
+		externals: [...((previous && previous.externals) || [])],
 	}
 }
 
@@ -58,9 +59,10 @@ export function boardSelection(catalog, board, previous) {
 		settings: { ...(data.settings || {}) },
 		defines: [...(data.defines || [])],
 		devices: clone(data.devices || []),
-		app: typeof data.app === "string" ? data.app : null,
+		app: (previous && previous.app) || null,
 		sources: [...(data.sources || [])],
 		probes: [...(data.requires || [])],
+		externals: [...((previous && previous.externals) || [])],
 	}
 }
 
@@ -68,7 +70,7 @@ export function migrateSelection(selection) {
 	const probes = selection.probes || []
 	if (Array.isArray(selection.app))
 		return { ...selection, app: null, sources: [...(selection.sources || []), ...selection.app], probes }
-	return { ...selection, app: selection.app || null, sources: selection.sources || [], probes }
+	return { ...selection, app: selection.app || null, sources: selection.sources || [], probes, externals: selection.externals || [] }
 }
 
 export function neededDevices(catalog, selection) {
@@ -102,12 +104,22 @@ function isEmpty(value) {
 	return value === undefined || value === null || value === ""
 }
 
+/* A series lists the task schedulers it can run ("0" coop, "1" priority, "2" preempt).
+ * Absent means cooperative only. scheduler is the default when the board
+ * does not set MP_TASK_SCHEDULER. */
+function taskSchedulers(series) {
+	const listed = series.data.schedulers
+	const supported = Array.isArray(listed) ? listed.map((item) => String(item)) : ["0"]
+	const fallback = !isEmpty(series.data.scheduler) ? String(series.data.scheduler) : "0"
+	return { supported, fallback }
+}
+
 export function analyze(catalog, sel, exists) {
 	const issues = []
 	const issue = (level, view, text, refs = []) => issues.push({ level, view, text, refs })
 
 	for (const problem of catalog.problems)
-		issue(problem.level, "issues", problem.text)
+		issue(problem.level, problem.view || "issues", problem.text)
 
 	const arch = catalog.archs.find((record) => record.name === sel.arch)
 	const series = arch && catalog.series.find((record) => record.data.arch === arch.name && record.name === sel.series)
@@ -277,28 +289,55 @@ export function analyze(catalog, sel, exists) {
 		declare(app.data.settings, app.data.label, "app")
 
 	const settingNames = new Set()
+	const schedChoice = taskSchedulers(series)
 	const settings = declared.map((setting) => {
 		if (settingNames.has(setting.name))
 			issue("error", setting.view, setting.name + " is declared twice.")
 		settingNames.add(setting.name)
 
+		let values = setting.values || null
+		let labels = setting.labels || null
+		let fallback = setting.default
+		if (setting.name === "MP_TASK_SCHEDULER") {
+			const known = new Set(setting.values || [])
+			for (const id of schedChoice.supported)
+				if (!known.has(id))
+					issue("error", "target", series.data.label + " scheduler " + id + " is not a task scheduler.", [{ setting: setting.name }])
+			if (!schedChoice.supported.includes(schedChoice.fallback))
+				issue("error", "target", series.data.label + " defaults to scheduler " + schedChoice.fallback + ", which it does not list.", [{ setting: setting.name }])
+			fallback = schedChoice.fallback
+			const allowed = new Set(schedChoice.supported)
+			const pairs = (setting.values || []).map((value, index) => ({
+				value,
+				label: setting.labels ? setting.labels[index] : null,
+			})).filter((pair) => allowed.has(pair.value))
+			if (pairs.length) {
+				values = pairs.map((pair) => pair.value)
+				labels = setting.labels ? pairs.map((pair) => pair.label) : null
+			}
+		}
+
 		const explicit = !!sel.settings && !isEmpty(sel.settings[setting.name])
-		const value = explicit ? sel.settings[setting.name] : setting.default
-		const valid = validSetting(setting, value)
+		const value = explicit ? sel.settings[setting.name] : fallback
+		let valid = validSetting(setting, value)
 		if (!valid) {
 			const range = setting.type === "number" ? " (" + setting.min + " to " + setting.max + ")" : ""
 			issue("error", setting.view, setting.owner + ": " + setting.label + " has an invalid value" + range + ".", [{ setting: setting.name }])
+		}
+		if (setting.name === "MP_TASK_SCHEDULER" && !schedChoice.supported.includes(String(value))) {
+			issue("error", "target", series.data.label + " does not run scheduler " + value + ".", [{ setting: setting.name }])
+			valid = false
 		}
 		return {
 			name: setting.name,
 			label: setting.label,
 			type: setting.type,
 			unit: setting.unit || null,
-			values: setting.values || null,
-			labels: setting.labels || null,
+			values,
+			labels,
 			min: setting.min,
 			max: setting.max,
-			default: setting.default,
+			default: fallback,
 			value,
 			explicit,
 			valid,

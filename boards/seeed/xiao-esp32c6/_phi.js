@@ -15,10 +15,9 @@ export const phi = {
 	mcu: "esp32c6",
 	toolchain: "gcc",
 	requires: ["esp-usb-jtag"],
-	app: "sysinfo",
 	defines: [],
 	modules: [
-		"SERIAL", "DEVICE",
+		"SERIAL", "DEVICE", "RF_C6",
 		"HASH", "SHA1", "SHA256", "SHA384", "SHA512", "BLAKE2S", "SHAKE",
 		"MAC", "HMAC", "POLY1305",
 		"CIPHER", "AES", "CHACHA20", "XTS",

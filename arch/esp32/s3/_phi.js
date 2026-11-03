@@ -23,7 +23,9 @@ export const phi = {
 	vendor: "Espressif",
 	label: "ESP32-S3",
 	tested: true,
-	description: "The PLL stays up so the USB console does not drop. The APP CPU stays in reset.",
+	description: "The PLL stays up so the USB console does not drop. The APP CPU stays in reset. Tasks are preemptive on one stack: FROM_CPU uses a level-1 line, so it cuts a background task and the tick runs when that handler returns.",
+	schedulers: ["0", "1", "2"],
+	scheduler: "2",
 	specs: {
 		core: "Xtensa LX7",
 		clock: "240 MHz",

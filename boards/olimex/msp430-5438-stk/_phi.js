@@ -14,7 +14,6 @@ export const phi = {
 	mcu: "msp430f5438",
 	toolchain: "ti",
 	requires: ["msp430-jtag-tiny-v2"],
-	app: "sysinfo",
 	defines: ["__OLIMEX_PROTOBOARD__"],
 	modules: ["MEM", "SERIAL", "PINOUT", "DEVICE", "CIRCULAR", "BUTTON", "TUI"],
 	drivers: ["LED", "INA219", "LCD_NOKIA3310"],

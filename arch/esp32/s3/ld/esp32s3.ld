@@ -2,14 +2,18 @@
  * to the entry; it does not map the flash cache. Code is fetched from the
  * IRAM alias. Data lives in the DRAM alias, which does not overlap that
  * code window. .bss is zeroed in startup. The ROM stack stays above DRAM.
+ *
+ * Dual-mapped SRAM: IRAM 0x40378000 is DRAM 0x3FC88000. The windows meet
+ * at IRAM 0x40399000 / DRAM 0x3FCA9000, so lengthening code shortens data
+ * from the same boundary.
  */
 
 ENTRY(_start)
 
 MEMORY
 {
-	iram (xrw) : ORIGIN = 0x40378000, LENGTH = 0x18000
-	dram (rw)  : ORIGIN = 0x3FCA0000, LENGTH = 0x49000
+	iram (xrw) : ORIGIN = 0x40378000, LENGTH = 0x21000
+	dram (rw)  : ORIGIN = 0x3FCA9000, LENGTH = 0x40000
 }
 
 SECTIONS

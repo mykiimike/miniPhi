@@ -85,22 +85,24 @@ struct sysinfo_s {
 	/** SYSINFO_KEY_HIBERNATE: the screen saver may turn the backlight fully off */
 	mp_bool_t hibernate;
 
-	/** the first two LEDs of the board; NULL when it has fewer */
+	/** the first two lamps. A board LED fills a rank; an empty rank is a pixel channel. */
 	struct {
 		mp_device_t *device;
+		mp_device_pixel_t *pixel;
+		int channel;
 		const char *pattern;
 		int step;
 	} leds[2];
+	mp_device_pixel_t *pixel;
+	mp_device_subscribe_t pixelSub;
 	mp_task_t *morse;
 #ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
-	/** known answers, then Morse takes the LEDs; during a splash it waits for the logo */
+	/** known answers at priority 0; Morse already owns the lamps. During a splash it waits for the logo */
 	mp_task_t *selftest;
 	int selftestIndex;
-	mp_device_t *selftestLed;
-	mp_bool_t selftestOn;
-	/** keeps the high clock for the whole series; the governor would otherwise drop it between blinks */
+	/** keeps the high clock for the printed pass and the burn that follows */
 	mp_power_hold_t selftestPower;
-	/** sum of the checks, without the LED delays */
+	/** sum of the printed checks, not the burn */
 	unsigned long selftestUs;
 #endif
 
@@ -312,8 +314,10 @@ static inline unsigned long _sysinfo_ticks(unsigned long ms) {
 
 void _sysinfo_morse_start(sysinfo_t *sysinfo);
 void _sysinfo_morse_stop(sysinfo_t *sysinfo);
+/** Bind rank index if it is still free, then set it. A missing lamp is left alone. */
+void _sysinfo_lamp_set(sysinfo_t *sysinfo, int index, int on);
 #ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
-/** one known answer per wake, the first LED flipped each time, then Morse */
+/** one known answer per wake, then a burn while Morse keeps the lamps */
 void _sysinfo_selftest_start(sysinfo_t *sysinfo);
 #endif
 void _sysinfo_screen_open(sysinfo_t *sysinfo);

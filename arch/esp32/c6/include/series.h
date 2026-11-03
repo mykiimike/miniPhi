@@ -21,7 +21,17 @@
 #ifndef _HAVE_ESP32_SERIES_H
 	#define _HAVE_ESP32_SERIES_H
 
-	/* HP core is RV32IMAC. The radios and the LP core are outside this port. */
+	/* HP core is RV32IMAC. The LP core is outside this port.
+	 * The shared radio is arch/esp32/rf/ (host, open, analog I2C).
+	 * The C6 image and the power hook are the RF_C6 module.
+	 * Boot leaves the radio stopped.
+	 */
+
+	#define MP_ARCH_RF_PARAM    0x1a8
+	#define MP_ARCH_RF_CAL      440
+	#define MP_ARCH_RF_UP       0x25
+	#define MP_ARCH_RF_MODE     2
+	#define MP_ARCH_RF_STATUS   0xa4
 
 	#define C6_UART0            0x60000000UL
 	#define C6_I2C              0x60004000UL
@@ -56,6 +66,7 @@
 	#define C6_WDT_KEY          0x50D83AA1UL
 
 	/* interrupt matrix sources */
+	#define C6_SRC_FROM_CPU     22
 	#define C6_SRC_GPIO         30
 	#define C6_SRC_UART0        43
 	#define C6_SRC_USB          48
@@ -63,10 +74,17 @@
 	#define C6_SRC_SYSTIMER     57
 	#define C6_SRC_SPI2         72
 
-	/* CPU lines. 0 stays free. Priority must be above the threshold. */
+	/* CPU lines. 0, 3, 4 and 7 are the local CLINT sources and cannot take
+	 * a matrix interrupt. Priority must be above the threshold. */
 	#define C6_CPU_USB          1
 	#define C6_CPU_TICK         2
 	#define C6_CPU_GPIO         3
+	/* Preempt line. Priority 1, under the tick and the USB line at 2. */
+	#define C6_CPU_SCHED        5
+	#define C6_PRIO_SCHED       1UL
+	#define C6_PRIO_DEVICE      2UL
+	/* Level source. Write 1 to pend the scheduler, 0 to clear it. */
+	#define C6_FROM_CPU         (C6_INTPRI + 0x90UL)
 
 	#define C6_PIN_COUNT        31
 	#define C6_TICK_HZ          1000UL

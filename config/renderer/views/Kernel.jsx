@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { bytes, useConfig } from "../state.js"
 import { Badge, Chip, Empty, Section, SettingField, Switch } from "../components/ui.jsx"
 
@@ -78,6 +79,7 @@ function ModuleCard({ module }) {
 				<code className="faint">{module.name}</code>
 			</div>
 			<p className="module-desc">{module.description}</p>
+			{module.path.startsWith("..") ? <p className="hint">{module.path}</p> : null}
 			<div className="choice-meta">
 				{status}
 				{module.requires.map((name) => <Chip key={name}>needs {name}</Chip>)}
@@ -89,6 +91,101 @@ function ModuleCard({ module }) {
 				</div>
 			) : null}
 		</div>
+	)
+}
+
+function relativeTo(root, dir) {
+	if (!root || !dir.startsWith("/"))
+		return dir.replace(/^\.\//, "")
+	if (dir === root)
+		return "."
+	if (dir.startsWith(root + "/"))
+		return dir.slice(root.length + 1)
+	const from = root.split("/").filter(Boolean)
+	const to = dir.split("/").filter(Boolean)
+	let shared = 0
+	while (shared < from.length && shared < to.length && from[shared] === to[shared])
+		shared++
+	return [...Array(from.length - shared).fill(".."), ...to.slice(shared)].join("/")
+}
+
+function moduleAt(catalog, dir) {
+	if (!catalog)
+		return null
+	const prefix = dir.replace(/\/$/, "") + "/"
+	return (catalog.modules || []).find((record) => record.path === prefix + "_phi.js" || record.path.startsWith(prefix)) || null
+}
+
+function ExternalPaths() {
+	const { catalog, selection, analysis, root, change } = useConfig()
+	const [value, setValue] = useState("")
+	const list = selection.externals || []
+
+	const add = (dir) => {
+		const path = dir.trim().replace(/^\.\//, "")
+		if (!path)
+			return
+		change((draft) => {
+			draft.externals = [...new Set([...(draft.externals || []), path])]
+		})
+		setValue("")
+	}
+
+	const browse = async () => {
+		const picked = await window.phi.browse(root ? root.replace(/\/[^/]+$/, "") : "")
+		if (picked)
+			add(relativeTo(root, picked))
+	}
+
+	return (
+		<Section
+			title="External modules"
+			subtitle="Paths of this configuration. Each directory has its own _phi.js. The board only names the module."
+			tools={<button className="btn small" onClick={browse}>Browse…</button>}
+		>
+			<div className="card">
+				{list.length ? (
+					<div className="rows">
+						{list.map((dir, index) => {
+							const found = moduleAt(catalog, dir)
+							const problem = analysis.issues.find((item) => item.view === "kernel" && item.text.startsWith(dir))
+							return (
+								<div className="row" key={dir}>
+									<code>{dir}</code>
+									{found ? <Chip>{found.name}</Chip> : null}
+									{problem ? <Badge tone={problem.level === "error" ? "err" : "warn"}>{problem.level === "error" ? "Missing" : "No _phi.js"}</Badge> : null}
+									<div className="grow" />
+									<button
+										className="btn small ghost danger"
+										onClick={() => change((draft) => {
+											draft.externals.splice(index, 1)
+										})}
+									>
+										Remove
+									</button>
+								</div>
+							)
+						})}
+					</div>
+				) : <p className="muted">No external module path.</p>}
+				<form
+					className="adder"
+					onSubmit={(event) => {
+						event.preventDefault()
+						add(value)
+					}}
+				>
+					<input
+						className="input mono"
+						value={value}
+						placeholder="../esp32/rf-c6"
+						spellCheck={false}
+						onChange={(event) => setValue(event.target.value)}
+					/>
+					<button className="btn" type="submit">Add</button>
+				</form>
+			</div>
+		</Section>
 	)
 }
 
@@ -129,7 +226,9 @@ export function Kernel() {
 				</Section>
 			) : null}
 
-			<Section title="Optional modules" subtitle="common/<name>/_phi.js">
+			<ExternalPaths />
+
+			<Section title="Optional modules" subtitle="common/<name>/_phi.js, plus the external paths above">
 				<div className="grid wide">
 					{optional.map((module) => <ModuleCard key={module.name} module={module} />)}
 				</div>

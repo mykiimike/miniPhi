@@ -126,8 +126,8 @@ Every choice in a build is a `_phi.js` file next to the sources and headers it d
 | `common/_phi.js` | Kernel core, always built. Its headers sit at the root of `build/include` | `SRCS`, `include/`, `autoconf.h` |
 | `common/<name>/_phi.js` | One module. `required: true` stays on. `requires` pulls other modules | `SRCS`, `include/<name>/`, `SUPPORT_COMMON_*` |
 | `drivers/<name>/_phi.js` | One driver: its bus, its options, the modules it needs | `SRCS`, `include/<name>/`, `SUPPORT_DRV_*`, `pinout.h` |
-| `app/_phi.js` | The application the kernel boots into. Its `name` is what a board selects. Its `main()`, the modules and drivers it needs, the peripherals it opens | `SRCS`, `PHI_BUILD_APP`, `autoconf.h` |
-| `boards/<vendor>/<board>/_phi.js` | A saved selection, naming one app and the probes it `requires`. The configurator also starts from a blank one | `build/config.js` once picked |
+| `app/_phi.js` | The application the kernel boots into. The configurator picks it. Its `main()`, the modules and drivers it needs, the peripherals it opens | `SRCS`, `PHI_BUILD_APP`, `autoconf.h` |
+| `boards/<vendor>/<board>/_phi.js` | A saved target: architecture, modules, drivers and the probes it `requires`. The application stays in the configuration | `build/config.js` once picked |
 | `boards/<vendor>/<probe>/_phi.js` | A programmer or debugger: the make targets it adds, the files they run | Rules in `build/Makefile` (`make flash`) |
 
 ## _phi.js records
@@ -212,7 +212,7 @@ export const phi = {
 }
 ```
 
-A board names it with `app: "sysinfo"`. `sources` on a board or in the window adds files next to the app, or provides `main()` when no app is picked. `autoconf.h` tells the firmware what it was built from: `PHI_BUILD_BOARD`, `PHI_BUILD_APP`, `PHI_BUILD_ARCH`, `PHI_BUILD_SERIES`, `PHI_BUILD_MCU`, `PHI_BUILD_TOOLCHAIN`, `PHI_BUILD_MODULES`, `PHI_BUILD_DRIVERS`, `PHI_BUILD_FLASH` and `PHI_BUILD_RAM`.
+The configurator picks it. A board does not name the application. `sources` on a board or in the window adds files next to the app, or provides `main()` when no app is picked. `autoconf.h` tells the firmware what it was built from: `PHI_BUILD_BOARD`, `PHI_BUILD_APP`, `PHI_BUILD_ARCH`, `PHI_BUILD_SERIES`, `PHI_BUILD_MCU`, `PHI_BUILD_TOOLCHAIN`, `PHI_BUILD_MODULES`, `PHI_BUILD_DRIVERS`, `PHI_BUILD_FLASH` and `PHI_BUILD_RAM`.
 
 An app stays free of the architecture. It reads the CPU from `kernel->mcuVendor` and `kernel->mcuName`, the clock from `mp_clock_get_speed()`, and the tick rate from `mp_clock_tick_hz()`, which the arch implements. Delays in the app are milliseconds and get converted with that rate. `mp_serial_open()` takes the `PHI_CONSOLE` options and lets the arch own the port. `mp_machine_state_set()` is where the arch publishes the sensors that belong to the chip.
 

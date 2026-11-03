@@ -563,7 +563,7 @@ static void _mp_drv_MPL3115A2_readTemperature(mp_regMaster_op_t *operand, mp_boo
 
 		/* Check for 2s compliment */
 		if(msb > 0x7F) {
-			foo = ~((msb << 8) + lsb) + 1;  //2’s complement
+			foo = ~((msb << 8) + lsb) + 1;  //2ï¿½s complement
 			msb = foo >> 8;
 			lsb = foo & 0x00F0;
 			negSign = TRUE;

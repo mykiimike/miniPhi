@@ -68,6 +68,10 @@ _MP_CRYPTO_HASH_WRAP(sha384, mp_crypto_sha384_t)
 #ifdef SUPPORT_COMMON_CRYPTO_HASH_SHA512
 _MP_CRYPTO_HASH_WRAP(sha512, mp_crypto_sha512_t)
 #endif
+#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHAKE
+_MP_CRYPTO_HASH_WRAP(sha3_256, mp_crypto_sha3_256_t)
+_MP_CRYPTO_HASH_WRAP(sha3_512, mp_crypto_sha3_512_t)
+#endif
 
 static const mp_crypto_hash_algo_t _mp_crypto_hash_algos[] = {
 #ifdef SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S
@@ -84,6 +88,10 @@ static const mp_crypto_hash_algo_t _mp_crypto_hash_algos[] = {
 #endif
 #ifdef SUPPORT_COMMON_CRYPTO_HASH_SHA512
 	_MP_CRYPTO_HASH_ENTRY(sha512, "SHA512", "SHA-512", MP_CRYPTO_SHA512_SIZE, MP_CRYPTO_SHA512_BLOCK),
+#endif
+#ifdef SUPPORT_COMMON_CRYPTO_HASH_SHAKE
+	_MP_CRYPTO_HASH_ENTRY(sha3_256, "SHA3_256", "SHA3-256", 32, 136),
+	_MP_CRYPTO_HASH_ENTRY(sha3_512, "SHA3_512", "SHA3-512", 64, 72),
 #endif
 	{ NULL, NULL, 0, 0, NULL, NULL, NULL },
 };
