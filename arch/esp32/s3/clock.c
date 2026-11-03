@@ -27,8 +27,9 @@
 
 The ROM leaves the CPU on the 40 MHz crystal and the 480 MHz PLL up,
 because the USB Serial/JTAG PHY takes 48 MHz from that PLL. HIGH is
-240 MHz, MEDIUM is 160 MHz, LOW and SLEEP are 80 MHz. The PLL stays
-selected on every level so the console does not drop.
+240 MHz, MEDIUM is 160 MHz and LOW is 80 MHz, all from that PLL. SLEEP
+selects the crystal. The PLL stays up on every level so the console
+does not drop.
 
 The tick is SYSTIMER unit 0. Its clock is the crystal divided by 2.5,
 16 MHz, and does not follow the CPU mux. One period is 16000 counts.
@@ -74,22 +75,44 @@ static void _tick(void *user) {
 #endif
 }
 
-static void _cpu(unsigned long hz) {
-	unsigned long period = 0;
+/* PRE_DIV_CNT is bits 9:0 and resets to 1, so the crystal would arrive
+ * at 20 MHz. The divider is written on its own, then the mux: one write
+ * of both can stop on the ratio in between. SOC_CLK_SEL is bits 11:10. */
+static void _xtal(void) {
 	unsigned long conf;
 
-	if(hz >= S3_CPU_HIGH_HZ)
-		period = 2;
-	else if(hz >= S3_CPU_MEDIUM_HZ)
-		period = 1;
+	conf = s3_read(_SYSCLK);
+	conf &= ~0x3FFUL;
+	s3_write(_SYSCLK, conf);
+	conf &= ~(3UL << 10);
+	s3_write(_SYSCLK, conf);
+}
+
+static void _pll(unsigned long period) {
+	unsigned long conf;
 
 	conf = s3_read(_CPU_PER);
 	conf = (conf & ~3UL) | period;
 	s3_write(_CPU_PER, conf);
 
 	conf = s3_read(_SYSCLK);
+	conf &= ~0x3FFUL;
+	s3_write(_SYSCLK, conf);
 	conf = (conf & ~(3UL << 10)) | (1UL << 10);
 	s3_write(_SYSCLK, conf);
+}
+
+static void _cpu(unsigned long hz) {
+	if(hz <= S3_XTAL_HZ) {
+		_xtal();
+		hz = S3_XTAL_HZ;
+	}
+	else if(hz >= S3_CPU_HIGH_HZ)
+		_pll(2);
+	else if(hz >= S3_CPU_MEDIUM_HZ)
+		_pll(1);
+	else
+		_pll(0);
 	_hz = hz;
 	if(_kernel)
 		_kernel->arch.hz = hz;
@@ -159,7 +182,9 @@ unsigned long mp_clock_level_hz(mp_power_level_t level) {
 		return(S3_CPU_HIGH_HZ);
 	if(level == MP_POWER_MEDIUM)
 		return(S3_CPU_MEDIUM_HZ);
-	return(S3_CPU_LOW_HZ);
+	if(level == MP_POWER_LOW)
+		return(S3_CPU_LOW_HZ);
+	return(S3_XTAL_HZ);
 }
 
 mp_ret_t mp_clock_level(mp_kernel_t *kernel, mp_power_level_t level) {
