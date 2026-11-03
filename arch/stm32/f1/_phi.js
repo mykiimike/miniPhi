@@ -43,7 +43,9 @@ export const phi = {
 	vendor: "STMicroelectronics",
 	label: "STM32F1",
 	tested: true,
-	description: "Stop is woken by the RTC on the LSE crystal. Debug is JTAG or SWD.",
+	description: "Stop is woken by the RTC on the LSE crystal. Debug is JTAG or SWD. Tasks are preemptive on one stack: PendSV sits under SysTick.",
+	schedulers: ["0", "1", "2"],
+	scheduler: "2",
 	specs: {
 		core: "Cortex-M3",
 		clock: "72 MHz",

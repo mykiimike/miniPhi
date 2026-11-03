@@ -84,8 +84,10 @@
 /* half an I2C clock: about 100 kHz */
 #define LEPTON_I2C_HALF 5000UL
 
-/* survives close, so Devices > Camera keeps the chip name */
+/* survive close, so Devices keeps the name, the serial and the version */
 static char _lepton_kept[33];
+static char _lepton_serial_kept[17];
+static char _lepton_version_kept[40];
 
 static MP_TASK(_lepton_task);
 
@@ -547,8 +549,8 @@ static const mp_device_command_t _lepton_commands[] = {
 /* the module's own name, part, serial and version. The board option is not a name. */
 static void _lepton_identity(mp_drv_lepton_t *lep) {
 	const char *model = _lepton_kept[0] ? _lepton_kept : (lep->model[0] ? lep->model : NULL);
-	const char *serial = lep->serial[0] ? lep->serial : NULL;
-	const char *version = lep->version[0] ? lep->version : NULL;
+	const char *serial = _lepton_serial_kept[0] ? _lepton_serial_kept : (lep->serial[0] ? lep->serial : NULL);
+	const char *version = _lepton_version_kept[0] ? _lepton_version_kept : (lep->version[0] ? lep->version : NULL);
 
 	if(model)
 		lep->label = _lepton_name(model);
@@ -575,6 +577,7 @@ static int _lepton_take_serial(mp_drv_lepton_t *lep) {
 	for(i = 0; i < 8; i++)
 		snprintf(lep->serial + i * 2, 3, "%02x", lep->cciRx[i]);
 	lep->serial[16] = 0;
+	snprintf(_lepton_serial_kept, sizeof(_lepton_serial_kept), "%s", lep->serial);
 	mp_printk("Lepton serial %s", lep->serial);
 	_lepton_identity(lep);
 	return(1);
@@ -616,6 +619,7 @@ static int _lepton_take_version(mp_drv_lepton_t *lep) {
 	 */
 	snprintf(lep->version, sizeof(lep->version), "gpp %u.%u.%u  dsp %u.%u.%u",
 		raw[1], raw[0], raw[3], raw[2], raw[5], raw[4]);
+	snprintf(_lepton_version_kept, sizeof(_lepton_version_kept), "%s", lep->version);
 	mp_printk("Lepton version %s", lep->version);
 	_lepton_identity(lep);
 	return(1);

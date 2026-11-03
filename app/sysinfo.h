@@ -164,6 +164,10 @@ struct sysinfo_s {
 		int accelReady;
 		/** camera view */
 		unsigned long cameraSequence;
+		/** High while a camera is open: the boot read, then the view */
+		mp_power_hold_t cameraPower;
+		/** tick of the boot open; the read is given up after a few seconds */
+		unsigned long cameraProbeAt;
 #endif
 		/**
 		 * One page is built at a time, and Back builds the previous one again.
@@ -194,9 +198,13 @@ struct sysinfo_s {
 #endif
 				mp_tui_label_t build;
 				mp_tui_label_t target;
+				/** which scheduler this image compiled, and how many levels it has */
+				mp_tui_label_t sched;
 				mp_tui_label_t uptime;
 				mp_tui_label_t tasks;
 				mp_tui_bar_t taskBar;
+				/** pending and sleeping counts, refreshed with the rest of Status */
+				mp_tui_label_t schedState;
 				mp_tui_label_t ram;
 				mp_tui_bar_t ramBar;
 #ifdef SUPPORT_COMMON_MEM

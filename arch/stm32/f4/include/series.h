@@ -71,6 +71,8 @@
 	#define SysTick_CTRL_CLKSOURCE (1UL << 2)
 	#define SysTick_CTRL_COUNTFLAG (1UL << 16)
 	#define SCB_ICSR_VECTACTIVE    0x1FFUL
+	#define SCB_ICSR_PENDSVSET     (1UL << 28)
+	#define SCB_ICSR_PENDSVCLR     (1UL << 27)
 	#define SCB_ICSR_PENDSTSET     (1UL << 26)
 	#define SCB_ICSR_PENDSTCLR     (1UL << 25)
 	#define SCB_SCR_SLEEPDEEP      (1UL << 2)

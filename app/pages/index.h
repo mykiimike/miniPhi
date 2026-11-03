@@ -55,6 +55,13 @@ void _sysinfo_dev_accel_build(mp_tui_widget_t *page, sysinfo_t *sysinfo);
 void _sysinfo_dev_accel_refresh(sysinfo_t *sysinfo);
 void _sysinfo_dev_camera_build(mp_tui_widget_t *page, sysinfo_t *sysinfo);
 void _sysinfo_dev_camera_refresh(sysinfo_t *sysinfo);
+/** close the camera, then let the governor have the clock back */
+void _sysinfo_dev_camera_release(sysinfo_t *sysinfo);
+/**
+ * Boot opens the camera at High so the driver can read the module, then
+ * closes it once that name is on the device. The view keeps it open.
+ */
+void _sysinfo_dev_camera_settle(sysinfo_t *sysinfo);
 void _sysinfo_dev_clock_release(sysinfo_t *sysinfo);
 mp_bool_t _sysinfo_dev_clock_shown(sysinfo_t *sysinfo);
 void _sysinfo_dev_clock_build(mp_tui_widget_t *page, sysinfo_t *sysinfo);

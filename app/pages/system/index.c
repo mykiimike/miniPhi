@@ -19,8 +19,8 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Home page. The logo, about, version, copyright, license, the flash, uptime, RAM,
- * dial gauges for the MCU sensors, and the buttons that open the sub-pages.
+ * Home page. The logo, about, version, copyright, license, the scheduler, the flash,
+ * uptime, RAM, dial gauges for the MCU sensors, and the buttons that open the sub-pages.
  */
 
 #include "../index.h"
@@ -134,6 +134,19 @@ static void _sysinfo_flash_state(char *text, size_t size) {
 
 #endif
 
+/* the name comes from the scheduler the build compiled */
+static void _sysinfo_sched_text(char *text, size_t size) {
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	snprintf(text, size, "Sched  %s, one stack, %u levels",
+		mp_task_scheduler_name(), (unsigned int)MP_TASK_PRIORITIES);
+#elif MP_TASK_SCHEDULER == MP_TASK_SCHED_PRIORITY
+	snprintf(text, size, "Sched  %s, %u levels",
+		mp_task_scheduler_name(), (unsigned int)MP_TASK_PRIORITIES);
+#else
+	snprintf(text, size, "Sched  %s", mp_task_scheduler_name());
+#endif
+}
+
 #ifdef SUPPORT_COMMON_DEVICE
 static int _sysinfo_mcu_sensor(mp_kernel_t *kernel, mp_device_registry_t *sensor) {
 	mp_device_registry_t *axis = NULL;
@@ -213,6 +226,8 @@ void _sysinfo_system_refresh(sysinfo_t *sysinfo) {
 	mp_tui_label_set(&sysinfo->screen.tasks, "Tasks    %u/%u",
 		kernel->tasks.usedNumber, (unsigned int)MP_TASK_MAX);
 	mp_tui_bar_set(&sysinfo->screen.taskBar, kernel->tasks.usedNumber);
+	mp_tui_label_set(&sysinfo->screen.schedState, "Sched    %u pending, %u sleeping",
+		kernel->tasks.pendingNumber, kernel->tasks.sleepNumber);
 	{
 		unsigned long total = (unsigned long)PHI_BUILD_RAM;
 		unsigned long used = 0;
@@ -358,6 +373,8 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	mp_tui_label_wrap(&sysinfo->screen.build, client, 6, &inner, innerW, line, font, text);
 	snprintf(text, sizeof(text), "Target %s / %s / %s", PHI_BUILD_ARCH, PHI_BUILD_SERIES, PHI_BUILD_MCU);
 	mp_tui_label_wrap(&sysinfo->screen.target, client, 6, &inner, innerW, line, font, text);
+	_sysinfo_sched_text(text, sizeof(text));
+	mp_tui_label_wrap(&sysinfo->screen.sched, client, 6, &inner, innerW, line, font, text);
 	mp_tui_resize(&sysinfo->screen.system.widget, width - 8, title + inner + 4);
 	y += sysinfo->screen.system.widget.rect.h + 4;
 
@@ -438,6 +455,8 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	mp_tui_label_wrap(&sysinfo->screen.uptime, client, 6, &inner, innerW, line, font, "Uptime");
 	mp_tui_label(&sysinfo->screen.tasks, client, 6, inner, 110, line, "Tasks");
 	mp_tui_bar(&sysinfo->screen.taskBar, client, 120, inner + 2, width - 140, line > 4 ? line - 4 : line, MP_TASK_MAX);
+	inner += line;
+	mp_tui_label(&sysinfo->screen.schedState, client, 6, inner, innerW, line, "Sched");
 	inner += line;
 	mp_tui_label(&sysinfo->screen.ram, client, 6, inner, 110, line, "RAM");
 	mp_tui_bar(&sysinfo->screen.ramBar, client, 120, inner + 2, width - 140, line > 4 ? line - 4 : line,

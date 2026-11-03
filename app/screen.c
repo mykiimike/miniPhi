@@ -107,7 +107,9 @@ static void _sysinfo_touch_run(sysinfo_t *sysinfo, mp_bool_t on) {
 #endif
 }
 
-/* left open: a driver registers itself from open, and close drops that registration */
+/* left open: a driver registers itself from open, and close drops that registration.
+ * A camera is opened at High, long enough for its driver to read the module,
+ * then closed. Selecting its view opens it again. */
 static void _sysinfo_devices_load(sysinfo_t *sysinfo) {
 	int n;
 
@@ -116,8 +118,13 @@ static void _sysinfo_devices_load(sysinfo_t *sysinfo) {
 
 		if(!device || device->opened == YES)
 			continue;
+		if(device->driver && device->driver->type == MP_DEVICE_CAMERA)
+			continue;
 		mp_device_open(&sysinfo->kernel, device);
 	}
+#ifdef SUPPORT_COMMON_DEVICE
+	_sysinfo_dev_camera_settle(sysinfo);
+#endif
 	/* open leaves an accelerometer awake, so the next apply sends it to sleep */
 	sysinfo->accelRunning = YES;
 }
@@ -195,6 +202,9 @@ void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 	/* the overlay reads the camera buffer; close it before the device does */
 	mp_tui_fullscreen_close(&sysinfo->screen.tui);
 	_sysinfo_devices_release(sysinfo, NO);
+#ifdef SUPPORT_COMMON_DEVICE
+	_sysinfo_dev_camera_release(sysinfo);
+#endif
 	mp_tui_fini(&sysinfo->screen.tui);
 	mp_device_close(sysinfo->screen.display);
 	sysinfo->screen.display = NULL;

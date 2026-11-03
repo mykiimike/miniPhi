@@ -34,8 +34,17 @@ with mp_interrupt_set().
 
 static mp_interrupt_t __interrupts[MP_ARCH_IRQ_COUNT];
 
-/* all peripheral lines share one priority, under SysTick */
+/* all peripheral lines share one priority, under SysTick (SHP[11] = 0x40) */
 #define _IRQ_PRIORITY 0x80
+
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+/* Exception 14, SHP index 10. Lowest of the four implemented priority
+ * bits, so SysTick and every peripheral line preempt the dispatcher. */
+#define _PENDSV_SHP 10
+#define _PENDSV_PRIORITY 0xF0
+
+void mp_task_sched_dispatch(void);
+#endif
 
 static void _mp_interrupt_unhandled(void *user) {
 	/* masks the line so a stray IRQ can not loop forever */
@@ -53,6 +62,13 @@ mp_ret_t mp_interrupt_init() {
 		NVIC->IP[a] = _IRQ_PRIORITY;
 	}
 
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	/* Four bits of preemption, no subpriority, so 0xF0 stays under 0x80. */
+	SCB->AIRCR = (0x05FAUL << 16) | (3UL << 8);
+	SCB->SHP[_PENDSV_SHP] = _PENDSV_PRIORITY;
+	SCB->ICSR = SCB_ICSR_PENDSVCLR;
+#endif
+
 	return(TRUE);
 }
 
@@ -61,6 +77,10 @@ mp_ret_t mp_interrupt_fini() {
 
 	for(a=0; a<MP_ARCH_IRQ_COUNT; a++)
 		mp_interrupt_unset(a);
+
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	SCB->ICSR = SCB_ICSR_PENDSVCLR;
+#endif
 
 	return(TRUE);
 }
@@ -118,5 +138,19 @@ void mp_interrupt_dispatch(void) {
 	interrupt = &__interrupts[irq];
 	interrupt->callback(interrupt->user);
 }
+
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+
+/* Strong symbol. The weak one in preempt.c runs the dispatcher inline.
+ * The vector entry in startup.c is a weak alias of Default_Handler. */
+void PendSV_Handler(void) {
+	mp_task_sched_dispatch();
+}
+
+void mp_task_pend(void) {
+	SCB->ICSR = SCB_ICSR_PENDSVSET;
+}
+
+#endif
 
 /**@}*/

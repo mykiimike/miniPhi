@@ -19,7 +19,11 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*
- * Camera view of Devices. Taking the frame while the view is on screen is
+ * Camera view of Devices. At boot the camera is opened at High so the
+ * driver can read the module, then closed; that name stays on the device
+ * and the list shows it. Selecting the view holds the clock at High and
+ * only then opens the camera again. Leaving closes it, then the governor
+ * takes the clock back. Taking the frame while the view is on screen is
  * what runs the video. Each sample is a 2x2 block when the page has room,
  * otherwise one pixel per sample. The part number, serial, software version
  * and temperature the driver published sit under the picture; the title is
@@ -74,12 +78,139 @@ static mp_device_t *_sysinfo_camera_device(sysinfo_t *sysinfo) {
 	return(NULL);
 }
 
-/* the camera stays open from boot; taking its frame is what runs the video */
-static void _sysinfo_camera_hold(sysinfo_t *sysinfo) {
+/* High first, and the clock has moved, before the driver's init runs */
+static void _sysinfo_camera_arm(sysinfo_t *sysinfo) {
 	mp_device_t *device = _sysinfo_camera_device(sysinfo);
 
-	if(device && device->opened == NO && mp_device_open(&sysinfo->kernel, device) == TRUE)
+	if(!device)
+		return;
+	mp_power_hold(&sysinfo->kernel, &sysinfo->screen.cameraPower, MP_POWER_HIGH, "Camera");
+	mp_power_apply(&sysinfo->kernel);
+	if(mp_power_level(&sysinfo->kernel) != MP_POWER_HIGH)
+		return;
+	if(device->opened == NO && mp_device_open(&sysinfo->kernel, device) == TRUE)
 		sysinfo->screen.cameraSequence = 0;
+}
+
+void _sysinfo_dev_camera_release(sysinfo_t *sysinfo) {
+	int n, count;
+
+	if(!sysinfo)
+		return;
+	count = mp_device_count();
+	for(n = 0; n < count; n++) {
+		mp_device_t *device = mp_device_at(n);
+
+		if(!device || device->opened == NO || !device->driver || device->driver->type != MP_DEVICE_CAMERA)
+			continue;
+		mp_device_close(device);
+	}
+	if(sysinfo->screen.cameraPower.held == NO)
+		return;
+	mp_power_release(&sysinfo->kernel, &sysinfo->screen.cameraPower);
+	mp_power_apply(&sysinfo->kernel);
+}
+
+/* part and version are in, or the driver has had long enough and published a name */
+static int _sysinfo_camera_described(sysinfo_t *sysinfo, mp_device_t *device) {
+	unsigned long now;
+
+	if(!device->label)
+		return(0);
+	if(device->version)
+		return(1);
+	if(!sysinfo->screen.cameraProbeAt)
+		return(0);
+	now = mp_clock_ticks();
+	return((long)(now - sysinfo->screen.cameraProbeAt) > (long)_sysinfo_ticks(8000));
+}
+
+static int _sysinfo_camera_busy(sysinfo_t *sysinfo) {
+	int n, count;
+
+	count = mp_device_count();
+	for(n = 0; n < count; n++) {
+		mp_device_t *device = mp_device_at(n);
+
+		if(!device || device->opened == NO || !device->driver || device->driver->type != MP_DEVICE_CAMERA)
+			continue;
+		if(_sysinfo_camera_described(sysinfo, device) == 0)
+			return(1);
+	}
+	return(0);
+}
+
+static int _sysinfo_camera_opened(void) {
+	int n, count, opened = 0;
+
+	count = mp_device_count();
+	for(n = 0; n < count; n++) {
+		mp_device_t *device = mp_device_at(n);
+
+		if(device && device->opened == YES && device->driver && device->driver->type == MP_DEVICE_CAMERA)
+			opened++;
+	}
+	return(opened);
+}
+
+/* a camera that has never published its name */
+static int _sysinfo_camera_unknown(void) {
+	int n, count;
+
+	count = mp_device_count();
+	for(n = 0; n < count; n++) {
+		mp_device_t *device = mp_device_at(n);
+
+		if(!device || device->opened == YES || !device->driver || device->driver->type != MP_DEVICE_CAMERA)
+			continue;
+		if(!device->label)
+			return(1);
+	}
+	return(0);
+}
+
+/* High, and the clock has moved, before the driver's init reads the module */
+static void _sysinfo_camera_probe(sysinfo_t *sysinfo) {
+	int n, count, opened;
+
+	if(_sysinfo_camera_unknown() == 0)
+		return;
+	mp_power_hold(&sysinfo->kernel, &sysinfo->screen.cameraPower, MP_POWER_HIGH, "Camera");
+	mp_power_apply(&sysinfo->kernel);
+	if(mp_power_level(&sysinfo->kernel) != MP_POWER_HIGH)
+		return;
+	opened = 0;
+	count = mp_device_count();
+	for(n = 0; n < count; n++) {
+		mp_device_t *device = mp_device_at(n);
+
+		if(!device || device->opened == YES || device->label || !device->driver || device->driver->type != MP_DEVICE_CAMERA)
+			continue;
+		if(mp_device_open(&sysinfo->kernel, device) == TRUE)
+			opened = 1;
+	}
+	if(opened == 0 || sysinfo->screen.cameraProbeAt)
+		return;
+	sysinfo->screen.cameraProbeAt = mp_clock_ticks();
+	if(!sysinfo->screen.cameraProbeAt)
+		sysinfo->screen.cameraProbeAt = 1;
+}
+
+void _sysinfo_dev_camera_settle(sysinfo_t *sysinfo) {
+	if(!sysinfo)
+		return;
+	if(_sysinfo_dev_camera_shown(sysinfo) == YES) {
+		_sysinfo_dev_camera_refresh(sysinfo);
+		return;
+	}
+	/* the driver is still reading the module; the view is not up */
+	if(_sysinfo_camera_busy(sysinfo))
+		return;
+	if(_sysinfo_camera_opened()) {
+		_sysinfo_dev_camera_release(sysinfo);
+		return;
+	}
+	_sysinfo_camera_probe(sysinfo);
 }
 
 #ifdef SUPPORT_COMMON_DEVICE
@@ -193,7 +324,7 @@ static void _sysinfo_camera_values(sysinfo_t *sysinfo) {
 
 	if(_sysinfo_dev_camera_shown(sysinfo) == NO)
 		return;
-	_sysinfo_camera_hold(sysinfo);
+	_sysinfo_camera_arm(sysinfo);
 	device = _sysinfo_camera_device(sysinfo);
 	if(!device || device->opened == NO) {
 		mp_tui_label_set(&sysinfo->screen.cameraState, "");
@@ -263,6 +394,7 @@ void _sysinfo_dev_camera_build(mp_tui_widget_t *page, sysinfo_t *sysinfo) {
 		y = (page->rect.h - imgH - gap - caption) / 2;
 
 	picture->owner = sysinfo;
+	_sysinfo_camera_arm(sysinfo);
 	mp_tui_widget_init(&picture->widget, &_sysinfo_camera_class, page, x, y, imgW, imgH);
 	mp_tui_label(&sysinfo->screen.cameraState, page, 4, y + imgH + gap, page->rect.w - 8, caption, "");
 	mp_tui_label_align(&sysinfo->screen.cameraState, MP_TUI_ALIGN_CENTER);

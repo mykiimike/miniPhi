@@ -83,7 +83,7 @@ void mp_task_sched_dispatch(void) {
 /* Host tests and a series that has not wired its line use this stub, which
  * runs the dispatcher on the caller stack. A strong mp_task_pend from the
  * series replaces it. C3 and C6 pend a FROM_CPU line under the tick. The
- * S3 one pends a level-1 line. */
+ * S3 one pends a level-1 line. STM32 pends PendSV, under SysTick. */
 void __attribute__((weak)) mp_task_pend(void) {
 	mp_task_sched_dispatch();
 }

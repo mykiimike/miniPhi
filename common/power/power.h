@@ -130,6 +130,8 @@
 
 	void mp_power_init(mp_kernel_t *kernel);
 	void mp_power_schedule(mp_kernel_t *kernel);
+	/** Raise or drop the clock to the hold floor and the governor, before the caller continues. */
+	void mp_power_apply(mp_kernel_t *kernel);
 
 	void mp_power_hold(mp_kernel_t *kernel, mp_power_hold_t *hold, mp_power_level_t floor, char *who);
 	void mp_power_hold_for(mp_kernel_t *kernel, mp_power_hold_t *hold, mp_power_level_t floor, unsigned long ms, char *who);

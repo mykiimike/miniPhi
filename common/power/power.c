@@ -316,6 +316,33 @@ static void _mp_power_govern(mp_power_t *power, unsigned long now) {
 }
 
 /**
+ * @brief Make a hold or a release take effect now
+ *
+ * mp_power_schedule() does this on the next kernel pass, and then sleeps.
+ * A caller that has to be at the new clock before its next line, or that
+ * has just given the clock back to the governor, uses this instead.
+ *
+ * @param[in] kernel Kernel handler
+ */
+void mp_power_apply(mp_kernel_t *kernel) {
+	mp_power_t *power = &kernel->power;
+	mp_power_level_t want;
+
+	_mp_power_floor(power);
+	want = power->governed > power->floor ? power->governed : power->floor;
+	if(want == power->level)
+		return;
+	if(mp_clock_level(kernel, want) == TRUE) {
+		power->level = want;
+		power->switches++;
+	}
+	else {
+		power->refused++;
+		power->blocker = mp_clock_blocker();
+	}
+}
+
+/**
  * @brief Govern, then sleep until the next task is due
  *
  * The kernel loop calls it after each pass over the tasks.
@@ -324,7 +351,6 @@ static void _mp_power_govern(mp_power_t *power, unsigned long now) {
  */
 void mp_power_schedule(mp_kernel_t *kernel) {
 	mp_power_t *power = &kernel->power;
-	mp_power_level_t want;
 	unsigned long now = mp_clock_us();
 	unsigned long stretch = now - power->wokeAt;
 	unsigned long expiry;
@@ -337,19 +363,8 @@ void mp_power_schedule(mp_kernel_t *kernel) {
 		_mp_power_govern(power, now);
 
 	expiry = _mp_power_floor(power);
-
-	want = power->governed > power->floor ? power->governed : power->floor;
 	/* a bus that is busy refuses, the next pass tries again */
-	if(want != power->level) {
-		if(mp_clock_level(kernel, want) == TRUE) {
-			power->level = want;
-			power->switches++;
-		}
-		else {
-			power->refused++;
-			power->blocker = mp_clock_blocker();
-		}
-	}
+	mp_power_apply(kernel);
 
 	mp_clock_schedule(kernel, expiry);
 	power->wokeAt = mp_clock_us();

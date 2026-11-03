@@ -21,7 +21,9 @@
 /*
  * Home page. Categories that have a device, then the devices of the one
  * that was opened, then that device's own view. A board device that has
- * not been started yet is still listed: opening it starts it.
+ * not been started yet is still listed: opening its view starts it.
+ * A camera is opened at boot, at High, until its name is known, then closed.
+ * Selecting its view opens it again, still after the clock is High.
  */
 
 #include "../index.h"
@@ -77,8 +79,11 @@ static int _sysinfo_dev_visit(sysinfo_t *sysinfo, int class, int rank, mp_device
 	for(n = 0; n < count; n++) {
 		mp_device_t *device = mp_device_at(n);
 
-		/* listed once its driver gave it a name */
-		if(!device || !device->driver || device->driver->type != class || !device->label)
+		/* listed once its driver gave it a name. A camera is listed first,
+		 * under its board name, so selecting it can start it. */
+		if(!device || !device->driver || device->driver->type != class)
+			continue;
+		if(!device->label && class != MP_DEVICE_CAMERA)
 			continue;
 		if(_sysinfo_dev_same(sysinfo, class, device->self))
 			continue;
@@ -125,6 +130,10 @@ void _sysinfo_dev_caption(sysinfo_t *sysinfo, mp_device_registry_t *reg, mp_devi
 	/* the name the driver registered the device with */
 	if(legacy && legacy->label) {
 		snprintf(dst, (size_t)cap, "%s", legacy->label);
+		return;
+	}
+	if(legacy && legacy->name) {
+		snprintf(dst, (size_t)cap, "%s", legacy->name);
 		return;
 	}
 	if(reg && reg->label && reg->label[0]) {
@@ -491,7 +500,7 @@ void _sysinfo_dev_refresh(sysinfo_t *sysinfo) {
 		_sysinfo_dev_clock_release(sysinfo);
 	if(_sysinfo_dev_charge_shown(sysinfo) == NO)
 		_sysinfo_dev_charge_release(sysinfo);
-	_sysinfo_dev_camera_refresh(sysinfo);
+	_sysinfo_dev_camera_settle(sysinfo);
 	if(sysinfo->screen.devView < 0 || sysinfo->screen.tui.opened != sysinfo->screen.devView)
 		return;
 	if(sysinfo->screen.devClass == MP_DEVICE_ACCELEROMETER)
