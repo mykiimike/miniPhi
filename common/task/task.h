@@ -162,6 +162,12 @@
 		void mp_task_unlock(mp_task_lock_t key);
 		/* The series pends its software interrupt. */
 		void mp_task_pend(void);
+		/**
+		 * From the timer interrupt. Runs a task already due above the one
+		 * this interrupt cut. The main loop does not reach mp_task_tick
+		 * while a callback is still on the stack.
+		 */
+		void mp_task_slice(void);
 	#else
 		#define mp_task_lock(ceiling) ((mp_task_lock_t)0)
 		#define mp_task_unlock(key)   ((void)(key))

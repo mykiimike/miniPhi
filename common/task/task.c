@@ -216,6 +216,48 @@ static void _mp_task_served_hold(void) {
 	}
 }
 
+int mp_task_running(void) {
+	return(_mp_task_running_n);
+}
+
+/* A long callback keeps the outer pass open. A task that already returned
+ * stays marked, so the timer would not run it again until that callback
+ * ends. Clear those marks above the running priority. Tasks still inside
+ * execute stay marked. */
+void mp_task_served_open(mp_task_handler_t *hdl, int ceiling) {
+	mp_list_item_t *item;
+	unsigned char keep[MP_TASK_MAX];
+	int i;
+	int n;
+	int slot;
+
+	if(!hdl)
+		return;
+	memset(keep, 0, sizeof(keep));
+	n = _mp_task_running_n;
+	if(n > _MP_TASK_PASS_NEST)
+		n = _MP_TASK_PASS_NEST;
+	for(i = 0; i < n; i++) {
+		mp_task_t *task = _mp_task_running[i];
+
+		if(!task || task->handler != hdl)
+			continue;
+		slot = (int)(task - hdl->tasks);
+		if(slot >= 0 && slot < MP_TASK_MAX)
+			keep[slot] = 1;
+	}
+	for(item = hdl->usedList.first; item != NULL; item = item->next) {
+		mp_task_t *task = item->user;
+
+		slot = (int)(task - hdl->tasks);
+		if(slot < 0 || slot >= MP_TASK_MAX || keep[slot])
+			continue;
+		if(ceiling >= 0 && task->priority <= (unsigned char)ceiling)
+			continue;
+		_mp_task_served[slot] = 0;
+	}
+}
+
 void mp_task_pass_enter(void) {
 	int i;
 

@@ -126,7 +126,8 @@ void _sysinfo_morse_start(sysinfo_t *sysinfo) {
 			_sysinfo_ticks(SYSINFO_MORSE_UNIT)
 		);
 	/* Above the background, so a long task does not stretch a Morse unit.
-	 * Cooperative builds store the level and do not preempt. */
+	 * The timer interrupt runs it. Cooperative builds store the level
+	 * and do not preempt. */
 	if(sysinfo->morse)
 		mp_task_priority(sysinfo->morse, 1);
 }

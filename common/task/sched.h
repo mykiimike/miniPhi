@@ -39,6 +39,10 @@
 	mp_task_t *mp_task_pick(mp_task_handler_t *hdl, unsigned long now, int exact, int ceiling);
 	void mp_task_pass_enter(void);
 	void mp_task_pass_leave(void);
+	/** Tasks inside execute. 0 when the scheduler is between callbacks. */
+	int mp_task_running(void);
+	/** Forget served marks above ceiling for tasks that have returned. */
+	void mp_task_served_open(mp_task_handler_t *hdl, int ceiling);
 
 	#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
 	/* IRQ entry. The series software interrupt calls this. The weak

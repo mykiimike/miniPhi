@@ -88,6 +88,25 @@ void __attribute__((weak)) mp_task_pend(void) {
 	mp_task_sched_dispatch();
 }
 
+/* The timer interrupt calls this. A long callback holds the main loop,
+ * so the higher task would otherwise wait until that callback returns.
+ * Nobody running: leave it to mp_task_tick, which posts the scheduler. */
+void mp_task_slice(void) {
+	mp_task_handler_t *hdl = _mp_task_live;
+	unsigned long now;
+
+	if(hdl == NULL || mp_task_running() == 0)
+		return;
+	/* The callback under us owns the pass. Open the marks above it so a
+	 * task that already returned can be due again before the callback ends. */
+	mp_task_served_open(hdl, (int)_mp_task_runpri);
+	now = mp_clock_ticks();
+	if(mp_task_pick(hdl, now, -1, (int)_mp_task_runpri) == NULL)
+		return;
+	mp_task_sched_dispatch();
+	mp_task_served_open(hdl, (int)_mp_task_runpri);
+}
+
 /* Priority 0 stays on mp_task_tick so the idle path keeps its deadline.
  * Anything above the running priority goes through mp_task_pend. */
 mp_task_tick_t mp_task_sched_tick(mp_task_handler_t *hdl) {

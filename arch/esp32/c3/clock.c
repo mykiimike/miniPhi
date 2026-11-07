@@ -81,6 +81,11 @@ static void _tick(void *user) {
 	(void)user;
 	c3_write(_INT_CLR, 1UL);
 	_ticks++;
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	/* A callback is still on the stack. The main loop cannot schedule
+	 * until it returns, so a higher task has to run from here. */
+	mp_task_slice();
+#endif
 }
 
 static void _cpu(unsigned long hz) {
