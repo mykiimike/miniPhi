@@ -14,6 +14,7 @@ export const phi = {
 		"include/i2c.h",
 		"include/internal.h",
 		"include/interrupt.h",
+		"include/modem.h",
 		"include/rf.h",
 		"include/spi.h",
 		"include/timer.h",

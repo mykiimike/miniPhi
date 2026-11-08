@@ -23,7 +23,8 @@
 
 	/* HP core is RV32IMAC. The LP core is outside this port.
 	 * The shared radio is arch/esp32/rf/ (host, open, analog I2C).
-	 * The C6 image and the power hook are the RF_C6 module.
+	 * The modem domain refcount is arch/esp32/modem/. This series owns
+	 * the clock sequence. The C6 image is the ESP32_RF accelerator.
 	 * Boot leaves the radio stopped.
 	 */
 
@@ -52,6 +53,11 @@
 	#define C6_IOMUX            0x60090000UL
 	#define C6_GPIO             0x60091000UL
 	#define C6_PCR              0x60096000UL
+	/* Modem domain. SYSCON and LPCON are the modem clock blocks. */
+	#define C6_HP_APM           0x60099000UL
+	#define C6_MODEM_SYSCON     0x600A9800UL
+	#define C6_MODEM_LPCON      0x600AF000UL
+	#define C6_PMU              0x600B0000UL
 	#define C6_EFUSE            0x600B0800UL
 	#define C6_LP_AON           0x600B1000UL
 	#define C6_LP_WDT           0x600B1C00UL

@@ -24,7 +24,7 @@
 /**
 @addtogroup mpArchESP32RF
 
-Analog I2C master shared by the chip_v7 radios. The series fills
+Analog I2C master shared by the radios. The series fills
 mp_arch_rf_i2c. The read and the host select are inline in i2c.h so
 the function the ROM calls keeps the busy poll and the completing load.
 

@@ -28,7 +28,7 @@
 
 @ingroup mpArchESP32
 
-arch/esp32/rf/ answers the chip_v7 radio: the wait, the interrupt
+arch/esp32/rf/ answers the radio: the wait, the interrupt
 mask, the open path and the analog I2C master. phy_printf() is
 mp_printk(). The series supplies the calibration image, the crystal,
 the power hook and the ready test.
@@ -43,7 +43,7 @@ Boot does not call mp_arch_rf_open().
 
 void phy_bbpll_en_usb(void);
 void phy_wifi_enable_set(int param_1);
-uint32_t register_chipv7_phy(uint8_t *param_1, uint32_t param_2, int param_3);
+uint32_t phy_register(uint8_t *param_1, uint32_t param_2, int param_3);
 uint32_t phy_change_channel(uint32_t param_1, uint32_t param_2, uint32_t param_3, uint32_t param_4);
 void phy_close_rf(void);
 
@@ -60,7 +60,7 @@ mp_ret_t mp_arch_rf_open(mp_kernel_t *kernel) {
 	mp_arch_rf_set_u32(MP_ARCH_RF_STATUS, 0);
 	mp_arch_rf_set_u8(MP_ARCH_RF_UP, 0);
 	phy_bbpll_en_usb();
-	register_chipv7_phy((uint8_t *)0, (uint32_t)(uintptr_t)_cal, MP_ARCH_RF_MODE);
+	phy_register((uint8_t *)0, (uint32_t)(uintptr_t)_cal, MP_ARCH_RF_MODE);
 	phy_wifi_enable_set(1);
 	return(mp_arch_rf_ready());
 }
@@ -74,9 +74,9 @@ mp_ret_t mp_arch_rf_channel(unsigned long mhz) {
 }
 
 void mp_arch_rf_close(void) {
-	if(mp_arch_rf_u8(MP_ARCH_RF_UP) == 0)
-		return;
-	phy_close_rf();
+	if(mp_arch_rf_u8(MP_ARCH_RF_UP) != 0)
+		phy_close_rf();
+	mp_arch_rf_power(FALSE);
 }
 
 /**@}*/

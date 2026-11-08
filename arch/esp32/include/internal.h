@@ -47,6 +47,7 @@
 	#include "spi.h"
 	#ifdef ESP32C6
 		#include "rf.h"
+		#include "modem.h"
 	#endif
 	#ifdef ESP32S3
 		#include "adc.h"

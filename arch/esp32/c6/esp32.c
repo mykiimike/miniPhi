@@ -28,6 +28,14 @@
 @{
 */
 
+#if defined(SUPPORT_ESP32_RF) && defined(SUPPORT_COMMON_DEVICE)
+void mp_c6_phy(mp_kernel_t *kernel);
+mp_device_phy_t *mp_c6_phy_face(void);
+void mp_c6_phy_fini(mp_kernel_t *kernel);
+void mp_c6_mac(mp_kernel_t *kernel, mp_device_phy_t *phy);
+void mp_c6_mac_fini(mp_kernel_t *kernel);
+#endif
+
 static void _name(mp_kernel_t *kernel) {
 	snprintf(kernel->arch.mcuName, sizeof(kernel->arch.mcuName), "ESP32-C6, 512 KB SRAM");
 	kernel->mcuVendor = "Espressif";
@@ -62,10 +70,18 @@ mp_ret_t mp_machine_init(mp_kernel_t *kernel) {
 	mp_spi_init();
 	mp_i2c_init();
 	mp_interrupt_enable();
+#if defined(SUPPORT_ESP32_RF) && defined(SUPPORT_COMMON_DEVICE)
+	mp_c6_phy(kernel);
+	mp_c6_mac(kernel, mp_c6_phy_face());
+#endif
 	return(TRUE);
 }
 
 mp_ret_t mp_machine_fini(mp_kernel_t *kernel) {
+#if defined(SUPPORT_ESP32_RF) && defined(SUPPORT_COMMON_DEVICE)
+	mp_c6_mac_fini(kernel);
+	mp_c6_phy_fini(kernel);
+#endif
 	mp_interrupt_disable();
 	mp_i2c_fini();
 	mp_spi_fini();
@@ -89,7 +105,12 @@ void mp_machine_state_set(mp_kernel_t *kernel) {
 }
 
 void mp_machine_state_unset(mp_kernel_t *kernel) {
+#if defined(SUPPORT_ESP32_RF) && defined(SUPPORT_COMMON_DEVICE)
+	mp_c6_mac_fini(kernel);
+	mp_c6_phy_fini(kernel);
+#else
 	(void)kernel;
+#endif
 }
 
 /**@}*/
