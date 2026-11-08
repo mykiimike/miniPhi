@@ -23,6 +23,7 @@
 #ifdef SUPPORT_DRV_INA219
 
 static void mp_drv_INA219_write(mp_drv_INA219_t *INA219, unsigned char address, unsigned short writeByte);
+static unsigned char _mp_drv_INA219_address(char *text);
 
 static void _mp_drv_INA219_onConfiguration(mp_regMaster_op_t *operand, mp_bool_t terminate);
 static void _mp_drv_INA219_writeControl(mp_regMaster_op_t *operand, mp_bool_t terminate);
@@ -81,13 +82,12 @@ struct olimex_msp430_s {
 */
 
 mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_options_t *options, char *who) {
-	//char *value;
 	mp_ret_t ret;
 
 	memset(INA219, 0, sizeof(*INA219));
 	INA219->kernel = kernel;
 
-	/* open spi */
+	/* open i2c */
 	ret = mp_i2c_open(kernel, &INA219->i2c, options, "INA219");
 	if(ret == FALSE)
 		return(FALSE);
@@ -103,8 +103,7 @@ mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_opt
 		return(FALSE);
 	}
 
-	/* set slave address: make this changable */
-	mp_i2c_setSlaveAddress(&INA219->i2c, 0x40);
+	mp_i2c_setSlaveAddress(&INA219->i2c, _mp_drv_INA219_address(mp_options_get(options, "address")));
 
 	/* create regmaster control */
 	ret = mp_regMaster_init_i2c(kernel, &INA219->regMaster,
@@ -151,18 +150,8 @@ mp_ret_t mp_drv_INA219_init(mp_kernel_t *kernel, mp_drv_INA219_t *INA219, mp_opt
 		TRUE
 	);
 
-	mp_regMaster_readExt(
-		&INA219->regMaster,
-		mp_regMaster_register(0), 1,
-		(unsigned char *)&INA219->configuration, 2,
-		_mp_drv_INA219_onConfiguration, INA219,
-		TRUE
-	);
-
-	//mp_drv_INA219_update_busVoltage(INA219);
-	//mp_drv_INA219_update_shuntVoltage(INA219);
-	//mp_drv_INA219_update_current(INA219);
-	//mp_drv_INA219_update_power(INA219);
+	/* current and power stay at 0 until the calibration register is written */
+	mp_drv_INA219_setCalibration_32V_2A(INA219);
 	return(TRUE);
 }
 
@@ -187,8 +176,8 @@ void mp_drv_INA219_fini(mp_drv_INA219_t *INA219) {
 void mp_drv_INA219_setCalibration_32V_2A(mp_drv_INA219_t *INA219) {
 
 	INA219->calibrationVal = 4096;
-	INA219->currentDivider = 10;  // Current LSB = 100uA per bit (1000/100 = 10)
-	INA219->powerDivider = 2;     // Power LSB = 1mW per bit (2/1)
+	INA219->currentLsb = 0.0001f; /* 100 uA, shunt 0.1 ohm */
+	INA219->powerLsb = 0.002f;    /* 20 * current LSB */
 
 	/* Write calibration */
 	mp_drv_INA219_write(
@@ -218,8 +207,8 @@ void mp_drv_INA219_setCalibration_32V_2A(mp_drv_INA219_t *INA219) {
 void mp_drv_INA219_setCalibration_32V_1A(mp_drv_INA219_t *INA219) {
 
 	INA219->calibrationVal = 10240;
-	INA219->currentDivider = 25;
-	INA219->powerDivider = 1;
+	INA219->currentLsb = 0.00004f; /* 40 uA, shunt 0.1 ohm */
+	INA219->powerLsb = 0.0008f;    /* 20 * current LSB */
 
 	/* Write calibration */
 	mp_drv_INA219_write(
@@ -250,8 +239,8 @@ void mp_drv_INA219_setCalibration_32V_1A(mp_drv_INA219_t *INA219) {
 void mp_drv_INA219_setCalibration_16V_400mA(mp_drv_INA219_t *INA219) {
 
 	INA219->calibrationVal = 8192;
-	INA219->currentDivider = 20;
-	INA219->powerDivider = 1;
+	INA219->currentLsb = 0.00005f; /* 50 uA, shunt 0.1 ohm */
+	INA219->powerLsb = 0.001f;     /* 20 * current LSB */
 
 	/* Write calibration */
 	mp_drv_INA219_write(
@@ -322,7 +311,7 @@ void mp_drv_INA219_update_current(mp_drv_INA219_t *INA219) {
 /**
  * @brief Update power
  *
- * powerDivider is the power LSB in milliwatts, written by the calibration.
+ * powerLsb is watts per bit, written by the calibration.
  *
  * @param[in] INA219 context
  */
@@ -337,6 +326,32 @@ void mp_drv_INA219_update_power(mp_drv_INA219_t *INA219) {
 }
 
 /**@}*/
+
+/* A1/A0 select 0x40..0x4F. Missing or out of range stays at 0x40. */
+static unsigned char _mp_drv_INA219_address(char *text) {
+	unsigned int value = 0;
+
+	if(!text || !*text)
+		return(INA219_ADDRESS);
+	if(text[0] == '0' && (text[1] == 'x' || text[1] == 'X'))
+		text += 2;
+	while(*text) {
+		char c = *text++;
+
+		value <<= 4;
+		if(c >= '0' && c <= '9')
+			value += (unsigned int)(c - '0');
+		else if(c >= 'a' && c <= 'f')
+			value += (unsigned int)(c - 'a' + 10);
+		else if(c >= 'A' && c <= 'F')
+			value += (unsigned int)(c - 'A' + 10);
+		else
+			return(INA219_ADDRESS);
+	}
+	if(value < 0x40 || value > 0x4F)
+		return(INA219_ADDRESS);
+	return((unsigned char)value);
+}
 
 static void mp_drv_INA219_write(mp_drv_INA219_t *INA219, unsigned char address, unsigned short writeByte) {
 	unsigned char *ptr = mp_mem_alloc(INA219->kernel, 3);
@@ -367,9 +382,11 @@ static void _mp_drv_INA219_writeControl(mp_regMaster_op_t *operand, mp_bool_t te
 
 static void _mp_drv_INA219_busVoltage(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_INA219_t *INA219 = operand->user;
+	unsigned short raw = INA219->rawBusVoltage;
 
-	/* 4 mV per step above 3 status bits */
-	INA219->rawBusVoltage = ((INA219->rawBusVoltage >> 3) * 4);
+	/* bit 0 is the math overflow; the voltage sits above the three low bits, 4 mV per step */
+	INA219->overflow = (raw & 0x0001) ? YES : NO;
+	INA219->rawBusVoltage = (raw >> 3) * 4;
 	mp_device_measure_publish(&INA219->busVoltage, (float)INA219->rawBusVoltage / 1000.0f);
 
 }
@@ -382,14 +399,20 @@ static void _mp_drv_INA219_shuntVoltage(mp_regMaster_op_t *operand, mp_bool_t te
 
 static void _mp_drv_INA219_current(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_INA219_t *INA219 = operand->user;
-	/* signed, 1 mA per step with the calibration the driver writes */
-	mp_device_measure_publish(&INA219->current, (float)(int16_t)INA219->rawCurrent * 0.001f);
+
+	/* signed; the overflow flag comes from the bus read queued just before */
+	if(INA219->overflow || INA219->currentLsb == 0.0f)
+		return;
+	mp_device_measure_publish(&INA219->current, (float)(int16_t)INA219->rawCurrent * INA219->currentLsb);
 }
 
 static void _mp_drv_INA219_power(mp_regMaster_op_t *operand, mp_bool_t terminate) {
 	mp_drv_INA219_t *INA219 = operand->user;
-	/* unsigned, powerDivider milliwatts per step */
-	mp_device_measure_publish(&INA219->power, (float)INA219->rawPower * (float)INA219->powerDivider / 1000.0f);
+
+	/* unsigned; same overflow flag as the current */
+	if(INA219->overflow || INA219->powerLsb == 0.0f)
+		return;
+	mp_device_measure_publish(&INA219->power, (float)INA219->rawPower * INA219->powerLsb);
 }
 
 
@@ -415,21 +438,10 @@ MP_TASK(_mp_drv_INA219_ASR) {
 	}
 
 
-	mp_regMaster_readExt(
-		&INA219->regMaster,
-		mp_regMaster_register(0), 1,
-		(unsigned char *)&INA219->configuration, 2,
-		_mp_drv_INA219_onConfiguration, INA219,
-		TRUE
-	);
-
-
-	//mp_drv_INA219_update_busVoltage(INA219);
-	//mp_drv_INA219_update_shuntVoltage(INA219);
-	//mp_drv_INA219_update_current(INA219);
-	//mp_drv_INA219_update_power(INA219);
-	mp_printk("pouf");
-
+	mp_drv_INA219_update_busVoltage(INA219);
+	mp_drv_INA219_update_shuntVoltage(INA219);
+	mp_drv_INA219_update_current(INA219);
+	mp_drv_INA219_update_power(INA219);
 }
 
 

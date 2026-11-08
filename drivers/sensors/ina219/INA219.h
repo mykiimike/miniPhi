@@ -39,8 +39,11 @@
 
 		unsigned short configuration;
 		unsigned short calibrationVal;
-		unsigned char currentDivider;
-		unsigned char powerDivider;
+		/* amperes and watts per bit, from the calibration written to the chip */
+		float currentLsb;
+		float powerLsb;
+		/* bus register bit 0: current or power math overflowed */
+		mp_bool_t overflow;
 
 		unsigned short rawBusVoltage;
 		unsigned short rawShuntVoltage;
@@ -101,13 +104,13 @@
 	/** Bus ADC Resolution Mask */
 	#define INA219_CONFIG_BADCRES_MASK             (0x0780)
 	/** 9-bit bus res = 0..511 */
-	#define INA219_CONFIG_BADCRES_9BIT             (0x0080)
+	#define INA219_CONFIG_BADCRES_9BIT             (0x0000)
 	/** 10-bit bus res = 0..1023 */
-	#define INA219_CONFIG_BADCRES_10BIT            (0x0100)
+	#define INA219_CONFIG_BADCRES_10BIT            (0x0080)
 	/** 11-bit bus res = 0..2047 */
-	#define INA219_CONFIG_BADCRES_11BIT            (0x0200)
-	/** 12-bit bus res = 0..4097 */
-	#define INA219_CONFIG_BADCRES_12BIT            (0x0400)
+	#define INA219_CONFIG_BADCRES_11BIT            (0x0100)
+	/** 12-bit bus res = 0..4095 */
+	#define INA219_CONFIG_BADCRES_12BIT            (0x0180)
 
 	/** Shunt ADC Resolution and Averaging Mask */
 	#define INA219_CONFIG_SADCRES_MASK             (0x0078)
