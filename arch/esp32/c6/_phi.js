@@ -61,6 +61,7 @@ export const phi = {
 	},
 	boot: [
 		"startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "interrupt.c", "uart.c",
+		"../share.c",
 	],
 	headers: ["include/series.h"],
 	headerDir: "arch",

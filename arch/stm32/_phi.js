@@ -32,6 +32,7 @@ export const phi = {
 		"gpio.c",
 		"i2c.c",
 		"interrupt.c",
+		"share.c",
 		"spi.c",
 		"stm32.c",
 		"syscalls.c",

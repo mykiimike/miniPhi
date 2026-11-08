@@ -25,7 +25,7 @@ export const phi = {
 		memory: "400 KB SRAM",
 		tick: "1 kHz, 16 MHz SYSTIMER",
 	},
-	boot: ["startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "pixel.c", "interrupt.c", "uart.c"],
+	boot: ["startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "pixel.c", "interrupt.c", "uart.c", "../share.c"],
 	schedulers: ["0", "1", "2"],
 	scheduler: "2",
 	headers: ["include/series.h"],

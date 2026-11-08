@@ -142,10 +142,13 @@ void mp_interrupt_dispatch(void) {
 #if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
 
 /* Strong symbol. The weak one in preempt.c runs the dispatcher inline.
- * The vector entry in startup.c is a weak alias of Default_Handler. */
+ * With sharing, PendSV_Handler is the stack switch in share.c. Without it,
+ * this handler only runs a higher task. startup.c keeps a weak alias. */
+#if !MP_TASK_SHARE
 void PendSV_Handler(void) {
 	mp_task_sched_dispatch();
 }
+#endif
 
 void mp_task_pend(void) {
 	SCB->ICSR = SCB_ICSR_PENDSVSET;

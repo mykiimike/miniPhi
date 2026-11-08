@@ -623,6 +623,15 @@ const char *mp_clock_deep(void) {
 
 void SysTick_Handler(void) {
 	__ticks++;
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+	/* A callback is still on the stack. The main loop cannot schedule
+	 * until it returns, so a higher task has to run from here. */
+	mp_task_slice();
+#endif
+#if MP_TASK_SHARE
+	/* PendSV is under SysTick. The switch runs after this handler returns. */
+	mp_task_share_tick();
+#endif
 }
 
 unsigned long mp_clock_ticks() {

@@ -86,6 +86,11 @@ static void _tick(void *user) {
 	 * until it returns, so a higher task has to run from here. */
 	mp_task_slice();
 #endif
+#if MP_TASK_SHARE
+	/* Same priority yields from the sched line, which is under this one.
+	 * Pending it here lets the tick return before the switch runs. */
+	mp_task_share_tick();
+#endif
 }
 
 static void _cpu(unsigned long hz) {

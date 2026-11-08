@@ -49,9 +49,22 @@ static void _vectors(void) {
 	__asm__ volatile (
 		".option push\n"
 		".option norvc\n"
+#if MP_TASK_SHARE
+		/* Line 5 is the sched line. Its frame is the task stack. */
+		"j mp_trap\n"
+		"j mp_trap\n"
+		"j mp_trap\n"
+		"j mp_trap\n"
+		"j mp_trap\n"
+		"j mp_task_share_trap\n"
+		".rept 26\n"
+		"j mp_trap\n"
+		".endr\n"
+#else
 		".rept 32\n"
 		"j mp_trap\n"
 		".endr\n"
+#endif
 		".option pop\n"
 	);
 }
@@ -68,7 +81,9 @@ static int _line(int source) {
 
 #if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
 	static void _c3_sched_line(void);
-	static void _c3_sched(void);
+	#if !MP_TASK_SHARE
+		static void _c3_sched(void);
+	#endif
 	void mp_task_sched_dispatch(void);
 #endif
 
@@ -76,6 +91,12 @@ void __attribute__((interrupt("machine"), aligned(4), used)) mp_trap(void) {
 	unsigned long cause;
 	int line;
 
+	/* A task switch waits on the sched line. This line is above it, so a
+	 * callback started here must not arm a stack: that wait would not run
+	 * until this handler returned. */
+#if MP_TASK_SHARE
+	mp_task_isr_nest(1);
+#endif
 	__asm__ volatile ("csrr %0, mcause" : "=r"(cause));
 	if((cause & 0x80000000UL) == 0) {
 		for(;;)
@@ -83,7 +104,7 @@ void __attribute__((interrupt("machine"), aligned(4), used)) mp_trap(void) {
 	}
 
 	line = (int)(cause & 31UL);
-#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT && !MP_TASK_SHARE
 	if(line == C3_CPU_SCHED) {
 		_c3_sched();
 		return;
@@ -95,6 +116,9 @@ void __attribute__((interrupt("machine"), aligned(4), used)) mp_trap(void) {
 	 * and a set latch re-enters the handler as soon as it returns. */
 	if(line == C3_CPU_TICK)
 		c3_write(C3_INTC_CLEAR, 1UL << line);
+#if MP_TASK_SHARE
+	mp_task_isr_nest(0);
+#endif
 }
 
 mp_ret_t mp_interrupt_init(void) {
@@ -179,6 +203,7 @@ static void _c3_sched_line(void) {
 	c3_write(C3_FROM_CPU, 0);
 }
 
+#if !MP_TASK_SHARE
 static void _c3_sched(void) {
 	unsigned long epc;
 	unsigned long status;
@@ -196,6 +221,7 @@ static void _c3_sched(void) {
 	__asm__ volatile ("csrw mstatus, %0" :: "r"(status) : "memory");
 	__asm__ volatile ("csrw mepc, %0" :: "r"(epc) : "memory");
 }
+#endif
 
 void mp_task_pend(void) {
 	c3_write(C3_FROM_CPU, 1);
