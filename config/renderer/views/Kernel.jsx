@@ -178,7 +178,7 @@ function ExternalPaths() {
 					<input
 						className="input mono"
 						value={value}
-						placeholder="../esp32/rf-c6"
+						placeholder="../external/module"
 						spellCheck={false}
 						onChange={(event) => setValue(event.target.value)}
 					/>
