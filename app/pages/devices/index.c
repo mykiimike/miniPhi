@@ -36,7 +36,7 @@ static const char *_sysinfo_dev_class_name[] = {
 	"Display", "Touch", "Accelerometer", "LED", "Camera",
 	"Temperature", "Gyroscope", "Magnetometer", "Voltage", "Current",
 	"CPU", "Button", "Barometer", "Altimeter", "Power",
-	"Humidity", "Illuminance", "Orientation", "Clock", "Charger", "Pixel"
+	"Humidity", "Illuminance", "Orientation", "Clock", "Charger", "Pixel", "PHY"
 };
 
 typedef char _sysinfo_dev_class_ok[(sizeof(_sysinfo_dev_class_name) / sizeof(_sysinfo_dev_class_name[0]) == MP_DEVICE_CLASS_COUNT) ? 1 : -1];

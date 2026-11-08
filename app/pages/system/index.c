@@ -136,7 +136,10 @@ static void _sysinfo_flash_state(char *text, size_t size) {
 
 /* the name comes from the scheduler the build compiled */
 static void _sysinfo_sched_text(char *text, size_t size) {
-#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
+#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT && MP_TASK_SHARE
+	snprintf(text, size, "Sched  %s, shared priority, %u levels",
+		mp_task_scheduler_name(), (unsigned int)MP_TASK_PRIORITIES);
+#elif MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
 	snprintf(text, size, "Sched  %s, one stack, %u levels",
 		mp_task_scheduler_name(), (unsigned int)MP_TASK_PRIORITIES);
 #elif MP_TASK_SCHEDULER == MP_TASK_SCHED_PRIORITY
