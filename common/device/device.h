@@ -89,10 +89,15 @@
 		MP_DEVICE_CHARGER,
 		/** address stem pixel. Instance: mp_device_pixel_t, one frame of three-byte pixels */
 		MP_DEVICE_PIXEL,
+		/** address stem phy. Instance: mp_device_phy_t, a medium */
+		MP_DEVICE_PHY,
 		/** not a class: the number of classes above, and the scan that visits every driver */
 		MP_DEVICE_CLASS_COUNT,
 		MP_DEVICE_ANY = MP_DEVICE_CLASS_COUNT
 	} mp_device_class_t;
+
+	/** classes is an unsigned int mask of 1u << class, so every class has to fit */
+	typedef char mp_device_class_mask_ok[(MP_DEVICE_CLASS_COUNT <= (int)(sizeof(unsigned int) * 8)) ? 1 : -1];
 
 	typedef struct mp_device_ops_s mp_device_ops_t;
 	typedef struct mp_device_s mp_device_t;
@@ -801,6 +806,70 @@
 	mp_ret_t mp_device_charge_read(mp_device_charge_t *charge, mp_device_charge_state_t *state);
 	/** "charging", "done" or "waiting". "" when state is none of them. */
 	const char *mp_device_charge_text(mp_device_charge_state_t state);
+
+	/**
+	 * An MP_DEVICE_PHY. One physical medium. RADIO tunes a carrier.
+	 * ETHERNET sets a link speed. A callback left NULL is absent:
+	 * the call returns FALSE. opened and held belong to the contract.
+	 */
+	typedef enum {
+		MP_DEVICE_PHY_RADIO = 0,
+		MP_DEVICE_PHY_ETHERNET,
+	} mp_device_phy_kind_t;
+
+	typedef struct mp_device_phy_s mp_device_phy_t;
+
+	struct mp_device_phy_s {
+		mp_device_phy_kind_t kind;
+		mp_ret_t (*open)(mp_device_phy_t *phy);
+		void (*close)(mp_device_phy_t *phy);
+		mp_bool_t (*ready)(mp_device_phy_t *phy);
+		/** NULL makes hold return FALSE. Called when the contract grants the medium. */
+		mp_ret_t (*hold)(mp_device_phy_t *phy);
+		/** NULL skips the driver. Called when the contract returns the medium. */
+		void (*release)(mp_device_phy_t *phy);
+		/** Radio. NULL on an Ethernet PHY. Hertz and channel width in hertz. */
+		mp_ret_t (*tune)(mp_device_phy_t *phy, unsigned long hz, unsigned long width);
+		unsigned long hz, width;
+		unsigned long hz_min, hz_max, width_min, width_max;
+		/** Ethernet. NULL on a radio. duplex is 1 for full. */
+		mp_ret_t (*link)(mp_device_phy_t *phy, unsigned long bps, int duplex);
+		void *user;
+		/** YES after a successful open, until close. The contract writes this. */
+		mp_bool_t opened;
+		/** YES while one caller holds the medium. The contract writes this. */
+		mp_bool_t held;
+	};
+
+	/** Subscribe and return the PHY. NULL when the device is gone. */
+	mp_device_phy_t *mp_device_phy(mp_device_registry_t *device, mp_device_subscribe_t *sub);
+	/** Power the medium. TRUE when it is up, also when it already was. */
+	mp_ret_t mp_device_phy_open(mp_device_phy_t *phy);
+	/** Power it down. A held medium is released first. */
+	void mp_device_phy_close(mp_device_phy_t *phy);
+	/** YES when the driver reports the medium usable. */
+	mp_bool_t mp_device_phy_ready(mp_device_phy_t *phy);
+	/**
+	 * Take the medium. FALSE when it is closed, already held, or the driver refuses.
+	 */
+	mp_ret_t mp_device_phy_hold(mp_device_phy_t *phy);
+	/** Return the medium. A caller that does not hold it returns. */
+	void mp_device_phy_release(mp_device_phy_t *phy);
+	/**
+	 * Set the carrier and the channel width, in hertz.
+	 * FALSE when the PHY is not held, the value is outside the published bounds,
+	 * or the driver refuses. A radio whose tune is NULL returns FALSE.
+	 */
+	mp_ret_t mp_device_phy_tune(mp_device_phy_t *phy, unsigned long hz, unsigned long width);
+	/** The carrier stored by the last tune, or 0. */
+	unsigned long mp_device_phy_hz(mp_device_phy_t *phy);
+	/** The width stored by the last tune, or 0. */
+	unsigned long mp_device_phy_width(mp_device_phy_t *phy);
+	/**
+	 * Set the link speed. FALSE when link is NULL or the driver refuses.
+	 * @param duplex 1 for full duplex
+	 */
+	mp_ret_t mp_device_phy_link(mp_device_phy_t *phy, unsigned long bps, int duplex);
 
 	/**
 	 * Start the device manager, then the driver registry.
