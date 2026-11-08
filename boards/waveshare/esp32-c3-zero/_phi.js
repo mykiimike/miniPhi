@@ -18,13 +18,6 @@ export const phi = {
 	defines: [],
 	modules: [
 		"SERIAL", "DEVICE",
-		"HASH", "SHA1", "SHA256", "SHA384", "SHA512", "BLAKE2S", "SHAKE",
-		"MAC", "HMAC", "POLY1305",
-		"CIPHER", "AES", "CHACHA20", "XTS",
-		"MODE", "CBC", "CTR", "GCM", "CCM", "CHACHA20_POLY1305",
-		"KDF", "HKDF",
-		"RNG", "HMAC_DRBG",
-		"SIGN", "SELFTEST",
 	],
 	drivers: [],
 	settings: {

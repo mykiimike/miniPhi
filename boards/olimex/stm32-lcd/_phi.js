@@ -17,7 +17,7 @@ export const phi = {
 	toolchain: "gcc",
 	requires: ["arm-usb-ocd-h"],
 	defines: [],
-	modules: ["SERIAL", "DEVICE", "RESISTIVE", "TUI", "KFLASH", "RSA", "ED25519", "ECDSA_P256"],
+	modules: ["SERIAL", "DEVICE", "RESISTIVE", "TUI", "KFLASH"],
 	drivers: ["ILI932X", "SMB380", "LEPTON", "MCP73833"],
 	sources: ["touch.c"],
 	settings: {

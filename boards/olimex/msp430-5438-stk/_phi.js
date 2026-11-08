@@ -15,7 +15,7 @@ export const phi = {
 	toolchain: "ti",
 	requires: ["msp430-jtag-tiny-v2"],
 	defines: ["__OLIMEX_PROTOBOARD__"],
-	modules: ["MEM", "SERIAL", "PINOUT", "DEVICE", "CIRCULAR", "BUTTON", "TUI"],
+	modules: ["SERIAL", "PINOUT", "DEVICE", "BUTTON", "TUI"],
 	drivers: ["LED", "INA219", "LCD_NOKIA3310"],
 	sources: ["button.c"],
 	settings: {

@@ -16,7 +16,7 @@ export const phi = {
 	toolchain: "gcc",
 	requires: ["arm-usb-ocd-h"],
 	defines: [],
-	modules: ["SERIAL", "DEVICE", "BUTTON", "ED25519", "ECDSA_P256"],
+	modules: ["SERIAL", "DEVICE", "BUTTON"],
 	drivers: ["LED"],
 	sources: ["button.c"],
 	settings: {
