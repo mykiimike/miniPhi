@@ -49,6 +49,8 @@
 	 * mp_task_pend runs it on the caller stack while that line is absent. */
 	void mp_task_sched_dispatch(void);
 	int mp_task_sched_preempts(mp_task_t *task);
+	/** 1 when a ceiling lock is held above this task, so a peer must not take its stack. */
+	int mp_task_share_blocked(mp_task_t *task);
 	#endif
 
 #endif

@@ -55,6 +55,12 @@ void mp_task_unlock(mp_task_lock_t key) {
 	_mp_task_runpri = key;
 }
 
+int mp_task_share_blocked(mp_task_t *task) {
+	if(!task)
+		return(1);
+	return(_mp_task_runpri > task->priority);
+}
+
 /* Snapshot the priority at entry. A raise requested while the callback
  * runs stays out of _mp_task_runpri until this returns. */
 static void _mp_task_enter(mp_task_handler_t *hdl, mp_task_t *task, unsigned long now) {
@@ -108,7 +114,9 @@ void mp_task_slice(void) {
 }
 
 /* Priority 0 stays on mp_task_tick so the idle path keeps its deadline.
- * Anything above the running priority goes through mp_task_pend. */
+ * Without sharing, anything above the running priority goes through
+ * mp_task_pend. With sharing, every ready task runs here in thread mode
+ * so the sched line can switch it onto its own stack. */
 mp_task_tick_t mp_task_sched_tick(mp_task_handler_t *hdl) {
 	unsigned long now;
 	mp_task_t *task;
@@ -124,6 +132,16 @@ mp_task_tick_t mp_task_sched_tick(mp_task_handler_t *hdl) {
 		while((task = mp_task_pick(hdl, now, -1, -1)) != NULL)
 			_mp_task_enter(hdl, task, now);
 	}
+#if MP_TASK_SHARE
+	/* Inline, from thread mode. execute() of a priority above 0 arms a
+	 * private stack and waits here until the switch gives it back. The
+	 * sched line sits under the tick, so this wait is the one place that
+	 * line can run. A call from the tick stays a direct callback. */
+	else {
+		while((task = mp_task_pick(hdl, now, -1, -1)) != NULL)
+			_mp_task_enter(hdl, task, now);
+	}
+#else
 	else {
 		if(mp_task_pick(hdl, now, -1, (int)_mp_task_runpri) != NULL)
 			mp_task_pend();
@@ -133,6 +151,7 @@ mp_task_tick_t mp_task_sched_tick(mp_task_handler_t *hdl) {
 				mp_task_pend();
 		}
 	}
+#endif
 	mp_task_pass_leave();
 
 	MP_INTERRUPT_SAFE_BEGIN

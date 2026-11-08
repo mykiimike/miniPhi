@@ -59,6 +59,17 @@
 	#define MP_TASK_PRIORITIES 4
 	#endif
 
+	/* Same-priority sharing needs a line under the tick and a stack switch.
+	 * The C3, the C6 and the STM32 have one. Priority 0 stays on the caller
+	 * stack. A task above that gets its own stack and yields every tick. */
+	#ifndef MP_TASK_SHARE
+		#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT && (defined(ESP32C6) || defined(ESP32C3) || defined(__STM32__))
+			#define MP_TASK_SHARE 1
+		#else
+			#define MP_TASK_SHARE 0
+		#endif
+	#endif
+
 	/** The scheduler this build compiled. */
 	static inline const char *mp_task_scheduler_name(void) {
 		#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PRIORITY
@@ -97,6 +108,24 @@
 
 		/** 0 default, ignored by coop */
 		unsigned char priority;
+
+		/** Saved stack pointer while this callback is swapped out. */
+		void *share_sp;
+
+		/** Base of the private stack. NULL when the task runs on the caller stack. */
+		void *share_stack;
+
+		/** Tick captured when this callback was armed, written back on return. */
+		unsigned long share_now;
+
+		/** 1 while the callback is on its private stack. */
+		volatile unsigned char share_live;
+
+		/** 1 once the callback has returned and the switch must not resume it. */
+		volatile unsigned char share_done;
+
+		/** Ticks this callback has run since it last yielded to a peer. */
+		unsigned char share_ticks;
 
 		/** list input */
 		mp_list_item_t item;
@@ -150,8 +179,28 @@
 	mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl);
 
 	/** Eight passes of a priority-0 task and a priority-2 task.
-	 * Prints SELFTEST: sched passed, or sched failed. The tasks die. */
+	 * Prints SELFTEST: sched passed, or sched failed. The tasks die.
+	 * On a share build, also prints SELFTEST: share passed, share failed
+	 * or share skipped. */
 	void mp_task_selftest_start(mp_task_handler_t *hdl);
+
+	#if MP_TASK_SHARE
+		/* IRQ nest. The tick and the peripheral lines call it around their body. */
+		void mp_task_isr_nest(int enter);
+
+		/* FROM_CPU or PendSV. sp is the interrupted frame. Returns the frame to resume. */
+		void *mp_task_share_irq(void *sp);
+
+		/* From the timer. Pends a same-priority switch when the quantum is over. */
+		void mp_task_share_tick(void);
+
+		/* Lets a higher interrupt in while the switcher is choosing, then shuts it again. */
+		void mp_task_share_open(void);
+		void mp_task_share_close(void);
+
+		/* Builds the first frame. top is one past the last byte of the stack. */
+		void *mp_task_arch_forge(void *top, void (*entry)(void *), void *arg);
+	#endif
 
 	/* Ceiling lock. Coop and priority compile this to nothing.
 	 * Preempt raises the running priority so only a higher task can preempt.
