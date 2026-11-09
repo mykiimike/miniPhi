@@ -32,6 +32,8 @@
 
 static int failed;
 static int gone;
+static int watchedAdd;
+static int watchedDel;
 static int imuScans;
 static int otherScans;
 static int imuMode;
@@ -61,6 +63,15 @@ static void _gone(mp_device_registry_t *device, void *user) {
 	(void)device;
 	(void)user;
 	gone++;
+}
+
+static void _seen(mp_device_registry_t *device, mp_bool_t present, void *user) {
+	(void)device;
+	(void)user;
+	if(present == YES)
+		watchedAdd++;
+	else
+		watchedDel++;
 }
 
 static void _imu_scan(mp_device_driver_t *driver, void *self) {
@@ -230,6 +241,27 @@ int main(void) {
 	expect(mp_device_registry_find(&kernel, MP_DEVICE_ACCELEROMETER, 1) == NULL, "other accel removed");
 	expect(mp_device_driver_unregister(&kernel, &other) == TRUE, "unregister after the device is gone");
 	expect(mp_device_registry_find(&kernel, MP_DEVICE_LED, 0) == light, "led still there");
+
+	{
+		mp_device_registry_watch_t watch;
+		int listed = mp_device_registry_count(&kernel);
+
+		memset(&watch, 0, sizeof(watch));
+		watchedAdd = 0;
+		watchedDel = 0;
+		mp_device_registry_watch(&kernel, &watch, _seen, NULL);
+		expect(watchedAdd == listed, "watch hears what is already there");
+		expect(watchedDel == 0, "watching removes nothing");
+		mp_device_registry_unregister(light);
+		expect(watchedDel == 1, "unregister tells the watch");
+		expect(mp_device_registry_register(&led, &ledDev, MP_DEVICE_LED, 0, &ledInst, "LED", "heart beat", NULL) == &ledDev, "led again");
+		expect(watchedAdd == listed + 1, "a new device tells the watch");
+		expect(mp_device_registry_register(&led, &ledDev, MP_DEVICE_LED, 0, &ledInst, "LED", "heart beat", "1") == &ledDev, "refresh");
+		expect(watchedAdd == listed + 1, "refresh stays quiet");
+		mp_device_registry_unwatch(&watch);
+		mp_device_registry_unregister(&ledDev);
+		expect(watchedDel == 1, "unwatch is silent");
+	}
 
 	mp_device_fini(&kernel);
 	expect(mp_device_registry_count(&kernel) == 0, "fini drops devices");

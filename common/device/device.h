@@ -380,6 +380,27 @@
 	/** Drop this device. on_gone runs, then the struct is cleared. */
 	void mp_device_registry_unregister(mp_device_registry_t *device);
 
+	/**
+	 * One listener for arrivals and departures. The caller owns the struct
+	 * and zeroes it before the first watch. present is YES when the device
+	 * joins the list, NO when it is about to leave and can still be read.
+	 * A refresh of the same struct, including a new serial, is not an arrival:
+	 * subscribers get on_gone for that. Watching reports every device already listed.
+	 */
+	typedef struct mp_device_registry_watch_s mp_device_registry_watch_t;
+	typedef void (*mp_device_registry_watch_fn_t)(mp_device_registry_t *device, mp_bool_t present, void *user);
+
+	struct mp_device_registry_watch_s {
+		mp_list_item_t item;
+		mp_kernel_t *kernel;
+		mp_device_registry_watch_fn_t fn;
+		void *user;
+	};
+
+	void mp_device_registry_watch(mp_kernel_t *kernel, mp_device_registry_watch_t *watch, mp_device_registry_watch_fn_t fn, void *user);
+	/** Stop telling this listener. Safe from the callback. */
+	void mp_device_registry_unwatch(mp_device_registry_watch_t *watch);
+
 	/** How many commands this device announces. 0 when it has none. */
 	int mp_device_command_count(mp_device_registry_t *device);
 	/** The command at that index. NULL when index is outside the table. */

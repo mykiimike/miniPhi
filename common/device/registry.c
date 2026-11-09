@@ -35,6 +35,21 @@ static const char *_mp_device_registry_stem[MP_DEVICE_CLASS_COUNT] = {
 
 typedef char _mp_device_registry_stem_ok[(sizeof(_mp_device_registry_stem) / sizeof(_mp_device_registry_stem[0]) == MP_DEVICE_CLASS_COUNT) ? 1 : -1];
 
+static void _mp_device_registry_tell(mp_kernel_t *kernel, mp_device_registry_t *device, mp_bool_t present) {
+	mp_list_item_t *item;
+	mp_list_item_t *next;
+
+	if(!kernel)
+		return;
+	for(item = kernel->deviceWatch.first; item; item = next) {
+		mp_device_registry_watch_t *watch = item->user;
+
+		next = item->next;
+		if(watch->fn)
+			watch->fn(device, present, watch->user);
+	}
+}
+
 static void _mp_device_registry_drop(mp_device_registry_t *device) {
 	mp_device_driver_t *driver = device->driver;
 	mp_kernel_t *kernel = driver->kernel;
@@ -42,6 +57,7 @@ static void _mp_device_registry_drop(mp_device_registry_t *device) {
 
 	device->removed = YES;
 	mp_device_subscribe_notify(device);
+	_mp_device_registry_tell(kernel, device, NO);
 	mp_list_remove(&kernel->devices, &device->item);
 	mp_list_remove(&driver->devices, &device->byDriver);
 	memset(device, 0, sizeof(*device));
@@ -52,6 +68,7 @@ void mp_device_registry_init(mp_kernel_t *kernel) {
 	if(!kernel)
 		return;
 	mp_list_init(&kernel->devices);
+	mp_list_init(&kernel->deviceWatch);
 }
 
 void mp_device_registry_fini(mp_kernel_t *kernel) {
@@ -59,6 +76,50 @@ void mp_device_registry_fini(mp_kernel_t *kernel) {
 		return;
 	while(kernel->devices.first)
 		_mp_device_registry_drop(kernel->devices.first->user);
+	while(kernel->deviceWatch.first) {
+		mp_device_registry_watch_t *watch = kernel->deviceWatch.first->user;
+
+		mp_list_remove(&kernel->deviceWatch, &watch->item);
+		watch->kernel = NULL;
+		watch->fn = NULL;
+	}
+}
+
+void mp_device_registry_watch(mp_kernel_t *kernel, mp_device_registry_watch_t *watch, mp_device_registry_watch_fn_t fn, void *user) {
+	mp_list_item_t *item;
+	mp_list_item_t *next;
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
+
+	if(!kernel || !watch || !fn || watch->kernel) {
+		mp_task_unlock(key);
+		return;
+	}
+	watch->kernel = kernel;
+	watch->fn = fn;
+	watch->user = user;
+	watch->item.next = NULL;
+	watch->item.prev = NULL;
+	mp_list_add_last(&kernel->deviceWatch, &watch->item, watch);
+	for(item = kernel->devices.first; item; item = next) {
+		next = item->next;
+		if(watch->fn)
+			watch->fn(item->user, YES, watch->user);
+	}
+	mp_task_unlock(key);
+}
+
+void mp_device_registry_unwatch(mp_device_registry_watch_t *watch) {
+	mp_task_lock_t key = mp_task_lock(MP_TASK_CEILING_KERNEL);
+
+	if(!watch || !watch->kernel) {
+		mp_task_unlock(key);
+		return;
+	}
+	mp_list_remove(&watch->kernel->deviceWatch, &watch->item);
+	watch->kernel = NULL;
+	watch->fn = NULL;
+	watch->user = NULL;
+	mp_task_unlock(key);
 }
 
 void mp_device_registry_unregister(mp_device_registry_t *device) {
@@ -142,6 +203,7 @@ static mp_device_registry_t *_mp_device_registry_register(mp_device_driver_t *dr
 	mp_list_init(&device->subs);
 	mp_list_add_last(&driver->kernel->devices, &device->item, device);
 	mp_list_add_last(&driver->devices, &device->byDriver, device);
+	_mp_device_registry_tell(driver->kernel, device, YES);
 	return(device);
 }
 
