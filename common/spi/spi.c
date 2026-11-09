@@ -1,0 +1,145 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * miniPhi - RTOS                                                          *
+ * Copyright (C) 2026  Michael VERGOZ                                      *
+ *                                                                         *
+ * This program is free software; you can redistribute it and/or modify    *
+ * it under the terms of the GNU General Public License as published by    *
+ * the Free Software Foundation; either version 3 of the License, or       *
+ * (at your option) any later version.                                     *
+ *                                                                         *
+ * This program is distributed in the hope that it will be useful,         *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
+ * GNU General Public License for more details.                            *
+ *                                                                         *
+ * You should have received a copy of the GNU General Public License       *
+ * along with this program; if not, write to the Free Software Foundation, *
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA       *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+#include <mp.h>
+
+#ifdef SUPPORT_COMMON_SPI
+
+static void _mp_spi_half(mp_spi_bus_t *bus) {
+	unsigned long start;
+	unsigned long half = bus->half_us;
+
+	if(!half)
+		return;
+	start = mp_clock_us();
+	while((unsigned long)(mp_clock_us() - start) < half)
+		;
+}
+
+static char *_mp_spi_option(mp_options_t *options, char *first, char *second, char *third) {
+	char *text;
+
+	text = mp_options_get(options, first);
+	if(text && text[0])
+		return(text);
+	if(second) {
+		text = mp_options_get(options, second);
+		if(text && text[0])
+			return(text);
+	}
+	if(third) {
+		text = mp_options_get(options, third);
+		if(text && text[0])
+			return(text);
+	}
+	return(NULL);
+}
+
+static void _mp_spi_release(mp_gpio_port_t **pin) {
+	if(*pin) {
+		mp_gpio_release(*pin);
+		*pin = NULL;
+	}
+}
+
+mp_ret_t mp_spi_open(mp_kernel_t *kernel, mp_spi_bus_t *bus, mp_options_t *options, char *who) {
+	char *sclk, *mosi, *miso;
+
+	memset(bus, 0, sizeof(*bus));
+	bus->kernel = kernel;
+	bus->half_us = 5UL;
+	if(!who || !who[0])
+		who = "SPI";
+
+	sclk = _mp_spi_option(options, "sclk", "sck", "clk");
+	mosi = _mp_spi_option(options, "mosi", "simo", NULL);
+	bus->sclk = mp_gpio_text_handle(sclk, who);
+	bus->mosi = mp_gpio_text_handle(mosi, who);
+	if(!bus->sclk || !bus->mosi) {
+		mp_printk("SPI: need sclk and mosi");
+		_mp_spi_release(&bus->sclk);
+		_mp_spi_release(&bus->mosi);
+		bus->kernel = NULL;
+		return(FALSE);
+	}
+
+	miso = mp_options_get(options, "miso");
+	if(miso && miso[0]) {
+		bus->miso = mp_gpio_text_handle(miso, who);
+		if(!bus->miso) {
+			mp_printk("SPI: miso is not free");
+			_mp_spi_release(&bus->sclk);
+			_mp_spi_release(&bus->mosi);
+			bus->kernel = NULL;
+			return(FALSE);
+		}
+		mp_gpio_mode(bus->miso, MP_GPIO_MODE_INPUT);
+	}
+
+	/* mode 0: clock idles low, MOSI idles low */
+	mp_gpio_mode(bus->sclk, MP_GPIO_MODE_OUTPUT);
+	mp_gpio_unset(bus->sclk);
+	mp_gpio_mode(bus->mosi, MP_GPIO_MODE_OUTPUT);
+	mp_gpio_unset(bus->mosi);
+	return(TRUE);
+}
+
+void mp_spi_close(mp_spi_bus_t *bus) {
+	if(!bus || !bus->kernel)
+		return;
+	_mp_spi_release(&bus->sclk);
+	_mp_spi_release(&bus->mosi);
+	_mp_spi_release(&bus->miso);
+	bus->kernel = NULL;
+}
+
+void mp_spi_setup(mp_spi_bus_t *bus, unsigned long half_us) {
+	if(bus)
+		bus->half_us = half_us;
+}
+
+void mp_spi_write_byte(mp_spi_bus_t *bus, unsigned char byte) {
+	int bit;
+
+	if(!bus || !bus->sclk || !bus->mosi)
+		return;
+	for(bit = 7; bit >= 0; bit--) {
+		if((byte >> bit) & 1)
+			mp_gpio_set(bus->mosi);
+		else
+			mp_gpio_unset(bus->mosi);
+		_mp_spi_half(bus);
+		mp_gpio_set(bus->sclk);
+		_mp_spi_half(bus);
+		mp_gpio_unset(bus->sclk);
+	}
+}
+
+int mp_spi_tx(mp_spi_bus_t *bus, const unsigned char *data, int len) {
+	int index;
+
+	if(!bus || !bus->sclk || !bus->mosi || len < 0 || (len > 0 && !data))
+		return(0);
+	for(index = 0; index < len; index++)
+		mp_spi_write_byte(bus, data[index]);
+	return(1);
+}
+
+#endif
