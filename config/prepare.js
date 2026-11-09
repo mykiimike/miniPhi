@@ -1,5 +1,6 @@
 import fs from "fs"
 import path from "path"
+import { compileBitmap } from "./bitmap.js"
 import { compileFont } from "./font.js"
 import { compileLogo } from "./logo.js"
 
@@ -124,6 +125,9 @@ export async function runGenerate(root, catalog, analysis, selection) {
 			},
 			compileLogo(file, options) {
 				return compileLogo(path.resolve(root, file), { ...options, source: file })
+			},
+			compileBitmap(file, options) {
+				return compileBitmap(path.resolve(root, file), { ...options, source: file })
 			},
 		}
 		let produced

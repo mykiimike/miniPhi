@@ -2,9 +2,9 @@ import fs from "fs"
 import path from "path"
 import { pathToFileURL } from "url"
 
-const roots = ["arch", "common", "drivers", "app", "boards"]
+const roots = ["arch", "common", "drivers", "app", "boards", "hats"]
 const skipped = new Set(["node_modules", "build", ".git"])
-const kinds = ["kernel", "module", "driver", "arch", "series", "app", "board", "probe"]
+const kinds = ["kernel", "module", "driver", "arch", "series", "app", "board", "probe", "hat"]
 
 function walk(dir, found) {
 	const entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -162,8 +162,8 @@ export async function loadCatalog(root, extra = []) {
 		apps: of("app"),
 		boards: of("board"),
 		probes: of("probe"),
-		problems,
-	}
+		hats: of("hat"),
+		problems,	}
 }
 
 export function publicCatalog(catalog) {
@@ -177,6 +177,6 @@ export function publicCatalog(catalog) {
 		apps: catalog.apps.map(strip),
 		boards: catalog.boards.map(strip),
 		probes: catalog.probes.map(strip),
-		problems: catalog.problems,
-	}
+		hats: catalog.hats.map(strip),
+		problems: catalog.problems,	}
 }
