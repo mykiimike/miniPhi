@@ -1,0 +1,26 @@
+export const phi = {
+	kind: "driver",
+	group: ["lcd"],
+	name: "ST7735",
+	vendor: "Sitronix",
+	label: "ST7735 TFT",
+	tested: false,
+	description: "160x80 panel on SPI, 16-bit RGB565. The driver opens a shared mp_spi_bus_t on the pins the board names. DC and reset are GPIO. Chip select is tied on the module, and there is no backlight pin, so the glass lights when it is powered. Rows stream straight to the panel. Opening the device paints a red frame, so the glass can be checked. The panel has no serial, so the serial is the MCU unique id.",
+	specs: {
+		bus: "SPI",
+		size: "160x80",
+		depth: "16 bit RGB565",
+	},
+	define: "SUPPORT_DRV_LCD_ST7735",
+	sources: ["st7735.c"],
+	headers: ["st7735.h"],
+	requires: ["DEVICE", "SPI"],
+	device: { struct: "mp_drv_st7735_t", ops: "mp_drv_st7735_device" },
+	options: [
+		{ name: "sck", label: "SCK", type: "pin", required: true },
+		{ name: "mosi", label: "MOSI", type: "pin", required: true },
+		{ name: "dc", label: "DC", type: "pin", required: true },
+		{ name: "reset", label: "Reset", type: "pin" },
+		{ name: "orientation", label: "Orientation", type: "enum", values: ["native", "flip", "inverted"], default: "native" },
+	],
+}
