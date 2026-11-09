@@ -1,0 +1,27 @@
+export const phi = {
+	kind: "driver",
+	group: ["lcd"],
+	name: "SSD1306",
+	vendor: "Solomon Systech",
+	label: "SSD1306 OLED",
+	tested: false,
+	description: "128x64 panel on I2C. The driver opens a shared mp_i2c_bus_t on the pins the board names, so other devices on the same bus borrow it instead of grabbing SDA and SCL a second time. The address is 0x3C, or 0x3D. The internal charge pump is on, which a 4-wire module needs. Opening the device paints a frame, so the glass can be checked. Callers draw with mp_drv_ssd1306_point and send the dirty pages with mp_drv_ssd1306_flush. The panel has no serial, so the serial is the MCU unique id.",
+	specs: {
+		bus: "I2C",
+		address: "0x3C",
+		size: "128x64",
+		depth: "1 bit",
+	},
+	define: "SUPPORT_DRV_LCD_SSD1306",
+	sources: ["ssd1306.c"],
+	headers: ["ssd1306.h"],
+	requires: ["DEVICE", "I2C"],
+	device: { struct: "mp_drv_ssd1306_t", ops: "mp_drv_ssd1306_device" },
+	options: [
+		{ name: "sda", label: "SDA", type: "pin", required: true },
+		{ name: "clk", label: "SCL", type: "pin", required: true },
+		{ name: "reset", label: "Reset", type: "pin" },
+		{ name: "address", label: "I2C address", type: "enum", values: ["0x3C", "0x3D"], default: "0x3C" },
+		{ name: "contrast", label: "Contrast", type: "number", default: 207, min: 0, max: 255 },
+	],
+}
