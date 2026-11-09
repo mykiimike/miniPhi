@@ -54,6 +54,13 @@
 	void mp_uart_disable_rx_int(mp_uart_t *uart);
 	void mp_uart_tx(mp_uart_t *uart, unsigned char data);
 	void mp_uart_write_sync(const unsigned char *data, int size);
+	/** YES when the last mp_uart_write_sync reached the host. */
+	mp_bool_t mp_uart_tx_ok(void);
+	/**
+	 * YES once when the USB host leaves and comes back.
+	 * A cable pull on a board that stays powered does not restart the CPU.
+	 */
+	mp_bool_t mp_uart_host_back(void);
 
 	/**
 	 * Wait until the USB host has opened the serial port.

@@ -40,6 +40,11 @@ Baud, parity and pins are ignored: the gate is "USB".
 #define _INT_ENA    (C6_USB + 0x10UL)
 #define _INT_CLR    (C6_USB + 0x14UL)
 
+#define _CONF0      (C6_USB + 0x18UL)
+#define _PULL_OVR   (1UL << 8)
+#define _DP_UP      (1UL << 9)
+#define _DP_DN      (1UL << 10)
+
 #define _WR_DONE    (1UL << 0)
 #define _IN_FREE    (1UL << 1)
 #define _OUT_AVAIL  (1UL << 2)
@@ -68,7 +73,15 @@ static void _usb_isr(void *user) {
 
 	if(status & _OUT_INT) {
 		c6_write(_INT_CLR, _OUT_INT);
-		while(c6_read(_EP1_CONF) & _OUT_AVAIL) {
+		/* Drain exactly the bytes the OUT fifo holds. The
+		 * serial_out_ep_data_avail bit can clear mid-packet while the
+		 * PHY is still filling the FIFO, which loses the tail bytes;
+		 * out_ep1_rec_data_cnt (out_ep1_st bits 22:16) is the
+		 * authoritative count of bytes ready. A packet that lands
+		 * while we drain latches a fresh edge after this clear. */
+		unsigned long st = c6_read(C6_USB + 0x3CUL);
+		int cnt = (st >> 16) & 0x7F;
+		while(cnt-- > 0) {
 			if(uart->onRead)
 				uart->onRead(uart);
 			else
@@ -92,12 +105,49 @@ static void _usb_isr(void *user) {
 	}
 }
 
+static int _usb_ok = 1;
+
+/* A JTAG reset leaves the IN endpoint with a packet the host will never
+ * ack. Dropping D+ is the cable pull: the host re-enumerates and the
+ * endpoint comes back. A live host that is still acking is left alone. */
+static void _usb_reenum(void) {
+	unsigned long c;
+	unsigned long start;
+
+	c = c6_read(_CONF0);
+	c6_write(_CONF0, (c | _PULL_OVR | _DP_DN) & ~_DP_UP);
+	start = mp_clock_us();
+	while((unsigned long)(mp_clock_us() - start) < 50000UL)
+		;
+	c = c6_read(_CONF0);
+	c6_write(_CONF0, (c | _DP_UP) & ~(_PULL_OVR | _DP_DN));
+	start = mp_clock_us();
+	while((unsigned long)(mp_clock_us() - start) < 20000UL)
+		;
+}
+
+static void _usb_recover(void) {
+	unsigned long start;
+
+	if(c6_read(_EP1_CONF) & _IN_FREE)
+		return;
+	start = mp_clock_us();
+	while((c6_read(_EP1_CONF) & _IN_FREE) == 0) {
+		if((unsigned long)(mp_clock_us() - start) >= 20000UL) {
+			_usb_reenum();
+			return;
+		}
+	}
+}
+
 mp_ret_t mp_uart_init(void) {
 	/* Bit 2 only. Bits 0 and 1 are sticky reset flags; writing them straps
 	 * the ROM into download mode. */
 	c6_write(_CHIP_RST, 1UL << 2);
 	c6_write(_INT_CLR, 0x7ffffUL);
 	c6_write(_INT_ENA, 0);
+	_usb_recover();
+	_usb_ok = 1;
 	return(TRUE);
 }
 
@@ -199,13 +249,6 @@ void mp_uart_tx(mp_uart_t *uart, unsigned char data) {
 
 static int _usb_skip;
 
-static int _in_ep1_empty(void) {
-	unsigned long st;
-
-	st = c6_read(C6_USB + 0x2CUL);
-	return(((st >> 2) & 0x7FUL) == ((st >> 9) & 0x7FUL));
-}
-
 static int _wait_in_free(unsigned long us) {
 	unsigned long start;
 
@@ -234,6 +277,10 @@ mp_bool_t mp_uart_host_wait(unsigned long ms) {
 	return(YES);
 }
 
+mp_bool_t mp_uart_tx_ok(void) {
+	return(_usb_ok ? YES : NO);
+}
+
 void mp_uart_write_sync(const unsigned char *data, int size) {
 	int i;
 	int n;
@@ -242,10 +289,11 @@ void mp_uart_write_sync(const unsigned char *data, int size) {
 	if(size <= 0 || !data)
 		return;
 
+	/* IN_FREE stays clear while a packet waits for the host. A second
+	 * WR_DONE in that window wedges the endpoint until the cable moves.
+	 * Wait, and if the host is not there, give up without touching it. */
+	_usb_ok = 0;
 	c6_clr(_INT_ENA, _IN_INT);
-	if((c6_read(_EP1_CONF) & _IN_FREE) == 0 && _in_ep1_empty())
-		c6_write(_EP1_CONF, _WR_DONE);
-
 	budget = _usb_skip ? 1000UL : 50000UL;
 	if(!_wait_in_free(budget)) {
 		_usb_skip = 1;
@@ -254,7 +302,7 @@ void mp_uart_write_sync(const unsigned char *data, int size) {
 	_usb_skip = 0;
 	n = 0;
 	for(i = 0; i < size; i++) {
-		if(!_wait_in_free(50000UL)) {
+		if(!_wait_in_free(budget)) {
 			_usb_skip = 1;
 			return;
 		}
@@ -262,7 +310,7 @@ void mp_uart_write_sync(const unsigned char *data, int size) {
 		n++;
 		if(n == 64) {
 			c6_write(_EP1_CONF, _WR_DONE);
-			if(!_wait_in_free(50000UL)) {
+			if(!_wait_in_free(budget)) {
 				_usb_skip = 1;
 				return;
 			}
@@ -271,9 +319,12 @@ void mp_uart_write_sync(const unsigned char *data, int size) {
 	}
 	if(n) {
 		c6_write(_EP1_CONF, _WR_DONE);
-		if(!_wait_in_free(50000UL))
+		if(!_wait_in_free(budget)) {
 			_usb_skip = 1;
+			return;
+		}
 	}
+	_usb_ok = 1;
 }
 
 unsigned char mp_uart_rx(mp_uart_t *uart) {

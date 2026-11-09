@@ -23,6 +23,9 @@
 
 	/* Single RV32IMC core. No LP core, no PLIC. The radio is outside this port. */
 
+	/* A 64-byte USB IN packet stays in the host until a short one follows. */
+	#define MP_TERM_UI_PACKET 63
+
 	#define C3_UART0            0x60000000UL
 	#define C3_GPIO             0x60004000UL
 	#define C3_RTC              0x60008000UL

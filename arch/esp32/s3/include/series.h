@@ -21,6 +21,9 @@
 #ifndef _HAVE_ESP32_SERIES_H
 	#define _HAVE_ESP32_SERIES_H
 
+	/* A 64-byte USB IN packet stays in the host until a short one follows. */
+	#define MP_TERM_UI_PACKET 63
+
 	#define S3_XTAL_HZ        40000000UL
 	#define S3_SYSTIMER_HZ    16000000UL
 	#define S3_TICK_HZ        1000UL

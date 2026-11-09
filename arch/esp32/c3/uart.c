@@ -71,7 +71,15 @@ static void _usb_isr(void *user) {
 
 	if(status & _OUT_INT) {
 		c3_write(_INT_CLR, _OUT_INT);
-		while(c3_read(_EP1_CONF) & _OUT_AVAIL) {
+		/* Drain exactly the bytes the OUT fifo holds. The
+		 * serial_out_ep_data_avail bit can clear mid-packet while the
+		 * PHY is still filling the FIFO, which loses the tail bytes;
+		 * out_ep1_rec_data_cnt (out_ep1_st bits 22:16) is the
+		 * authoritative count. A packet that lands while we
+		 * drain latches a fresh edge after this clear. */
+		unsigned long st = c3_read(C3_USB + 0x3CUL);
+		int cnt = (st >> 16) & 0x7F;
+		while(cnt-- > 0) {
 			if(uart->onRead)
 				uart->onRead(uart);
 			else
@@ -211,6 +219,78 @@ unsigned char mp_uart_rx(mp_uart_t *uart) {
 char mp_uart_isBusy(mp_uart_t *uart) {
 	(void)uart;
 	return(c3_read(_EP1_CONF) & _IN_FREE ? 0 : 1);
+}
+
+/* The console is written from the term task, not the TX interrupt. A
+ * 64-byte packet is held by the host until a shorter one follows, so a
+ * packet stops at 63. WR_DONE only while IN_FREE is set. */
+#define _PACKET 63
+
+static int _usb_ok;
+static int _usb_skip;
+
+static int _wait_in_free(unsigned long us) {
+	unsigned long start;
+
+	if(c3_read(_EP1_CONF) & _IN_FREE)
+		return(1);
+	start = mp_clock_us();
+	while((c3_read(_EP1_CONF) & _IN_FREE) == 0) {
+		if((unsigned long)(mp_clock_us() - start) >= us)
+			return(0);
+	}
+	return(1);
+}
+
+mp_bool_t mp_uart_tx_ok(void) {
+	return(_usb_ok ? YES : NO);
+}
+
+void mp_uart_write_sync(const unsigned char *data, int size) {
+	int i;
+	int n;
+	unsigned long budget;
+
+	if(size <= 0 || !data)
+		return;
+
+	_usb_ok = 0;
+	c3_clr(_INT_ENA, _IN_INT);
+	/* fail fast while the host is gone, but once a packet is taken the line
+	 * is alive: use the full wait for the rest so a slow poller does not
+	 * time out mid-burst and wedge the IN fifo. */
+	budget = _usb_skip ? 5000UL : 50000UL;
+	if(!_wait_in_free(budget)) {
+		_usb_skip = 1;
+		return;
+	}
+	_usb_skip = 0;
+	budget = 50000UL;
+	n = 0;
+	for(i = 0; i < size; i++) {
+		if(!_wait_in_free(budget)) {
+			_usb_skip = 1;
+			return;
+		}
+		c3_write(_EP1, data[i]);
+		n++;
+		if(n == _PACKET) {
+			c3_write(_EP1_CONF, _WR_DONE);
+			if(!_wait_in_free(budget)) {
+				_usb_skip = 1;
+				return;
+			}
+			n = 0;
+		}
+	}
+	if(n) {
+		c3_write(_EP1_CONF, _WR_DONE);
+		if(!_wait_in_free(budget)) {
+			_usb_skip = 1;
+			return;
+		}
+	}
+	_usb_ok = 1;
 }
 
 /**@}*/

@@ -24,7 +24,9 @@ export const phi = {
 		SHA256: { sources: ["../crypto/hash/sha.c"], headers: ["../crypto/hash/sha256.h"] },
 		AES: { sources: ["../crypto/cipher/aes.c"], headers: ["../crypto/cipher/aes.h"] },
 		HSM: { sources: ["../crypto/rng/hsm.c"], headers: [] },
-		FUSE: { sources: ["../crypto/fuse/fuse.c", "../crypto/mac/hmac.c", "../crypto/sign/ds.c"], headers: [] },
+		FUSE: { sources: ["../crypto/fuse/fuse.c"], headers: [] },
+		HMAC: { sources: ["../crypto/mac/hmac.c"], headers: [] },
+		RSA: { sources: ["../crypto/sign/ds.c"], headers: [] },
 		XTS: { sources: ["../crypto/cipher/xts.c"], headers: [] },
 		ESP32_RF: { sources: [
 			"rf/rf.c",
@@ -60,10 +62,10 @@ export const phi = {
 		tick: "1 kHz, 16 MHz SYSTIMER",
 	},
 	boot: [
-		"startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "interrupt.c", "uart.c",
+		"startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "interrupt.c", "uart.c", "adc.c",
 		"../share.c",
 	],
-	headers: ["include/series.h"],
+	headers: ["include/series.h", "include/adc.h"],
 	headerDir: "arch",
 	mcus: [
 		{

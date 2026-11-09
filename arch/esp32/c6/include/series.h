@@ -81,10 +81,11 @@
 	#define C6_SRC_SPI2         72
 
 	/* CPU lines. 0, 3, 4 and 7 are the local CLINT sources and cannot take
-	 * a matrix interrupt. Priority must be above the threshold. */
+	 * a matrix interrupt. Priority must be above the threshold. GPIO used
+	 * to sit on line 3, so a press never reached the button task. */
 	#define C6_CPU_USB          1
 	#define C6_CPU_TICK         2
-	#define C6_CPU_GPIO         3
+	#define C6_CPU_GPIO         6
 	/* Preempt line. Priority 1, under the tick and the USB line at 2. */
 	#define C6_CPU_SCHED        5
 	#define C6_PRIO_SCHED       1UL
