@@ -3,7 +3,7 @@ export const phi = {
 	name: "xiao-powerbread",
 	vendor: "Seeed Studio",
 	label: "Seeed Studio XIAO PowerBread",
-	tested: false,
+	tested: true,
 	description: "Breadboard power supply and meter that seats one XIAO module. The module's pads D0..D10 route to the elements below, so the hat is module-agnostic: a XIAO ESP32-C6 maps D4 to pa22 and D5 to pa23, D8/D10 to SPI2 and D2 to pa2. The on-glass ST7735S TFT is on SPI (SCK D8, MOSI D10, DC D9, RST D3); chip select is tied and there is no backlight pin, so the panel lights as soon as it is powered. The TI INA3221 on I2C 0x40 measures both rails through 50 mOhm shunts (channel 1 is the 3V3 rail, channel 2 the 5V rail; channel 3 is unused). A resistive dial ladder on D2 reads as a single ADC sample, not a quadrature encoder: the firmware thresholds the count into up, down, press and rest. The output switch is the MT9700 power switch, mechanical (UP off, DOWN on), so the LCD and sensor stay on while the rails are cut. USB-C through the XIAO is the only input; the board bucks to 3V3 on a TPS54202 and passes 5V straight through, each up to 1.5 A with a 2.0 A overcurrent limit. The hat carries no GPIO of its own; the module owns every pin.",
 	specs: {
 		footprint: "XIAO module socket, breadboard pin rows",

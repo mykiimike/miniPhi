@@ -3,7 +3,7 @@ export const phi = {
 	name: "xiao-expansion",
 	vendor: "Seeed Studio",
 	label: "Seeed Studio XIAO Expansion Board v1.2",
-	tested: false,
+	tested: true,
 	description: "Breakout base that seats one XIAO module. The module's pads D0..D10 route to the elements below, so the hat is module-agnostic: a XIAO ESP32-C6 maps D4 to pa22 and D5 to pa23, a XIAO ESP32-S3 maps them differently. The on-glass SSD1306 and the PCF8563 RTC share the I2C bus on D4/D5 at 0x3C and 0x51. The microSD is on SPI (D8/D9/D10, CS on D2). The user button on D1 is active low, the passive buzzer on D3 needs a square wave. Two Grove I2C sockets parallel the OLED bus, one Grove UART sits on D6/D7, one Grove A/D on D0. A JST 2.0 LiPo charger (~460 mA) and a 5 V servo header share D0. SYS_3V3 follows the module 3V3 rail; USB 5 V is boosted to 5 V and bucked to 3V3 on board. The hat carries no GPIO of its own; the module owns every pin.",
 	specs: {
 		footprint: "XIAO module socket",
