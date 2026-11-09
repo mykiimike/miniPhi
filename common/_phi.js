@@ -4,7 +4,7 @@ export const phi = {
 	label: "Kernel core",
 	description: "Boot and panic states, state machine, printk and the options parser. Always compiled.",
 	sources: ["kernel.c", "state.c", "printk.c", "utils.c", "mp.c"],
-	headers: ["mp.h", "config.h", "list.h", "utils.h", "state.h", "printk.h"],
+	headers: ["mp.h", "config.h", "list.h", "utils.h", "state.h", "printk.h", "commander/commander.h"],
 	headerDir: "",
 	requires: ["TASK", "POWER"],
 	settings: [

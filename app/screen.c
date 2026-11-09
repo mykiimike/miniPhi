@@ -21,14 +21,18 @@
 /*
  * Opens the first display of the board, then the pages in pages/. While the splash
  * is up, the self-tests run and the first LED blinks; Morse starts when they finish.
- * The console
- * is a keyboard for the TUI; j, k and b stand for down, up and back. The task
- * refreshes the live figures every 250 ms, 50 ms on an accelerometer,
+ * The task refreshes the live figures every 250 ms, 50 ms on an accelerometer,
  * 20 ms while a camera picture is on screen, and every second while the screen is off.
- * A byte on the console wakes it.
  */
 
 #include "pages/index.h"
+
+#if defined(__has_include)
+#if __has_include(<xiao-esp32c6/dial.h>)
+#include <xiao-esp32c6/dial.h>
+#define SYSINFO_PUI_DIAL 1
+#endif
+#endif
 
 #ifdef SYSINFO_SCREEN
 
@@ -42,46 +46,6 @@
 static mp_tui_color_t _sysinfo_pixels[SYSINFO_SCREEN_COLUMNS * SYSINFO_SCREEN_ROWS];
 
 static MP_TASK(_sysinfo_screen);
-
-#ifdef SUPPORT_COMMON_DEVICE
-static void _sysinfo_console_key(sysinfo_t *sysinfo, unsigned char c) {
-	mp_device_input_t *keys = &sysinfo->screen.keys;
-
-	if(c == 'j' || c == 'J')
-		mp_device_input_key(keys, MP_DEVICE_INPUT_KEY_DOWN);
-	else if(c == 'k' || c == 'K')
-		mp_device_input_key(keys, MP_DEVICE_INPUT_KEY_UP);
-	else if(c == 'b' || c == 'B')
-		mp_device_input_key(keys, MP_DEVICE_INPUT_KEY_ESCAPE);
-	else
-		mp_device_input_terminal(keys, c);
-}
-#endif
-
-static void _sysinfo_console_read(sysinfo_t *sysinfo) {
-#ifdef SUPPORT_COMMON_DEVICE
-	mp_circular_t *cir;
-	mp_circular_buffer_t *buffer;
-	int index;
-
-	if(sysinfo->console == NO)
-		return;
-	cir = &sysinfo->serial.rxCir;
-	while(cir->totalSize > 0) {
-		buffer = mp_circular_read(cir);
-		if(!buffer || buffer->size == 0) {
-			if(buffer)
-				mp_mem_free(&sysinfo->kernel, buffer);
-			return;
-		}
-		for(index = 0; index < buffer->size; index++)
-			_sysinfo_console_key(sysinfo, buffer->data[index]);
-		mp_mem_free(&sysinfo->kernel, buffer);
-	}
-#else
-	(void)sysinfo;
-#endif
-}
 
 /* every registered touch panel feeds the TUI; the first subscriber starts it */
 static void _sysinfo_touch_run(sysinfo_t *sysinfo, mp_bool_t on) {
@@ -169,10 +133,6 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 		return;
 	}
 
-#ifdef SUPPORT_COMMON_DEVICE
-	if(sysinfo->console == YES)
-		mp_device_input_init(kernel, &sysinfo->screen.keys, MP_DEVICE_INPUT_CAP_KEYS, "Console");
-#endif
 	_sysinfo_touch_run(sysinfo, YES);
 	_sysinfo_devices_load(sysinfo);
 
@@ -183,21 +143,15 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 	sysinfo->screen.ready = YES;
 	mp_tui_attach(kernel, tui, "TUI");
 	sysinfo->screen.task = mp_task_create(&kernel->tasks, "Screen", _sysinfo_screen, sysinfo, _sysinfo_ticks(250));
-	if(sysinfo->console == YES)
-		sysinfo->serial.reader = sysinfo->screen.task;
 }
 
 void _sysinfo_screen_close(sysinfo_t *sysinfo) {
 	if(sysinfo->screen.ready == NO)
 		return;
 	if(sysinfo->screen.task) {
-		sysinfo->serial.reader = NULL;
 		mp_task_destroy(sysinfo->screen.task);
 		sysinfo->screen.task = NULL;
 	}
-#ifdef SUPPORT_COMMON_DEVICE
-	mp_device_input_fini(&sysinfo->screen.keys);
-#endif
 	_sysinfo_touch_run(sysinfo, NO);
 	/* the overlay reads the camera buffer; close it before the device does */
 	mp_tui_fullscreen_close(&sysinfo->screen.tui);
@@ -240,11 +194,10 @@ static MP_TASK(_sysinfo_screen) {
 		return;
 	}
 
-	_sysinfo_console_read(sysinfo);
 	_sysinfo_accel_apply(sysinfo);
 	_sysinfo_pages_refresh(sysinfo);
 
-	/* woken by the console, or the page changed */
+	/* the page changed */
 	delay = _sysinfo_ticks(_sysinfo_screen_period(sysinfo));
 	if(task->signal != MP_TASK_SIG_OK || task->delay != delay)
 		mp_task_delay(task, delay);
@@ -252,18 +205,178 @@ static MP_TASK(_sysinfo_screen) {
 
 #else
 
+#ifdef SUPPORT_COMMON_PUI
+
+static mp_device_t *_sysinfo_pui_display;
+static mp_task_t *_sysinfo_pui_tick_task;
+
+/* while a built-in page is on the glass, its reading still moves */
+static MP_TASK(_sysinfo_pui_tick) {
+	sysinfo_t *sysinfo = task->user;
+
+	if(task->signal == MP_TASK_SIG_STOP) {
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+	/* a class page joins the tour only while that device exists.
+	 * Each other measure already has its own page. */
+	mp_pui_page_show(mp_pui_page_temp_page(),   mp_pui_page_temp_present(&sysinfo->kernel)  ? 1 : 0);
+	mp_pui_page_show(mp_pui_page_clock_page(),  mp_pui_page_clock_present(&sysinfo->kernel) ? 1 : 0);
+	mp_pui_page_show(mp_pui_page_charge_page(), mp_pui_page_charge_present(&sysinfo->kernel) ? 1 : 0);
+	mp_pui_page_faces_sync(&sysinfo->pui);
+	mp_pui_pages_refresh(&sysinfo->pui);
+	mp_task_delay(task, _sysinfo_ticks(1000));
+}
+
+/**
+ * Every button turns the page on the press. A serial containing "prev"
+ * (D0) or "down" (dial down, stored as dial-down) steps back. The others
+ * advance: D1 "next", dial up, dial press.
+ */
+static int _sysinfo_pui_back(mp_device_registry_t *dev) {
+	char type[16];
+	char model[MP_DEVICE_ADDRESS];
+	char serial[MP_DEVICE_ADDRESS];
+	int index;
+
+	if(!dev)
+		return(0);
+	if(mp_device_address_split(dev->address, type, (int)sizeof(type), &index,
+		model, (int)sizeof(model), serial, (int)sizeof(serial)) == FALSE)
+		return(0);
+	if(strstr(serial, "prev") || strstr(serial, "down"))
+		return(1);
+	return(0);
+}
+
+static void _sysinfo_pui_button(mp_device_button_t *button, int down, void *user) {
+	sysinfo_t *sysinfo = user;
+	int i;
+
+	if(!sysinfo || !down)
+		return;
+	for(i = 0; i < MP_PUI_BUTTONS_MAX; i++) {
+		if(sysinfo->puiButton[i] != button)
+			continue;
+		mp_pui_key(&sysinfo->pui, _sysinfo_pui_back(sysinfo->puiButtonDev[i])
+			? MP_PUI_KEY_PREV : MP_PUI_KEY_NEXT);
+		return;
+	}
+}
+
+#endif
+
 mp_bool_t _sysinfo_accel_shown(sysinfo_t *sysinfo) {
 	(void)sysinfo;
 	return(YES);
 }
 
 void _sysinfo_screen_open(sysinfo_t *sysinfo) {
-	/* no TUI in this image: opening the panel leaves the driver's picture on the glass */
+#ifdef SUPPORT_COMMON_PUI
+	mp_device_t *display = mp_device_find(MP_DEVICE_DISPLAY, 0);
+	mp_pui_display_t *face;
+	mp_pui_t *ui = &sysinfo->pui;
+
+	if(mp_device_open(&sysinfo->kernel, display) == FALSE)
+		return;
+	face = mp_device_face(display);
+	if(!face || !mp_pui_init(ui, face, sysinfo->puiBand, sizeof(sysinfo->puiBand))) {
+		mp_device_close(display);
+		return;
+	}
+	_sysinfo_pui_display = display;
+	ui->kernel = &sysinfo->kernel;
+	if(mp_pui_page_about(ui) == FALSE) {
+		mp_pui_fini(ui);
+		mp_device_close(display);
+		_sysinfo_pui_display = NULL;
+		return;
+	}
+	/* open the board's other devices so their drivers register.
+	 * The display is already open and skipped. */
+	{
+		int n;
+		for(n = 0; n < mp_device_count(); n++) {
+			mp_device_t *device = mp_device_at(n);
+			if(!device || device->opened == YES || device == display)
+				continue;
+			if(device->driver && device->driver->type == MP_DEVICE_CAMERA)
+				continue;
+			mp_device_open(&sysinfo->kernel, device);
+		}
+	}
+	/* temperature, clock and charge keep one page. Every other measure
+	 * device gets its own page, then the CPU page. */
+	mp_pui_page_temp(ui);
+	mp_pui_page_clock(ui);
+	mp_pui_page_charge(ui);
+	mp_pui_page_faces(ui);
+	mp_pui_page_cpu(ui);
+	/* the tick refreshes the built-in page that is on the glass */
+	_sysinfo_pui_tick_task = mp_task_create(&sysinfo->kernel.tasks, "pui face", _sysinfo_pui_tick, sysinfo, _sysinfo_ticks(1000));
+	if(!mp_pui_attach(&sysinfo->kernel, ui, "PUI")) {
+		mp_pui_fini(ui);
+		mp_device_close(display);
+		_sysinfo_pui_display = NULL;
+		return;
+	}
+	mp_pui_page_about_start(ui);
+#ifdef SYSINFO_PUI_DIAL
+	/* registers dial up / down / press before the buttons are wired */
+	mp_board_dial(&sysinfo->kernel);
+#endif
+	/* every button: serial "prev" or "down" steps back, the rest advance */
+	{
+		int n;
+
+		for(n = 0; n < MP_PUI_BUTTONS_MAX; n++) {
+			mp_device_registry_t *dev = mp_device_registry_find(&sysinfo->kernel, MP_DEVICE_BUTTON, n);
+			mp_device_button_t *face;
+
+			if(!dev)
+				break;
+			face = mp_device_button(dev, &sysinfo->puiButtonSub[n]);
+			sysinfo->puiButtonDev[n] = dev;
+			sysinfo->puiButton[n] = face;
+			if(!face)
+				continue;
+			face->on_change = _sysinfo_pui_button;
+			face->user = sysinfo;
+		}
+	}
+#else
+	/* opening the panel leaves the driver's picture on the glass */
 	mp_device_open(&sysinfo->kernel, mp_device_find(MP_DEVICE_DISPLAY, 0));
+#endif
 }
 
 void _sysinfo_screen_close(sysinfo_t *sysinfo) {
+#ifdef SUPPORT_COMMON_PUI
+	if(!_sysinfo_pui_display)
+		return;
+	if(_sysinfo_pui_tick_task) {
+		mp_task_destroy(_sysinfo_pui_tick_task);
+		_sysinfo_pui_tick_task = NULL;
+	}
+	{
+		int n;
+
+		for(n = 0; n < MP_PUI_BUTTONS_MAX; n++) {
+			if(sysinfo->puiButton[n]) {
+				sysinfo->puiButton[n]->on_change = NULL;
+				sysinfo->puiButton[n]->user = NULL;
+				sysinfo->puiButton[n] = NULL;
+			}
+			mp_device_subscribe_end(&sysinfo->puiButtonSub[n]);
+			sysinfo->puiButtonDev[n] = NULL;
+		}
+	}
+	mp_pui_fini(&sysinfo->pui);
+	mp_device_close(_sysinfo_pui_display);
+	_sysinfo_pui_display = NULL;
+#else
 	(void)sysinfo;
+#endif
 }
 
 #endif

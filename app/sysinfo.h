@@ -40,6 +40,16 @@
 /* Power page figures table: the governor rows plus the supply sensors */
 #define SYSINFO_POWER_ROWS 12
 
+/* one PUI scanline. 512 holds a 160px RGB565 row (320) and a 240px row (480). */
+#ifndef MP_PUI_BAND_MAX
+#define MP_PUI_BAND_MAX 512
+#endif
+
+/* D1, D0, and the three dial faces (up, down, press) */
+#ifndef MP_PUI_BUTTONS_MAX
+#define MP_PUI_BUTTONS_MAX 6
+#endif
+
 /* the devices come from common/device: sysinfo never names a driver */
 #ifdef SUPPORT_COMMON_TUI
 #define SYSINFO_SCREEN
@@ -68,6 +78,14 @@ struct sysinfo_s {
 
 	mp_serial_t serial;
 	mp_bool_t console;
+#ifdef SUPPORT_COMMON_TERM
+	/** owns the line: the codec and the shell that runs it */
+	mp_term_t term;
+	mp_term_ui_t ui;
+	/** the shell drew the boot splash, so the plain banner logo is skipped
+	 * and the report starts at the info lines */
+	mp_bool_t splash;
+#endif
 
 	mp_task_t *task;
 	int line;
@@ -113,7 +131,6 @@ struct sysinfo_s {
 		mp_bool_t ready;
 		mp_task_t *task;
 #ifdef SUPPORT_COMMON_DEVICE
-		mp_device_input_t keys;
 		/** subscribers of the registered touch panels; sampling starts with the first */
 		mp_device_subscribe_t touchSub[2];
 		int touchCount;
@@ -305,6 +322,20 @@ struct sysinfo_s {
 #endif
 		};
 	} screen;
+#endif
+
+#ifdef SUPPORT_COMMON_PUI
+	/** pager on the display, and one scanline of its image */
+	mp_pui_t pui;
+	unsigned char puiBand[MP_PUI_BAND_MAX];
+	/**
+	 * Every MP_DEVICE_BUTTON. A serial containing "prev" or "down"
+	 * steps back; the others advance. puiButtonDev is the registry
+	 * entry of that face, so the callback can read the serial.
+	 */
+	mp_device_button_t *puiButton[MP_PUI_BUTTONS_MAX];
+	mp_device_subscribe_t puiButtonSub[MP_PUI_BUTTONS_MAX];
+	mp_device_registry_t *puiButtonDev[MP_PUI_BUTTONS_MAX];
 #endif
 };
 

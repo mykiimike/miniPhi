@@ -41,40 +41,14 @@ Michael Vergoz <mv@verman.fr>
 
 This module reference functions used to setup mp_printk() output.
 
-Example 1 : Defined printk callback and use circular buffering
+A serial is the usual sink: mp_serial_printk() after the port is open.
+A terminal that takes the line unwires printk; mp_serial_printk() then
+fails until mp_serial_give().
+
 @code
-static void _olimex_printk(void *user, char *fmt, ...) {
-	olimex_msp430_t *olimex = user;
-	unsigned char *buffer = malloc(256);
-	va_list args;
-	int size;
-
-	va_start(args, fmt);
-	size = vsnprintf((char *)buffer, 256-3, fmt, args);
-	va_end(args);
-
-	buffer[size++] = '\n';
-	buffer[size++] = '\r';
-
-	mp_serial_write(&olimex->serial, buffer, size);
-
-	free(buffer);
-
-	return;
-}
-@endcode
-
-Example 2 : initialize serial UART and set printk
-@code
-// setup serial interface
-{
-	ret = mp_serial_initUART(&olimex->kernel, &olimex->serial, &olimex->proxyUARTDst, "Serial DST UART");
-	if(ret == FALSE)
-		return;
-}
-
-// set printk
-mp_printk_set(_olimex_printk, olimex);
+mp_serial_open(kernel, &serial, options, "Console");
+mp_serial_printk(&serial);
+mp_printk("up");
 @endcode
 
 @{
@@ -102,6 +76,7 @@ mp_ret_t mp_printk_set(mp_printk_call_t call, void *user) {
  */
 mp_ret_t mp_printk_unset() {
 	mp_printk_call = _dummy_printk;
+	mp_printk_user = NULL;
 	return(TRUE);
 }
 

@@ -39,6 +39,9 @@ static inline void mp_test_clock(unsigned long ticks) {
 static inline unsigned long mp_clock_tick_hz(void) {
 	return(1000);
 }
+static inline unsigned long mp_clock_get_speed(void) {
+	return(160000000UL);
+}
 #include <list.h>
 #ifndef MP_TASK_MAX
 #define MP_TASK_MAX 8
@@ -70,6 +73,14 @@ struct mp_kernel_s {
 	mp_list_t inputs;
 	mp_list_t drivers;
 	mp_list_t devices;
+	mp_list_t deviceWatch;
+#ifdef SUPPORT_COMMON_COMMANDER
+	mp_list_t commands;
+#endif
+};
+#elif defined(SUPPORT_COMMON_COMMANDER)
+struct mp_kernel_s {
+	mp_list_t commands;
 };
 #else
 struct mp_kernel_s {

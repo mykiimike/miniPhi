@@ -73,6 +73,8 @@
 	};
 
 	#include <list.h>
+	/* Always linked. The registry when COMMANDER is on, no-op exports when it is off. */
+	#include <commander.h>
 	#include <task/task.h>
 	#include <power/power.h>
 
@@ -137,6 +139,9 @@
 	#ifdef SUPPORT_COMMON_SERIAL
 		#include <serial/serial.h>
 	#endif
+	#ifdef SUPPORT_COMMON_TERM
+		#include <term/term.h>
+	#endif
 	#ifdef SUPPORT_COMMON_PINOUT
 		#include <pinout/pinout.h>
 	#endif
@@ -152,6 +157,9 @@
 	#endif
 	#ifdef SUPPORT_COMMON_TUI
 		#include <tui/tui.h>
+	#endif
+	#ifdef SUPPORT_COMMON_PUI
+		#include <pui/pui.h>
 	#endif
 	#ifdef SUPPORT_COMMON_DEVICE
 		#include <device/device.h>
@@ -290,6 +298,9 @@
 #ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
 	#include <crypto/selftest.h>
 #endif
+#ifdef SUPPORT_COMMON_SPI
+	#include <spi/spi.h>
+#endif
 
 	#ifdef SUPPORT_DRV_LED
 		#include <led/led.h>
@@ -302,6 +313,12 @@
 	#endif
 	#ifdef SUPPORT_DRV_LCD_UC8179
 		#include <uc8179/uc8179.h>
+	#endif
+	#ifdef SUPPORT_DRV_LCD_SSD1306
+		#include <ssd1306/ssd1306.h>
+	#endif
+	#ifdef SUPPORT_DRV_LCD_ST7735
+		#include <st7735/st7735.h>
 	#endif
 	#ifdef SUPPORT_DRV_NRF8001
 		#include <nrf8001/nRF8001.h>
@@ -321,6 +338,9 @@
 	#ifdef SUPPORT_DRV_INA219
 		#include <ina219/INA219.h>
 	#endif
+	#ifdef SUPPORT_DRV_INA3221
+		#include <ina3221/ina3221.h>
+	#endif
 	#ifdef SUPPORT_DRV_ADS124X
 		#include <ads124x/ADS124x.h>
 	#endif
@@ -332,6 +352,9 @@
 	#endif
 	#ifdef SUPPORT_DRV_DS1307
 		#include <ds1307/ds1307.h>
+	#endif
+	#ifdef SUPPORT_DRV_RTC_PCF8563
+		#include <pcf8563/pcf8563.h>
 	#endif
 	#ifdef SUPPORT_DRV_MCP73833
 		#include <mcp73833/mcp73833.h>
@@ -373,11 +396,18 @@
 		mp_list_t drivers;
 		/** registered devices, see mp_device_registry_at() */
 		mp_list_t devices;
+		/** told when a device arrives or leaves, see mp_device_registry_watch() */
+		mp_list_t deviceWatch;
 #endif
 
 #ifdef SUPPORT_COMMON_KFLASH
 		/** values kept in flash, see mp_kflash_listen() */
 		mp_kflash_t kflash;
+#endif
+
+#ifdef SUPPORT_COMMON_COMMANDER
+		/** registered commands, see mp_command_at() */
+		mp_list_t commands;
 #endif
 
 		/** Internal tick timer */

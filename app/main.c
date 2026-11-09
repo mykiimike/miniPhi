@@ -20,7 +20,9 @@
 
 /*
  * System info: prints who is running on the console, then reports
- * uptime, tasks and sensors every SYSINFO_PERIOD ms.
+ * uptime, tasks and sensors every SYSINFO_PERIOD ms. The console is
+ * one client. With the terminal codec in the build that client is the
+ * terminal, and printk is not wired. Without it, printk owns the line.
  * Delays are milliseconds and follow mp_clock_tick_hz().
  * When the board has lamps, morse.c blinks SOS on the first and HELP on the second.
  * A pixel's red and green fill the ranks a board LED left empty.
@@ -36,15 +38,17 @@
 
 #include "sysinfo.h"
 
-#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifdef SUPPORT_COMMON_TERM
+static void _sysinfo_term_start(sysinfo_t *sysinfo);
+#endif
 
 static void _sysinfo_onBoot(void *user);
 static void _sysinfo_op_set(void *user);
 static void _sysinfo_op_unset(void *user);
 static void _sysinfo_op_tick(void *user);
-static void _sysinfo_printk(void *user, char *fmt, ...);
 static mp_bool_t _sysinfo_line(sysinfo_t *sysinfo, int line);
 static void _sysinfo_report(sysinfo_t *sysinfo);
 static MP_TASK(_sysinfo_task);
@@ -319,7 +323,11 @@ static void _sysinfo_op_set(void *user) {
 	}
 
 	sysinfo->console = YES;
-	mp_printk_set(_sysinfo_printk, sysinfo);
+#ifdef SUPPORT_COMMON_TERM
+	_sysinfo_term_start(sysinfo);
+#else
+	mp_serial_printk(&sysinfo->serial);
+#endif
 
 #ifdef MP_ARCH_RF_TEST
 	mp_uart_host_wait(15000);
@@ -477,13 +485,195 @@ static void _sysinfo_op_set(void *user) {
 
 	_sysinfo_accel_apply(sysinfo);
 
-	/* one line per wake up: each write takes chunks from the memory pool */
-	sysinfo->line = 0;
+	/* one line per wake up: each write takes chunks from the memory pool.
+	   the term splash already painted the logo, so start at the info rows */
+	sysinfo->line = sysinfo->splash ? SYSINFO_BANNER_LINES : 0;
 	sysinfo->task = mp_task_create(
 		&sysinfo->kernel.tasks, "Sysinfo", _sysinfo_task, sysinfo,
 		_sysinfo_ticks(SYSINFO_LINE_DELAY)
 	);
 }
+
+#ifdef SUPPORT_COMMON_TERM
+
+/* the identity block. Labels are 11 columns, the gutter included, so the
+ * values line up. The splash shows them once; System/Info shows them live. */
+#define SYSINFO_INFO_LINES 12
+
+static void _sysinfo_term_info(sysinfo_t *sysinfo, char value[][256]) {
+	mp_kernel_t *kernel = &sysinfo->kernel;
+	const char *serial = mp_machine_serial();
+	unsigned long speed = mp_clock_get_speed();
+
+	snprintf(value[0], 256, "%s", kernel->version);
+	snprintf(value[1], 256, "%s %s", __DATE__, __TIME__);
+	if(serial)
+		snprintf(value[2], 256, "%s, app %s, serial %s", PHI_BUILD_BOARD, PHI_BUILD_APP, serial);
+	else
+		snprintf(value[2], 256, "%s, app %s", PHI_BUILD_BOARD, PHI_BUILD_APP);
+#if defined(__TI_COMPILER_VERSION__)
+	snprintf(value[3], 256, "%s %lu.%lu.%lu", PHI_BUILD_TOOLCHAIN,
+		(unsigned long)__TI_COMPILER_VERSION__ / 1000000,
+		((unsigned long)__TI_COMPILER_VERSION__ / 1000) % 1000,
+		(unsigned long)__TI_COMPILER_VERSION__ % 1000);
+#elif defined(__GNUC__)
+	snprintf(value[3], 256, "%s %s", PHI_BUILD_TOOLCHAIN, __VERSION__);
+#else
+	snprintf(value[3], 256, "%s", PHI_BUILD_TOOLCHAIN);
+#endif
+	snprintf(value[4], 256, "%s %s",
+		kernel->mcuVendor ? kernel->mcuVendor : "unknown",
+		kernel->mcuName ? kernel->mcuName : "unknown");
+	snprintf(value[5], 256, "%s / %s / %s", PHI_BUILD_ARCH, PHI_BUILD_SERIES, PHI_BUILD_MCU);
+	snprintf(value[6], 256, "%lu.%02lu MHz", speed / 1000000, (speed / 10000) % 100);
+	snprintf(value[7], 256, "%lu KB flash, %lu KB RAM", PHI_BUILD_FLASH / 1024, PHI_BUILD_RAM / 1024);
+	snprintf(value[8], 256, "%u tasks, %s, %u states, %u bytes",
+		(unsigned int)MP_TASK_MAX, mp_task_scheduler_name(),
+		(unsigned int)MP_STATE_MAX, (unsigned int)sizeof(*kernel));
+#ifdef SUPPORT_COMMON_MEM
+	snprintf(value[9], 256, "%u bytes, %u-byte chunks", (unsigned int)MP_MEM_SIZE, (unsigned int)MP_MEM_CHUNK);
+#else
+	snprintf(value[9], 256, "%s", "off");
+#endif
+	snprintf(value[10], 256, "%s", PHI_BUILD_MODULES);
+	snprintf(value[11], 256, "%s", PHI_BUILD_DRIVERS);
+}
+
+static const char *_sysinfo_info_label[SYSINFO_INFO_LINES] = {
+	"miniPhi    ", "Build      ", "Board      ", "Compiler   ",
+	"CPU        ", "Target     ", "Clock      ", "Memory     ",
+	"Kernel     ", "Pool       ", "Modules    ", "Drivers    ",
+};
+
+/* a page title: bold white, a rule under it as wide as the body */
+static void _sysinfo_page_title(mp_term_ui_t *ui, const char *title) {
+	int width = mp_term_ui_cols(ui) - 4;
+
+	mp_term_ui_put(ui, 1, 2, title, 7, 0, MP_TERM_UI_BOLD);
+	if(width > 0)
+		mp_term_ui_fill(ui, 2, 2, width, 'q', 4, 0, MP_TERM_UI_DEC);
+}
+
+static int _sysinfo_page_row(mp_term_ui_t *ui, int row, const char *label, const char *value, int fg) {
+	int n;
+
+	mp_term_ui_put(ui, row, 2, label, 6, 0, MP_TERM_UI_BOLD);
+	n = mp_term_ui_put(ui, row, 14, value, fg, 0, 0);
+	return(n > 0 ? n : 1);
+}
+
+static void _sysinfo_info_paint(mp_term_ui_t *ui, void *user) {
+	static char value[SYSINFO_INFO_LINES][256];
+	int i, row;
+
+	_sysinfo_term_info(user, value);
+	mp_term_ui_clear(ui);
+	_sysinfo_page_title(ui, "System information");
+	row = 4;
+	for(i = 0; i < SYSINFO_INFO_LINES && row < mp_term_ui_rows(ui); i++)
+		row += _sysinfo_page_row(ui, row, _sysinfo_info_label[i], value[i], 7);
+	mp_term_ui_hint(ui, "Esc menu  Ctrl-L redraw");
+}
+
+static void _sysinfo_power_paint(mp_term_ui_t *ui, void *user) {
+	sysinfo_t *sysinfo = user;
+	mp_power_t *power = &sysinfo->kernel.power;
+	mp_list_item_t *item;
+	char line[96];
+	unsigned long speed = mp_clock_get_speed();
+	unsigned long hz = mp_clock_tick_hz();
+	unsigned long sec = hz ? mp_clock_ticks() / hz : 0;
+	int row, load, bar, width, i;
+
+	mp_term_ui_clear(ui);
+	_sysinfo_page_title(ui, "Power");
+	_sysinfo_page_row(ui, 4, "Level", mp_power_name(mp_power_level(&sysinfo->kernel)), 3);
+	snprintf(line, sizeof(line), "%lu.%02lu MHz", speed / 1000000, (speed / 10000) % 100);
+	_sysinfo_page_row(ui, 5, "Clock", line, 7);
+
+	/* the load as a gauge: reverse cells filled, DEC checkerboard empty */
+	load = power->load > 100 ? 100 : power->load;
+	snprintf(line, sizeof(line), "%3d %%", load);
+	_sysinfo_page_row(ui, 6, "Load", line, load > 60 ? 1 : 2);
+	width = mp_term_ui_cols(ui) - 24;
+	if(width > 40)
+		width = 40;
+	if(width > 4) {
+		bar = (load * width + 50) / 100;
+		for(i = 0; i < width; i++)
+			mp_term_ui_fill(ui, 6, 20 + i, 1, i < bar ? ' ' : 'a',
+				i < bar ? 0 : 4, i < bar ? (load > 60 ? 1 : 2) : 0,
+				i < bar ? 0 : MP_TERM_UI_DEC);
+	}
+	snprintf(line, sizeof(line), "%02lu:%02lu:%02lu",
+		(sec / 3600UL) % 100UL, (sec / 60UL) % 60UL, sec % 60UL);
+	_sysinfo_page_row(ui, 7, "Up", line, 7);
+
+	mp_term_ui_put(ui, 9, 2, "Holds", 7, 0, MP_TERM_UI_BOLD);
+	row = 10;
+	for(item = power->holds.first; item && row < mp_term_ui_rows(ui); item = item->next) {
+		mp_power_hold_t *hold = item->user;
+
+		snprintf(line, sizeof(line), "%s%s",
+			hold->nodeep == YES ? "no deep sleep" : mp_power_name(hold->floor),
+			hold->expires == YES ? ", timed" : "");
+		row += _sysinfo_page_row(ui, row, hold->who ? hold->who : "?", line, 7);
+	}
+	if(row == 10)
+		mp_term_ui_put(ui, row, 2, "none, the governor follows the load", 4, 0, MP_TERM_UI_BOLD);
+	mp_term_ui_hint(ui, "Esc menu  Ctrl-L redraw");
+}
+
+static const mp_term_page_t _sysinfo_info_page = {
+	_sysinfo_info_paint, NULL, 1000, &_sysinfo,
+};
+
+static const mp_term_page_t _sysinfo_power_page = {
+	_sysinfo_power_paint, NULL, 1000, &_sysinfo,
+};
+
+/* the logo and the identity block, copied into the shell before the task runs */
+static void _sysinfo_term_lines(sysinfo_t *sysinfo, mp_term_banner_line_t *lines, int *n) {
+	static char value[SYSINFO_INFO_LINES][256];
+	int i, at = 0;
+
+	for(i = 0; i < SYSINFO_BANNER_LINES; i++, at++) {
+		lines[at].label = "";
+		lines[at].value = _banner[i];
+	}
+	lines[at].label = "";
+	lines[at].value = "";
+	at++;
+	_sysinfo_term_info(sysinfo, value);
+	for(i = 0; i < SYSINFO_INFO_LINES; i++, at++) {
+		lines[at].label = _sysinfo_info_label[i];
+		lines[at].value = value[i];
+	}
+	*n = at;
+}
+
+static void _sysinfo_term_start(sysinfo_t *sysinfo) {
+	mp_term_banner_line_t lines[SYSINFO_BANNER_LINES + 1 + SYSINFO_INFO_LINES];
+	int n;
+
+	if(sysinfo->term.task || sysinfo->console == NO)
+		return;
+	if(mp_term_ui_init(&sysinfo->ui, &sysinfo->term) != TRUE)
+		return;
+	mp_term_ui_place(&sysinfo->ui, PHI_BUILD_BOARD);
+	mp_term_ui_add(&sysinfo->ui, "System/Info", &_sysinfo_info_page);
+	mp_term_ui_add(&sysinfo->ui, "System/Power", &_sysinfo_power_page);
+	_sysinfo_term_lines(sysinfo, lines, &n);
+	if(mp_term_ui_start(&sysinfo->ui, &sysinfo->serial, lines, n) != TRUE)
+		return;
+	sysinfo->splash = YES;
+}
+
+static void _sysinfo_term_stop(sysinfo_t *sysinfo) {
+	mp_term_ui_stop(&sysinfo->ui);
+}
+
+#endif
 
 static void _sysinfo_op_unset(void *user) {
 	sysinfo_t *sysinfo = user;
@@ -492,6 +682,9 @@ static void _sysinfo_op_unset(void *user) {
 		mp_task_destroy(sysinfo->task);
 		sysinfo->task = NULL;
 	}
+#ifdef SUPPORT_COMMON_TERM
+	_sysinfo_term_stop(sysinfo);
+#endif
 
 	_sysinfo_accel_run(sysinfo, NO);
 	sysinfo->accelRunning = NO;
@@ -519,7 +712,6 @@ static void _sysinfo_op_unset(void *user) {
 		return;
 
 	mp_machine_state_unset(&sysinfo->kernel);
-	mp_printk_unset();
 	mp_serial_fini(&sysinfo->serial);
 	sysinfo->console = NO;
 }
@@ -742,30 +934,5 @@ static void _sysinfo_report(sysinfo_t *sysinfo) {
 			}
 		}
 	}
-#endif
-}
-
-static void _sysinfo_printk(void *user, char *fmt, ...) {
-	sysinfo_t *sysinfo = user;
-	unsigned char buffer[128];
-	va_list args;
-	int size;
-
-	va_start(args, fmt);
-	size = vsnprintf((char *)buffer, sizeof(buffer) - 2, fmt, args);
-	va_end(args);
-
-	if(size < 0)
-		return;
-	if(size > (int)sizeof(buffer) - 3)
-		size = sizeof(buffer) - 3;
-
-	buffer[size++] = '\n';
-	buffer[size++] = '\r';
-
-#ifdef ESP32C6
-	mp_uart_write_sync(buffer, size);
-#else
-	mp_serial_write(&sysinfo->serial, buffer, size);
 #endif
 }
