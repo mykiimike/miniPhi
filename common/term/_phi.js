@@ -17,5 +17,6 @@ export const phi = {
 		{ name: "MP_TERM_ESCAPE_MS", label: "Lone Escape after", type: "number", unit: "ms", default: 50, min: 0, max: 500 },
 		{ name: "MP_TERM_UI_COLS", label: "Shell width the buffers hold (4 bytes a cell)", type: "number", unit: "columns", default: 100, min: 40, max: 250, ram: true },
 		{ name: "MP_TERM_UI_ROWS", label: "Shell height the buffers hold", type: "number", unit: "rows", default: 40, min: 12, max: 80, ram: true },
+		{ name: "MP_TERM_UI_LOG", label: "Message log", type: "number", unit: "lines", default: 128, min: 8, max: 256, ram: true },
 	],
 }

@@ -27,6 +27,10 @@ export const phi = {
 		/* one slot for the MCP73833 sample task, taken while its page is open */
 		MP_TASK_MAX: 13,
 		MP_TUI_TEXT_MAX: 96,
+		/* USART1 shell. 100x40 and a 128-line log do not fit beside the TFT band and the Lepton frame in 64 KB. */
+		MP_TERM_UI_COLS: 80,
+		MP_TERM_UI_ROWS: 24,
+		MP_TERM_UI_LOG: 32,
 		MP_CLOCK_LSE: true,
 		/* one device PHY; the System USB table keeps a row per slot */
 		MP_USB_PORT_MAX: 1,
