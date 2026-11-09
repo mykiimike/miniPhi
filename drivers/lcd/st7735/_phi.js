@@ -4,7 +4,7 @@ export const phi = {
 	name: "ST7735",
 	vendor: "Sitronix",
 	label: "ST7735 TFT",
-	tested: false,
+	tested: true,
 	description: "160x80 panel on SPI, 16-bit RGB565. The driver opens a shared mp_spi_bus_t on the pins the board names. DC and reset are GPIO. Chip select is tied on the module, and there is no backlight pin, so the glass lights when it is powered. Rows stream straight to the panel. Opening the device paints a red frame, so the glass can be checked. The panel has no serial, so the serial is the MCU unique id.",
 	specs: {
 		bus: "SPI",

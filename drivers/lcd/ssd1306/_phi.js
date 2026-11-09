@@ -4,7 +4,7 @@ export const phi = {
 	name: "SSD1306",
 	vendor: "Solomon Systech",
 	label: "SSD1306 OLED",
-	tested: false,
+	tested: true,
 	description: "128x64 panel on I2C. The driver opens a shared mp_i2c_bus_t on the pins the board names, so other devices on the same bus borrow it instead of grabbing SDA and SCL a second time. The address is 0x3C, or 0x3D. The internal charge pump is on, which a 4-wire module needs. Opening the device paints a frame, so the glass can be checked. Callers draw with mp_drv_ssd1306_point and send the dirty pages with mp_drv_ssd1306_flush. The panel has no serial, so the serial is the MCU unique id.",
 	specs: {
 		bus: "I2C",

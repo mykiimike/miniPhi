@@ -4,7 +4,7 @@ export const phi = {
 	name: "INA3221",
 	vendor: "Texas Instruments",
 	label: "INA3221",
-	tested: false,
+	tested: true,
 	description: "Three-channel current and bus monitor on I2C. Each enabled channel publishes the bus voltage, the current through the shunt named in milliohms, and the power. Shunt voltage is 40 µV per step and bus voltage is 8 mV per step. Address 0x40 when A0 is grounded. The chip does not compute current itself.",
 	specs: {
 		bus: "I2C",

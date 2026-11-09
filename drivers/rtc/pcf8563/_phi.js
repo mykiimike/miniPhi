@@ -4,7 +4,7 @@ export const phi = {
 	name: "PCF8563",
 	vendor: "NXP",
 	label: "PCF8563 RTC",
-	tested: false,
+	tested: true,
 	description: "NXP PCF8563 civil-time RTC on I2C. The chip shares its bus with the OLED: the driver finds the display, borrows its mp_i2c_bus_t, and reads the time registers. The oscillator runs by default. Address 0x51.",
 	specs: {
 		bus: "I2C",
