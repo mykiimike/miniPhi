@@ -1,0 +1,21 @@
+export const phi = {
+	kind: "module",
+	name: "TERMINAL",
+	label: "Terminal codec",
+	description: "An ANSI / VT100 / xterm codec. The app emits by intent (mp_term_move, mp_term_fg_rgb, ...) and the codec writes the bytes the peer understands, degrading to its caps. Bytes received are fed through mp_term_rx() and read back as events: text, key, mouse, paste, resize, OSC. Sink-only: it does not own the transport, it writes through a callback the caller provides, so the same codec runs over a UART, USB CDC, RTT, a socket or a test buffer. The caps compiled in decide what the binary can do; the caps set at runtime decide what a session lights up for its peer.",
+	define: "SUPPORT_COMMON_TERM",
+	sources: ["term.c", "parse.c", "color.c", "ui.c", "run.c", "pages/console.c", "pages/messages.c", "drivers/vt100.c", "drivers/vt102.c", "drivers/xterm.c", "drivers/osc.c", "drivers/builtins.c"],
+	headers: ["term.h", "ui.h", "pages/pages.h"],
+	tests: ["test/off.c", "test/emit.c", "test/parse.c", "test/degrade.c", "test/ui.c"],
+	settings: [
+		{ name: "MP_TERM_HAVE_VT100", label: "DEC base (cursor keys, tilde, SGR)", type: "bool", default: true },
+		{ name: "MP_TERM_HAVE_VT102", label: "VT102 (scroll region, ins/del line, scroll)", type: "bool", default: true },
+		{ name: "MP_TERM_HAVE_XTERM", label: "xterm (mouse, alt screen, paste, focus)", type: "bool", default: true },
+		{ name: "MP_TERM_HAVE_OSC", label: "OSC (title, hyperlink, clipboard)", type: "bool", default: true },
+		{ name: "MP_TERM_COLOR", label: "Max color", type: "number", default: 3, min: 0, max: 3 },
+		{ name: "MP_TERM_OSC_MAX", label: "OSC payload cap", type: "number", unit: "bytes", default: 128, min: 16, max: 1024, ram: true },
+		{ name: "MP_TERM_ESCAPE_MS", label: "Lone Escape after", type: "number", unit: "ms", default: 50, min: 0, max: 500 },
+		{ name: "MP_TERM_UI_COLS", label: "Shell width the buffers hold (4 bytes a cell)", type: "number", unit: "columns", default: 100, min: 40, max: 250, ram: true },
+		{ name: "MP_TERM_UI_ROWS", label: "Shell height the buffers hold", type: "number", unit: "rows", default: 40, min: 12, max: 80, ram: true },
+	],
+}
