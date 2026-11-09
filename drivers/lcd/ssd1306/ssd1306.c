@@ -384,6 +384,7 @@ static void *_ssd1306_device_face(void *self) {
 
 	lcd->pui.width = MP_DRV_SSD1306_WIDTH;
 	lcd->pui.height = MP_DRV_SSD1306_HEIGHT;
+	lcd->pui.bpp = 1;
 	lcd->pui.write = _ssd1306_pui_write;
 	lcd->pui.flush = _ssd1306_pui_flush;
 	lcd->pui.power = _ssd1306_pui_power;
