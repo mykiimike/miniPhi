@@ -26,32 +26,26 @@
 		#ifndef MP_SERIAL_AWAKE
 			#define MP_SERIAL_AWAKE 30000
 		#endif
+		#ifndef MP_SERIAL_PRINTK_MAX
+			#define MP_SERIAL_PRINTK_MAX 128
+		#endif
 
 		typedef struct mp_serial_s mp_serial_t;
-		typedef struct mp_serial_interface_s mp_serial_interface_t;
 
-		typedef void (*mp_serial_on_t)(mp_serial_t *serial);
-
-		typedef void (*mp_serial_onTx_t)(mp_serial_t *serial, unsigned char chr);
-		typedef unsigned char (*mp_serial_onRx_t)(mp_serial_t *serial);
-		typedef void (*mp_serial_onInt_t)(mp_serial_t *serial);
-
-
-		struct mp_serial_interface_s {
-			mp_serial_onTx_t tx;
-			mp_serial_onRx_t rx;
-			mp_serial_onInt_t intRxDisable;
-			mp_serial_onInt_t intRxEnable;
-			void *user;
-
-		};
+		/**
+		 * Who has the line. Printk and a terminal cannot share it.
+		 * mp_serial_write() is the byte pipe either way.
+		 */
+		typedef enum {
+			MP_SERIAL_NONE = 0,
+			MP_SERIAL_PRINTK,
+			MP_SERIAL_TERMINAL,
+		} mp_serial_use_t;
 
 		struct mp_serial_s {
 			mp_kernel_t *kernel;
 
 			mp_uart_t *uart;
-
-			mp_serial_interface_t iface;
 
 			mp_circular_t txCir;
 			mp_circular_t rxCir;
@@ -61,6 +55,7 @@
 			mp_bool_t owned;
 
 			char opened;
+			mp_serial_use_t use;
 
 			/* woken on each byte received, NULL for none */
 			mp_task_t *reader;
@@ -73,6 +68,26 @@
 		mp_ret_t mp_serial_open(mp_kernel_t *kernel, mp_serial_t *serial, mp_options_t *options, char *who);
 		mp_ret_t mp_serial_fini(mp_serial_t *serial);
 
+		/**
+		 * Wire mp_printk() to this serial. Each call is one line, at most
+		 * MP_SERIAL_PRINTK_MAX bytes, then CR LF. FALSE when the serial is
+		 * not open or a terminal has the line. Another serial that was
+		 * the sink is given back.
+		 */
+		mp_ret_t mp_serial_printk(mp_serial_t *serial);
+
+		/**
+		 * A terminal takes the line. Printk is unwired if it was this
+		 * serial. Further mp_serial_printk() fails until mp_serial_give().
+		 * FALSE when the serial is not open.
+		 */
+		mp_ret_t mp_serial_terminal(mp_serial_t *serial);
+
+		/**
+		 * Give the line back. The UART stays open. Printk is unwired
+		 * if it was this serial.
+		 */
+		void mp_serial_give(mp_serial_t *serial);
 
 		void mp_serial_write(mp_serial_t *serial, unsigned char *input, int size);
 	#endif

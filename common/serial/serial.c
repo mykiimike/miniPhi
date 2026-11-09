@@ -32,11 +32,33 @@ static void mp_serial_UART_rxIntEnable(mp_circular_t *cir);
 static void mp_serial_UART_txIntDisable(mp_circular_t *cir);
 static void mp_serial_UART_txIntEnable(mp_circular_t *cir);
 
+static void _mp_serial_printk(void *user, char *fmt, ...);
+
+static mp_serial_t *_mp_serial_printk_line;
+
+static int _mp_serial_is_open(mp_serial_t *serial) {
+	return(serial && serial->opened == _MP_SERIAL_IS_OPEN);
+}
+
+static int _mp_serial_holds_printk(mp_serial_t *serial) {
+	return(mp_printk_call == _mp_serial_printk && mp_printk_user == serial);
+}
+
+static void _mp_serial_unprintk(mp_serial_t *serial) {
+	if(_mp_serial_holds_printk(serial))
+		mp_printk_unset();
+	if(_mp_serial_printk_line == serial)
+		_mp_serial_printk_line = NULL;
+	if(serial->use == MP_SERIAL_PRINTK)
+		serial->use = MP_SERIAL_NONE;
+}
+
 static mp_ret_t _mp_serial_attach(mp_kernel_t *kernel, mp_serial_t *serial, mp_uart_t *uart, char *who) {
 	mp_ret_t ret;
 
 	serial->kernel = kernel;
 	serial->uart = uart;
+	serial->use = MP_SERIAL_NONE;
 
 	/* Circular context for TX */
 	ret = mp_circular_init(
@@ -99,8 +121,10 @@ mp_ret_t mp_serial_open(mp_kernel_t *kernel, mp_serial_t *serial, mp_options_t *
 mp_ret_t mp_serial_fini(mp_serial_t *serial) {
 	mp_uart_t *uart;
 
-	if(serial->opened != _MP_SERIAL_IS_OPEN)
+	if(!_mp_serial_is_open(serial))
 		return(FALSE);
+
+	mp_serial_give(serial);
 
 	serial->uart->onRead = NULL;
 	serial->uart->onWrite = NULL;
@@ -121,14 +145,69 @@ mp_ret_t mp_serial_fini(mp_serial_t *serial) {
 	return(TRUE);
 }
 
+mp_ret_t mp_serial_printk(mp_serial_t *serial) {
+	if(!_mp_serial_is_open(serial))
+		return(FALSE);
+	if(serial->use == MP_SERIAL_TERMINAL)
+		return(FALSE);
+	if(_mp_serial_printk_line && _mp_serial_printk_line != serial)
+		_mp_serial_unprintk(_mp_serial_printk_line);
+	mp_printk_set(_mp_serial_printk, serial);
+	_mp_serial_printk_line = serial;
+	serial->use = MP_SERIAL_PRINTK;
+	return(TRUE);
+}
+
+mp_ret_t mp_serial_terminal(mp_serial_t *serial) {
+	if(!_mp_serial_is_open(serial))
+		return(FALSE);
+	_mp_serial_unprintk(serial);
+	serial->use = MP_SERIAL_TERMINAL;
+	return(TRUE);
+}
+
+void mp_serial_give(mp_serial_t *serial) {
+	if(!_mp_serial_is_open(serial))
+		return;
+	_mp_serial_unprintk(serial);
+	serial->use = MP_SERIAL_NONE;
+}
 
 void mp_serial_write(mp_serial_t *serial, unsigned char *input, int size) {
 
-	if(serial->opened != _MP_SERIAL_IS_OPEN)
+	if(!_mp_serial_is_open(serial))
 		return;
 
+#if defined(ESP32C3) || defined(ESP32C6) || defined(ESP32S3)
+	mp_uart_write_sync(input, size);
+#else
 	mp_circular_write(&serial->txCir, input, size);
+#endif
 
+}
+
+static void _mp_serial_printk(void *user, char *fmt, ...) {
+	mp_serial_t *serial = user;
+	unsigned char buffer[MP_SERIAL_PRINTK_MAX];
+	va_list args;
+	int size;
+
+	if(!_mp_serial_is_open(serial) || serial->use != MP_SERIAL_PRINTK)
+		return;
+
+	va_start(args, fmt);
+	size = vsnprintf((char *)buffer, sizeof(buffer) - 2, fmt, args);
+	va_end(args);
+
+	if(size < 0)
+		return;
+	if(size > (int)sizeof(buffer) - 3)
+		size = sizeof(buffer) - 3;
+
+	buffer[size++] = '\n';
+	buffer[size++] = '\r';
+
+	mp_serial_write(serial, buffer, size);
 }
 
 /* UART predefined interfacing */
@@ -189,4 +268,3 @@ static void mp_serial_UART_txIntEnable(mp_circular_t *cir) {
 }
 
 #endif
-
