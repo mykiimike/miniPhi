@@ -4,7 +4,7 @@ export const phi = {
 	vendor: "Seeed Studio",
 	label: "Seeed Studio XIAO ESP32-C6",
 	tested: true,
-	description: "ESP32-C6 on the XIAO module. The yellow user LED lights when the pin is low. GPIO3 and GPIO14 select the antenna and stay untouched, so the ceramic antenna remains selected. The image clears the USB reset strap so opening the console does not reboot the module. A later esptool run needs BOOT held while the port opens. The board carries the radio accelerator and the LED; the crypto is whatever the app links, so sysinfo links what the chip accelerates (SHA-1, SHA-256, AES, XTS, HMAC, the HSM feeding HMAC-DRBG) plus ChaCha20, Poly1305, the modes and HKDF, and leaves SHAKE, the signatures and the KEMs out.",
+	description: "ESP32-C6 on the XIAO module. The yellow user LED lights when the pin is low. GPIO3 and GPIO14 select the antenna and stay untouched, so the ceramic antenna remains selected. The image clears the USB reset strap so opening the console does not reboot the module. A later esptool run needs BOOT held while the port opens. The board carries the radio accelerator and the LED. Crypto is whatever a module requires; sysinfo does not pull any.",
 	specs: {
 		crystal: "40 MHz",
 		flash: "4 MB",
@@ -14,10 +14,12 @@ export const phi = {
 	series: "c6",
 	mcu: "esp32c6",
 	toolchain: "gcc",
+	sources: ["button.c", "dial.c"],
+	headers: ["dial.h"],
 	requires: ["esp-usb-jtag"],
 	defines: ["MP_ARCH_RF_TEST"],
 	modules: [
-		"SERIAL", "DEVICE",
+		"SERIAL", "DEVICE", "BUTTON",
 	],
 	drivers: ["LED"],
 	settings: {
@@ -26,6 +28,8 @@ export const phi = {
 		MP_TASK_MAX: 16,
 		STACK_SIZE: 8192,
 		HEAP_SIZE: 8192,
+		MP_TERM_UI_COLS: 200,
+		MP_TERM_UI_ROWS: 60,
 	},
 	reserved: [
 		{ pin: "pa9", who: "BOOT" },

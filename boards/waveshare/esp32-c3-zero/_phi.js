@@ -26,6 +26,8 @@ export const phi = {
 		MP_TASK_MAX: 16,
 		STACK_SIZE: 8192,
 		HEAP_SIZE: 8192,
+		MP_TERM_UI_COLS: 200,
+		MP_TERM_UI_ROWS: 60,
 	},
 	reserved: [
 		{ pin: "pa9", who: "BOOT" },
