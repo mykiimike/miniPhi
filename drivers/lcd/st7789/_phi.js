@@ -1,0 +1,28 @@
+export const phi = {
+	kind: "driver",
+	group: ["lcd"],
+	name: "ST7789",
+	vendor: "Sitronix",
+	label: "ST7789 TFT",
+	tested: false,
+	description: "ST7789V3 172x320 panel on SPI, 16-bit RGB565. The controller RAM is 240x320 and the glass is centered, so the short axis starts 34 pixels in. The driver opens a shared mp_spi_bus_t on SCK and MOSI. DC, reset, chip select and the backlight are GPIO. Chip select is active low. The backlight is active high. Opening the device paints a red frame. Landscape is 320x172. The panel has no serial, so the serial is the MCU id.",
+	specs: {
+		bus: "SPI",
+		size: "172x320",
+		depth: "16 bit RGB565",
+	},
+	define: "SUPPORT_DRV_LCD_ST7789",
+	sources: ["st7789.c"],
+	headers: ["st7789.h"],
+	requires: ["DEVICE", "SPI"],
+	device: { struct: "mp_drv_st7789_t", ops: "mp_drv_st7789_device" },
+	options: [
+		{ name: "sck", label: "SCK", type: "pin", required: true },
+		{ name: "mosi", label: "MOSI", type: "pin", required: true },
+		{ name: "dc", label: "DC", type: "pin", required: true },
+		{ name: "cs", label: "Chip select (active low)", type: "pin" },
+		{ name: "reset", label: "Reset (active low)", type: "pin" },
+		{ name: "backlight", label: "Backlight (active high)", type: "pin" },
+		{ name: "orientation", label: "Orientation", type: "enum", values: ["landscape", "portrait", "landscape-flipped", "portrait-flipped"], default: "landscape" },
+	],
+}
