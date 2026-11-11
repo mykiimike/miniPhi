@@ -119,7 +119,9 @@ static MP_TASK(_mp_pui_about_tick) {
 		task->signal = MP_TASK_SIG_DEAD;
 		return;
 	}
-	if(!ui->task) {
+	/* the frame on screen has to finish before the next one starts,
+	 * otherwise the rows already sent keep the old color */
+	if(!ui->task || ui->pending) {
 		mp_task_delay(task, 1);
 		return;
 	}
@@ -133,7 +135,9 @@ static MP_TASK(_mp_pui_about_tick) {
 	page->paint = NULL;
 	_mp_pui_about_splash_done = 1;
 	_mp_pui_about_tick_task = NULL;
-	mp_pui_refresh(ui);
+	/* the tour's 5 s starts once the logo has settled, not during the frames */
+	ui->rotateAt = mp_clock_ticks();
+	mp_pui_refresh_rows(ui, _mp_pui_about_logoY, _mp_pui_about_logoY + _mp_pui_about_logoH - 1);
 	task->signal = MP_TASK_SIG_DEAD;
 }
 

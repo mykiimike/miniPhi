@@ -266,6 +266,8 @@ static void _mp_pui_open(mp_pui_t *ui, mp_pui_page_t *page) {
 	ui->dirty1 = ui->display ? ui->display->height - 1 : 0;
 	ui->row = 0;
 	ui->pending = 1;
+	/* the dwell starts once this paint has landed, not while it is in flight */
+	ui->rotateAt = 0;
 	if(ui->task)
 		mp_task_wake(ui->task);
 }
@@ -503,7 +505,8 @@ int mp_pui_init(mp_pui_t *ui, mp_pui_display_t *display, unsigned char *buffer, 
 	ui->buffer = buffer;
 	ui->bufferSize = bufferSize;
 	mp_list_init(&ui->pages);
-	ui->rotateAt = mp_clock_ticks();
+	/* 0 until the opening paint lands: the 5 s starts then, not at init */
+	ui->rotateAt = 0;
 	return(1);
 }
 
@@ -763,10 +766,18 @@ unsigned long mp_pui_idle(mp_pui_t *ui) {
 	period = (hz * (unsigned long)MP_PUI_ROTATE_MS) / 1000UL;
 	if(period == 0)
 		period = 1;
+	/* a fresh page: the opening paint cleared pending, so the 5 s starts now */
+	if(!ui->rotateAt) {
+		ui->rotateAt = now;
+		return(period);
+	}
 	elapsed = now - ui->rotateAt;
 	if(elapsed >= period) {
 		_mp_pui_rotate(ui);
-		ui->rotateAt = mp_clock_ticks();
+		/* open cleared the stamp so the new page's 5 s starts after its paint.
+		 * The same page refreshing keeps the cadence from this instant. */
+		if(ui->rotateAt)
+			ui->rotateAt = now;
 		return(1);
 	}
 	return(period - elapsed);

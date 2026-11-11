@@ -228,6 +228,7 @@ struct mp_pui_page_s {
 		int dirty1;
 		/** set by the first mp_pui_key(); the tour pauses until holdUntil */
 		int keyed;
+		/** ticks when this page became idle; 0 until its opening paint lands */
 		unsigned long rotateAt;
 		/** ticks before which the tour stays on the current page after a key */
 		unsigned long holdUntil;

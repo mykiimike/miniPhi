@@ -22,7 +22,11 @@
 
 #ifdef SUPPORT_COMMON_PUI
 
-/* one band per wake, so a full glass never holds the kernel */
+/* one band per wake, so a full glass never holds the kernel.
+ * The backlight stays off until the first frame has landed, so the
+ * opening paint is not a visible sweep. */
+static int _mp_pui_shown;
+
 static MP_TASK(_mp_pui_task) {
 	mp_pui_t *ui = task->user;
 	unsigned long wait;
@@ -44,6 +48,10 @@ static MP_TASK(_mp_pui_task) {
 			mp_task_delay(task, 1);
 			return;
 		}
+		if(!_mp_pui_shown && ui->display && ui->display->backlight) {
+			ui->display->backlight(ui->display, 100);
+			_mp_pui_shown = 1;
+		}
 		mp_task_signal(task, MP_TASK_SIG_OK);
 		return;
 	}
@@ -64,8 +72,6 @@ int mp_pui_attach(mp_kernel_t *kernel, mp_pui_t *ui, char *who) {
 	if(ui->task)
 		return(1);
 	ui->task = mp_task_create(&kernel->tasks, who, _mp_pui_task, ui, 1);
-	if(!ui->rotateAt)
-		ui->rotateAt = mp_clock_ticks();
 	mp_printk("PUI ready, %s", who && who[0] ? who : "pui");
 	return(ui->task != NULL);
 }
