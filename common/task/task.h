@@ -60,10 +60,10 @@
 	#endif
 
 	/* Same-priority sharing needs a line under the tick and a stack switch.
-	 * The C3, the C6 and the STM32 have one. Priority 0 stays on the caller
+	 * The C3, the C6, the STM32 and the RP2 have one. Priority 0 stays on the caller
 	 * stack. A task above that gets its own stack and yields every tick. */
 	#ifndef MP_TASK_SHARE
-		#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT && (defined(ESP32C6) || defined(ESP32C3) || defined(__STM32__))
+		#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT && (defined(ESP32C6) || defined(ESP32C3) || defined(__STM32__) || defined(__RP2__))
 			#define MP_TASK_SHARE 1
 		#else
 			#define MP_TASK_SHARE 0

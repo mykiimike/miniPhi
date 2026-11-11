@@ -354,7 +354,7 @@ static unsigned _mp_task_share_quantum(unsigned char priority) {
 }
 
 static int _mp_task_from_isr(void) {
-	#if defined(__STM32__)
+	#if defined(__STM32__) || defined(__RP2__)
 		return((SCB->ICSR & SCB_ICSR_VECTACTIVE) != 0);
 	#else
 		return(_mp_task_isr != 0 || _mp_task_share_in_irq != 0);
