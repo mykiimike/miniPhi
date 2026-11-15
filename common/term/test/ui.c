@@ -174,11 +174,17 @@ static void test_splash(void) {
 	expect(mp_term_ui_waiting(&ui) == 40, "frame step");
 	mp_test_clock(10000);
 	mp_term_ui_flush(&ui);
-	for(r = 0; r < ui.rows && top < 0; r++)
-		if(mp_term_ui_at(&ui, r, 8, &ch, NULL, NULL) && ch == 'l')
-			top = r;
+	for(r = 0; r < ui.rows && top < 0; r++) {
+		int c;
+
+		for(c = 0; c < ui.cols / 2; c++)
+			if(mp_term_ui_at(&ui, r, c, &ch, NULL, NULL) && ch == 'l') {
+				top = r;
+				break;
+			}
+	}
 	expect(top > 0, "card centered left");
-	expect(row_at(top, "xiao") > 8, "board on the frame");
+	expect(row_at(top, "xiao") > 0, "board on the frame");
 	for(r = 0; r < ui.rows && go < 0; r++)
 		if(row_at(r, "press any key") == (100 - 13) / 2)
 			go = r;
@@ -350,6 +356,16 @@ int main(void) {
 	resize(30, 80);
 	expect(ui.rows == 30 && ui.cols == 80, "resize");
 	expect(term.rows == 30 && term.cols == 80, "real size kept");
+
+	key(MP_TERM_KEY_ESCAPE);
+	key(MP_TERM_KEY_END);
+	expect(row_has(15, "Exit"), "menu exit");
+	key(MP_TERM_KEY_ENTER);
+	expect(ui.mode == MP_TERM_UI_MODE_SPLASH, "exit returns to the splash");
+	expect(!row_has(11, "Menu") && !row_has(15, "Exit"), "menu leaves with the splash");
+	mp_test_clock(mp_clock_ticks() + 1000);
+	key('x');
+	expect(ui.mode == MP_TERM_UI_MODE_PAGE, "key leaves the splash");
 
 	if(failed) {
 		fprintf(stderr, "%d failed\n", failed);

@@ -107,6 +107,11 @@ static int _ui_count(const mp_term_ui_t *ui, int parent) {
 	return(n);
 }
 
+/* the root panel ends with Exit: it is not a page, it returns to the splash */
+static int _ui_menu_count(const mp_term_ui_t *ui, int parent) {
+	return(_ui_count(ui, parent) + (parent < 0 ? 1 : 0));
+}
+
 static int _ui_nth(const mp_term_ui_t *ui, int parent, int index) {
 	int c = parent < 0 ? ui->root : ui->node[parent].child;
 
@@ -733,7 +738,7 @@ static void _ui_layout(mp_term_ui_t *ui) {
 	if(ui->mode != MP_TERM_UI_MODE_MENU)
 		return;
 	parent = _ui_menu_parent(ui);
-	count = _ui_count(ui, parent);
+	count = _ui_menu_count(ui, parent);
 	if(count < 1)
 		return;
 	if(parent < 0)
@@ -743,7 +748,7 @@ static void _ui_layout(mp_term_ui_t *ui) {
 	width = (int)strlen(title) + 6;
 	if(width < 28)
 		width = 28;
-	for(i = 0; i < count; i++) {
+	for(i = 0; i < _ui_count(ui, parent); i++) {
 		int child = _ui_nth(ui, parent, i);
 		int w = (int)strlen(ui->node[child].name) + 7;
 
@@ -829,11 +834,24 @@ static unsigned short _ui_box_cell(const mp_term_ui_t *ui, const mp_term_ui_box_
 		return(_ui_cell(' ', 7, 0, 0));
 	{
 		int index = box->scroll + relR - 2;
-		int count = _ui_count(ui, box->node);
+		int count = _ui_menu_count(ui, box->node);
 		int selected, child, at;
 
 		if(index < 0 || index >= count)
 			return(_ui_cell(' ', 7, 0, 0));
+		if(box->node < 0 && index + 1 == count) {
+			static const char exitName[] = "Exit";
+
+			selected = index == box->cursor;
+			if(relC == 1)
+				return(_ui_cell(selected ? '>' : ' ', selected ? 0 : 7,
+					selected ? 6 : 0, selected ? MP_TERM_UI_BOLD : 0));
+			at = relC - 3;
+			if(at < 0 || at >= (int)sizeof(exitName) - 1)
+				return(_ui_cell(' ', selected ? 0 : 7, selected ? 6 : 0, 0));
+			return(_ui_cell((unsigned char)exitName[at],
+				selected ? 0 : 7, selected ? 6 : 0, 0));
+		}
 		child = _ui_nth(ui, box->node, index);
 		selected = index == box->cursor;
 		if(ui->node[child].child >= 0 && relC == box->width - 2)
@@ -897,7 +915,7 @@ static void _ui_validate(mp_term_ui_t *ui) {
 	if(ui->mode == MP_TERM_UI_MODE_MENU && ui->menuDepth < 1)
 		ui->mode = MP_TERM_UI_MODE_PAGE;
 	for(i = 0; i < ui->menuDepth; i++) {
-		int count = _ui_count(ui, ui->menuParent[i]);
+		int count = _ui_menu_count(ui, ui->menuParent[i]);
 
 		if(ui->menuCursor[i] < 0)
 			ui->menuCursor[i] = 0;
@@ -1170,6 +1188,20 @@ static void _ui_menu_back(mp_term_ui_t *ui) {
 		_ui_close_menu(ui);
 }
 
+static void _ui_reset_glass(mp_term_ui_t *ui);
+
+/* the lines welcome() stored, played again */
+static void _ui_to_splash(mp_term_ui_t *ui) {
+	ui->menuDepth = 0;
+	ui->depth = 0;
+	ui->mode = MP_TERM_UI_MODE_SPLASH;
+	ui->splashAt = mp_clock_ticks();
+	ui->splashFrame = 0;
+	ui->splashBeat = ui->splashAt;
+	ui->glass = NO;
+	_ui_reset_glass(ui);
+}
+
 static void _ui_menu_key(mp_term_ui_t *ui, int key) {
 	int parent, count, cursor, level, child;
 
@@ -1179,7 +1211,7 @@ static void _ui_menu_key(mp_term_ui_t *ui, int key) {
 	}
 	level = ui->menuDepth - 1;
 	parent = ui->menuParent[level];
-	count = _ui_count(ui, parent);
+	count = _ui_menu_count(ui, parent);
 	if(count < 1) {
 		_ui_menu_back(ui);
 		return;
@@ -1198,8 +1230,12 @@ static void _ui_menu_key(mp_term_ui_t *ui, int key) {
 	else if(key == MP_TERM_KEY_END)
 		cursor = count - 1;
 	else if(key == MP_TERM_KEY_ENTER || key == MP_TERM_KEY_RIGHT) {
-		child = _ui_nth(ui, parent, cursor);
 		ui->menuCursor[level] = cursor;
+		if(parent < 0 && cursor == _ui_count(ui, parent)) {
+			_ui_to_splash(ui);
+			return;
+		}
+		child = _ui_nth(ui, parent, cursor);
 		if(child >= 0 && ui->node[child].child >= 0) {
 			if(key == MP_TERM_KEY_RIGHT || ui->node[child].page == NULL) {
 				if(ui->menuDepth < MP_TERM_UI_DEPTH) {
@@ -1261,7 +1297,7 @@ static void _ui_alt(mp_term_ui_t *ui, int ch) {
 
 #define _UI_FRAME_MS 40
 #define _UI_WAIT_MS  1500
-#define _UI_SPLASH_W 84
+#define _UI_SPLASH_W 120
 #define _UI_LABEL_W  11
 #define _UI_OPEN     6
 

@@ -4,7 +4,7 @@
 	#define _HAVE_MP_TERM_UI_H
 
 	#ifndef MP_TERM_UI_COLS
-		#define MP_TERM_UI_COLS 100
+		#define MP_TERM_UI_COLS 160
 	#endif
 	#ifndef MP_TERM_UI_ROWS
 		#define MP_TERM_UI_ROWS 40
