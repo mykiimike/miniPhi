@@ -23,9 +23,15 @@ struct mp_options_s {
 void test_printk(const char *fmt, ...);
 #define mp_printk(a, args...) test_printk(a, ##args)
 
-/* host stand-ins for the IRQ-safe section and the clock used by measure.c / input.c */
+/* Host stand-ins for the IRQ mask. MP_INTERRUPT_SAFE stays empty: these
+ * tests do not run against interrupts. The single-core kernel lock calls
+ * the three functions. */
 #define MP_INTERRUPT_SAFE_BEGIN
 #define MP_INTERRUPT_SAFE_END
+
+static inline void mp_interrupt_disable(void) { }
+static inline mp_bool_t mp_interrupt_state(void) { return(TRUE); }
+static inline void mp_interrupt_restore(mp_bool_t state) { (void)state; }
 
 #ifdef MP_HOST_TASK
 /* task tests step the clock themselves; device tests keep the increment below */
