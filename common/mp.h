@@ -301,6 +301,18 @@
 #ifdef SUPPORT_COMMON_SPI
 	#include <spi/spi.h>
 #endif
+#ifdef SUPPORT_COMMON_FS
+	#include <fs/fs.h>
+#endif
+#ifdef SUPPORT_COMMON_FS_BLOCK_SD
+	#include <sd/sd.h>
+#endif
+#ifdef SUPPORT_COMMON_FS_PART
+	#include <part/part.h>
+#endif
+#ifdef SUPPORT_COMMON_FS_FORMAT_FAT
+	#include <fat/fat.h>
+#endif
 
 	#ifdef SUPPORT_DRV_LED
 		#include <led/led.h>
@@ -319,6 +331,9 @@
 	#endif
 	#ifdef SUPPORT_DRV_LCD_ST7735
 		#include <st7735/st7735.h>
+	#endif
+	#ifdef SUPPORT_DRV_LCD_ST7789
+		#include <st7789/st7789.h>
 	#endif
 	#ifdef SUPPORT_DRV_NRF8001
 		#include <nrf8001/nRF8001.h>
@@ -359,6 +374,12 @@
 	#ifdef SUPPORT_DRV_MCP73833
 		#include <mcp73833/mcp73833.h>
 	#endif
+	#ifdef SUPPORT_DRV_TOUCH_XPT2046
+		#include <xpt2046/xpt2046.h>
+	#endif
+	#ifdef SUPPORT_DRV_FS_SD
+		#include <fs-sd/sd.h>
+	#endif
 
 	#define MP_KERNEL_VERSION "2.0.0"
 
@@ -387,7 +408,7 @@
 #endif
 
 #ifdef SUPPORT_COMMON_USB
-		/** PHY ports, see mp_usb_at() */
+		/** PHY ports */
 		mp_list_t usbs;
 #endif
 

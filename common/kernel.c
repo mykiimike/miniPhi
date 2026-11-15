@@ -176,14 +176,39 @@ void mp_kernel_state(mp_kernel_t *kernel, char number) {
 
 void mp_kernel_loop(mp_kernel_t *kernel) {
 	mp_task_tick_t taskRet;
+#if MP_CPUS > 1
+	mp_bool_t started = NO;
+	mp_bool_t change;
+#endif
+
 	while(1) {
 		/* execute tasks */
 		taskRet = mp_task_tick(&kernel->tasks);
 		if(taskRet == MP_TASK_WORKING) {
+#if MP_CPUS > 1
+			/* A state change brings drivers and screens up or down: no
+			 * task runs alongside it, as on one core. */
+			change = kernel->states.currentState != kernel->states.changeState ? YES : NO;
+			if(change == YES)
+				mp_task_cpus_hold();
+			mp_state_tick(&kernel->states);
+			if(change == YES)
+				mp_task_cpus_release();
+
+			/* the other cores join once the boot has handed over */
+			if(started == NO && kernel->states.currentState != MP_KERNEL_BOOT &&
+					kernel->states.currentState == kernel->states.changeState) {
+				started = YES;
+				if(mp_task_cpus_start(&kernel->tasks) > 1)
+					mp_printk("SMP: %d cores", mp_task_cpus());
+				else
+					mp_printk("SMP: core 1 did not answer, running on core 0");
+			}
+#else
 			/* execute machine state */
 			mp_state_tick(&kernel->states);
+#endif
 		}
-
 		/* pick the level, then sleep until a task is due or an interrupt wakes one */
 		mp_power_schedule(kernel);
 	}

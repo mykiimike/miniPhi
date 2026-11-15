@@ -24,6 +24,24 @@ static void _dummy_printk(void *user, char *fmt, ...) { }
 
 mp_printk_call_t mp_printk_call;
 void *mp_printk_user;
+#if MP_CPUS > 1
+static mp_cpu_mutex_t _mp_printk_mutex = MP_CPU_MUTEX_INIT;
+
+/* Under the kernel lock, waiting here could hold the core that owns the
+ * line and wants that lock: one try, then print unlocked. */
+int mp_printk_enter(void) {
+	mp_task_lock_t key;
+
+	if(mp_task_cpu_locked())
+		return(mp_task_mutex_try(&_mp_printk_mutex, &key) ? (int)key : -1);
+	return((int)mp_task_mutex_lock(&_mp_printk_mutex));
+}
+
+void mp_printk_leave(int key) {
+	if(key >= 0)
+		mp_task_mutex_unlock(&_mp_printk_mutex, (mp_task_lock_t)key);
+}
+#endif
 
 /**
 @defgroup mpCommonPrintk printk() feature

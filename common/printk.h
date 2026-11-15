@@ -40,7 +40,19 @@
 	 * @param[in] a Format string
 	 * @param[in] args Format argument
 	 */
-	#define mp_printk(a, args...) mp_printk_call(mp_printk_user, a, ##args)
+	#if MP_CPUS > 1
+		/* one line at a time across cores: the sink keeps its own state */
+		#define mp_printk(a, args...) do { \
+			int _mp_printk_key = mp_printk_enter(); \
+			mp_printk_call(mp_printk_user, a, ##args); \
+			mp_printk_leave(_mp_printk_key); \
+		} while(0)
+		/* the key to hand back, negative when the line is not held */
+		int mp_printk_enter(void);
+		void mp_printk_leave(int key);
+	#else
+		#define mp_printk(a, args...) mp_printk_call(mp_printk_user, a, ##args)
+	#endif
 
 	typedef void (*mp_printk_call_t)(void *user, char *fmt, ...);
 
