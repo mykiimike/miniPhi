@@ -173,17 +173,37 @@ void mp_serial_give(mp_serial_t *serial) {
 	serial->use = MP_SERIAL_NONE;
 }
 
-void mp_serial_write(mp_serial_t *serial, unsigned char *input, int size) {
+mp_ret_t mp_serial_write(mp_serial_t *serial, unsigned char *input, int size) {
 
 	if(!_mp_serial_is_open(serial))
-		return;
+		return(TRUE);
 
-#if defined(ESP32C3) || defined(ESP32C6) || defined(ESP32S3)
-	mp_uart_write_sync(input, size);
-#else
-	mp_circular_write(&serial->txCir, input, size);
-#endif
+	if(mp_uart_sync(serial->uart) == YES) {
+		mp_uart_write_sync(input, size);
+		return(TRUE);
+	}
+	return(mp_circular_write(&serial->txCir, input, size));
 
+}
+
+int mp_serial_pending(mp_serial_t *serial) {
+	if(!_mp_serial_is_open(serial) || mp_uart_sync(serial->uart) == YES)
+		return(0);
+	return(serial->txCir.totalSize);
+}
+
+mp_bool_t mp_serial_sync(mp_serial_t *serial) {
+	return(mp_uart_sync(serial ? serial->uart : NULL));
+}
+
+mp_bool_t mp_serial_delivered(mp_serial_t *serial) {
+	(void)serial;
+	return(mp_uart_tx_ok());
+}
+
+mp_bool_t mp_serial_host_back(mp_serial_t *serial) {
+	(void)serial;
+	return(mp_uart_host_back());
 }
 
 static void _mp_serial_printk(void *user, char *fmt, ...) {
@@ -232,7 +252,27 @@ static void mp_serial_UART_txInt(mp_uart_t *uart) {
 	mp_serial_t *serial = uart->user;
 	unsigned char toSend;
 	mp_bool_t done;
+	int room;
 
+	/* one packet per call: a byte callback misses the host's next poll.
+	 * 0 is a byte port. A bulk port with no room returns negative and
+	 * keeps the line, so the next completion can take the packet. */
+	room = mp_uart_tx_room(uart);
+	if(room < 0)
+		return;
+	if(room > 0) {
+		unsigned char buf[64];
+		int n;
+
+		if(room > (int)sizeof(buf))
+			room = (int)sizeof(buf);
+		n = mp_circular_txTake(&serial->txCir, buf, room, &done);
+		if(n)
+			mp_uart_write(uart, buf, n);
+		if(done == YES)
+			mp_circular_txStop(&serial->txCir);
+		return;
+	}
 	/* run circular interrupt service */
 	toSend = mp_circular_txInterrupt(&serial->txCir, &done);
 	if(!done)

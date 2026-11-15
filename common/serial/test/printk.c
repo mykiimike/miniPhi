@@ -34,6 +34,7 @@ struct mp_circular_s {
 	void *user;
 	mp_circular_int_t enable;
 	mp_circular_int_t disable;
+	int totalSize;
 };
 
 typedef void (*mp_printk_call_t)(void *user, char *fmt, ...);
@@ -139,6 +140,47 @@ void mp_uart_enable_tx_int(mp_uart_t *uart) { (void)uart; }
 void mp_uart_disable_tx_int(mp_uart_t *uart) { (void)uart; }
 void mp_uart_enable_rx_int(mp_uart_t *uart) { (void)uart; }
 void mp_uart_disable_rx_int(mp_uart_t *uart) { (void)uart; }
+
+mp_bool_t mp_uart_sync(mp_uart_t *uart) {
+	(void)uart;
+	return(NO);
+}
+
+void mp_uart_write_sync(const unsigned char *data, int size) {
+	(void)data;
+	(void)size;
+}
+
+mp_bool_t mp_uart_tx_ok(void) {
+	return(YES);
+}
+
+mp_bool_t mp_uart_host_back(void) {
+	return(NO);
+}
+
+int mp_uart_tx_room(mp_uart_t *uart) {
+	(void)uart;
+	return(0);
+}
+
+void mp_uart_write(mp_uart_t *uart, const unsigned char *data, int n) {
+	(void)uart;
+	(void)data;
+	(void)n;
+}
+
+int mp_circular_txTake(mp_circular_t *cir, unsigned char *buf, int max, mp_bool_t *done) {
+	(void)cir;
+	(void)buf;
+	(void)max;
+	*done = YES;
+	return(0);
+}
+
+void mp_circular_txStop(mp_circular_t *cir) {
+	(void)cir;
+}
 
 void mp_power_hold_for(mp_kernel_t *kernel, mp_power_hold_t *hold, mp_power_level_t floor, unsigned long ms, char *who) {
 	(void)kernel;

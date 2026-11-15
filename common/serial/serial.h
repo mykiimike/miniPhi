@@ -89,7 +89,27 @@
 		 */
 		void mp_serial_give(mp_serial_t *serial);
 
-		void mp_serial_write(mp_serial_t *serial, unsigned char *input, int size);
+		/**
+		 * Queue bytes for the line. FALSE when the queue had no room for all
+		 * of them: nothing was queued, the caller may try again once it drains.
+		 * A closed serial drops them and returns TRUE.
+		 */
+		mp_ret_t mp_serial_write(mp_serial_t *serial, unsigned char *input, int size);
+
+		/** Bytes written but not yet handed to the line. 0 on a line without a queue. */
+		int mp_serial_pending(mp_serial_t *serial);
+
+		/**
+		 * YES when a write returns only once the host took the bytes:
+		 * a write that comes back is proof the host is reading.
+		 */
+		mp_bool_t mp_serial_sync(mp_serial_t *serial);
+
+		/** NO when the last write of a sync line did not reach the host. */
+		mp_bool_t mp_serial_delivered(mp_serial_t *serial);
+
+		/** YES once after the host came back on a line that stayed up. */
+		mp_bool_t mp_serial_host_back(mp_serial_t *serial);
 	#endif
 
 #endif
