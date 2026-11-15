@@ -69,13 +69,17 @@ mp_circular_start(&serial->rxCir);
 @{
 */
 
+/* Masking the line only keeps out an interrupt of this core. The kernel
+ * lock waits for a handler already running on another core. */
 static void _mp_circular_lock(mp_circular_t *cir) {
+	mp_task_cpu_lock();
 	cir->disable(cir);
 }
 
 static void _mp_circular_unlock(mp_circular_t *cir) {
 	if(cir->enabled == YES)
 		cir->enable(cir);
+	mp_task_cpu_unlock();
 }
 
 /**
@@ -141,6 +145,7 @@ void mp_circular_fini(mp_circular_t *cir) {
 		mp_mem_free(cir->kernel, cur);
 		cur = next;
 	}
+	mp_task_cpu_unlock();
 }
 
 /**
@@ -324,6 +329,47 @@ unsigned char mp_circular_txInterrupt(mp_circular_t *cir, mp_bool_t *done) {
 	}
 
 	return(ret);
+}
+
+int mp_circular_txTake(mp_circular_t *cir, unsigned char *buf, int max, mp_bool_t *done) {
+	int n;
+
+	n = 0;
+	*done = NO;
+	if(max < 0)
+		max = 0;
+	while(n < max) {
+		mp_circular_buffer_t *buffer = cir->first;
+		int room;
+		int take;
+
+		if(!buffer) {
+			*done = YES;
+			cir->enabled = NO;
+			break;
+		}
+		room = (int)buffer->size - (int)buffer->pos;
+		take = max - n;
+		if(take > room)
+			take = room;
+		memcpy(buf + n, buffer->data + buffer->pos, (size_t)take);
+		buffer->pos = (unsigned short)(buffer->pos + take);
+		cir->totalSize -= take;
+		n += take;
+		if(buffer->pos >= buffer->size) {
+			cir->first = buffer->next;
+			if(!cir->first)
+				cir->last = NULL;
+			mp_mem_free(cir->kernel, buffer);
+		}
+	}
+	return(n);
+}
+
+/* After the PHY has the bytes. Stopping earlier flushes a short packet. */
+void mp_circular_txStop(mp_circular_t *cir) {
+	cir->enabled = NO;
+	cir->disable(cir);
 }
 
 /**

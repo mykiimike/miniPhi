@@ -86,6 +86,14 @@
 	mp_ret_t mp_circular_write(mp_circular_t *cir, unsigned char *data, int size);
 	void mp_circular_rxInterrupt(mp_circular_t *cir, unsigned char c);
 	unsigned char mp_circular_txInterrupt(mp_circular_t *cir, mp_bool_t *done);
+	/**
+	 * Copy up to max bytes out of the TX queue. *done is YES only when
+	 * another byte was wanted and the queue was empty: a chunk that ends
+	 * on the last byte leaves the line up. The caller sends, then
+	 * mp_circular_txStop(), so a short packet includes these bytes.
+	 */
+	int mp_circular_txTake(mp_circular_t *cir, unsigned char *buf, int max, mp_bool_t *done);
+	void mp_circular_txStop(mp_circular_t *cir);
 	int mp_circular_bufferSize();
 
 	#endif
