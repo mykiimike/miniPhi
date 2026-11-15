@@ -164,6 +164,7 @@ static void _mp_term_run_drain(mp_term_ui_t *ui) {
 		return;
 	serial = (mp_serial_t *)ui->term->line;
 	cir = &serial->rxCir;
+	mp_uart_rx_poll(serial->uart);
 	while(cir->totalSize > 0) {
 		mp_circular_buffer_t *buffer = mp_circular_read(cir);
 		int index;
@@ -222,9 +223,8 @@ static MP_TASK(_mp_term_task) {
 		return;
 	}
 	mp_term_ui_flush(ui);
-	/* minicom never reports a resize: once a second, ask where the corner is.
-	 * until the size and the UTF-8 answer have both landed, ask again soon:
-	 * a reset drops the first burst. */
+	/* Ask once a second, and sooner until both the size and the UTF-8 answer
+	 * have landed: a reset drops the first burst. */
 	if(ui->sized != YES || ui->term->utf8Known != YES)
 		second = _mp_term_run_ms(200);
 	if(mp_clock_ticks() - ui->term->probeAt >= second) {
