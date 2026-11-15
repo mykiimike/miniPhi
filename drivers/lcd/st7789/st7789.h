@@ -22,21 +22,24 @@
 	#define _HAVE_MP_DRV_LCD_ST7789_H
 
 	/**
-	 * Sitronix ST7789V3, 172x320 visible in a 240x320 GRAM, RGB565, on SPI.
-	 * The glass is centered, so the short axis has a 34 pixel offset.
-	 * Landscape (MV) is 320x172 and the offset is on the rows. Portrait is
-	 * 172x320 and the offset is on the columns. The driver opens a shared
-	 * mp_spi_bus_t on SCK and MOSI. DC, reset, chip select and backlight are
-	 * GPIO. Chip select is active low. Backlight is active high.
+	 * Sitronix ST7789, RGB565, on SPI. The controller RAM is 240x320.
+	 * glass names the panel in that RAM, and each device keeps its own.
+	 * 172x320, the default, is centered: the short axis starts 34 pixels
+	 * in, and that IPS glass needs color inversion. 240x320 fills the RAM,
+	 * BGR, inversion off. Landscape swaps the axes and moves the offset
+	 * onto the rows. The driver opens a shared mp_spi_bus_t on SCK and
+	 * MOSI. DC, reset, chip select and backlight are GPIO. Chip select is
+	 * active low. Backlight is active high.
 	 *
-	 * options: sck, mosi, dc, cs, reset, backlight, orientation
-	 * (landscape, portrait, landscape-flipped, portrait-flipped).
+	 * options: sck, mosi, dc, cs, reset, backlight, glass (172x320,
+	 * 240x320), orientation (landscape, portrait, landscape-flipped,
+	 * portrait-flipped).
 	 */
 
 	#define MP_DRV_ST7789_GRAM 240
 	#define MP_DRV_ST7789_SHORT 172
 	#define MP_DRV_ST7789_LONG 320
-	/** (240 - 172) / 2, where the glass starts in the controller RAM */
+	/** (240 - 172) / 2, where the 172-wide glass starts in the controller RAM */
 	#define MP_DRV_ST7789_OFFSET 34
 
 	#include <spi/spi.h>
@@ -55,6 +58,10 @@
 		int xoff;
 		int yoff;
 		unsigned char madctl;
+		/** 16-bit pixel format this glass accepts */
+		unsigned char colmod;
+		/** the 172-wide IPS glass is inverted; the full 240x320 glass is not */
+		unsigned char invert;
 		unsigned char on;
 		/** RP2350 GPIO numbers, driven through SIO */
 		int n_dc, n_cs, n_sck, n_mosi, n_rst, n_bl;

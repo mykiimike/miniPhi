@@ -41,6 +41,8 @@
 #define _ST7789_MADCTL_LANDSCAPE_FLIP 0xA0
 /* MY | MX */
 #define _ST7789_MADCTL_PORTRAIT_FLIP 0xC0
+/* the 240x320 glass is wired BGR */
+#define _ST7789_MADCTL_BGR 0x08
 
 /* RGB565 black: the GRAM holds noise after reset */
 #define _ST7789_BLACK 0x0000
@@ -106,14 +108,27 @@ static void _st7789_spi_up(int sck, int mosi) {
 
 	RESETS_RESET &= ~RESETS_SPI0;
 	while(spins-- && !(RESETS_RESET_DONE & RESETS_SPI0));
-	/* clk_peri follows clk_sys. This enables it; it does not move clk_sys. */
-	CLOCKS_CLK_PERI_CTRL = CLOCKS_PERI_ENABLE | (CLOCKS_PERI_AUX_SYS << 5);
+	/* clk_peri stays on PLL_USB so the governor can move clk_sys
+	 * without retiming the glass */
+	CLOCKS_CLK_PERI_CTRL = CLOCKS_PERI_ENABLE | (CLOCKS_PERI_AUX_USB << 5);
 
 	IO_BANK0_GPIO_CTRL(sck) = IO_GPIO_FUNCSEL_SPI;
 	IO_BANK0_GPIO_CTRL(mosi) = IO_GPIO_FUNCSEL_SPI;
 
 	SPI0->CR1 = 0;
-	SPI0->CPSR = 2;
+	{
+		unsigned long peri = mp_clock_peri();
+		unsigned long div;
+
+		if(peri < 2000000UL)
+			peri = 48000000UL;
+		div = (peri + 24000000UL - 1UL) / 24000000UL;
+		if(div < 2)
+			div = 2;
+		if(div & 1UL)
+			div++;
+		SPI0->CPSR = (uint32_t)div;
+	}
 	SPI0->CR0 = SPI_CR0_DSS_8;
 	SPI0->CR1 = SPI_CR1_SSE;
 	_st7789_hw = 1;
@@ -144,7 +159,9 @@ static void _st7789_tx(mp_drv_st7789_t *lcd, const unsigned char *data, int coun
 
 	if(_st7789_hw) {
 		while(got < count && spins) {
-			if(sent < count && (SPI0->SR & SPI_SR_TNF))
+			/* at most 8 bytes in flight: the RX FIFO holds 8, an overrun
+			 * drops a byte and this loop waits out its spins */
+			if(sent < count && sent - got < 8 && (SPI0->SR & SPI_SR_TNF))
 				SPI0->DR = data[sent++];
 			if(SPI0->SR & SPI_SR_RNE) {
 				(void)SPI0->DR;
@@ -198,35 +215,66 @@ static void _st7789_cmd(mp_drv_st7789_t *lcd, unsigned char command, const unsig
 	_st7789_cs(lcd, 0);
 }
 
-static void _st7789_face(char *orientation, unsigned char *madctl, int *width, int *height, int *xoff, int *yoff) {
+static void _st7789_face(char *orientation, int bgr, int columns, int rows, int offset, unsigned char *madctl, int *width, int *height, int *xoff, int *yoff) {
+	unsigned char color = bgr ? _ST7789_MADCTL_BGR : 0;
+
 	if(orientation && mp_options_cmp(orientation, "portrait") == TRUE) {
-		*madctl = _ST7789_MADCTL_PORTRAIT;
-		*width = MP_DRV_ST7789_SHORT;
-		*height = MP_DRV_ST7789_LONG;
-		*xoff = MP_DRV_ST7789_OFFSET;
+		*madctl = (unsigned char)(_ST7789_MADCTL_PORTRAIT | color);
+		*width = columns;
+		*height = rows;
+		*xoff = offset;
 		*yoff = 0;
 	}
 	else if(orientation && mp_options_cmp(orientation, "portrait-flipped") == TRUE) {
-		*madctl = _ST7789_MADCTL_PORTRAIT_FLIP;
-		*width = MP_DRV_ST7789_SHORT;
-		*height = MP_DRV_ST7789_LONG;
-		*xoff = MP_DRV_ST7789_OFFSET;
+		*madctl = (unsigned char)(_ST7789_MADCTL_PORTRAIT_FLIP | color);
+		*width = columns;
+		*height = rows;
+		*xoff = offset;
 		*yoff = 0;
 	}
 	else if(orientation && mp_options_cmp(orientation, "landscape-flipped") == TRUE) {
-		*madctl = _ST7789_MADCTL_LANDSCAPE_FLIP;
-		*width = MP_DRV_ST7789_LONG;
-		*height = MP_DRV_ST7789_SHORT;
+		*madctl = (unsigned char)(_ST7789_MADCTL_LANDSCAPE_FLIP | color);
+		*width = rows;
+		*height = columns;
 		*xoff = 0;
-		*yoff = MP_DRV_ST7789_OFFSET;
+		*yoff = offset;
 	}
 	else {
-		*madctl = _ST7789_MADCTL_LANDSCAPE;
-		*width = MP_DRV_ST7789_LONG;
-		*height = MP_DRV_ST7789_SHORT;
+		*madctl = (unsigned char)(_ST7789_MADCTL_LANDSCAPE | color);
+		*width = rows;
+		*height = columns;
 		*xoff = 0;
-		*yoff = MP_DRV_ST7789_OFFSET;
+		*yoff = offset;
 	}
+}
+
+/* 172x320 is the centered IPS glass. 240x320 fills the RAM and is BGR. */
+static int _st7789_glass(mp_drv_st7789_t *lcd, char *glass, char *orientation) {
+	int columns, rows, offset, bgr;
+
+	if(!glass || !glass[0] || mp_options_cmp(glass, "172x320") == TRUE) {
+		columns = MP_DRV_ST7789_SHORT;
+		rows = MP_DRV_ST7789_LONG;
+		offset = MP_DRV_ST7789_OFFSET;
+		bgr = 0;
+		/* 0x55 leaves this glass blank */
+		lcd->colmod = 0x05;
+		lcd->invert = 1;
+	}
+	else if(mp_options_cmp(glass, "240x320") == TRUE) {
+		columns = MP_DRV_ST7789_GRAM;
+		rows = MP_DRV_ST7789_LONG;
+		offset = 0;
+		bgr = 1;
+		lcd->colmod = 0x55;
+		lcd->invert = 0;
+	}
+	else {
+		mp_printk("ST7789: glass %s is not 172x320 or 240x320", glass);
+		return(0);
+	}
+	_st7789_face(orientation, bgr, columns, rows, offset, &lcd->madctl, &lcd->width, &lcd->height, &lcd->xoff, &lcd->yoff);
+	return(1);
 }
 
 static void _st7789_window(mp_drv_st7789_t *lcd, int x, int y, int w, int h) {
@@ -292,8 +340,8 @@ static void _st7789_fill(mp_drv_st7789_t *lcd, uint16_t color) {
 	_st7789_cs(lcd, 0);
 }
 
-/* Porch, power and gamma for the 172x320 ST7789V3. COLMOD 0x05 is the
- * 16-bit format this glass uses; 0x55 leaves the panel blank. */
+/* Porch, power and gamma. Both glasses use this sequence; the window,
+ * the color order and the inversion are what glass changes. */
 static void _st7789_panel(mp_drv_st7789_t *lcd) {
 	static const unsigned char seq[] = {
 		0xB2, 5, 0x0C, 0x0C, 0x00, 0x33, 0x33,
@@ -320,7 +368,7 @@ static void _st7789_panel(mp_drv_st7789_t *lcd) {
 }
 
 static int _st7789_setup(mp_drv_st7789_t *lcd) {
-	unsigned char colmod = 0x05;
+	unsigned char colmod = lcd->colmod;
 
 	_st7789_drive(lcd->n_cs, 1);
 	_st7789_drive(lcd->n_dc, 1);
@@ -344,8 +392,9 @@ static int _st7789_setup(mp_drv_st7789_t *lcd) {
 	_st7789_cmd(lcd, _ST7789_COLMOD, &colmod, 1);
 	_st7789_cmd(lcd, _ST7789_MADCTL, &lcd->madctl, 1);
 	_st7789_panel(lcd);
-	/* IPS glass: colors are inverted without it */
-	_st7789_cmd(lcd, _ST7789_INVON, NULL, 0);
+	/* the 172-wide IPS glass is inverted; the 240x320 glass is not */
+	if(lcd->invert)
+		_st7789_cmd(lcd, _ST7789_INVON, NULL, 0);
 	_st7789_cmd(lcd, _ST7789_NORON, NULL, 0);
 	_st7789_cmd(lcd, _ST7789_DISPON, NULL, 0);
 	_st7789_wait(20);
@@ -418,7 +467,10 @@ mp_ret_t mp_drv_st7789_init(mp_kernel_t *kernel, mp_drv_st7789_t *lcd, mp_option
 	lcd->kernel = kernel;
 	if(!who || !who[0])
 		who = "st7789";
-	_st7789_face(mp_options_get(options, "orientation"), &lcd->madctl, &lcd->width, &lcd->height, &lcd->xoff, &lcd->yoff);
+	if(!_st7789_glass(lcd, mp_options_get(options, "glass"), mp_options_get(options, "orientation"))) {
+		mp_drv_st7789_fini(lcd);
+		return(FALSE);
+	}
 
 	if(!mp_spi_open(kernel, &lcd->bus, options, who)) {
 		mp_printk("ST7789: SCK and MOSI are required");
@@ -587,7 +639,7 @@ static void *_st7789_device_face(void *self) {
 
 const mp_device_ops_t mp_drv_st7789_device = {
 	"lcd/st7789", MP_DEVICE_DISPLAY, _st7789_device_open, _st7789_device_close, _st7789_device_face, _st7789_device_set,
-	"172x320 ST7789", "1.0.0"
+	"ST7789 TFT", "1.0.0"
 };
 
 #endif

@@ -5,10 +5,10 @@ export const phi = {
 	vendor: "Sitronix",
 	label: "ST7789 TFT",
 	tested: false,
-	description: "ST7789V3 172x320 panel on SPI, 16-bit RGB565. The controller RAM is 240x320 and the glass is centered, so the short axis starts 34 pixels in. The driver opens a shared mp_spi_bus_t on SCK and MOSI. DC, reset, chip select and the backlight are GPIO. Chip select is active low. The backlight is active high. Opening the device paints a red frame. Landscape is 320x172. The panel has no serial, so the serial is the MCU id.",
+	description: "ST7789 panel on SPI, 16-bit RGB565. The controller RAM is 240x320. glass names which panel sits in it, and two devices can name different ones. 172x320, the default, is centered with a 34 pixel offset on the short axis and needs color inversion. 240x320 fills the RAM, BGR, inversion off. The driver opens a shared mp_spi_bus_t on SCK and MOSI. DC, reset, chip select and the backlight are GPIO. Chip select is active low. The backlight is active high. Opening the device clears the glass. The panel has no serial, so the serial is the MCU id.",
 	specs: {
 		bus: "SPI",
-		size: "172x320",
+		size: "172x320 or 240x320",
 		depth: "16 bit RGB565",
 	},
 	define: "SUPPORT_DRV_LCD_ST7789",
@@ -23,6 +23,8 @@ export const phi = {
 		{ name: "cs", label: "Chip select (active low)", type: "pin" },
 		{ name: "reset", label: "Reset (active low)", type: "pin" },
 		{ name: "backlight", label: "Backlight (active high)", type: "pin" },
+		{ name: "glass", label: "Glass", type: "enum", values: ["172x320", "240x320"], default: "172x320" },
 		{ name: "orientation", label: "Orientation", type: "enum", values: ["landscape", "portrait", "landscape-flipped", "portrait-flipped"], default: "landscape" },
+		{ name: "ppi", label: "Glass density (pixels per inch, PUI scales its text from it)", type: "number", min: 50, max: 600 },
 	],
 }

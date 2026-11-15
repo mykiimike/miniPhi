@@ -22,5 +22,6 @@ export const phi = {
 		{ name: "dc", label: "DC", type: "pin", required: true },
 		{ name: "reset", label: "Reset", type: "pin" },
 		{ name: "orientation", label: "Orientation", type: "enum", values: ["native", "flip", "inverted"], default: "native" },
+		{ name: "ppi", label: "Glass density (pixels per inch, PUI scales its text from it)", type: "number", min: 50, max: 600 },
 	],
 }

@@ -23,5 +23,6 @@ export const phi = {
 		{ name: "reset", label: "Reset", type: "pin" },
 		{ name: "address", label: "I2C address", type: "enum", values: ["0x3C", "0x3D"], default: "0x3C" },
 		{ name: "contrast", label: "Contrast", type: "number", default: 207, min: 0, max: 255 },
+		{ name: "ppi", label: "Glass density (pixels per inch, PUI scales its text from it)", type: "number", min: 50, max: 600 },
 	],
 }
