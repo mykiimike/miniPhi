@@ -91,6 +91,8 @@
 		MP_DEVICE_PIXEL,
 		/** address stem phy. Instance: mp_device_phy_t, a medium */
 		MP_DEVICE_PHY,
+		/** address stem block. Face: mp_fs_block_t, one medium of sectors */
+		MP_DEVICE_BLOCK,
 		/** not a class: the number of classes above, and the scan that visits every driver */
 		MP_DEVICE_CLASS_COUNT,
 		MP_DEVICE_ANY = MP_DEVICE_CLASS_COUNT

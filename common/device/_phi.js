@@ -2,7 +2,7 @@ export const phi = {
 	kind: "module",
 	name: "DEVICE",
 	label: "Devices",
-	description: "The board devices behind one interface, so an app never names a driver. A driver takes part with an mp_device_ops_t and a device entry ({ struct, ops }) in its _phi.js. When build/ is written, every board device of such a driver gets its storage and its options in include/gen/devices.h. An app finds a device by class (display, touch, accelerometer, LED, pixel, camera, charger, PHY) and rank, opens it, closes it, and uses the common interface of its class.",
+	description: "The board devices behind one interface, so an app never names a driver. A driver takes part with an mp_device_ops_t and a device entry ({ struct, ops }) in its _phi.js. When build/ is written, every board device of such a driver gets its storage and its options in include/gen/devices.h. An app finds a device by class (display, touch, accelerometer, LED, pixel, camera, charger, PHY, block) and rank, opens it, closes it, and uses the common interface of its class.",
 	define: "SUPPORT_COMMON_DEVICE",
 	sources: ["device.c", "addr.c", "driver.c", "registry.c", "subscribe.c", "led.c", "pixel.c", "button.c", "measure.c", "input.c", "command.c", "clock.c", "charge.c", "phy.c"],
 	headers: ["device.h"],

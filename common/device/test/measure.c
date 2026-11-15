@@ -127,6 +127,8 @@ int main(void) {
 	expect(strcmp(mp_device_measure_unit(MP_DEVICE_LED), "") == 0, "led no unit");
 	expect(mp_device_measure_class(MP_DEVICE_TEMPERATURE) == YES, "temp is a measure");
 	expect(mp_device_measure_class(MP_DEVICE_LED) == NO, "led is not a measure");
+	expect(mp_device_measure_class(MP_DEVICE_BLOCK) == NO, "block is not a measure");
+	expect(strcmp(mp_device_measure_unit(MP_DEVICE_BLOCK), "") == 0, "block has no unit");
 	expect(mp_device_measure_next(&kernel, NULL) == &devs[0], "first measure");
 	expect(mp_device_measure_next(&kernel, &devs[0]) == &devs[1], "next measure");
 	expect(mp_device_measure_next(&kernel, &devs[1]) == NULL, "end of measures");
