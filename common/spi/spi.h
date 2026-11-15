@@ -70,6 +70,15 @@
 	/** Send len bytes. Returns 1 when the buffer was clocked out. */
 	int mp_spi_tx(mp_spi_bus_t *bus, const unsigned char *data, int len);
 
+	#ifdef SUPPORT_COMMON_DMA
+		/**
+		 * DMA engine for a bus the arch can shift in hardware.
+		 * NULL when this bus stays on the GPIO clock. Drop releases both directions.
+		 */
+		mp_dma_engine_t *mp_spi_bus_engine(mp_spi_bus_t *bus, mp_dma_dir_t dir);
+		void mp_spi_bus_engine_drop(mp_spi_bus_t *bus);
+	#endif
+
 	/** @} */
 
 #endif

@@ -151,4 +151,17 @@ int mp_spi_tx(mp_spi_bus_t *bus, const unsigned char *data, int len) {
 	return(1);
 }
 
+#ifdef SUPPORT_COMMON_DMA
+/* The arch replaces these when the pins belong to a hardware master. */
+mp_dma_engine_t *__attribute__((weak)) mp_spi_bus_engine(mp_spi_bus_t *bus, mp_dma_dir_t dir) {
+	(void)bus;
+	(void)dir;
+	return(NULL);
+}
+
+void __attribute__((weak)) mp_spi_bus_engine_drop(mp_spi_bus_t *bus) {
+	(void)bus;
+}
+#endif
+
 #endif
