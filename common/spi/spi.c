@@ -115,11 +115,12 @@ void mp_spi_setup(mp_spi_bus_t *bus, unsigned long half_us) {
 		bus->half_us = half_us;
 }
 
-void mp_spi_write_byte(mp_spi_bus_t *bus, unsigned char byte) {
+unsigned char mp_spi_xfer(mp_spi_bus_t *bus, unsigned char byte) {
 	int bit;
+	unsigned char in = 0;
 
 	if(!bus || !bus->sclk || !bus->mosi)
-		return;
+		return(0);
 	for(bit = 7; bit >= 0; bit--) {
 		if((byte >> bit) & 1)
 			mp_gpio_set(bus->mosi);
@@ -127,9 +128,17 @@ void mp_spi_write_byte(mp_spi_bus_t *bus, unsigned char byte) {
 			mp_gpio_unset(bus->mosi);
 		_mp_spi_half(bus);
 		mp_gpio_set(bus->sclk);
+		/* mode 0: MISO is stable while SCLK is high and changes when it falls */
 		_mp_spi_half(bus);
+		if(bus->miso && mp_gpio_read(bus->miso) == YES)
+			in |= (unsigned char)(1U << bit);
 		mp_gpio_unset(bus->sclk);
 	}
+	return(in);
+}
+
+void mp_spi_write_byte(mp_spi_bus_t *bus, unsigned char byte) {
+	(void)mp_spi_xfer(bus, byte);
 }
 
 int mp_spi_tx(mp_spi_bus_t *bus, const unsigned char *data, int len) {

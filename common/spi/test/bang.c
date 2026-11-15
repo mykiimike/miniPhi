@@ -27,8 +27,12 @@ typedef enum {
 
 static mp_gpio_port_t sclk_pin;
 static mp_gpio_port_t mosi_pin;
+static mp_gpio_port_t miso_pin;
 static int mosi_bit[16];
+static int miso_bit[8];
 static int mosi_n;
+static int miso_n;
+static int miso_while_high;
 static int rise;
 static int fall;
 static int order_ok;
@@ -93,6 +97,22 @@ void mp_gpio_unset(mp_gpio_port_t *port) {
 		fall++;
 }
 
+mp_bool_t mp_gpio_read(mp_gpio_port_t *port) {
+	int bit;
+
+	if(!port)
+		return(NO);
+	if(port == &miso_pin) {
+		if(sclk_pin.level != 1)
+			miso_while_high = 0;
+		bit = 0;
+		if(miso_n < 8)
+			bit = miso_bit[miso_n++];
+		return(bit ? YES : NO);
+	}
+	return(port->level ? YES : NO);
+}
+
 #include "../spi.h"
 #include "../spi.c"
 
@@ -108,11 +128,14 @@ static void expect(int cond, const char *msg) {
 static void reset_log(void) {
 	memset(mosi_bit, 0, sizeof(mosi_bit));
 	mosi_n = 0;
+	miso_n = 0;
+	miso_while_high = 1;
 	rise = 0;
 	fall = 0;
 	order_ok = 1;
 	sclk_pin.level = 0;
 	mosi_pin.level = 0;
+	miso_pin.level = 0;
 }
 
 /* 0xA5 is 10100101, MSB first. SCLK rises after MOSI and ends low. */
@@ -140,6 +163,24 @@ int main(void) {
 	byte = 0xA5;
 	expect(mp_spi_tx(&bus, &byte, 1) == 1, "tx");
 	check_a5("tx clocks the same byte");
+
+	reset_log();
+	bus.miso = NULL;
+	expect(mp_spi_xfer(&bus, 0xA5) == 0, "xfer without miso");
+	expect(miso_n == 0, "null miso is not read");
+	check_a5("xfer without miso clocks mosi");
+
+	/* 0x80 is MSB only, so a reversed shift cannot pass */
+	reset_log();
+	bus.miso = &miso_pin;
+	{
+		static const int msb[8] = { 1, 0, 0, 0, 0, 0, 0, 0 };
+
+		memcpy(miso_bit, msb, sizeof(msb));
+	}
+	expect(mp_spi_xfer(&bus, 0xA5) == 0x80, "xfer reads miso msb first");
+	expect(miso_n == 8 && miso_while_high, "miso sampled while sclk high");
+	check_a5("xfer still clocks mosi");
 
 	if(failed) {
 		fprintf(stderr, "%d failed\n", failed);

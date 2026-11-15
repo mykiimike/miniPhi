@@ -30,7 +30,8 @@
 	 * A synchronous SPI master on GPIO pins, mode 0, MSB first, about 100 kHz.
 	 * One bus owns SCLK and MOSI. MISO is claimed only when the options name it.
 	 * Chip select stays with the device. A driver opens the bus once and shares
-	 * the handle.
+	 * the handle. mp_spi_xfer reads MISO on that same clock. Without MISO the
+	 * transfer still clocks MOSI and returns 0.
 	 *
 	 * Clock pin options, first match: sclk, sck, clk.
 	 * Data pin options, first match: mosi, simo.
@@ -56,7 +57,15 @@
 	/** Change the half-clock (half_us 0 keeps the current value). */
 	void mp_spi_setup(mp_spi_bus_t *bus, unsigned long half_us);
 
-	/** One byte, MSB first. SCLK idles low. Data changes before the rising edge. */
+	/**
+	 * One byte each way, MSB first. SCLK idles low. MOSI changes before the
+	 * rising edge. MISO is sampled while SCLK is high, after that edge and
+	 * before it falls. A NULL miso still clocks MOSI and the call returns 0.
+	 * mp_spi_write_byte is this transfer with the read byte dropped, so the
+	 * bus has one clock loop.
+	 */
+	unsigned char mp_spi_xfer(mp_spi_bus_t *bus, unsigned char byte);
+	/** Same clock as mp_spi_xfer. The byte read back is dropped. */
 	void mp_spi_write_byte(mp_spi_bus_t *bus, unsigned char byte);
 	/** Send len bytes. Returns 1 when the buffer was clocked out. */
 	int mp_spi_tx(mp_spi_bus_t *bus, const unsigned char *data, int len);
