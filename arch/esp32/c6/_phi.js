@@ -19,6 +19,8 @@ export const phi = {
 	description: "The PLL stays up so the USB console does not drop. SHA-1, SHA-256, AES-128 and AES-256 run on the accelerators. The HSM reads the hardware RNG; HMAC-DRBG conditions it. A fuse slot is checked before HMAC upstream, RSA_DS or XTS uses it. The radio is the ESP32_RF accelerator; calibration lives in this series, and this series owns the modem clock sequence. Boot leaves the radio stopped. mac.c keeps that PHY face and leaves the MAC block off until it is brought up. Tasks are preemptive on one stack: the FROM_CPU line sits under the tick.",
 	schedulers: ["0", "1", "2"],
 	scheduler: "2",
+	/* FROM_CPU sits under the tick. */
+	taskShare: true,
 	accelerators: {
 		SHA1: { sources: ["../crypto/hash/sha.c"], headers: ["../crypto/hash/sha1.h"] },
 		SHA256: { sources: ["../crypto/hash/sha.c"], headers: ["../crypto/hash/sha256.h"] },
