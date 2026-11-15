@@ -142,6 +142,129 @@ static void _st7789_spi_idle(void) {
 		(void)SPI0->DR;
 }
 
+#ifdef SUPPORT_COMMON_DMA
+/* One row, wire order. The panel wants the high byte first and the DMA
+ * does not swap. A full frame is larger than this, so a tall blit loops. */
+static unsigned char _st7789_line[MP_DRV_ST7789_LONG * 2];
+static unsigned char _st7789_sink;
+static mp_spi_bus_t *_st7789_dma_bus;
+static mp_dma_t _st7789_dma_rx;
+static mp_dma_t _st7789_dma_tx;
+static mp_dma_seg_t _st7789_rx_seg;
+static mp_dma_seg_t _st7789_tx_seg;
+static mp_power_hold_t _st7789_dma_hold;
+static mp_kernel_t *_st7789_dma_kernel;
+static int _st7789_dma_ok;
+/* 0 shifting, 1 done, -1 the channel failed */
+static volatile signed char _st7789_dma_flag;
+
+static void _st7789_dma_drop(void) {
+	mp_dma_stop(&_st7789_dma_rx);
+	mp_dma_stop(&_st7789_dma_tx);
+	mp_dma_unmap(&_st7789_dma_rx);
+	mp_dma_unmap(&_st7789_dma_tx);
+	if(_st7789_dma_bus)
+		mp_spi_bus_engine_drop(_st7789_dma_bus);
+	_st7789_dma_bus = NULL;
+	if(_st7789_dma_kernel)
+		mp_power_release(_st7789_dma_kernel, &_st7789_dma_hold);
+	_st7789_dma_ok = 0;
+}
+
+/* RX completion is the end: every byte has been clocked back. TX may
+ * still own its channel for the last word sitting in the FIFO. */
+static void _st7789_dma_isr(mp_dma_t *dma, mp_dma_result_t result) {
+	(void)dma;
+	mp_dma_stop(&_st7789_dma_tx);
+	_st7789_dma_flag = result == MP_DMA_DONE ? 1 : -1;
+}
+
+static void _st7789_dma_open(mp_drv_st7789_t *lcd) {
+	mp_dma_engine_t *rx;
+	mp_dma_engine_t *tx;
+
+	memset(&_st7789_dma_rx, 0, sizeof(_st7789_dma_rx));
+	memset(&_st7789_dma_tx, 0, sizeof(_st7789_dma_tx));
+	_st7789_dma_kernel = lcd->kernel;
+	_st7789_dma_bus = &lcd->bus;
+	rx = mp_spi_bus_engine(&lcd->bus, MP_DMA_FROM_DEVICE);
+	tx = mp_spi_bus_engine(&lcd->bus, MP_DMA_TO_DEVICE);
+	if(!rx || !tx) {
+		_st7789_dma_drop();
+		return;
+	}
+	_st7789_rx_seg.cpu = &_st7789_sink;
+	_st7789_rx_seg.len = 1;
+	_st7789_rx_seg.fixed = YES;
+	_st7789_tx_seg.cpu = _st7789_line;
+	_st7789_tx_seg.len = 1;
+	_st7789_tx_seg.fixed = NO;
+	if(mp_dma_bind(&_st7789_dma_rx, rx) == FALSE || mp_dma_bind(&_st7789_dma_tx, tx) == FALSE) {
+		_st7789_dma_drop();
+		return;
+	}
+	_st7789_dma_rx.dir = MP_DMA_FROM_DEVICE;
+	_st7789_dma_rx.in = &_st7789_rx_seg;
+	_st7789_dma_rx.nin = 1;
+	_st7789_dma_rx.done = _st7789_dma_isr;
+	_st7789_dma_tx.dir = MP_DMA_TO_DEVICE;
+	_st7789_dma_tx.out = &_st7789_tx_seg;
+	_st7789_dma_tx.nout = 1;
+	if(mp_dma_map(&_st7789_dma_rx) == FALSE || mp_dma_map(&_st7789_dma_tx) == FALSE) {
+		_st7789_dma_drop();
+		return;
+	}
+	_st7789_dma_ok = 1;
+}
+
+/* 1 when the bytes left, including a stall that may have shifted some.
+ * 0 when the channels never started: the caller sends them itself. */
+static int _st7789_dma_send(int count) {
+	unsigned long start;
+
+	_st7789_tx_seg.len = (unsigned long)count;
+	_st7789_rx_seg.len = (unsigned long)count;
+	_st7789_dma_flag = 0;
+	if(_st7789_dma_kernel)
+		mp_power_hold(_st7789_dma_kernel, &_st7789_dma_hold, MP_POWER_MEDIUM, "ST7789");
+	/* RX first. TX is what makes the SPI clock, and the RX FIFO holds 8. */
+	if(mp_dma_start(&_st7789_dma_rx) == FALSE || mp_dma_start(&_st7789_dma_tx) == FALSE) {
+		mp_dma_stop(&_st7789_dma_rx);
+		mp_dma_stop(&_st7789_dma_tx);
+		_st7789_spi_idle();
+		_st7789_dma_drop();
+		mp_printk("ST7789: DMA did not start");
+		return(0);
+	}
+	start = mp_clock_us();
+	while(_st7789_dma_flag == 0) {
+		if((unsigned long)(mp_clock_us() - start) > 20000UL) {
+			mp_dma_stop(&_st7789_dma_rx);
+			mp_dma_stop(&_st7789_dma_tx);
+			_st7789_spi_idle();
+			_st7789_dma_drop();
+			mp_printk("ST7789: DMA stalled");
+			return(1);
+		}
+		/* the flag is set in the interrupt. Masking closes the window
+		 * where it lands between the test and the wait. */
+		__asm volatile("cpsid i" ::: "memory");
+		if(_st7789_dma_flag == 0)
+			__asm volatile("wfi");
+		__asm volatile("cpsie i" ::: "memory");
+	}
+	_st7789_spi_idle();
+	if(_st7789_dma_kernel)
+		mp_power_release(_st7789_dma_kernel, &_st7789_dma_hold);
+	if(_st7789_dma_flag != 1) {
+		_st7789_dma_drop();
+		mp_printk("ST7789: DMA failed");
+		return(1);
+	}
+	return(1);
+}
+#endif
+
 static void _st7789_byte_pins(int sck, int mosi, unsigned char byte) {
 	int bit;
 
@@ -306,6 +429,29 @@ static void _st7789_chunk(mp_drv_st7789_t *lcd, const uint16_t *pixels, int coun
 	unsigned char chunk[64];
 	int done = 0;
 
+#ifdef SUPPORT_COMMON_DMA
+	/* a full row is one transfer. Shorter blits stay on the FIFO: arming
+	 * two channels for 32 pixels costs more than writing them. */
+	if(_st7789_dma_ok && lcd->width > 0 && count >= lcd->width) {
+		while(done < count) {
+			int n = count - done;
+			int index;
+
+			if(n > MP_DRV_ST7789_LONG)
+				n = MP_DRV_ST7789_LONG;
+			for(index = 0; index < n; index++) {
+				uint16_t color = pixels[done + index];
+
+				_st7789_line[index * 2] = (unsigned char)(color >> 8);
+				_st7789_line[index * 2 + 1] = (unsigned char)color;
+			}
+			if(_st7789_dma_send(n * 2) == 0)
+				_st7789_tx(lcd, _st7789_line, n * 2);
+			done += n;
+		}
+		return;
+	}
+#endif
 	while(done < count) {
 		int n = count - done;
 		int index;
@@ -324,19 +470,18 @@ static void _st7789_chunk(mp_drv_st7789_t *lcd, const uint16_t *pixels, int coun
 }
 
 static void _st7789_fill(mp_drv_st7789_t *lcd, uint16_t color) {
-	int count = lcd->width * lcd->height;
-	uint16_t row[32];
+	uint16_t row[MP_DRV_ST7789_LONG];
+	int n = lcd->width;
 	int index;
+	int y;
 
-	for(index = 0; index < 32; index++)
+	if(n > MP_DRV_ST7789_LONG)
+		n = MP_DRV_ST7789_LONG;
+	for(index = 0; index < n; index++)
 		row[index] = color;
 	_st7789_window(lcd, 0, 0, lcd->width, lcd->height);
-	while(count > 0) {
-		int n = count > 32 ? 32 : count;
-
+	for(y = 0; y < lcd->height; y++)
 		_st7789_chunk(lcd, row, n);
-		count -= n;
-	}
 	_st7789_cs(lcd, 0);
 }
 
@@ -375,9 +520,17 @@ static int _st7789_setup(mp_drv_st7789_t *lcd) {
 	_st7789_drive(lcd->n_sck, 0);
 	_st7789_drive(lcd->n_mosi, 0);
 	_st7789_drive(lcd->n_rst, 1);
-	/* off until the first full frame is in GRAM, so the paint is not a sweep */
+	/* off until the first full frame is in GRAM, so the paint is not a sweep.
+	 * a PWM backlight is already at duty 0, and this write would take the pin back */
+#ifdef MP_TIMER_PWM
+	if(lcd->dimmable != YES)
+#endif
 	_st7789_drive(lcd->n_bl, 0);
 	_st7789_spi_up(lcd->n_sck, lcd->n_mosi);
+#ifdef SUPPORT_COMMON_DMA
+	if(lcd->dma == YES && _st7789_hw)
+		_st7789_dma_open(lcd);
+#endif
 	if(lcd->n_rst >= 0) {
 		_st7789_level(lcd->n_rst, 0);
 		_st7789_wait(10);
@@ -401,7 +554,53 @@ static int _st7789_setup(mp_drv_st7789_t *lcd) {
 	return(1);
 }
 
+#ifdef MP_TIMER_PWM
+/* The backlight pin is the channel. No gate: the arch maps the pin to a slice. */
+static mp_ret_t _st7789_dimmer(mp_kernel_t *kernel, mp_drv_st7789_t *lcd, mp_options_t *options, char *who) {
+	char *pin = mp_options_get(options, "backlight");
+	mp_options_t timer[] = {
+		{ "frequency", "1000" },
+		{ "precision", "100" },
+		{ NULL, NULL }
+	};
+	mp_options_t pwm[] = {
+		{ "port", pin },
+		{ "polarity", "high" },
+		{ NULL, NULL }
+	};
+
+	if(!pin || !pin[0])
+		return(FALSE);
+	if(mp_timer_create(kernel, &lcd->timer, timer, who) == FALSE)
+		return(FALSE);
+	if(mp_timer_pwm_create(&lcd->timer, &lcd->pwm, pwm, who) == FALSE) {
+		mp_timer_destroy(&lcd->timer);
+		return(FALSE);
+	}
+	lcd->dimmable = YES;
+	return(TRUE);
+}
+#endif
+
 static void _st7789_percent(mp_drv_st7789_t *lcd, int percent) {
+	if(percent < 0)
+		percent = 0;
+	if(percent > 100)
+		percent = 100;
+#ifdef MP_TIMER_PWM
+	lcd->brightness = percent;
+	if(lcd->dimmable == YES) {
+		unsigned long period = (unsigned long)mp_timer_get_precision(&lcd->timer);
+
+		/* a count at the period stays high, including through Stop */
+		mp_timer_pwm_set(&lcd->pwm, percent >= 100 ? (unsigned int)period : (unsigned int)(period * (unsigned long)percent / 100UL));
+		if(percent > 0 && percent < 100)
+			mp_power_nodeep(lcd->kernel, &lcd->dimmed, "Backlight");
+		else
+			mp_power_release(lcd->kernel, &lcd->dimmed);
+		return;
+	}
+#endif
 	_st7789_drive(lcd->n_bl, percent > 0);
 }
 
@@ -441,6 +640,9 @@ static mp_gpio_port_t *_st7789_pin(mp_drv_st7789_t *lcd, mp_options_t *options, 
 	char *text = mp_options_get(options, key);
 	mp_gpio_port_t *pin;
 
+#ifdef SUPPORT_COMMON_DMA
+	_st7789_dma_drop();
+#endif
 	if(!text || !text[0])
 		return(NULL);
 	pin = mp_gpio_text_handle(text, who);
@@ -465,6 +667,13 @@ mp_ret_t mp_drv_st7789_init(mp_kernel_t *kernel, mp_drv_st7789_t *lcd, mp_option
 	memset(lcd, 0, sizeof(*lcd));
 	lcd->n_dc = lcd->n_cs = lcd->n_sck = lcd->n_mosi = lcd->n_rst = lcd->n_bl = -1;
 	lcd->kernel = kernel;
+#ifdef SUPPORT_COMMON_DMA
+	{
+		char *dma = mp_options_get(options, "dma");
+
+		lcd->dma = dma && mp_options_cmp(dma, "true") == TRUE ? YES : NO;
+	}
+#endif
 	if(!who || !who[0])
 		who = "st7789";
 	if(!_st7789_glass(lcd, mp_options_get(options, "glass"), mp_options_get(options, "orientation"))) {
@@ -500,17 +709,20 @@ mp_ret_t mp_drv_st7789_init(mp_kernel_t *kernel, mp_drv_st7789_t *lcd, mp_option
 	lcd->reset = _st7789_pin(lcd, options, "reset", who, 1, 1);
 	if(mp_options_get(options, "reset") && mp_options_get(options, "reset")[0] && !lcd->reset)
 		return(FALSE);
-	lcd->backlight = _st7789_pin(lcd, options, "backlight", who, 1, 1);
-	if(mp_options_get(options, "backlight") && mp_options_get(options, "backlight")[0] && !lcd->backlight)
-		return(FALSE);
+#ifdef MP_TIMER_PWM
+	if(_st7789_dimmer(kernel, lcd, options, who) == FALSE)
+#endif
+	{
+		lcd->backlight = _st7789_pin(lcd, options, "backlight", who, 1, 1);
+		if(mp_options_get(options, "backlight") && mp_options_get(options, "backlight")[0] && !lcd->backlight)
+			return(FALSE);
+	}
 	lcd->n_sck = lcd->bus.sclk ? (int)lcd->bus.sclk->pin : -1;
 	lcd->n_mosi = lcd->bus.mosi ? (int)lcd->bus.mosi->pin : -1;
 	lcd->n_dc = lcd->dc ? (int)lcd->dc->pin : -1;
 	lcd->n_cs = lcd->cs ? (int)lcd->cs->pin : -1;
 	lcd->n_rst = lcd->reset ? (int)lcd->reset->pin : -1;
 	lcd->n_bl = lcd->backlight ? (int)lcd->backlight->pin : -1;
-	_st7789_percent(lcd, 0);
-
 	if(!_st7789_setup(lcd)) {
 		mp_drv_st7789_fini(lcd);
 		return(FALSE);
@@ -522,7 +734,18 @@ mp_ret_t mp_drv_st7789_init(mp_kernel_t *kernel, mp_drv_st7789_t *lcd, mp_option
 #ifdef SUPPORT_COMMON_DEVICE
 	mp_device_identify(lcd, "ST7789 TFT", "ST7789V3", mp_machine_serial(), NULL);
 #endif
-	mp_printk("ST7789 ready, %dx%d, %s", lcd->width, lcd->height, who);
+	mp_printk("ST7789 ready, %dx%d, %s%s%s", lcd->width, lcd->height, who,
+#ifdef MP_TIMER_PWM
+		lcd->dimmable == YES ? ", backlight pwm" : "",
+#else
+		"",
+#endif
+#ifdef SUPPORT_COMMON_DMA
+		_st7789_dma_ok ? ", dma" : ""
+#else
+		""
+#endif
+	);
 	return(TRUE);
 }
 

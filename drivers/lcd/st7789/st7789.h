@@ -28,12 +28,18 @@
 	 * in, and that IPS glass needs color inversion. 240x320 fills the RAM,
 	 * BGR, inversion off. Landscape swaps the axes and moves the offset
 	 * onto the rows. The driver opens a shared mp_spi_bus_t on SCK and
-	 * MOSI. DC, reset, chip select and backlight are GPIO. Chip select is
-	 * active low. Backlight is active high.
+	 * MOSI. The dma option, off by default, asks that bus for an engine
+	 * and shifts a full row after the CPU has swapped the bytes. The
+	 * command bytes stay on the CPU. DC, reset and chip select are GPIO.
+	 * Chip select is active low.
+	 * The backlight pin is a duty cycle when the arch can pulse it
+	 * (MP_TIMER_PWM): the pin selects the slice, and 0 and 100 stay a
+	 * steady level. Otherwise the pin is GPIO, on for any percent above 0.
+	 * Active high either way.
 	 *
 	 * options: sck, mosi, dc, cs, reset, backlight, glass (172x320,
 	 * 240x320), orientation (landscape, portrait, landscape-flipped,
-	 * portrait-flipped).
+	 * portrait-flipped), dma (false).
 	 */
 
 	#define MP_DRV_ST7789_GRAM 240
@@ -63,8 +69,21 @@
 		/** the 172-wide IPS glass is inverted; the full 240x320 glass is not */
 		unsigned char invert;
 		unsigned char on;
-		/** RP2350 GPIO numbers, driven through SIO */
+		/** GPIO numbers, driven through SIO. n_bl stays -1 when the backlight is a duty cycle */
 		int n_dc, n_cs, n_sck, n_mosi, n_rst, n_bl;
+#ifdef SUPPORT_COMMON_DMA
+		/** the dma option asked for a row engine */
+		mp_bool_t dma;
+#endif
+#ifdef MP_TIMER_PWM
+		/** the backlight pin is a PWM channel of this device */
+		mp_bool_t dimmable;
+		mp_timer_t timer;
+		mp_pwm_t pwm;
+		int brightness;
+		/** a mid duty stops when clk_sys stops, so deep sleep stays off */
+		mp_power_hold_t dimmed;
+#endif
 #ifdef SUPPORT_COMMON_PUI
 		/** 16-bit face: rows stream to the glass, RGB565 low byte first in memory */
 		mp_pui_display_t pui;
