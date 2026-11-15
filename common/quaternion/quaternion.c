@@ -52,7 +52,7 @@ instead of integrating from the boot time. A gap longer than
 @ref MP_QUATERNION_DT_MAX only restarts the time base.
 
 Both filters run in float: on a part without FPU, a Madgwick step costs
-a few hundred software float operations, milliseconds on an MSP430.
+a few hundred software float operations, milliseconds on a slow core.
 
 <strong>@ref SUPPORT_COMMON_QUATERNION must be defined to use this module</strong>
 @{

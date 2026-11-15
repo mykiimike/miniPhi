@@ -50,7 +50,7 @@ change, a big one follows the measurements closely.
 The first measurement is taken as the estimation, with the measurement
 noise as its error.
 
-Single precision only: neither the MSP430 nor the Cortex-M3 has an FPU.
+Single precision only: a core without an FPU still runs this.
 
 @{
 */

@@ -189,7 +189,7 @@ static mp_ret_t _mp_device_address_take_num(const char *text, int *num) {
 
 		if(c < '0' || c > '9')
 			return(FALSE);
-		/* int is 16-bit on MSP430; an index still fits well below that */
+		/* int may be 16-bit; an index still fits well below that */
 		if(value > (32767L - (long)(c - '0')) / 10L)
 			return(FALSE);
 		value = value * 10 + (long)(c - '0');
