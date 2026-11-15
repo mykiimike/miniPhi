@@ -246,6 +246,10 @@ mp_bool_t mp_uart_tx_ok(void) {
 	return(_usb_ok ? YES : NO);
 }
 
+mp_bool_t mp_uart_host_back(void) {
+	return(NO);
+}
+
 void mp_uart_write_sync(const unsigned char *data, int size) {
 	int i;
 	int n;

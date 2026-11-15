@@ -28,6 +28,8 @@ export const phi = {
 	boot: ["startup.c", "clock.c", "esp32.c", "gate.c", "gpio.c", "pixel.c", "interrupt.c", "uart.c", "../share.c"],
 	schedulers: ["0", "1", "2"],
 	scheduler: "2",
+	/* FROM_CPU line 5 sits under the tick. */
+	taskShare: true,
 	headers: ["include/series.h"],
 	headerDir: "arch",
 	mcus: [
