@@ -32,6 +32,18 @@
 	#define _HAVE_MP_PUI_PAGES_H
 
 	#include <pui/pui.h>
+	#include <gen/pui_scale.h>
+
+	/**
+	 * Layout unit. The pages are written for a 150 ppi glass. MP_PUI_DP(n)
+	 * is n of those pixels on this glass, rounded. At scale 1 it is n.
+	 */
+	#define MP_PUI_DP(n) ((int)(((long)(n) * MP_PUI_SCALE_NUM + MP_PUI_SCALE_DEN / 2) / MP_PUI_SCALE_DEN))
+
+	/** glass pixels back to layout units, for the size tests the pages branch on */
+	static inline int _mp_pui_units(int px) {
+		return((int)(((long)px * MP_PUI_SCALE_DEN) / MP_PUI_SCALE_NUM));
+	}
 
 	/** body line height, at least one pixel */
 	static inline int _mp_pui_body(void) {

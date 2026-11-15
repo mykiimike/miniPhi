@@ -27,7 +27,15 @@
  * opening paint is not a visible sweep. */
 static int _mp_pui_shown;
 
+static void _mp_pui_task_run(mp_task_t *task);
+
 static MP_TASK(_mp_pui_task) {
+	int _mp_pui_key = mp_pui_lock();
+	_mp_pui_task_run(task);
+	mp_pui_unlock(_mp_pui_key);
+}
+
+static void _mp_pui_task_run(mp_task_t *task) {
 	mp_pui_t *ui = task->user;
 	unsigned long wait;
 
@@ -52,13 +60,14 @@ static MP_TASK(_mp_pui_task) {
 			ui->display->backlight(ui->display, 100);
 			_mp_pui_shown = 1;
 		}
-		mp_task_signal(task, MP_TASK_SIG_OK);
-		return;
 	}
 
+	/* also after a paint: the scheduler restarts the old delay from this
+	 * pass, so a short repaint would otherwise push the tour back */
 	wait = mp_pui_idle(ui);
+	/* the tour opened a page: paint it on the next tick, not after the old delay */
 	if(mp_pui_pending(ui)) {
-		mp_task_signal(task, MP_TASK_SIG_OK);
+		mp_task_delay(task, 1);
 		return;
 	}
 	if(wait)

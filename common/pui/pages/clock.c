@@ -86,10 +86,11 @@ static void _mp_pui_clock_build(mp_pui_page_t *page, void *user) {
 	int glassH = ui && ui->display ? ui->display->height : 64;
 	int body = _mp_pui_body();
 	int title = _mp_pui_title_h();
-	int dateY = glassH > 64 ? 16 : 14;
-	int timeY = glassH > 64 ? 32 : 26;
-	int badgeW = glassW > 128 ? 72 : 64;
-	int badgeY = glassH > 64 ? 62 : 50;
+	int tall = _mp_pui_units(glassH) > 64;
+	int dateY = MP_PUI_DP(tall ? 16 : 14);
+	int timeY = MP_PUI_DP(tall ? 32 : 26);
+	int badgeW = MP_PUI_DP(_mp_pui_units(glassW) > 128 ? 72 : 64);
+	int badgeY = MP_PUI_DP(tall ? 62 : 50);
 	const char *who = "Clock";
 
 	if(kernel)

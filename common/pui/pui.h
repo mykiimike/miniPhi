@@ -58,7 +58,7 @@
 
 	/** milliseconds on a page before the tour advances, until a key arrives */
 	#ifndef MP_PUI_ROTATE_MS
-		#define MP_PUI_ROTATE_MS 5000
+		#define MP_PUI_ROTATE_MS 10000
 	#endif
 	/** milliseconds the tour pauses on the current page after a key press */
 	#ifndef MP_PUI_HOLD_MS
@@ -169,6 +169,8 @@ typedef enum {
 		mp_pui_widget_t widget;
 		const unsigned char *bits;
 		int bw, bh;
+		/** each bit drawn zoom by zoom pixels, 1 from the constructor */
+		int zoom;
 		/** foreground, MP_PUI_COLOR_ON from the constructor */
 		mp_pui_color_t fg;
 	} mp_pui_icon_t;
@@ -197,6 +199,8 @@ struct mp_pui_page_s {
 	mp_pui_build_t build;
 	/** optional per-row painter; when set, the page draws itself instead of its widgets */
 	void (*paint)(mp_pui_page_t *page, unsigned char *buffer, int bufW, int bpp, int y);
+	/** optional per-row pass after the widgets, drawn on top of them */
+	void (*decorate)(mp_pui_page_t *page, unsigned char *buffer, int bufW, int bpp, int y);
 	void *user;
 		int hidden;
 		mp_pui_page_t *parent;
@@ -259,6 +263,11 @@ struct mp_pui_page_s {
 void mp_pui_page_about_start(mp_pui_t *ui);
 	/** chip name, clock, and a live RAM bar, at miniPhi/CPU */
 	mp_ret_t mp_pui_page_cpu(mp_pui_t *ui);
+	/** driver, model, glass and a thin walking color ribbon, at miniPhi/Glass */
+	mp_ret_t mp_pui_page_glass(mp_pui_t *ui);
+	void mp_pui_page_glass_refresh(mp_pui_t *ui);
+	/** put the backlight back to full when the tour leaves the Glass page */
+	void mp_pui_page_glass_release(mp_pui_t *ui);
 	/** the first temperature sensor, at miniPhi/Temp: value, unit, gauge, band */
 	mp_ret_t mp_pui_page_temp(mp_pui_t *ui);
 	/** the first clock, at miniPhi/Clock: date, time, running badge */
@@ -309,6 +318,12 @@ void mp_pui_page_about_start(mp_pui_t *ui);
 	int mp_pui_page_measure_present(mp_kernel_t *kernel);
 	void mp_pui_page_unregister(mp_pui_t *ui, mp_pui_page_t *page);
 	/** on is non-zero to show the page */
+	/* Pages, widgets and the band belong to one core at a time. The pager,
+	 * the splash and every call that changes a page take it. Recursive.
+	 * Held at the kernel ceiling; the key goes back to mp_pui_unlock. */
+	int mp_pui_lock(void);
+	void mp_pui_unlock(int key);
+
 	void mp_pui_page_show(mp_pui_page_t *page, int on);
 	void mp_pui_page_refresh(mp_pui_page_t *page);
 
@@ -351,6 +366,8 @@ void mp_pui_page_about_start(mp_pui_t *ui);
 	/** bits are 1 bit per pixel, row-major, MSB first, stride (bw + 7) / 8. A set bit takes the icon foreground. */
 	void mp_pui_icon_set(mp_pui_icon_t *icon, const unsigned char *bits, int bw, int bh);
 	void mp_pui_icon_color(mp_pui_icon_t *icon, mp_pui_color_t fg);
+	/** whole-pixel magnification; the widget grows to bw * zoom by bh * zoom */
+	void mp_pui_icon_zoom(mp_pui_icon_t *icon, int zoom);
 
 	void mp_pui_badge(mp_pui_badge_t *badge, mp_pui_page_t *page, int x, int y, int w, int h, const char *text);
 	void mp_pui_badge_set(mp_pui_badge_t *badge, const char *text);

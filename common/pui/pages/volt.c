@@ -102,11 +102,12 @@ static void _mp_pui_volt_build(mp_pui_page_t *page, void *user) {
 	int glassH = ui && ui->display ? ui->display->height : 64;
 	int body = _mp_pui_body();
 	int title = _mp_pui_title_h();
-	int nameY = glassH > 64 ? 14 : 12;
-	int valueY = glassH > 64 ? 28 : 24;
-	int spanY = glassH > 64 ? 48 : 40;
-	int barW = glassW > 128 ? 140 : 112;
-	int barY = glassH > 64 ? 64 : 54;
+	int tall = _mp_pui_units(glassH) > 64;
+	int nameY = MP_PUI_DP(tall ? 14 : 12);
+	int valueY = MP_PUI_DP(tall ? 28 : 24);
+	int spanY = MP_PUI_DP(tall ? 48 : 40);
+	int barW = MP_PUI_DP(_mp_pui_units(glassW) > 128 ? 140 : 112);
+	int barY = MP_PUI_DP(tall ? 64 : 54);
 	const char *who = "Voltage";
 
 	if(kernel)
@@ -129,7 +130,7 @@ static void _mp_pui_volt_build(mp_pui_page_t *page, void *user) {
 	mp_pui_label_align(&_mp_pui_volt_span, MP_PUI_ALIGN_CENTER);
 	mp_pui_label_color(&_mp_pui_volt_span, _MP_PUI_VOLT_CYAN);
 
-	mp_pui_bar(&_mp_pui_volt_bar, page, (glassW - barW) / 2, barY, barW, 8, 1000);
+	mp_pui_bar(&_mp_pui_volt_bar, page, (glassW - barW) / 2, barY, barW, MP_PUI_DP(8), 1000);
 	_mp_pui_volt_refresh(ui);
 }
 

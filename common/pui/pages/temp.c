@@ -114,9 +114,10 @@ static void _mp_pui_temp_build(mp_pui_page_t *page, void *user) {
 	int glassH = ui && ui->display ? ui->display->height : 64;
 	int body = _mp_pui_body();
 	int title = _mp_pui_title_h();
-	int barW = glassW > 128 ? 120 : 96;
-	int barY = glassH > 64 ? 44 : 42;
-	int bandY = barY + 10;
+	int barW = MP_PUI_DP(_mp_pui_units(glassW) > 128 ? 120 : 96);
+	int barY = MP_PUI_DP(_mp_pui_units(glassH) > 64 ? 44 : 42);
+	int bandY = barY + MP_PUI_DP(10);
+	int bandW = MP_PUI_DP(48);
 	const char *who = "Temp";
 
 	if(kernel)
@@ -128,15 +129,15 @@ static void _mp_pui_temp_build(mp_pui_page_t *page, void *user) {
 	mp_pui_label_align(&_mp_pui_temp_caption, MP_PUI_ALIGN_CENTER);
 	mp_pui_label_color(&_mp_pui_temp_caption, _MP_PUI_TEMP_CYAN);
 
-	mp_pui_big(&_mp_pui_temp_value, page, 0, body + 2, glassW, title, "--");
+	mp_pui_big(&_mp_pui_temp_value, page, 0, body + MP_PUI_DP(2), glassW, title, "--");
 	mp_pui_big_color(&_mp_pui_temp_value, _MP_PUI_TEMP_GREEN);
 
-	mp_pui_label(&_mp_pui_temp_unit, page, 0, body + 2 + title, glassW, body, "C");
+	mp_pui_label(&_mp_pui_temp_unit, page, 0, body + MP_PUI_DP(2) + title, glassW, body, "C");
 	mp_pui_label_align(&_mp_pui_temp_unit, MP_PUI_ALIGN_CENTER);
 	mp_pui_label_color(&_mp_pui_temp_unit, _MP_PUI_TEMP_CYAN);
 
-	mp_pui_bar(&_mp_pui_temp_bar, page, (glassW - barW) / 2, barY, barW, 8, 1000);
-	mp_pui_badge(&_mp_pui_temp_band, page, (glassW - 48) / 2, bandY, 48, body, "--");
+	mp_pui_bar(&_mp_pui_temp_bar, page, (glassW - barW) / 2, barY, barW, MP_PUI_DP(8), 1000);
+	mp_pui_badge(&_mp_pui_temp_band, page, (glassW - bandW) / 2, bandY, bandW, body, "--");
 	_mp_pui_temp_refresh(ui);
 }
 

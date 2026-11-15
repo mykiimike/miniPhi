@@ -211,16 +211,20 @@ static void _mp_pui_list_draw(mp_pui_list_t *list, unsigned char *buffer, int bu
 }
 
 static void _mp_pui_icon_draw(mp_pui_icon_t *icon, unsigned char *buffer, int bufW, int bpp, int local) {
-	int stride, column;
+	int zoom = icon->zoom > 0 ? icon->zoom : 1;
+	int stride, column, row, dot;
 
-	if(!icon->bits || local < 0 || local >= icon->bh || icon->bw <= 0)
+	row = local / zoom;
+	if(!icon->bits || local < 0 || row >= icon->bh || icon->bw <= 0)
 		return;
 	stride = (icon->bw + 7) / 8;
 	for(column = 0; column < icon->bw; column++) {
-		int on = icon->bits[local * stride + (column >> 3)] & (0x80 >> (column & 7));
+		int on = icon->bits[row * stride + (column >> 3)] & (0x80 >> (column & 7));
 
-		if(on)
-			mp_pui_put(buffer, bufW, bpp, icon->widget.x + column, 0, icon->fg);
+		if(!on)
+			continue;
+		for(dot = 0; dot < zoom; dot++)
+			mp_pui_put(buffer, bufW, bpp, icon->widget.x + column * zoom + dot, 0, icon->fg);
 	}
 }
 
@@ -393,18 +397,33 @@ void mp_pui_icon(mp_pui_icon_t *icon, mp_pui_page_t *page, int x, int y, int w, 
 	icon->widget.y = y;
 	icon->widget.w = w;
 	icon->widget.h = h;
+	icon->zoom = 1;
 	icon->fg = MP_PUI_COLOR_ON;
 	mp_pui_page_add(page, &icon->widget);
+}
+
+static void _mp_pui_icon_fit(mp_pui_icon_t *icon) {
+	if(icon->bw * icon->zoom > icon->widget.w)
+		icon->widget.w = icon->bw * icon->zoom;
+	if(icon->bh * icon->zoom > icon->widget.h)
+		icon->widget.h = icon->bh * icon->zoom;
 }
 
 void mp_pui_icon_set(mp_pui_icon_t *icon, const unsigned char *bits, int bw, int bh) {
 	icon->bits = bits;
 	icon->bw = bw;
 	icon->bh = bh;
-	if(bw > icon->widget.w)
-		icon->widget.w = bw;
-	if(bh > icon->widget.h)
-		icon->widget.h = bh;
+	_mp_pui_icon_fit(icon);
+	_mp_pui_changed(&icon->widget);
+}
+
+void mp_pui_icon_zoom(mp_pui_icon_t *icon, int zoom) {
+	if(zoom < 1)
+		zoom = 1;
+	if(icon->zoom == zoom)
+		return;
+	icon->zoom = zoom;
+	_mp_pui_icon_fit(icon);
 	_mp_pui_changed(&icon->widget);
 }
 

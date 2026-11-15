@@ -118,8 +118,9 @@ static void _mp_pui_charge_build(mp_pui_page_t *page, void *user) {
 	int glassH = ui && ui->display ? ui->display->height : 64;
 	int body = _mp_pui_body();
 	int title = _mp_pui_title_h();
-	int iconY = glassH > 64 ? 22 : 14;
-	int stateY = glassH > 64 ? 42 : 30;
+	int tall = _mp_pui_units(glassH) > 64;
+	int iconY = MP_PUI_DP(tall ? 22 : 14);
+	int stateY = MP_PUI_DP(tall ? 42 : 30);
 	const char *who = "Battery";
 
 	if(kernel)
@@ -131,7 +132,8 @@ static void _mp_pui_charge_build(mp_pui_page_t *page, void *user) {
 	mp_pui_label_align(&_mp_pui_charge_caption, MP_PUI_ALIGN_CENTER);
 	mp_pui_label_color(&_mp_pui_charge_caption, _MP_PUI_CHARGE_CYAN);
 
-	mp_pui_icon(&_mp_pui_charge_battery, page, glassW / 2 - 8, iconY, 16, 8);
+	mp_pui_icon(&_mp_pui_charge_battery, page, glassW / 2 - 8 * MP_PUI_ZOOM, iconY, 16 * MP_PUI_ZOOM, 8 * MP_PUI_ZOOM);
+	mp_pui_icon_zoom(&_mp_pui_charge_battery, MP_PUI_ZOOM);
 	mp_pui_icon_color(&_mp_pui_charge_battery, _MP_PUI_CHARGE_GREEN);
 
 	mp_pui_big(&_mp_pui_charge_state, page, 0, stateY, glassW, title, "--");

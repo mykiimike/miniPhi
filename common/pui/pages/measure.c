@@ -196,9 +196,9 @@ static void _mp_pui_measure_build(mp_pui_page_t *page, void *user) {
 	mp_pui_label_color(&_mp_pui_measure_caption, _MP_PUI_MEASURE_CYAN);
 
 	if(_mp_pui_measure_tri) {
-		int rowW = glassW > 128 ? 140 : 112;
-		int y0 = glassH > 64 ? 20 : 16;
-		int step = glassH > 64 ? 16 : 12;
+		int rowW = MP_PUI_DP(_mp_pui_units(glassW) > 128 ? 140 : 112);
+		int y0 = MP_PUI_DP(_mp_pui_units(glassH) > 64 ? 20 : 16);
+		int step = MP_PUI_DP(_mp_pui_units(glassH) > 64 ? 16 : 12);
 		int x = (glassW - rowW) / 2;
 
 		mp_pui_value(&_mp_pui_measure_x, page, x, y0, rowW, body, "X", "--");
@@ -208,11 +208,12 @@ static void _mp_pui_measure_build(mp_pui_page_t *page, void *user) {
 		mp_pui_value(&_mp_pui_measure_z, page, x, y0 + step * 2, rowW, body, "Z", "--");
 		mp_pui_value_color(&_mp_pui_measure_z, _MP_PUI_MEASURE_AMBER);
 	} else {
-		int valueY = glassH > 64 ? 20 : 16;
-		int unitY = glassH > 64 ? 40 : 32;
-		int barW = glassW > 128 ? 120 : 96;
-		int barY = glassH > 64 ? 58 : 48;
-		int barH = glassH > 64 ? 8 : 6;
+		int tall = _mp_pui_units(glassH) > 64;
+		int valueY = MP_PUI_DP(tall ? 20 : 16);
+		int unitY = MP_PUI_DP(tall ? 40 : 32);
+		int barW = MP_PUI_DP(_mp_pui_units(glassW) > 128 ? 120 : 96);
+		int barY = MP_PUI_DP(tall ? 58 : 48);
+		int barH = MP_PUI_DP(tall ? 8 : 6);
 
 		unit = _mp_pui_measure_dev ? mp_device_measure_unit(_mp_pui_measure_cls) : "";
 		mp_pui_big(&_mp_pui_measure_value, page, 0, valueY, glassW, title, "--");

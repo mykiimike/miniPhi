@@ -45,6 +45,15 @@ static mp_pui_bar_t _mp_pui_cpu_rambar;
 static mp_pui_label_t _mp_pui_cpu_ram;
 static int _mp_pui_cpu_on;
 
+#if MP_CPUS > 1
+/* one line and one bar a core when they fit between the clock and the
+ * RAM bar, otherwise one line with every load */
+static mp_pui_label_t _mp_pui_cpu_core[MP_CPUS];
+static mp_pui_bar_t _mp_pui_cpu_corebar[MP_CPUS];
+static int _mp_pui_cpu_rows;
+static int _mp_pui_cpu_cores;
+#endif
+
 static mp_pui_color_t _mp_pui_cpu_ram_color(int usedPct) {
 	if(usedPct < 60)
 		return(_MP_PUI_CPU_GREEN);
@@ -84,6 +93,37 @@ static void _mp_pui_cpu_refresh(void) {
 	mp_pui_label_set(&_mp_pui_cpu_ram, line);
 	mp_pui_bar_set(&_mp_pui_cpu_rambar, (int)((usedKb * 1000UL) / (totalKb ? totalKb : 1)));
 	mp_pui_bar_color(&_mp_pui_cpu_rambar, _mp_pui_cpu_ram_color((int)pct), _MP_PUI_CPU_DIM);
+
+#if MP_CPUS > 1
+	if(_mp_pui_cpu_rows) {
+		int c;
+
+		for(c = 0; c < _mp_pui_cpu_cores; c++) {
+			int load = mp_cpu_load(c);
+
+			if(load < 0)
+				snprintf(line, sizeof(line), "Core %d  --", c);
+			else
+				snprintf(line, sizeof(line), "Core %d  %d%%", c, load);
+			mp_pui_label_set(&_mp_pui_cpu_core[c], line);
+			mp_pui_bar_set(&_mp_pui_cpu_corebar[c], load < 0 ? 0 : load * 10);
+			mp_pui_bar_color(&_mp_pui_cpu_corebar[c], _mp_pui_cpu_ram_color(load < 0 ? 0 : load), _MP_PUI_CPU_DIM);
+		}
+	}
+	else if(_mp_pui_cpu_cores > 1) {
+		int c;
+		int at = snprintf(line, sizeof(line), "Load");
+
+		for(c = 0; c < _mp_pui_cpu_cores && at > 0 && at < (int)sizeof(line); c++) {
+			int load = mp_cpu_load(c);
+
+			at += load < 0
+				? snprintf(line + at, sizeof(line) - at, " --")
+				: snprintf(line + at, sizeof(line) - at, " %d%%", load);
+		}
+		mp_pui_label_set(&_mp_pui_cpu_core[0], line);
+	}
+#endif
 }
 
 static void _mp_pui_cpu_build(mp_pui_page_t *page, void *user) {
@@ -94,15 +134,22 @@ static void _mp_pui_cpu_build(mp_pui_page_t *page, void *user) {
 	int glassH = ui && ui->display ? ui->display->height : 64;
 	int body = _mp_pui_body();
 	int title = _mp_pui_title_h();
-	int barW = glassW > 128 ? 120 : 96;
-	int barY = glassH - body - 8;
-	int ramY = barY + 8;
-	int speedY = glassH > 64 ? (glassH - title) / 2 - title / 2 : 26;
+	int barW = MP_PUI_DP(_mp_pui_units(glassW) > 128 ? 120 : 96);
+	int barY = glassH - body - MP_PUI_DP(8);
+	int ramY = barY + MP_PUI_DP(8);
+	int speedY = _mp_pui_units(glassH) > 64 ? (glassH - title) / 2 - title / 2 : MP_PUI_DP(26);
 
 	mp_pui_label(&_mp_pui_cpu_caption, page, 0, 0, glassW, body, "CPU / RAM");
 	mp_pui_label_align(&_mp_pui_cpu_caption, MP_PUI_ALIGN_CENTER);
 	mp_pui_label_color(&_mp_pui_cpu_caption, _MP_PUI_CPU_CYAN);
 
+#if MP_CPUS > 1
+	_mp_pui_cpu_cores = mp_task_cpus();
+	if(_mp_pui_cpu_cores > 1)
+		snprintf(line, sizeof(line), "%s x%d", kernel && kernel->mcuName ? kernel->mcuName : "MCU",
+			_mp_pui_cpu_cores);
+	else
+#endif
 	snprintf(line, sizeof(line), "%s", kernel && kernel->mcuName ? kernel->mcuName : "MCU");
 	mp_pui_label(&_mp_pui_cpu_name, page, 0, body, glassW, body, line);
 	mp_pui_label_align(&_mp_pui_cpu_name, MP_PUI_ALIGN_CENTER);
@@ -111,9 +158,36 @@ static void _mp_pui_cpu_build(mp_pui_page_t *page, void *user) {
 	mp_pui_big(&_mp_pui_cpu_speed, page, 0, speedY, glassW, title, "--");
 	mp_pui_big_color(&_mp_pui_cpu_speed, _MP_PUI_CPU_GREEN);
 
-	mp_pui_bar(&_mp_pui_cpu_rambar, page, (glassW - barW) / 2, barY, barW, 6, 1000);
+	mp_pui_bar(&_mp_pui_cpu_rambar, page, (glassW - barW) / 2, barY, barW, MP_PUI_DP(6), 1000);
 	mp_pui_label(&_mp_pui_cpu_ram, page, 0, ramY, glassW, body, "--");
 	mp_pui_label_align(&_mp_pui_cpu_ram, MP_PUI_ALIGN_CENTER);
+
+#if MP_CPUS > 1
+	_mp_pui_cpu_rows = 0;
+	if(_mp_pui_cpu_cores > 1) {
+		int top = speedY + title + MP_PUI_DP(6);
+		int bottom = barY - MP_PUI_DP(6);
+		int step = body + MP_PUI_DP(10);
+		int c, y;
+
+		if(_mp_pui_cpu_cores * step <= bottom - top) {
+			_mp_pui_cpu_rows = 1;
+			y = top + (bottom - top - _mp_pui_cpu_cores * step) / 2;
+			for(c = 0; c < _mp_pui_cpu_cores; c++, y += step) {
+				mp_pui_label(&_mp_pui_cpu_core[c], page, 0, y, glassW, body, "--");
+				mp_pui_label_align(&_mp_pui_cpu_core[c], MP_PUI_ALIGN_CENTER);
+				mp_pui_bar(&_mp_pui_cpu_corebar[c], page, (glassW - barW) / 2, y + body + MP_PUI_DP(2),
+					barW, MP_PUI_DP(4), 1000);
+			}
+		}
+		else if(bottom - top >= body) {
+			mp_pui_label(&_mp_pui_cpu_core[0], page, 0, top + (bottom - top - body) / 2, glassW, body, "--");
+			mp_pui_label_align(&_mp_pui_cpu_core[0], MP_PUI_ALIGN_CENTER);
+		}
+		else
+			_mp_pui_cpu_cores = 0;
+	}
+#endif
 	_mp_pui_cpu_refresh();
 }
 
@@ -126,15 +200,17 @@ mp_ret_t mp_pui_page_cpu(mp_pui_t *ui) {
 }
 
 void mp_pui_pages_refresh(mp_pui_t *ui) {
+	int _mp_pui_key = mp_pui_lock();
 	mp_pui_page_temp_refresh(ui);
 	mp_pui_page_clock_refresh(ui);
 	mp_pui_page_charge_refresh(ui);
 	mp_pui_page_volt_refresh(ui);
 	mp_pui_page_measure_refresh(ui);
 	mp_pui_page_faces_refresh(ui);
-	if(!_mp_pui_cpu_on || !ui || ui->current != &_mp_pui_cpu_page)
-		return;
-	_mp_pui_cpu_refresh();
+	mp_pui_page_glass_refresh(ui);
+	if(_mp_pui_cpu_on && ui && ui->current == &_mp_pui_cpu_page)
+		_mp_pui_cpu_refresh();
+	mp_pui_unlock(_mp_pui_key);
 }
 
 #endif

@@ -251,6 +251,8 @@ static void _mp_pui_clamp(mp_pui_t *ui) {
 static void _mp_pui_open(mp_pui_t *ui, mp_pui_page_t *page) {
 	if(!page)
 		return;
+	/* the Glass page sweeps the backlight; every other page starts at full */
+	mp_pui_page_glass_release(ui);
 	if(ui->current && ui->current != page) {
 		ui->current->scroll = ui->scroll;
 		ui->current->focus = ui->focus;
@@ -476,18 +478,20 @@ static void _mp_pui_draw_row(mp_pui_t *ui, int y) {
 		mp_pui_widget_draw(widget, ui->buffer, width, ui->display->bpp, local);
 	}
 	bottom = _mp_pui_widgets_bottom(page);
-	if(content < bottom)
-		return;
-	line = _mp_pui_line();
-	childIndex = (content - bottom) / line;
-	lineRow = (content - bottom) % line;
-	child = _mp_pui_child_at(page, childIndex);
-	if(!child || !child->name)
-		return;
-	mp_pui_paint_text(ui->buffer, width, ui->display->bpp, 2, width, 0, lineRow, &mp_pui_font_default, child->name, MP_PUI_COLOR_ON);
-	slotsBefore = _mp_pui_list_slots(page);
-	if(ui->focus == slotsBefore + childIndex)
-		_mp_pui_invert(ui->buffer, width, ui->display->bpp, 0, width);
+	if(content >= bottom) {
+		line = _mp_pui_line();
+		childIndex = (content - bottom) / line;
+		lineRow = (content - bottom) % line;
+		child = _mp_pui_child_at(page, childIndex);
+		if(child && child->name) {
+			mp_pui_paint_text(ui->buffer, width, ui->display->bpp, 2, width, 0, lineRow, &mp_pui_font_default, child->name, MP_PUI_COLOR_ON);
+			slotsBefore = _mp_pui_list_slots(page);
+			if(ui->focus == slotsBefore + childIndex)
+				_mp_pui_invert(ui->buffer, width, ui->display->bpp, 0, width);
+		}
+	}
+	if(page->decorate)
+		page->decorate(page, ui->buffer, width, ui->display->bpp, content);
 }
 
 int mp_pui_init(mp_pui_t *ui, mp_pui_display_t *display, unsigned char *buffer, unsigned int bufferSize) {
@@ -505,7 +509,7 @@ int mp_pui_init(mp_pui_t *ui, mp_pui_display_t *display, unsigned char *buffer, 
 	ui->buffer = buffer;
 	ui->bufferSize = bufferSize;
 	mp_list_init(&ui->pages);
-	/* 0 until the opening paint lands: the 5 s starts then, not at init */
+	/* 0 until the opening paint lands: the dwell starts then, not at init */
 	ui->rotateAt = 0;
 	return(1);
 }
@@ -594,7 +598,35 @@ void mp_pui_page_unregister(mp_pui_t *ui, mp_pui_page_t *page) {
 	}
 }
 
+#if MP_CPUS > 1
+static mp_cpu_mutex_t _mp_pui_mutex = MP_CPU_MUTEX_INIT;
+
+int mp_pui_lock(void) {
+	return((int)mp_task_mutex_lock(&_mp_pui_mutex));
+}
+
+void mp_pui_unlock(int key) {
+	mp_task_mutex_unlock(&_mp_pui_mutex, (mp_task_lock_t)key);
+}
+#else
+int mp_pui_lock(void) {
+	return(0);
+}
+
+void mp_pui_unlock(int key) {
+	(void)key;
+}
+#endif
+
+static void _mp_pui_page_show(mp_pui_page_t *page, int on);
+
 void mp_pui_page_show(mp_pui_page_t *page, int on) {
+	int _mp_pui_key = mp_pui_lock();
+	_mp_pui_page_show(page, on);
+	mp_pui_unlock(_mp_pui_key);
+}
+
+static void _mp_pui_page_show(mp_pui_page_t *page, int on) {
 	if(!page)
 		return;
 	page->hidden = on ? 0 : 1;
@@ -616,8 +648,10 @@ void mp_pui_page_show(mp_pui_page_t *page, int on) {
 void mp_pui_page_refresh(mp_pui_page_t *page) {
 	if(!page || !page->ui)
 		return;
+	int _mp_pui_key = mp_pui_lock();
 	if(page->ui->current == page)
 		mp_pui_refresh(page->ui);
+	mp_pui_unlock(_mp_pui_key);
 }
 
 static void _mp_pui_apply_key(mp_pui_t *ui, mp_pui_key_t key) {
@@ -758,7 +792,7 @@ unsigned long mp_pui_idle(mp_pui_t *ui) {
 		remain = ui->holdUntil - now;
 		return(remain ? remain : 1);
 	}
-	/* hold just expired: restart the 5 s cadence from here */
+	/* hold just expired: restart the dwell from here */
 	if(ui->holdUntil) {
 		ui->holdUntil = 0;
 		ui->rotateAt = now;
@@ -766,7 +800,7 @@ unsigned long mp_pui_idle(mp_pui_t *ui) {
 	period = (hz * (unsigned long)MP_PUI_ROTATE_MS) / 1000UL;
 	if(period == 0)
 		period = 1;
-	/* a fresh page: the opening paint cleared pending, so the 5 s starts now */
+	/* a fresh page: the opening paint cleared pending, so the dwell starts now */
 	if(!ui->rotateAt) {
 		ui->rotateAt = now;
 		return(period);
@@ -774,7 +808,7 @@ unsigned long mp_pui_idle(mp_pui_t *ui) {
 	elapsed = now - ui->rotateAt;
 	if(elapsed >= period) {
 		_mp_pui_rotate(ui);
-		/* open cleared the stamp so the new page's 5 s starts after its paint.
+		/* open cleared the stamp so the new page's dwell starts after its paint.
 		 * The same page refreshing keeps the cadence from this instant. */
 		if(ui->rotateAt)
 			ui->rotateAt = now;
