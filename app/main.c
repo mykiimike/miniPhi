@@ -181,22 +181,6 @@ void _sysinfo_hibernate_enable(sysinfo_t *sysinfo, mp_bool_t on) {
 }
 
 #ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
-/* extra silent passes after the printed one, one check per wake.
- * A KEM is much slower than a hash, so it repeats less often. */
-#define SYSINFO_SELFTEST_PASSES 400
-#define SYSINFO_SELFTEST_KEM_PASSES 1
-
-static int _sysinfo_selftest_passes(const mp_crypto_selftest_t *test) {
-	const char *family;
-
-	if(!test || !test->family)
-		return(SYSINFO_SELFTEST_PASSES);
-	family = test->family;
-	if(family[0] == 'k' && family[1] == 'e' && family[2] == 'm' && family[3] == '\0')
-		return(SYSINFO_SELFTEST_KEM_PASSES);
-	return(SYSINFO_SELFTEST_PASSES);
-}
-
 static MP_TASK(_sysinfo_selftest) {
 	sysinfo_t *sysinfo = task->user;
 	const mp_crypto_selftest_t *test;
@@ -205,7 +189,6 @@ static MP_TASK(_sysinfo_selftest) {
 	mp_bool_t ok;
 
 	if(task->signal == MP_TASK_SIG_STOP) {
-		mp_power_release(&sysinfo->kernel, &sysinfo->selftestPower);
 		if(!sysinfo->morse)
 			_sysinfo_lamp_set(sysinfo, 0, 0);
 		sysinfo->selftest = NULL;
@@ -226,42 +209,11 @@ static MP_TASK(_sysinfo_selftest) {
 		return;
 	}
 
-	/* one wake so the governor applies the floor before the first check */
-	if(sysinfo->selftestPower.held == NO) {
-		mp_power_hold(&sysinfo->kernel, &sysinfo->selftestPower, MP_POWER_HIGH, "Selftest");
-		mp_task_delay(task, 1);
-		return;
-	}
-
 	if(sysinfo->selftestIndex >= mp_crypto_selftest_count()) {
-		int count = mp_crypto_selftest_count();
-		int extra = sysinfo->selftestIndex - count;
-
-		if(extra == 0) {
-			mp_printk("SELFTEST: %lu MHz, %lu us",
-				(mp_clock_get_speed() + 500000UL) / 1000000UL, sysinfo->selftestUs);
-			mp_printk("SELFTEST: burn %lu passes, kem %lu%s",
-				(unsigned long)SYSINFO_SELFTEST_PASSES,
-				(unsigned long)SYSINFO_SELFTEST_KEM_PASSES,
-				sysinfo->morse ? "" : ", Morse off");
-		}
-		if(extra >= count * SYSINFO_SELFTEST_PASSES) {
-			mp_printk("SELFTEST: burn done");
-			mp_power_release(&sysinfo->kernel, &sysinfo->selftestPower);
-			sysinfo->selftest = NULL;
-			task->signal = MP_TASK_SIG_DEAD;
-			return;
-		}
-		test = mp_crypto_selftest_at(extra % count);
-		if((extra / count) >= _sysinfo_selftest_passes(test)) {
-			sysinfo->selftestIndex++;
-			mp_task_delay(task, 0);
-			return;
-		}
-		if(test && test->run && test->run() != YES)
-			mp_printk("SELFTEST: %s failed", test->label);
-		sysinfo->selftestIndex++;
-		mp_task_delay(task, 1);
+		mp_printk("SELFTEST: %lu MHz, %lu us",
+			(mp_clock_get_speed() + 500000UL) / 1000000UL, sysinfo->selftestUs);
+		sysinfo->selftest = NULL;
+		task->signal = MP_TASK_SIG_DEAD;
 		return;
 	}
 
@@ -498,7 +450,7 @@ static void _sysinfo_op_set(void *user) {
 
 /* the identity block. Labels are 11 columns, the gutter included, so the
  * values line up. The splash shows them once; System/Info shows them live. */
-#define SYSINFO_INFO_LINES 12
+#define SYSINFO_INFO_LINES 13
 
 static void _sysinfo_term_info(sysinfo_t *sysinfo, char value[][256]) {
 	mp_kernel_t *kernel = &sysinfo->kernel;
@@ -530,19 +482,32 @@ static void _sysinfo_term_info(sysinfo_t *sysinfo, char value[][256]) {
 	snprintf(value[8], 256, "%u tasks, %s, %u states, %u bytes",
 		(unsigned int)MP_TASK_MAX, mp_task_scheduler_name(),
 		(unsigned int)MP_STATE_MAX, (unsigned int)sizeof(*kernel));
+	{
+		int cores = mp_task_cpus();
+
+		if(cores < 1)
+			cores = 1;
+		if(cores > 1)
+			snprintf(value[9], 256, "%d cores, SMP", cores);
+		else if(MP_CPUS > 1)
+			snprintf(value[9], 256, "1 of %d cores", (int)MP_CPUS);
+		else
+			snprintf(value[9], 256, "1 core");
+	}
 #ifdef SUPPORT_COMMON_MEM
-	snprintf(value[9], 256, "%u bytes, %u-byte chunks", (unsigned int)MP_MEM_SIZE, (unsigned int)MP_MEM_CHUNK);
+	snprintf(value[10], 256, "%u bytes, %u-byte chunks", (unsigned int)MP_MEM_SIZE, (unsigned int)MP_MEM_CHUNK);
 #else
-	snprintf(value[9], 256, "%s", "off");
+	snprintf(value[10], 256, "%s", "off");
 #endif
-	snprintf(value[10], 256, "%s", PHI_BUILD_MODULES);
-	snprintf(value[11], 256, "%s", PHI_BUILD_DRIVERS);
+	snprintf(value[11], 256, "%s", PHI_BUILD_MODULES);
+	snprintf(value[12], 256, "%s", PHI_BUILD_DRIVERS);
 }
 
 static const char *_sysinfo_info_label[SYSINFO_INFO_LINES] = {
 	"miniPhi    ", "Build      ", "Board      ", "Compiler   ",
 	"CPU        ", "Target     ", "Clock      ", "Memory     ",
-	"Kernel     ", "Pool       ", "Modules    ", "Drivers    ",
+	"Kernel     ", "Cores      ", "Pool       ", "Modules    ",
+	"Drivers    ",
 };
 
 /* a page title: bold white, a rule under it as wide as the body */

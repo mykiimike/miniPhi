@@ -68,26 +68,42 @@ static void _sysinfo_tasks_values(sysinfo_t *sysinfo) {
 	mp_task_t *task;
 	unsigned long hz = mp_clock_tick_hz();
 	int n = 0;
-	int rows = (int)kernel->tasks.usedNumber;
+	int i;
+	int rows;
 	char period[16];
+	/* another core may add or free a task while the rows are formatted:
+	 * copy the list under the lock, format outside it */
+	struct {
+		char *name;
+		mp_task_signal_t signal;
+		unsigned long delay;
+		int slot;
+	} snap[MP_TASK_MAX];
 
-	if(rows > MP_TASK_MAX)
-		rows = MP_TASK_MAX;
 	_sysinfo_tasks_rates(sysinfo);
+	MP_INTERRUPT_SAFE_BEGIN
+	for(item = kernel->tasks.usedList.first; item != NULL && n < MP_TASK_MAX; item = item->next, n++) {
+		task = item->user;
+		snap[n].name = task->name;
+		snap[n].signal = task->signal;
+		snap[n].delay = task->delay;
+		snap[n].slot = (int)(task - kernel->tasks.tasks);
+	}
+	MP_INTERRUPT_SAFE_END
+	rows = n;
 	mp_tui_table_rows(&sysinfo->screen.taskTable, rows);
 	mp_tui_label_set(&sysinfo->screen.taskCount, "%u / %u",
-		kernel->tasks.usedNumber, (unsigned int)MP_TASK_MAX);
+		(unsigned int)rows, (unsigned int)MP_TASK_MAX);
 
-	for(item = kernel->tasks.usedList.first; item != NULL && n < rows; item = item->next, n++) {
-		task = item->user;
-		if(!task->delay || !hz)
+	for(i = 0; i < rows; i++) {
+		if(!snap[i].delay || !hz)
 			snprintf(period, sizeof(period), "tick");
 		else
-			snprintf(period, sizeof(period), "%lu ms", (task->delay * 1000UL) / hz);
-		mp_tui_table_set(&sysinfo->screen.taskTable, n, 0, "%s", task->name ? task->name : "(unnamed)");
-		mp_tui_table_set(&sysinfo->screen.taskTable, n, 1, "%s", _sysinfo_task_state(task->signal));
-		mp_tui_table_set(&sysinfo->screen.taskTable, n, 2, "%s", period);
-		mp_tui_table_set(&sysinfo->screen.taskTable, n, 3, "%lu", sysinfo->screen.taskRate[task - kernel->tasks.tasks]);
+			snprintf(period, sizeof(period), "%lu ms", (snap[i].delay * 1000UL) / hz);
+		mp_tui_table_set(&sysinfo->screen.taskTable, i, 0, "%s", snap[i].name ? snap[i].name : "(unnamed)");
+		mp_tui_table_set(&sysinfo->screen.taskTable, i, 1, "%s", _sysinfo_task_state(snap[i].signal));
+		mp_tui_table_set(&sysinfo->screen.taskTable, i, 2, "%s", period);
+		mp_tui_table_set(&sysinfo->screen.taskTable, i, 3, "%lu", sysinfo->screen.taskRate[snap[i].slot]);
 	}
 }
 

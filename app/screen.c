@@ -312,6 +312,7 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 	mp_pui_page_charge(ui);
 	mp_pui_page_faces(ui);
 	mp_pui_page_cpu(ui);
+	mp_pui_page_glass(ui);
 	/* the tick refreshes the built-in page that is on the glass */
 	_sysinfo_pui_tick_task = mp_task_create(&sysinfo->kernel.tasks, "pui face", _sysinfo_pui_tick, sysinfo, _sysinfo_ticks(1000));
 	if(!mp_pui_attach(&sysinfo->kernel, ui, "PUI")) {

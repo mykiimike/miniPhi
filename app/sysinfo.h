@@ -40,9 +40,9 @@
 /* Power page figures table: the governor rows plus the supply sensors */
 #define SYSINFO_POWER_ROWS 12
 
-/* one PUI scanline. 512 holds a 160px RGB565 row (320) and a 240px row (480). */
+/* one PUI scanline. 640 is one 320px RGB565 row, the 1.47 inch glass in landscape. */
 #ifndef MP_PUI_BAND_MAX
-#define MP_PUI_BAND_MAX 512
+#define MP_PUI_BAND_MAX 640
 #endif
 
 /* D1, D0, and the three dial faces (up, down, press) */
@@ -118,9 +118,7 @@ struct sysinfo_s {
 	/** known answers at priority 0; Morse already owns the lamps. During a splash it waits for the logo */
 	mp_task_t *selftest;
 	int selftestIndex;
-	/** keeps the high clock for the printed pass and the burn that follows */
-	mp_power_hold_t selftestPower;
-	/** sum of the printed checks, not the burn */
+	/** sum of the printed checks */
 	unsigned long selftestUs;
 #endif
 
@@ -356,7 +354,7 @@ void _sysinfo_morse_stop(sysinfo_t *sysinfo);
 /** Bind rank index if it is still free, then set it. A missing lamp is left alone. */
 void _sysinfo_lamp_set(sysinfo_t *sysinfo, int index, int on);
 #ifdef SUPPORT_COMMON_CRYPTO_SELFTEST
-/** one known answer per wake, then a burn while Morse keeps the lamps */
+/** one known answer per wake, then the task ends */
 void _sysinfo_selftest_start(sysinfo_t *sysinfo);
 #endif
 void _sysinfo_screen_open(sysinfo_t *sysinfo);
