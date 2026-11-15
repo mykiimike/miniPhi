@@ -7,6 +7,8 @@ export const phi = {
 	label: "ST STM32",
 	description: "32-bit Cortex-M microcontrollers. The peripheral code follows the F1 register layout (GPIO CRL/CRH, I2C v1, ADC with calibration).",
 	define: "__STM32__",
+	/* PendSV sits under SysTick, so two tasks of one priority can share a tick. */
+	taskShare: true,
 	headers: [
 		"include/adc.h",
 		"include/clock.h",

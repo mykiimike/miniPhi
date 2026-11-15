@@ -105,9 +105,42 @@
 		uart->regs->DR = data;
 	}
 
+	static inline void mp_uart_rx_poll(mp_uart_t *uart) {
+		(void)uart;
+	}
+
 	static inline unsigned char mp_uart_rx(mp_uart_t *uart) {
 		while (!(uart->regs->SR & USART_SR_RXNE));
 		return(uart->regs->DR);
+	}
+
+	static inline mp_bool_t mp_uart_sync(mp_uart_t *uart) {
+		(void)uart;
+		return(NO);
+	}
+
+	static inline void mp_uart_write_sync(const unsigned char *data, int size) {
+		(void)data;
+		(void)size;
+	}
+
+	static inline mp_bool_t mp_uart_tx_ok(void) {
+		return(YES);
+	}
+
+	static inline mp_bool_t mp_uart_host_back(void) {
+		return(NO);
+	}
+
+	static inline int mp_uart_tx_room(mp_uart_t *uart) {
+		(void)uart;
+		return(0);
+	}
+
+	static inline void mp_uart_write(mp_uart_t *uart, const unsigned char *data, int n) {
+		(void)uart;
+		(void)data;
+		(void)n;
 	}
 
 #endif

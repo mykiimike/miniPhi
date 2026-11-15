@@ -62,6 +62,15 @@
 			mp_interrupt_disable();
 	}
 
+	#define MP_ARCH_ISR_HW 1
+
+	static inline int mp_interrupt_active(void) {
+		return((SCB->ICSR & SCB_ICSR_VECTACTIVE) != 0);
+	}
+
+	static inline void mp_task_share_ack(void) {
+	}
+
 	#define MP_INTERRUPT_SAFE_BEGIN { mp_bool_t _____state = mp_interrupt_state(); \
 		mp_interrupt_disable();
 
