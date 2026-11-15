@@ -64,7 +64,7 @@ static void _sha256_store(uint8_t *p, uint32_t value) {
 	p[3] = (uint8_t)value;
 }
 
-/* the schedule lives in 16 words reused in a ring, so the stack stays small on MSP430 */
+/* the schedule lives in 16 words reused in a ring, so the stack stays small */
 static void _sha256_block(uint32_t state[8], const uint8_t *block) {
 	uint32_t w[16];
 	uint32_t a = state[0], b = state[1], c = state[2], d = state[3];

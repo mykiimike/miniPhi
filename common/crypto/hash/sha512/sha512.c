@@ -32,7 +32,7 @@
 The caller owns the context. SHA-384 starts the same compression with
 mp_crypto_sha512_init_iv() and a 48-byte result.
 
-The schedule is a ring of 16 words, so the stack stays small on MSP430.
+The schedule is a ring of 16 words, so the stack stays small.
 
 @{
 */

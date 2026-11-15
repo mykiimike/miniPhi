@@ -42,7 +42,7 @@ public data byte (not the key), and ShiftRows, MixColumns and xtime are
 fixed permutations and branchless masks. The round count is a function of
 the key length, fixed once at init, not per block. The key schedule runs
 once at init and uses S-box table lookups indexed by the key: on a cacheless
-target (the STM32F1 has no data cache) that is a fixed address computation
+target that is a fixed address computation
 with no timing leak; on a cached CPU it is the classic AES cache-timing
 surface, so the key schedule is a one-time setup, not a per-block path.
 
