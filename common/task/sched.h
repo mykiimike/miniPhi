@@ -44,11 +44,19 @@
 	/** Forget served marks above ceiling for tasks that have returned. */
 	void mp_task_served_open(mp_task_handler_t *hdl, int ceiling);
 
+	#if MP_CPUS > 1
+	/* Under mp_task_lock. Nests on the same core, interrupts stay on. */
+	void mp_task_cpu_mutex_take(void);
+	void mp_task_cpu_mutex_give(void);
+	#endif
+
 	#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
 	/* IRQ entry. The series software interrupt calls this. The weak
 	 * mp_task_pend runs it on the caller stack while that line is absent. */
 	void mp_task_sched_dispatch(void);
 	int mp_task_sched_preempts(mp_task_t *task);
+	/** Running priority of a core. Above every task for a bad index. */
+	int mp_task_sched_runpri(int cpu);
 	/** 1 when a ceiling lock is held above this task, so a peer must not take its stack. */
 	int mp_task_share_blocked(mp_task_t *task);
 	#endif

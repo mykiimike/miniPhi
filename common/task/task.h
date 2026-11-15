@@ -59,15 +59,29 @@
 	#define MP_TASK_PRIORITIES 4
 	#endif
 
-	/* Same-priority sharing needs a line under the tick and a stack switch.
-	 * The C3, the C6, the STM32 and the RP2 have one. Priority 0 stays on the caller
-	 * stack. A task above that gets its own stack and yields every tick. */
-	#ifndef MP_TASK_SHARE
-		#if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT && (defined(ESP32C6) || defined(ESP32C3) || defined(__STM32__) || defined(__RP2__))
-			#define MP_TASK_SHARE 1
-		#else
-			#define MP_TASK_SHARE 0
-		#endif
+	/* MP_TASK_SHARE and MP_CPUS, from the arch capability and the scheduler. */
+	#include "cpus.h"
+
+	/** Affinity mask of every core. */
+	#define MP_TASK_CPU_ANY ((unsigned char)((1U << MP_CPUS) - 1U))
+
+	/* Recursive lock across cores. Interrupts stay on while it is held,
+	 * so the holder may wait on ticks or on a peripheral interrupt. A
+	 * single-core build compiles it to nothing. */
+	typedef struct {
+		volatile int flag;
+		volatile int owner;
+		unsigned int depth;
+	} mp_cpu_mutex_t;
+	#define MP_CPU_MUTEX_INIT { 0, -1, 0 }
+	#if MP_CPUS > 1
+		void mp_cpu_mutex_take(mp_cpu_mutex_t *mutex);
+		/* One attempt. 1 when this core now holds it. */
+		int mp_cpu_mutex_try(mp_cpu_mutex_t *mutex);
+		void mp_cpu_mutex_give(mp_cpu_mutex_t *mutex);
+	#else
+		#define mp_cpu_mutex_take(mutex) ((void)(mutex))
+		#define mp_cpu_mutex_give(mutex) ((void)(mutex))
 	#endif
 
 	/** The scheduler this build compiled. */
@@ -127,6 +141,12 @@
 		/** Ticks this callback has run since it last yielded to a peer. */
 		unsigned char share_ticks;
 
+		/** Core inside this callback, -1 when none holds it. */
+		volatile signed char cpu;
+
+		/** Cores allowed to run it, bit n is core n. Every core by default. */
+		unsigned char affinity;
+
 		/** list input */
 		mp_list_item_t item;
 	};
@@ -174,7 +194,54 @@
 	void mp_task_wake(mp_task_t *task);
 	void mp_task_delay(mp_task_t *task, unsigned long delay);
 	void mp_task_priority(mp_task_t *task, unsigned char priority);
+	void mp_task_affinity(mp_task_t *task, unsigned char mask);
 	unsigned long mp_task_idle(mp_task_handler_t *hdl);
+
+	/* Short kernel lock. Masks the local interrupts and nests on the same
+	 * core. With more than one core it also holds the others out. Nothing
+	 * waits on another core inside. */
+	void mp_task_cpu_lock(void);
+	void mp_task_cpu_unlock(void);
+	/** 1 when this core holds the kernel lock. */
+	int mp_task_cpu_locked(void);
+
+	#if MP_CPUS > 1
+		/* The arch side. mp_cpu_start returns once core n answered,
+		 * or NO when it never did. */
+		int mp_cpu_id(void);
+		mp_bool_t mp_cpu_start(int cpu, void (*entry)(void));
+		/* Wakes a core out of WFI. */
+		void mp_cpu_kick(int cpu);
+		/* Pends the scheduler line of a core, so it preempts for a task
+		 * above its running priority. */
+		void mp_cpu_pend(int cpu);
+		/* Holds every other core in a RAM loop, interrupts masked, while
+		 * the flash is off the bus. NO when one did not answer. */
+		mp_bool_t mp_cpu_park(void);
+		void mp_cpu_unpark(void);
+		/* Asks core 1 to reload SysTick. Dropped when its mailbox is full. */
+		void mp_cpu_retick(void);
+		/* Sleeps until an interrupt. Called with interrupts masked. */
+		void mp_cpu_idle(void);
+		/* The arch adds each sleep of the calling core, in microseconds. */
+		void mp_cpu_idle_note(unsigned long us);
+		/** Busy percent of a core over the last quarter second or more, -1 before the first sample. */
+		int mp_cpu_load(int cpu);
+
+		/** Starts cores 1 to MP_CPUS-1 on this handler. Returns the cores up. */
+		int mp_task_cpus_start(mp_task_handler_t *hdl);
+		/** Cores the kernel runs on, 1 until the others answered. */
+		int mp_task_cpus(void);
+		/** Holds the other cores out of every task, for core 0 code that is not one. */
+		void mp_task_cpus_hold(void);
+		void mp_task_cpus_release(void);
+		/** Loop of a core above 0. It never returns. */
+		void mp_task_cpu_run(mp_task_handler_t *hdl);
+	#else
+		static inline int mp_cpu_id(void) { return(0); }
+		static inline void mp_cpu_retick(void) { }
+		static inline int mp_task_cpus(void) { return(1); }
+	#endif
 
 	mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl);
 
@@ -222,6 +289,15 @@
 		#define mp_task_unlock(key)   ((void)(key))
 	#endif
 	#define MP_TASK_CEILING_KERNEL ((unsigned char)(MP_TASK_PRIORITIES - 1))
+
+	#if MP_CPUS > 1
+		/* A subsystem lock across cores, held at the kernel ceiling so no
+		 * task of the holding core walks into it. Recursive. */
+		mp_task_lock_t mp_task_mutex_lock(mp_cpu_mutex_t *mutex);
+		/* One attempt. 1 with the mutex held and *key to give back. */
+		int mp_task_mutex_try(mp_cpu_mutex_t *mutex, mp_task_lock_t *key);
+		void mp_task_mutex_unlock(mp_cpu_mutex_t *mutex, mp_task_lock_t key);
+	#endif
 
 	#define MP_TASK(name) void name(mp_task_t *task)
 

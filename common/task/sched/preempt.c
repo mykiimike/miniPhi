@@ -23,9 +23,11 @@
 
 #if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
 
-/* One handler. mp_task_init publishes it. */
+/* One handler. mp_task_init publishes it. Each core has its running
+ * priority: the ceiling of a lock holds back that core's own tasks. */
 static mp_task_handler_t *_mp_task_live;
-static unsigned char _mp_task_runpri;
+static unsigned char _mp_task_runpri_of[MP_CPUS];
+#define _mp_task_runpri (_mp_task_runpri_of[mp_cpu_id()])
 
 void mp_task_sched_boot(mp_task_handler_t *hdl) {
 	_mp_task_live = hdl;
@@ -36,6 +38,22 @@ int mp_task_sched_preempts(mp_task_t *task) {
 	return(task->priority > _mp_task_runpri);
 }
 
+int mp_task_sched_runpri(int cpu) {
+	if(cpu < 0 || cpu >= MP_CPUS)
+		return(MP_TASK_PRIORITIES);
+	return(_mp_task_runpri_of[cpu]);
+}
+
+static mp_task_lock_t _mp_task_raise(unsigned char ceiling) {
+	mp_task_lock_t key = _mp_task_runpri;
+
+	if(ceiling > key)
+		_mp_task_runpri = ceiling;
+	return(key);
+}
+
+/* The ceiling goes up before the mutex is taken: a task of this core
+ * that preempted in between would walk into a mutex its own core holds. */
 mp_task_lock_t mp_task_lock(unsigned char ceiling) {
 	mp_task_lock_t key;
 
@@ -43,17 +61,43 @@ mp_task_lock_t mp_task_lock(unsigned char ceiling) {
 		ceiling = (unsigned char)(MP_TASK_PRIORITIES - 1);
 	if(_mp_task_live == NULL)
 		return(0);
-	key = _mp_task_runpri;
-	if(ceiling > _mp_task_runpri)
-		_mp_task_runpri = ceiling;
+	key = _mp_task_raise(ceiling);
+#if MP_CPUS > 1
+	mp_task_cpu_mutex_take();
+#endif
 	return(key);
 }
 
 void mp_task_unlock(mp_task_lock_t key) {
 	if(_mp_task_live == NULL)
 		return;
+#if MP_CPUS > 1
+	mp_task_cpu_mutex_give();
+#endif
 	_mp_task_runpri = key;
 }
+
+#if MP_CPUS > 1
+mp_task_lock_t mp_task_mutex_lock(mp_cpu_mutex_t *mutex) {
+	mp_task_lock_t key = _mp_task_raise(MP_TASK_CEILING_KERNEL);
+
+	mp_cpu_mutex_take(mutex);
+	return(key);
+}
+
+int mp_task_mutex_try(mp_cpu_mutex_t *mutex, mp_task_lock_t *key) {
+	*key = _mp_task_raise(MP_TASK_CEILING_KERNEL);
+	if(mp_cpu_mutex_try(mutex))
+		return(1);
+	_mp_task_runpri = *key;
+	return(0);
+}
+
+void mp_task_mutex_unlock(mp_cpu_mutex_t *mutex, mp_task_lock_t key) {
+	mp_cpu_mutex_give(mutex);
+	_mp_task_runpri = key;
+}
+#endif
 
 int mp_task_share_blocked(mp_task_t *task) {
 	if(!task)
@@ -88,8 +132,7 @@ void mp_task_sched_dispatch(void) {
 
 /* Host tests and a series that has not wired its line use this stub, which
  * runs the dispatcher on the caller stack. A strong mp_task_pend from the
- * series replaces it. C3 and C6 pend a FROM_CPU line under the tick. The
- * S3 one pends a level-1 line. STM32 pends PendSV, under SysTick. */
+ * series replaces it. That line sits under the tick. */
 void __attribute__((weak)) mp_task_pend(void) {
 	mp_task_sched_dispatch();
 }
@@ -123,9 +166,14 @@ mp_task_tick_t mp_task_sched_tick(mp_task_handler_t *hdl) {
 
 	now = mp_clock_ticks();
 
+#if MP_CPUS == 1
+	/* Shared across cores, the deadline is only rebuilt in one step below:
+	 * cleared here, core 0 could read "nothing due" while another core is
+	 * in its pass. */
 	MP_INTERRUPT_SAFE_BEGIN
 	hdl->wakeSet = NO;
 	MP_INTERRUPT_SAFE_END
+#endif
 
 	mp_task_pass_enter();
 	if(hdl->signal == MP_TASK_SIG_STOP) {
@@ -156,8 +204,8 @@ mp_task_tick_t mp_task_sched_tick(mp_task_handler_t *hdl) {
 
 	MP_INTERRUPT_SAFE_BEGIN
 	hdl->wakeSet = NO;
-	MP_INTERRUPT_SAFE_END
 	mp_task_rearm_all(hdl);
+	MP_INTERRUPT_SAFE_END
 	return(mp_task_sched_result(hdl));
 }
 

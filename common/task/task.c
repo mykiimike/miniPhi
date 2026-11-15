@@ -44,11 +44,250 @@ Michael Vergoz <mv@verman.fr>
  * wakeup is not re-entered, and a task that already returned can run
  * again once its delay has elapsed. */
 #define _MP_TASK_PASS_NEST 4
-static unsigned char _mp_task_served[MP_TASK_MAX];
-static unsigned char _mp_task_served_save[_MP_TASK_PASS_NEST][MP_TASK_MAX];
-static mp_task_t *_mp_task_running[_MP_TASK_PASS_NEST];
-static int _mp_task_running_n;
-static int _mp_task_depth;
+
+/* Four stacks a core. A live callback holds one until it returns. 1024 is
+ * enough for a short callback and for the higher task the timer nests on top. */
+#define _MP_TASK_SHARE_BYTES 1024
+#define _MP_TASK_SHARE_SLOTS 4
+
+/* Every core runs its own scheduler on the shared task list: its pass
+ * marks, the callbacks it is inside, its private stacks and the switch
+ * state. Only the claim of a task (task->cpu) crosses cores. */
+typedef struct {
+	unsigned char served[MP_TASK_MAX];
+	unsigned char served_save[_MP_TASK_PASS_NEST][MP_TASK_MAX];
+	mp_task_t *running[_MP_TASK_PASS_NEST];
+	int running_n;
+	int depth;
+#if MP_TASK_SHARE
+	unsigned char share_mem[_MP_TASK_SHARE_SLOTS][_MP_TASK_SHARE_BYTES]
+		__attribute__((aligned(16)));
+	unsigned char share_used[_MP_TASK_SHARE_SLOTS];
+	mp_task_t *share_current;
+	mp_task_t *share_launch;
+	void *share_home;
+	volatile int share_running;
+	int share_in_irq;
+	int isr;
+#endif
+} _mp_task_core_t;
+
+static _mp_task_core_t _mp_task_core[MP_CPUS];
+
+#define _MP_TASK_CORE (&_mp_task_core[mp_cpu_id()])
+#define _mp_task_served       (_MP_TASK_CORE->served)
+#define _mp_task_served_save  (_MP_TASK_CORE->served_save)
+#define _mp_task_running      (_MP_TASK_CORE->running)
+#define _mp_task_running_n    (_MP_TASK_CORE->running_n)
+#define _mp_task_depth        (_MP_TASK_CORE->depth)
+#if MP_TASK_SHARE
+	#define _mp_task_share_mem     (_MP_TASK_CORE->share_mem)
+	#define _mp_task_share_used    (_MP_TASK_CORE->share_used)
+	#define _mp_task_share_current (_MP_TASK_CORE->share_current)
+	#define _mp_task_share_launch  (_MP_TASK_CORE->share_launch)
+	#define _mp_task_share_home    (_MP_TASK_CORE->share_home)
+	#define _mp_task_share_running (_MP_TASK_CORE->share_running)
+	#define _mp_task_share_in_irq  (_MP_TASK_CORE->share_in_irq)
+	#define _mp_task_isr           (_MP_TASK_CORE->isr)
+#endif
+
+#if MP_CPUS > 1
+
+/* The pass marks, the running list and the private stacks belong to
+ * core 0. Another core only claims a task, runs it and gives it back,
+ * all under this lock. */
+static volatile int _mp_task_cpu_flag;
+static volatile int _mp_task_cpu_owner = -1;
+static unsigned int _mp_task_cpu_depth;
+static mp_bool_t _mp_task_cpu_irq;
+
+/* The ceiling lock of a task, across cores. */
+static mp_cpu_mutex_t _mp_task_mutex = MP_CPU_MUTEX_INIT;
+
+/* Cores other than 0 inside a pass. Core 0 does not sleep tickless while
+ * one runs, so the tick they read keeps moving. _deep is set while core 0
+ * sleeps for more than a tick. */
+static volatile int _mp_task_cpu_busy;
+static volatile int _mp_task_cpu_gate;
+static volatile int _mp_task_cpu_deep;
+static volatile int _mp_task_cpu_up = 1;
+static mp_task_handler_t *_mp_task_cpu_hdl;
+
+#define _MP_TASK_SMP_BEGIN mp_task_cpu_lock();
+#define _MP_TASK_SMP_END   mp_task_cpu_unlock();
+#define _MP_TASK_GUARD_BEGIN mp_task_cpu_lock();
+#define _MP_TASK_GUARD_END   mp_task_cpu_unlock();
+
+void mp_task_cpu_lock(void) {
+	mp_bool_t irq = mp_interrupt_state();
+	int me;
+
+	mp_interrupt_disable();
+	me = mp_cpu_id();
+	if(_mp_task_cpu_owner == me) {
+		_mp_task_cpu_depth++;
+		return;
+	}
+	while(__atomic_exchange_n(&_mp_task_cpu_flag, 1, __ATOMIC_ACQUIRE))
+		;
+	_mp_task_cpu_owner = me;
+	_mp_task_cpu_depth = 1;
+	_mp_task_cpu_irq = irq;
+}
+
+void mp_task_cpu_unlock(void) {
+	mp_bool_t irq;
+
+	if(--_mp_task_cpu_depth)
+		return;
+	irq = _mp_task_cpu_irq;
+	_mp_task_cpu_owner = -1;
+	__atomic_store_n(&_mp_task_cpu_flag, 0, __ATOMIC_RELEASE);
+	mp_interrupt_restore(irq);
+}
+
+/* Only the bookkeeping masks the local interrupts, so an interrupt on
+ * this core never finds the mutex half taken. Interrupt masking here is
+ * local on purpose: MP_INTERRUPT_SAFE is the kernel lock on SMP. */
+int mp_cpu_mutex_try(mp_cpu_mutex_t *mutex) {
+	mp_bool_t irq = mp_interrupt_state();
+	int me;
+
+	mp_interrupt_disable();
+	me = mp_cpu_id();
+	if(mutex->owner == me)
+		mutex->depth++;
+	else if(!__atomic_exchange_n(&mutex->flag, 1, __ATOMIC_ACQUIRE)) {
+		mutex->owner = me;
+		mutex->depth = 1;
+	}
+	else
+		me = -1;
+	mp_interrupt_restore(irq);
+	return(me >= 0);
+}
+
+void mp_cpu_mutex_take(mp_cpu_mutex_t *mutex) {
+	while(!mp_cpu_mutex_try(mutex))
+		;
+}
+
+int mp_task_cpu_locked(void) {
+	return(_mp_task_cpu_owner == mp_cpu_id());
+}
+
+void mp_cpu_mutex_give(mp_cpu_mutex_t *mutex) {
+	mp_bool_t irq = mp_interrupt_state();
+
+	mp_interrupt_disable();
+	if(mutex->depth && !--mutex->depth) {
+		mutex->owner = -1;
+		__atomic_store_n(&mutex->flag, 0, __ATOMIC_RELEASE);
+	}
+	mp_interrupt_restore(irq);
+}
+
+void mp_task_cpu_mutex_take(void) {
+	mp_cpu_mutex_take(&_mp_task_mutex);
+}
+
+void mp_task_cpu_mutex_give(void) {
+	mp_cpu_mutex_give(&_mp_task_mutex);
+}
+
+int mp_task_cpus(void) {
+	return(_mp_task_cpu_up);
+}
+
+/* Free for this core: allowed here, and nobody else inside it. */
+static int _mp_task_cpu_free(mp_task_t *task, int me) {
+	if(!(task->affinity & (1U << me)))
+		return(0);
+	return(task->cpu < 0 || task->cpu == me);
+}
+
+static int _mp_task_cpu_claim(mp_task_t *task) {
+	int me;
+	int ok;
+
+	mp_task_cpu_lock();
+	me = mp_cpu_id();
+	ok = _mp_task_cpu_free(task, me);
+	if(ok)
+		task->cpu = (signed char)me;
+	mp_task_cpu_unlock();
+	return(ok);
+}
+
+/* A core sleeping on a stale deadline is woken for a task it may take:
+ * the others in their WFI loop, core 0 when its tickless sleep is long. */
+static volatile unsigned char _mp_task_cpu_sleeping[MP_CPUS];
+
+static void _mp_task_cpu_notify(mp_task_t *task) {
+	int me;
+	int cpu;
+	int asleep;
+
+	if(_mp_task_cpu_up < 2)
+		return;
+	me = mp_cpu_id();
+	for(cpu = 0; cpu < MP_CPUS; cpu++) {
+		asleep = cpu ? _mp_task_cpu_sleeping[cpu] : _mp_task_cpu_deep;
+		if(cpu != me && asleep && (task->affinity & (1U << cpu)))
+			mp_cpu_kick(cpu);
+	}
+}
+
+#else
+
+#define _MP_TASK_SMP_BEGIN
+#define _MP_TASK_SMP_END
+#define _MP_TASK_GUARD_BEGIN MP_INTERRUPT_SAFE_BEGIN
+#define _MP_TASK_GUARD_END   MP_INTERRUPT_SAFE_END
+
+/* One core has no flag to spin on: the mask is the lock. The first entry
+ * keeps the interrupt state the last unlock restores. */
+static unsigned int _mp_task_cpu_depth;
+static mp_bool_t _mp_task_cpu_irq;
+
+void mp_task_cpu_lock(void) {
+	mp_bool_t irq = mp_interrupt_state();
+
+	mp_interrupt_disable();
+	if(_mp_task_cpu_depth++)
+		return;
+	_mp_task_cpu_irq = irq;
+}
+
+void mp_task_cpu_unlock(void) {
+	mp_bool_t irq;
+
+	if(--_mp_task_cpu_depth)
+		return;
+	irq = _mp_task_cpu_irq;
+	mp_interrupt_restore(irq);
+}
+
+int mp_task_cpu_locked(void) {
+	return(_mp_task_cpu_depth != 0);
+}
+
+#endif
+
+/* A returned callback. A dead task goes back to the free list, a live one
+ * counts its delay from now. Either way no core holds it any more. */
+static void _mp_task_retire(mp_task_handler_t *hdl, mp_task_t *task, unsigned long now) {
+	mp_task_cpu_lock();
+	if(task->signal == MP_TASK_SIG_DEAD) {
+		mp_list_remove(&hdl->usedList, &task->item);
+		mp_list_add_last(&hdl->freeList, &task->item, task);
+		hdl->usedNumber--;
+	}
+	else
+		task->check = now;
+	task->cpu = -1;
+	mp_task_cpu_unlock();
+}
 
 static void _mp_task_soon(mp_task_handler_t *hdl, unsigned long at) {
 	if(hdl->wakeSet == NO || (long)(at - hdl->wakeAt) < 0) {
@@ -68,6 +307,8 @@ void mp_task_init(mp_kernel_t *kernel, mp_task_handler_t *hdl) {
 	mp_task_t *task;
 	int a;
 
+	/* a flush reuses the handler while the other cores scan it */
+	_MP_TASK_SMP_BEGIN
 	memset(hdl, 0, sizeof(*hdl));
 	_mp_task_depth = 0;
 	_mp_task_running_n = 0;
@@ -86,6 +327,7 @@ void mp_task_init(mp_kernel_t *kernel, mp_task_handler_t *hdl) {
 	/* set global start */
 	hdl->signal = MP_TASK_SIG_OK;
 	mp_task_sched_boot(hdl);
+	_MP_TASK_SMP_END
 }
 
 void mp_task_fini(mp_task_handler_t *hdl) {
@@ -118,9 +360,11 @@ mp_task_t *mp_task_create(mp_task_handler_t *hdl, char *name, mp_task_wakeup_t w
 	mp_task_lock_t key;
 
 	key = mp_task_lock(MP_TASK_CEILING_KERNEL);
+	_MP_TASK_SMP_BEGIN
 
 	/* assert */
 	if(hdl->freeList.first == NULL) {
+		_MP_TASK_SMP_END
 		mp_task_unlock(key);
 		return(NULL);
 	}
@@ -147,6 +391,8 @@ mp_task_t *mp_task_create(mp_task_handler_t *hdl, char *name, mp_task_wakeup_t w
 	task->share_live = 0;
 	task->share_done = 0;
 	task->share_ticks = 0;
+	task->cpu = -1;
+	task->affinity = MP_TASK_CPU_ANY;
 
 	hdl->usedNumber++;
 
@@ -156,6 +402,7 @@ mp_task_t *mp_task_create(mp_task_handler_t *hdl, char *name, mp_task_wakeup_t w
 	task->signal = MP_TASK_SIG_OK;
 	mp_task_signal(task, MP_TASK_SIG_OK);
 
+	_MP_TASK_SMP_END
 	mp_task_unlock(key);
 	return(task);
 }
@@ -166,20 +413,22 @@ mp_ret_t mp_task_destroy(mp_task_t *task) {
 }
 
 void mp_task_rearm(mp_task_handler_t *hdl, mp_task_t *task) {
-	MP_INTERRUPT_SAFE_BEGIN
+	_MP_TASK_GUARD_BEGIN
 	_mp_task_arm(hdl, task);
-	MP_INTERRUPT_SAFE_END
+	_MP_TASK_GUARD_END
 }
 
 void mp_task_rearm_all(mp_task_handler_t *hdl) {
 	mp_list_item_t *item;
 	mp_task_t *task;
 
+	_MP_TASK_SMP_BEGIN
 	for(item = hdl->usedList.first; item != NULL; item = item->next) {
 		task = item->user;
 		if(task->signal == MP_TASK_SIG_OK || task->signal == MP_TASK_SIG_STOP)
 			mp_task_rearm(hdl, task);
 	}
+	_MP_TASK_SMP_END
 }
 
 mp_bool_t mp_task_ready(mp_task_handler_t *hdl, mp_task_t *task, unsigned long now) {
@@ -252,6 +501,7 @@ void mp_task_served_open(mp_task_handler_t *hdl, int ceiling) {
 		if(slot >= 0 && slot < MP_TASK_MAX)
 			keep[slot] = 1;
 	}
+	_MP_TASK_SMP_BEGIN
 	for(item = hdl->usedList.first; item != NULL; item = item->next) {
 		mp_task_t *task = item->user;
 
@@ -262,6 +512,7 @@ void mp_task_served_open(mp_task_handler_t *hdl, int ceiling) {
 			continue;
 		_mp_task_served[slot] = 0;
 	}
+	_MP_TASK_SMP_END
 }
 
 void mp_task_pass_enter(void) {
@@ -304,12 +555,22 @@ mp_task_t *mp_task_pick(mp_task_handler_t *hdl, unsigned long now, int exact, in
 	unsigned long due;
 	unsigned long bestDue;
 
+	unsigned char *served = _mp_task_served;
+#if MP_CPUS > 1
+	int me = mp_cpu_id();
+#endif
+
 	best = NULL;
+	_MP_TASK_SMP_BEGIN
 	for(item = hdl->usedList.first; item != NULL; item = item->next) {
 		task = item->user;
 		slot = (int)(task - hdl->tasks);
-		if(slot >= 0 && slot < MP_TASK_MAX && _mp_task_served[slot])
+		if(slot >= 0 && slot < MP_TASK_MAX && served[slot])
 			continue;
+#if MP_CPUS > 1
+		if(!_mp_task_cpu_free(task, me))
+			continue;
+#endif
 		if(exact >= 0 && task->priority != (unsigned char)exact)
 			continue;
 		if(ceiling >= 0 && task->priority <= (unsigned char)ceiling)
@@ -325,25 +586,11 @@ mp_task_t *mp_task_pick(mp_task_handler_t *hdl, unsigned long now, int exact, in
 				best = task;
 		}
 	}
+	_MP_TASK_SMP_END
 	return(best);
 }
 
 #if MP_TASK_SHARE
-
-/* Four stacks. A live callback holds one until it returns. 1024 is enough
- * for a short callback and for the higher task the timer nests on top. */
-#define _MP_TASK_SHARE_BYTES 1024
-#define _MP_TASK_SHARE_SLOTS 4
-
-static unsigned char _mp_task_share_mem[_MP_TASK_SHARE_SLOTS][_MP_TASK_SHARE_BYTES]
-	__attribute__((aligned(16)));
-static unsigned char _mp_task_share_used[_MP_TASK_SHARE_SLOTS];
-static mp_task_t *_mp_task_share_current;
-static mp_task_t *_mp_task_share_launch;
-static void *_mp_task_share_home;
-static volatile int _mp_task_share_running;
-static int _mp_task_share_in_irq;
-static int _mp_task_isr;
 
 /* Priority 0 never yields: a long callback keeps the processor until it
  * returns. Every level above yields every tick to a peer of that level. */
@@ -353,9 +600,13 @@ static unsigned _mp_task_share_quantum(unsigned char priority) {
 	return(1);
 }
 
+#ifndef MP_ARCH_ISR_HW
+#define MP_ARCH_ISR_HW 0
+#endif
+
 static int _mp_task_from_isr(void) {
-	#if defined(__STM32__) || defined(__RP2__)
-		return((SCB->ICSR & SCB_ICSR_VECTACTIVE) != 0);
+	#if MP_ARCH_ISR_HW
+		return(mp_interrupt_active());
 	#else
 		return(_mp_task_isr != 0 || _mp_task_share_in_irq != 0);
 	#endif
@@ -397,21 +648,10 @@ static void _mp_task_share_release(mp_task_t *task) {
 }
 
 static void _mp_task_share_finish(mp_task_t *task) {
-	mp_task_handler_t *hdl = task->handler;
-	mp_task_lock_t key;
-
 	task->share_live = 0;
 	task->share_done = 0;
 	task->share_sp = NULL;
-	if(task->signal == MP_TASK_SIG_DEAD) {
-		key = mp_task_lock(MP_TASK_CEILING_KERNEL);
-		mp_list_remove(&hdl->usedList, &task->item);
-		mp_list_add_last(&hdl->freeList, &task->item, task);
-		hdl->usedNumber--;
-		mp_task_unlock(key);
-	}
-	else
-		task->check = task->share_now;
+	_mp_task_retire(task->handler, task, task->share_now);
 }
 
 static void _mp_task_share_entry(void *arg) {
@@ -426,18 +666,30 @@ static void _mp_task_share_entry(void *arg) {
 static int _mp_task_share_arm(mp_task_t *task, unsigned long now) {
 	void *top;
 	int slot;
+#if MP_CPUS > 1
+	/* execute() already holds its own task. A peer is claimed here and
+	 * handed back when it cannot start. */
+	int held = task->cpu == mp_cpu_id();
 
-	top = _mp_task_share_take(task);
-	if(!top)
+	if(!_mp_task_cpu_claim(task))
 		return(0);
+#endif
+	top = _mp_task_share_take(task);
+	if(top) {
+		task->share_sp = mp_task_arch_forge(top, _mp_task_share_entry, task);
+		if(!task->share_sp)
+			_mp_task_share_release(task);
+	}
+	if(!top || !task->share_sp) {
+#if MP_CPUS > 1
+		if(!held)
+			task->cpu = -1;
+#endif
+		return(0);
+	}
 	task->share_now = now;
 	task->share_done = 0;
 	task->share_ticks = 0;
-	task->share_sp = mp_task_arch_forge(top, _mp_task_share_entry, task);
-	if(!task->share_sp) {
-		_mp_task_share_release(task);
-		return(0);
-	}
 	task->share_live = 1;
 	task->runs++;
 	slot = (int)(task - task->handler->tasks);
@@ -457,8 +709,16 @@ static int _mp_task_share_candidate(mp_task_t *task, mp_task_t *skip, unsigned c
 		return(0);
 	/* The task execute() is waiting on stays in the running list while a
 	 * peer has the processor. It is still the one to resume. */
+#if MP_CPUS > 1
+	/* a live stack on another core is that core's to switch */
+	if(task->share_live && task->share_sp && !task->share_done)
+		return(task->cpu == mp_cpu_id());
+	if(!_mp_task_cpu_free(task, mp_cpu_id()))
+		return(0);
+#else
 	if(task->share_live && task->share_sp && !task->share_done)
 		return(1);
+#endif
 	slot = (int)(task - task->handler->tasks);
 	if(slot < 0 || slot >= MP_TASK_MAX)
 		return(0);
@@ -478,6 +738,7 @@ static mp_task_t *_mp_task_share_peer(mp_task_t *skip, unsigned char priority, u
 	if(!skip)
 		return(NULL);
 	hdl = skip->handler;
+	_MP_TASK_SMP_BEGIN
 	origin = skip->item.next;
 	if(origin == NULL)
 		origin = hdl->usedList.first;
@@ -486,8 +747,10 @@ static mp_task_t *_mp_task_share_peer(mp_task_t *skip, unsigned char priority, u
 	while(item != NULL) {
 		mp_task_t *task = item->user;
 
-		if(task != skip && _mp_task_share_candidate(task, skip, priority, now))
+		if(task != skip && _mp_task_share_candidate(task, skip, priority, now)) {
+			_MP_TASK_SMP_END
 			return(task);
+		}
 		item = item->next;
 		if(item == NULL) {
 			if(wrapped)
@@ -498,6 +761,7 @@ static mp_task_t *_mp_task_share_peer(mp_task_t *skip, unsigned char priority, u
 		if(item == origin)
 			break;
 	}
+	_MP_TASK_SMP_END
 	return(NULL);
 }
 
@@ -602,11 +866,7 @@ static int _mp_task_share_enter(mp_task_t *task, unsigned long now) {
 
 void *mp_task_share_irq(void *sp) {
 	_mp_task_share_in_irq++;
-	#if defined(ESP32C6)
-		c6_write(C6_FROM_CPU, 0);
-	#elif defined(ESP32C3)
-		c3_write(C3_FROM_CPU, 0);
-	#endif
+	mp_task_share_ack();
 	mp_task_share_open();
 	mp_task_sched_dispatch();
 	mp_task_share_close();
@@ -642,21 +902,35 @@ void mp_task_share_tick(void) {
 
 #endif
 
-static void _mp_task_execute_done(mp_task_handler_t *hdl, mp_task_t *task, unsigned long now) {
-	mp_task_lock_t key;
-
-	if(task->signal == MP_TASK_SIG_DEAD) {
-		key = mp_task_lock(MP_TASK_CEILING_KERNEL);
-		mp_list_remove(&hdl->usedList, &task->item);
-		mp_list_add_last(&hdl->freeList, &task->item, task);
-		hdl->usedNumber--;
-		mp_task_unlock(key);
-	}
-	else
-		task->check = now;
-}
+static void _mp_task_execute_held(mp_task_handler_t *hdl, mp_task_t *task, unsigned long now);
+#if MP_CPUS > 1
+static int _mp_task_cpu_busy_enter(mp_task_t *task);
+static void _mp_task_cpu_busy_leave(void);
+#endif
 
 void mp_task_execute(mp_task_handler_t *hdl, mp_task_t *task, unsigned long now) {
+#if MP_CPUS > 1
+	if(!_mp_task_cpu_claim(task))
+		return;
+	if(_mp_task_running_n == 0 && mp_cpu_id() != 0) {
+		if(!_mp_task_cpu_busy_enter(task)) {
+			int slot = (int)(task - hdl->tasks);
+
+			/* held out: left for after the hold, not again this pass */
+			if(slot >= 0 && slot < MP_TASK_MAX)
+				_mp_task_served[slot] = 1;
+			return;
+		}
+		_mp_task_execute_held(hdl, task, now);
+		_mp_task_cpu_busy_leave();
+		return;
+	}
+#endif
+	_mp_task_execute_held(hdl, task, now);
+}
+
+/* The task is claimed by this core. */
+static void _mp_task_execute_held(mp_task_handler_t *hdl, mp_task_t *task, unsigned long now) {
 	int slot;
 
 	slot = (int)(task - hdl->tasks);
@@ -685,7 +959,7 @@ void mp_task_execute(mp_task_handler_t *hdl, mp_task_t *task, unsigned long now)
 	task->wakeup(task);
 
 	_mp_task_running_n--;
-	_mp_task_execute_done(hdl, task, now);
+	_mp_task_retire(hdl, task, now);
 }
 
 mp_task_tick_t mp_task_sched_result(mp_task_handler_t *hdl) {
@@ -707,7 +981,7 @@ mp_task_tick_t mp_task_sched_result(mp_task_handler_t *hdl) {
 void mp_task_signal(mp_task_t *task, mp_task_signal_t signal) {
 	mp_task_handler_t *hdl = task->handler;
 
-	MP_INTERRUPT_SAFE_BEGIN
+	_MP_TASK_GUARD_BEGIN
 	if(task->signal != MP_TASK_SIG_SLEEP && signal == MP_TASK_SIG_SLEEP)
 		hdl->sleepNumber++;
 	else if(task->signal == MP_TASK_SIG_SLEEP && signal != MP_TASK_SIG_SLEEP)
@@ -721,7 +995,10 @@ void mp_task_signal(mp_task_t *task, mp_task_signal_t signal) {
 	task->signal = signal;
 	if(signal == MP_TASK_SIG_OK || signal == MP_TASK_SIG_STOP)
 		_mp_task_arm(hdl, task);
-	MP_INTERRUPT_SAFE_END
+	_MP_TASK_GUARD_END
+#if MP_CPUS > 1
+	_mp_task_cpu_notify(task);
+#endif
 }
 
 /**
@@ -734,13 +1011,26 @@ void mp_task_signal(mp_task_t *task, mp_task_signal_t signal) {
  * @param[in] task The task
  */
 void mp_task_wake(mp_task_t *task) {
-	MP_INTERRUPT_SAFE_BEGIN
+	_MP_TASK_GUARD_BEGIN
 	if(task->signal == MP_TASK_SIG_OK || task->signal == MP_TASK_SIG_SLEEP)
 		mp_task_signal(task, MP_TASK_SIG_PENDING);
-	MP_INTERRUPT_SAFE_END
+	_MP_TASK_GUARD_END
 #if MP_TASK_SCHEDULER == MP_TASK_SCHED_PREEMPT
 	if(task->signal == MP_TASK_SIG_PENDING && mp_task_sched_preempts(task))
 		mp_task_pend();
+#endif
+#if MP_CPUS > 1
+	/* a busy core running below it preempts as well, the first one in wins */
+	if(task->signal == MP_TASK_SIG_PENDING && _mp_task_cpu_up > 1) {
+		int me = mp_cpu_id();
+		int cpu;
+
+		for(cpu = 0; cpu < MP_CPUS; cpu++) {
+			if(cpu != me && (task->affinity & (1U << cpu)) &&
+					task->priority > mp_task_sched_runpri(cpu))
+				mp_cpu_pend(cpu);
+		}
+	}
 #endif
 }
 
@@ -753,12 +1043,12 @@ void mp_task_wake(mp_task_t *task) {
  * @param[in] delay Ticks
  */
 void mp_task_delay(mp_task_t *task, unsigned long delay) {
-	MP_INTERRUPT_SAFE_BEGIN
+	_MP_TASK_GUARD_BEGIN
 	task->check = mp_clock_ticks();
 	task->delay = delay;
 	if(task->signal == MP_TASK_SIG_OK || task->signal == MP_TASK_SIG_SLEEP || task->signal == MP_TASK_SIG_PENDING)
 		mp_task_signal(task, MP_TASK_SIG_OK);
-	MP_INTERRUPT_SAFE_END
+	_MP_TASK_GUARD_END
 }
 
 /**
@@ -778,6 +1068,29 @@ void mp_task_priority(mp_task_t *task, unsigned char priority) {
 }
 
 /**
+ * @brief Choose the cores that may run a task
+ *
+ * Bit n is core n. A new task is MP_TASK_CPU_ANY: the first free core
+ * takes it. Pin one only when its callback needs a core, such as the
+ * private stacks of core 0. A single-core build ignores it. A callback
+ * already running finishes where it is.
+ *
+ * @param[in] task The task
+ * @param[in] mask Cores, 0 falls back to core 0
+ */
+void mp_task_affinity(mp_task_t *task, unsigned char mask) {
+	mask &= MP_TASK_CPU_ANY;
+	if(!mask)
+		mask = 1;
+	_MP_TASK_GUARD_BEGIN
+	task->affinity = mask;
+	_MP_TASK_GUARD_END
+#if MP_CPUS > 1
+	_mp_task_cpu_notify(task);
+#endif
+}
+
+/**
  * @brief Ticks the kernel can sleep before a task is due
  *
  * The arch calls it with interrupts masked, before it sleeps.
@@ -790,11 +1103,150 @@ unsigned long mp_task_idle(mp_task_handler_t *hdl) {
 
 	if(hdl->pendingNumber > 0 || hdl->signal == MP_TASK_SIG_STOP)
 		return(0);
+#if MP_CPUS > 1
+	/* The tick is core 0's. Tickless, it stops moving under the pass
+	 * another core is running, so sleep one tick at a time. A core that
+	 * starts a pass while this sleep is long wakes it (_mp_task_cpu_run). */
+	{
+		unsigned long wait = MP_TASK_FOREVER;
+
+		mp_task_cpu_lock();
+		if(_mp_task_cpu_busy)
+			wait = 1;
+		else if(hdl->wakeSet == YES) {
+			left = (long)(hdl->wakeAt - mp_clock_ticks());
+			wait = left > 0 ? (unsigned long)left : 0;
+		}
+		_mp_task_cpu_deep = wait > 1;
+		mp_task_cpu_unlock();
+		return(wait);
+	}
+#else
 	if(hdl->wakeSet == NO)
 		return(MP_TASK_FOREVER);
 	left = (long)(hdl->wakeAt - mp_clock_ticks());
 	return(left > 0 ? (unsigned long)left : 0);
+#endif
 }
+
+#if MP_CPUS > 1
+
+/* A ready task this core may take, not held by another core. */
+static int _mp_task_cpu_due(mp_task_handler_t *hdl, int me) {
+	mp_list_item_t *item;
+	mp_task_t *task;
+	unsigned long now;
+	int due = 0;
+
+	mp_task_cpu_lock();
+	now = mp_clock_ticks();
+	for(item = _mp_task_cpu_gate ? NULL : hdl->usedList.first; item != NULL && !due; item = item->next) {
+		task = item->user;
+		if(!(task->affinity & (1U << me)) || task->cpu >= 0)
+			continue;
+		if(task->signal == MP_TASK_SIG_DEAD)
+			continue;
+		due = mp_task_ready(hdl, task, now) == YES;
+	}
+	mp_task_cpu_unlock();
+	return(due);
+}
+
+/* The same scheduler as core 0, on the same list: a pass, nested
+ * preemption from this core's SysTick, private stacks switched by this
+ * core's PendSV. Between passes it sleeps in WFI until a kick or its tick. */
+void mp_task_cpu_run(mp_task_handler_t *hdl) {
+	int me = mp_cpu_id();
+
+	for(;;) {
+		mp_interrupt_disable();
+		_mp_task_cpu_sleeping[me] = 1;
+		if(!_mp_task_cpu_due(hdl, me)) {
+			mp_cpu_idle();
+			_mp_task_cpu_sleeping[me] = 0;
+			mp_interrupt_enable();
+			continue;
+		}
+		_mp_task_cpu_sleeping[me] = 0;
+		mp_interrupt_enable();
+		mp_task_tick(hdl);
+	}
+}
+
+/* Around the outermost callback of a core above 0, from its pass or from
+ * its PendSV. Core 0 in a long tickless sleep is woken so the tick moves.
+ * Under a hold the claim is given back and the callback does not run. */
+static int _mp_task_cpu_busy_enter(mp_task_t *task) {
+	int deep;
+
+	mp_task_cpu_lock();
+	if(_mp_task_cpu_gate) {
+		task->cpu = -1;
+		mp_task_cpu_unlock();
+		return(0);
+	}
+	_mp_task_cpu_busy++;
+	deep = _mp_task_cpu_deep;
+	mp_task_cpu_unlock();
+	if(deep)
+		mp_cpu_kick(0);
+	return(1);
+}
+
+/**
+ * @brief Holds the other cores out of every task
+ *
+ * Core 0 code that is not a task, the boot and the machine states, has
+ * always run with no task alongside it. It waits here for the callbacks
+ * other cores are in to return, and none starts until mp_task_cpus_release().
+ */
+void mp_task_cpus_hold(void) {
+	if(_mp_task_cpu_up < 2)
+		return;
+	mp_task_cpu_lock();
+	_mp_task_cpu_gate++;
+	mp_task_cpu_unlock();
+	while(_mp_task_cpu_busy)
+		;
+}
+
+void mp_task_cpus_release(void) {
+	int cpu;
+
+	if(_mp_task_cpu_up < 2)
+		return;
+	mp_task_cpu_lock();
+	_mp_task_cpu_gate--;
+	mp_task_cpu_unlock();
+	for(cpu = 1; cpu < _mp_task_cpu_up; cpu++)
+		mp_cpu_kick(cpu);
+}
+
+static void _mp_task_cpu_busy_leave(void) {
+	mp_task_cpu_lock();
+	_mp_task_cpu_busy--;
+	mp_task_cpu_unlock();
+}
+
+static void _mp_task_cpu_entry(void) {
+	mp_task_cpu_run(_mp_task_cpu_hdl);
+}
+
+int mp_task_cpus_start(mp_task_handler_t *hdl) {
+	int cpu;
+
+	if(_mp_task_cpu_up > 1)
+		return(_mp_task_cpu_up);
+	_mp_task_cpu_hdl = hdl;
+	for(cpu = 1; cpu < MP_CPUS; cpu++) {
+		if(mp_cpu_start(cpu, _mp_task_cpu_entry) != YES)
+			break;
+		_mp_task_cpu_up = cpu + 1;
+	}
+	return(_mp_task_cpu_up);
+}
+
+#endif
 
 /* Eight create/run/die passes while the rest of the system is live.
  * Priority 2 and priority 0 must both run. Coop ignores the priority
@@ -961,6 +1413,9 @@ static MP_TASK(_mp_task_share_watch) {
 			task->signal = MP_TASK_SIG_DEAD;
 			return;
 		}
+		/* peers on one core: the switch between them is what this measures */
+		mp_task_affinity(_mp_task_share_a, 1);
+		mp_task_affinity(_mp_task_share_b, 1);
 		mp_task_priority(_mp_task_share_a, 1);
 		mp_task_priority(_mp_task_share_b, 1);
 		mp_task_delay(task, 1);
@@ -1010,6 +1465,129 @@ static void _mp_task_share_selftest(mp_task_handler_t *hdl) {
 
 #endif
 
+#if MP_CPUS > 1
+
+/* One task pinned to core 1, one any core may take. Both add to a counter
+ * under mp_task_lock with a split read-modify-write, so a lock that does
+ * not exclude the other core loses counts. Pass: the pinned task only ever
+ * ran on core 1 and the sum is exact. */
+#define _MP_TASK_SMP_RUNS 32
+#define _MP_TASK_SMP_ADDS 500
+
+static volatile unsigned _mp_task_smp_mask_a;
+static volatile unsigned _mp_task_smp_mask_b;
+static volatile unsigned _mp_task_smp_runs_a;
+static volatile unsigned _mp_task_smp_runs_b;
+static volatile unsigned long _mp_task_smp_sum;
+static volatile unsigned char _mp_task_smp_abort;
+static unsigned short _mp_task_smp_wait;
+static mp_task_t *_mp_task_smp_a;
+
+static void _mp_task_smp_add(void) {
+	mp_task_lock_t key;
+	unsigned long v;
+	int i;
+
+	key = mp_task_lock(MP_TASK_CEILING_KERNEL);
+	for(i = 0; i < _MP_TASK_SMP_ADDS; i++) {
+		v = _mp_task_smp_sum;
+		__asm volatile ("" ::: "memory");
+		_mp_task_smp_sum = v + 1;
+	}
+	mp_task_unlock(key);
+}
+
+static MP_TASK(_mp_task_smp_a_run) {
+	if(task->signal == MP_TASK_SIG_STOP || _mp_task_smp_abort) {
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+	_mp_task_smp_mask_a |= 1U << mp_cpu_id();
+	_mp_task_smp_add();
+	if(++_mp_task_smp_runs_a >= _MP_TASK_SMP_RUNS)
+		task->signal = MP_TASK_SIG_DEAD;
+}
+
+static MP_TASK(_mp_task_smp_b_run) {
+	if(task->signal == MP_TASK_SIG_STOP || _mp_task_smp_abort) {
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+	_mp_task_smp_mask_b |= 1U << mp_cpu_id();
+	_mp_task_smp_add();
+	if(++_mp_task_smp_runs_b >= _MP_TASK_SMP_RUNS)
+		task->signal = MP_TASK_SIG_DEAD;
+}
+
+static MP_TASK(_mp_task_smp_watch) {
+	mp_task_t *b;
+
+	if(task->signal == MP_TASK_SIG_STOP) {
+		_mp_task_smp_abort = 1;
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+
+	if(!_mp_task_smp_a) {
+		if(mp_task_cpus() < 2) {
+			mp_printk("SELFTEST: smp failed (core 1 silent)");
+			task->signal = MP_TASK_SIG_DEAD;
+			return;
+		}
+		_mp_task_smp_a = mp_task_create(task->handler, "SmpPin", _mp_task_smp_a_run, NULL, 1);
+		b = mp_task_create(task->handler, "SmpAny", _mp_task_smp_b_run, NULL, 1);
+		if(!_mp_task_smp_a || !b) {
+			mp_printk("SELFTEST: smp failed");
+			_mp_task_smp_abort = 1;
+			task->signal = MP_TASK_SIG_DEAD;
+			return;
+		}
+		mp_task_affinity(_mp_task_smp_a, 1U << 1);
+		mp_task_affinity(b, MP_TASK_CPU_ANY);
+		mp_task_delay(task, 10);
+		return;
+	}
+
+	if(_mp_task_smp_runs_a >= _MP_TASK_SMP_RUNS && _mp_task_smp_runs_b >= _MP_TASK_SMP_RUNS) {
+		if(_mp_task_smp_mask_a == (1U << 1) &&
+				_mp_task_smp_sum == 2UL * _MP_TASK_SMP_RUNS * _MP_TASK_SMP_ADDS)
+			mp_printk("SELFTEST: smp passed (%d cores, any ran on 0x%x)",
+				mp_task_cpus(), _mp_task_smp_mask_b);
+		else
+			mp_printk("SELFTEST: smp failed (pin 0x%x, sum %lu)",
+				_mp_task_smp_mask_a, _mp_task_smp_sum);
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+
+	if(++_mp_task_smp_wait > 2000) {
+		mp_printk("SELFTEST: smp failed (pin %u runs, any %u runs)",
+			_mp_task_smp_runs_a, _mp_task_smp_runs_b);
+		_mp_task_smp_abort = 1;
+		task->signal = MP_TASK_SIG_DEAD;
+		return;
+	}
+	mp_task_delay(task, 10);
+}
+
+static void _mp_task_smp_selftest(mp_task_handler_t *hdl) {
+	mp_task_t *task;
+
+	_mp_task_smp_mask_a = 0;
+	_mp_task_smp_mask_b = 0;
+	_mp_task_smp_runs_a = 0;
+	_mp_task_smp_runs_b = 0;
+	_mp_task_smp_sum = 0;
+	_mp_task_smp_abort = 0;
+	_mp_task_smp_wait = 0;
+	_mp_task_smp_a = NULL;
+	task = mp_task_create(hdl, "Smp", _mp_task_smp_watch, NULL, 1);
+	if(!task)
+		mp_printk("SELFTEST: smp failed");
+}
+
+#endif
+
 void mp_task_selftest_start(mp_task_handler_t *hdl) {
 	mp_task_t *task;
 
@@ -1032,9 +1610,16 @@ void mp_task_selftest_start(mp_task_handler_t *hdl) {
 	#else
 		mp_printk("SELFTEST: share skipped");
 	#endif
+	#if MP_CPUS > 1
+		_mp_task_smp_selftest(hdl);
+	#endif
 }
 
 mp_task_tick_t mp_task_tick(mp_task_handler_t *hdl) {
+#if MP_CPUS > 1
+	if(mp_cpu_id() == 0)
+		_mp_task_cpu_deep = 0;
+#endif
 	/* assert */
 	if(hdl->usedNumber == 0) {
 		if(hdl->signal == MP_TASK_SIG_STOP)
