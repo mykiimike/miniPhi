@@ -23,6 +23,11 @@
 	mp_bool_t mp_interrupt_state();
 	void mp_interrupt_restore(mp_bool_t state);
 
+	#define MP_ARCH_ISR_HW 0
+
+	static inline void mp_task_share_ack(void) {
+	}
+
 	#define MP_INTERRUPT_SAFE_BEGIN { mp_bool_t _____state = mp_interrupt_state(); \
 		mp_interrupt_disable();
 
