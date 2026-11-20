@@ -117,14 +117,24 @@ static int _xpt_pair(mp_drv_xpt2046_t *touch, unsigned char cmd) {
 	return((first + second) / 2);
 }
 
+/* min above max mirrors the axis */
 static int _xpt_scale(int raw, int min, int max, int span) {
-	if(span <= 1 || max <= min)
+	if(span <= 1 || max == min)
 		return(0);
+	if(max < min)
+		return(span - 1 - _xpt_scale(raw, max, min, span));
 	if(raw < min)
 		raw = min;
 	if(raw > max)
 		raw = max;
 	return((raw - min) * (span - 1) / (max - min));
+}
+
+static int _xpt_outside(int raw, int a, int b) {
+	int lo = a < b ? a : b;
+	int hi = a < b ? b : a;
+
+	return(raw < lo - _XPT_EDGE || raw > hi + _XPT_EDGE);
 }
 
 /* landscape puts panel rows across the display, the same four cases as _mp_resistive_map */
@@ -264,8 +274,8 @@ static MP_TASK(_xpt_task) {
 	rawX = _xpt_pair(touch, _XPT_CMD_X);
 	rawY = _xpt_pair(touch, _XPT_CMD_Y);
 	if(rawX < 0 || rawY < 0 ||
-		rawX < touch->xMin - _XPT_EDGE || rawX > touch->xMax + _XPT_EDGE ||
-		rawY < touch->yMin - _XPT_EDGE || rawY > touch->yMax + _XPT_EDGE) {
+		_xpt_outside(rawX, touch->xMin, touch->xMax) ||
+		_xpt_outside(rawY, touch->yMin, touch->yMax)) {
 		_xpt_dropout(touch);
 		return;
 	}
@@ -448,7 +458,7 @@ mp_ret_t mp_drv_xpt2046_init(mp_kernel_t *kernel, mp_drv_xpt2046_t *touch, mp_op
 		_xpt_opt_int(options, "ymax", _XPT_WINDOW_MAX, &touch->yMax) == FALSE ||
 		_xpt_opt_int(options, "zmin", _XPT_ZMIN, &touch->zMin) == FALSE)
 		goto fail;
-	if(touch->columns < 2 || touch->rows < 2 || touch->xMax <= touch->xMin || touch->yMax <= touch->yMin) {
+	if(touch->columns < 2 || touch->rows < 2 || touch->xMax == touch->xMin || touch->yMax == touch->yMin) {
 		mp_printk("XPT2046: columns, rows and the raw window");
 		goto fail;
 	}
