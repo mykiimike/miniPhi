@@ -15,8 +15,6 @@ miniPhi is an embedded real-time operating system written in C. Portable applica
 
 You describe the hardware, choose an application and the modules, and the configurator writes a build directory. It resolves the dependencies, checks the pins and the RAM, and produces the Makefile and the headers the target compiler uses.
 
-> **Project status.** A module or a board file in the tree means the port exists. It does not, by itself, promise that every feature of that module has been exercised on every board. USB lists PHY ports and link state. It has no endpoints and no device classes.
-
 ## At a glance
 
 | | |
