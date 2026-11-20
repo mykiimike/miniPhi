@@ -115,20 +115,20 @@ A module that was not selected is absent from the build. The `_phi.js` format, t
 
 ## Supported architectures
 
-The ports in the tree:
+Four architectures, and every series that has a port:
 
-| CPU | Profile |
-| --- | --- |
-| **MSP430 / MSP430X** | 16-bit, with the extended MSP430X instructions |
-| **Arm Cortex-M3** | ARMv7-M |
-| **Arm Cortex-M4** | ARMv7E-M, with the DSP instructions |
-| **Arm Cortex-M33** | ARMv8-M |
-| **Xtensa LX6** | Two cores |
-| **Xtensa LX7** | |
-| **RV32IMC** | RISC-V |
-| **RV32IMAC** | RISC-V, with the atomic extension |
+| Architecture | Series | CPU |
+| --- | --- | --- |
+| **MSP430** | F5xx / F6xx | MSP430X |
+| **STM32** | F1 | Cortex-M3 |
+| **STM32** | F4 | Cortex-M4 |
+| **RP2** | RP2350 | Cortex-M33, two cores |
+| **ESP32** | the original ESP32 | Xtensa LX6, two cores |
+| **ESP32** | S3 | Xtensa LX7. The second core stays in reset |
+| **ESP32** | C3 | RV32IMC, one core |
+| **ESP32** | C6 | RV32IMAC, one core |
 
-A CPU port is not a promise about every MCU that uses that core. A firmware still needs the series, the memory map, the drivers and a board file.
+The RP2350 also carries Hazard3 cores, and the family text mentions an RP2040. Neither is a port: the RP2350 firmware runs the Cortex-M33s. A series port is not a promise about every MCU of that series. A firmware still needs the memory map, the drivers and a board file.
 
 ## Module overview
 
