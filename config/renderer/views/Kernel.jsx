@@ -2,7 +2,7 @@ import { useState } from "react"
 import { bytes, useConfig } from "../state.js"
 import { Badge, Chip, Empty, Section, SettingField, Switch } from "../components/ui.jsx"
 
-const ramColors = ["#f2a93b", "#3b6fd8", "#2e8a57", "#a855c7", "#d1495b", "#0f9aa8"]
+const ramColors = ["#2EB88A", "#6B93E0", "#E0A44A", "#a855c7", "#E15B5B", "#0f9aa8"]
 
 function Ram() {
 	const { analysis } = useConfig()

@@ -160,7 +160,7 @@ function createWindow() {
 		minWidth: 1080,
 		minHeight: 680,
 		title: "miniPhi config",
-		backgroundColor: "#f5f3ee",
+		backgroundColor: "#10141C",
 		icon: path.join(here, "assets", "icon.png"),
 		webPreferences: {
 			preload: path.join(here, "preload.cjs"),
