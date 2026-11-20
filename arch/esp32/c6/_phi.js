@@ -34,6 +34,7 @@ export const phi = {
 			"rf/rf.c",
 			"rf/device.c",
 			"mac.c",
+			"rftest.c",
 			"rf/11ax.c",
 			"rf/analog_cal.c",
 			"rf/api.c",

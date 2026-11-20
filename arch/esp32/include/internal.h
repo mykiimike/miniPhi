@@ -23,7 +23,7 @@
 
 @ingroup mpArch
 
-@brief ESP32 family. The C6 series is the HP RISC-V core, the C3 series is the RV32IMC core, the S3 series is the Xtensa LX7.
+@brief ESP32 family. The C6 series is the HP RISC-V core, the C3 series is the RV32IMC core, the S3 series is the Xtensa LX7, the classic series is the Xtensa LX6.
 
 */
 

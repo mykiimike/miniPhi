@@ -53,8 +53,8 @@
 			__asm__ volatile ("csrr %0, mstatus" : "=r"(mstatus));
 			return(mstatus & 8 ? TRUE : FALSE);
 		}
-	#elif defined(ESP32S3)
-		/* The tick, the console and the dispatcher are level 2.
+	#elif defined(ESP32S3) || defined(ESP32CLASSIC)
+		/* The tick and the dispatcher are level 2.
 		 * rsil 1 would leave them running inside a critical section. */
 		static inline void mp_interrupt_enable(void) {
 			__asm__ volatile ("rsil a2, 0" ::: "a2", "memory");
@@ -79,6 +79,16 @@
 			mp_interrupt_enable();
 		else
 			mp_interrupt_disable();
+	}
+
+	#define MP_ARCH_ISR_HW 0
+
+	static inline void mp_task_share_ack(void) {
+		#if defined(ESP32C6)
+			c6_write(C6_FROM_CPU, 0);
+		#elif defined(ESP32C3)
+			c3_write(C3_FROM_CPU, 0);
+		#endif
 	}
 
 	#define MP_INTERRUPT_SAFE_BEGIN { mp_bool_t _____state = mp_interrupt_state(); \

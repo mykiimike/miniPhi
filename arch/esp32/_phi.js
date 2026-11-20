@@ -5,7 +5,7 @@ export const phi = {
 	name: "esp32",
 	vendor: "Espressif",
 	label: "Espressif ESP32",
-	description: "Espressif ESP32 microcontrollers. The C6 series is the HP RV32IMAC core. The C3 series is the RV32IMC core. The S3 series is the Xtensa LX7. Each brings up GPIO, a 1 kHz SYSTIMER tick, and the USB Serial/JTAG console the ROM already enumerated. Wi-Fi, BLE and the second core are not in this port.",
+	description: "Espressif ESP32 microcontrollers. The C6 series is the HP RV32IMAC core. The C3 series is the RV32IMC core. The S3 series is the Xtensa LX7. Those three bring up GPIO, a 1 kHz SYSTIMER tick, and the USB Serial/JTAG console the ROM already enumerated. The classic series is the original ESP32, Xtensa LX6, two cores, on the 40 MHz crystal: GPIO, a 1 kHz TIMG tick, a UART0 console, and SPI2. Wi-Fi and BLE are not in this port.",
 	define: "__ESP32__",
 	headers: [
 		"include/clock.h",
@@ -212,6 +212,51 @@ export const phi = {
 			compile: "$(CC) $(CFLAGS) -c $< -o $@",
 			link: "$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBS) && $(XTENSA_GCC_ROOT)/bin/xtensa-esp32s3-elf-size $@",
 		},
+		{
+			name: "lx6",
+			label: "xtensa-esp32-elf-gcc",
+			description: "Espressif GNU toolchain for the original ESP32, Xtensa LX6, windowed ABI, newlib. XTENSA_GCC_ROOT is the directory that contains bin/xtensa-esp32-elf-gcc.",
+			vars: [
+				{ name: "XTENSA_GCC_ROOT", label: "GCC root", default: "/home/mykii/.local/xtensa-esp-elf", hint: "Contains bin/xtensa-esp32-elf-gcc" },
+			],
+			settings: [
+				{ name: "STACK_SIZE", label: "Stack", type: "number", unit: "bytes", default: 8192, min: 2048, max: 65536, ram: true, emit: "make" },
+				{ name: "HEAP_SIZE", label: "C heap", type: "number", unit: "bytes", default: 8192, min: 0, max: 65536, ram: true, emit: "make" },
+			],
+			cc: "$(XTENSA_GCC_ROOT)/bin/xtensa-esp32-elf-gcc",
+			object: ".o",
+			output: "miniphi.elf",
+			linkerScript: true,
+			defineFlag: "-D{}",
+			includeFlag: "-I{}",
+			cflags: [
+				"-mlongcalls",
+				"-mtext-section-literals",
+				"-O2",
+				"-g",
+				"-std=gnu99",
+				"-ffunction-sections",
+				"-fdata-sections",
+				"-fno-common",
+				"-fno-asynchronous-unwind-tables",
+				"-MMD",
+				"-MP",
+			],
+			ldflags: [
+				"-mlongcalls",
+				"-nostartfiles",
+				"--specs=nano.specs",
+				"-u _printf_float",
+				"-T$(LDSCRIPT)",
+				"-Wl,--defsym=__stack_size=$(STACK_SIZE)",
+				"-Wl,--defsym=__heap_size=$(HEAP_SIZE)",
+				"-Wl,--gc-sections",
+				"-Wl,-Map=miniphi.map",
+			],
+			libs: ["-lm"],
+			compile: "$(CC) $(CFLAGS) -c $< -o $@",
+			link: "$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBS) && $(XTENSA_GCC_ROOT)/bin/xtensa-esp32-elf-size $@",
+		},
 	],
 }
 
@@ -220,6 +265,11 @@ export function prepare(ctx) {
 	if (ctx.toolchain.name === "xtensa") {
 		ctx.requireFile("$(XTENSA_GCC_ROOT)/bin/xtensa-esp32s3-elf-gcc", "Install the Espressif xtensa-esp-elf toolchain, or point XTENSA_GCC_ROOT at it.")
 		ctx.requireFile("$(XTENSA_GCC_ROOT)/bin/xtensa-esp32s3-elf-size", "xtensa-esp32s3-elf-size prints the flash and RAM use after the link.")
+		return
+	}
+	if (ctx.toolchain.name === "lx6") {
+		ctx.requireFile("$(XTENSA_GCC_ROOT)/bin/xtensa-esp32-elf-gcc", "Install the Espressif xtensa-esp-elf toolchain, or point XTENSA_GCC_ROOT at it.")
+		ctx.requireFile("$(XTENSA_GCC_ROOT)/bin/xtensa-esp32-elf-size", "xtensa-esp32-elf-size prints the flash and RAM use after the link.")
 		return
 	}
 	ctx.requireFile("$(RISCV_GCC_ROOT)/bin/riscv32-esp-elf-gcc", "Install the Espressif riscv32-esp-elf toolchain, or point RISCV_GCC_ROOT at it.")

@@ -69,6 +69,14 @@
 	 */
 	mp_bool_t mp_uart_host_wait(unsigned long ms);
 	unsigned char mp_uart_rx(mp_uart_t *uart);
+	/* Pull bytes the RX interrupt did not deliver. Classic only. */
+	#if defined(ESP32CLASSIC)
+		void mp_uart_rx_poll(mp_uart_t *uart);
+	#else
+		static inline void mp_uart_rx_poll(mp_uart_t *uart) {
+			(void)uart;
+		}
+	#endif
 
 	char mp_uart_isBusy(mp_uart_t *uart);
 
@@ -83,6 +91,22 @@
 
 	static inline void mp_uart_disable_rx(mp_uart_t *uart) {
 		(void)uart;
+	}
+
+	static inline mp_bool_t mp_uart_sync(mp_uart_t *uart) {
+		(void)uart;
+		return(YES);
+	}
+
+	static inline int mp_uart_tx_room(mp_uart_t *uart) {
+		(void)uart;
+		return(0);
+	}
+
+	static inline void mp_uart_write(mp_uart_t *uart, const unsigned char *data, int n) {
+		(void)uart;
+		(void)data;
+		(void)n;
 	}
 
 #endif
