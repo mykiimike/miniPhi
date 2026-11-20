@@ -21,7 +21,8 @@
 #include <mp.h>
 
 #ifdef SUPPORT_COMMON_TUI
-	/* rasterized at phi:write: the default font, and the splash logo */
+	/* rasterized at phi:write: the default font, the wordmark and the phi */
 	#include <gen/tui_font_default.h>
+	#include <gen/tui_wordmark.h>
 	#include <gen/tui_logo.h>
 #endif

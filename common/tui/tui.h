@@ -29,10 +29,10 @@
 	 * @ingroup mpCommon
 	 *
 	 * TUI, Things UI, is a user interface for small screens. When a screen
-	 * starts, it shows miniPhi, the logo, the kernel version, the copyright
-	 * and the license together, then a home of applications declared with
-	 * mp_tui_app(). Opening one shows a scrollable page and a Back button
-	 * that returns to the home.
+	 * starts, it shows the phi and the word miniPhi fading in, a short rule, the
+	 * version and, when the glass has room, the Swiss and European flags,
+	 * then a home of applications declared with mp_tui_app(). Opening one
+	 * shows a scrollable page and a Back button that returns to the home.
 	 * The tree is drawn into any display through one callback. There is no
 	 * framebuffer: changes mark dirty rectangles, and each mp_tui_step()
 	 * draws one band of a dirty rectangle into a small buffer, then hands
@@ -92,8 +92,11 @@
 		const uint8_t *alpha;
 	} mp_tui_bitmap_t;
 
-	/** splash logo, rasterized from config/assets/logo.svg */
-	extern const mp_tui_bitmap_t mp_tui_logo;
+	/** phi from data/miniphi-logo.png; white pixels, coverage in the alpha */
+	extern const mp_tui_bitmap_t mp_tui_mark;
+
+	/** splash wordmark, Anybody Expanded Bold */
+	extern const mp_tui_font_t mp_tui_font_wordmark;
 
 	typedef struct {
 		int x, y, w, h;
@@ -308,6 +311,8 @@
 		int splash;
 		int splashHold;
 		int splashRow;
+		/** colour-wave frame; the hold starts after the last one */
+		int splashFrame;
 		unsigned long splashUntil;
 
 		/**

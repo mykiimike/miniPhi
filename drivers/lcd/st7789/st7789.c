@@ -41,32 +41,23 @@
 #define _ST7789_MADCTL_LANDSCAPE_FLIP 0xA0
 /* MY | MX */
 #define _ST7789_MADCTL_PORTRAIT_FLIP 0xC0
-/* the 240x320 glass is wired BGR */
+/* MADCTL bit 3. 240x320 defaults to this; a board can force rgb or bgr. */
 #define _ST7789_MADCTL_BGR 0x08
 
 /* RGB565 black: the GRAM holds noise after reset */
 #define _ST7789_BLACK 0x0000
 
-/* Cycle counter, not the tick. A wait that sleeps on SysTick never returns
- * when the tick is not running, and the glass stays black with the
- * backlight already on. */
+/* A wait that sleeps on the tick never returns when the tick is not
+ * running, and the glass stays black with the backlight already on.
+ * The guard ends it when the microsecond clock does not move either. */
 static void _st7789_wait(unsigned long ms) {
-	unsigned long hz = mp_clock_get_speed();
-	unsigned long cycles;
-	unsigned long start;
+	unsigned long start = mp_clock_us();
+	unsigned long guard = (mp_clock_get_speed() / 1000UL) * ms;
 
-	if(hz < 1000000UL)
-		hz = 48000000UL;
-	cycles = (hz / 1000UL) * ms;
-	start = DWT->CYCCNT;
-	if(DWT->CYCCNT != start) {
-		while((DWT->CYCCNT - start) < cycles);
-		return;
-	}
-	while(cycles > 4) {
-		__asm volatile("nop");
-		cycles -= 4;
-	}
+	if(guard < 48000UL * ms)
+		guard = 48000UL * ms;
+	while((unsigned long)(mp_clock_us() - start) < ms * 1000UL && guard--)
+		;
 }
 
 static void _st7789_release(mp_gpio_port_t **pin) {
@@ -76,70 +67,13 @@ static void _st7789_release(mp_gpio_port_t **pin) {
 	}
 }
 
-/* Direct SIO: the pins are driven without the GPIO layer in the way. */
-static void _st7789_level(int pin, int high) {
-	if(pin < 0)
+static void _st7789_level(mp_gpio_port_t *pin, int high) {
+	if(!pin)
 		return;
 	if(high)
-		SIO_GPIO_OUT_SET = 1UL << pin;
+		mp_gpio_set(pin);
 	else
-		SIO_GPIO_OUT_CLR = 1UL << pin;
-}
-
-static void _st7789_drive(int pin, int high) {
-	if(pin < 0)
-		return;
-	IO_BANK0_GPIO_CTRL(pin) = IO_GPIO_FUNCSEL_SIO;
-	PADS_BANK0_GPIO(pin) = (PADS_SCHMITT | PADS_DRIVE_4) & ~PADS_ISO;
-	SIO_GPIO_OE_SET = 1UL << pin;
-	_st7789_level(pin, high);
-}
-
-/* SPI0 SCK is GP18 and SPI0 TX is GP19, the pins of this glass. The
- * peripheral shifts a byte per FIFO write; the bitbang did it in software. */
-static int _st7789_hw;
-
-static void _st7789_spi_up(int sck, int mosi) {
-	unsigned int spins = 1000000;
-
-	_st7789_hw = 0;
-	if(sck != 18 || mosi != 19)
-		return;
-
-	RESETS_RESET &= ~RESETS_SPI0;
-	while(spins-- && !(RESETS_RESET_DONE & RESETS_SPI0));
-	/* clk_peri stays on PLL_USB so the governor can move clk_sys
-	 * without retiming the glass */
-	CLOCKS_CLK_PERI_CTRL = CLOCKS_PERI_ENABLE | (CLOCKS_PERI_AUX_USB << 5);
-
-	IO_BANK0_GPIO_CTRL(sck) = IO_GPIO_FUNCSEL_SPI;
-	IO_BANK0_GPIO_CTRL(mosi) = IO_GPIO_FUNCSEL_SPI;
-
-	SPI0->CR1 = 0;
-	{
-		unsigned long peri = mp_clock_peri();
-		unsigned long div;
-
-		if(peri < 2000000UL)
-			peri = 48000000UL;
-		div = (peri + 24000000UL - 1UL) / 24000000UL;
-		if(div < 2)
-			div = 2;
-		if(div & 1UL)
-			div++;
-		SPI0->CPSR = (uint32_t)div;
-	}
-	SPI0->CR0 = SPI_CR0_DSS_8;
-	SPI0->CR1 = SPI_CR1_SSE;
-	_st7789_hw = 1;
-}
-
-static void _st7789_spi_idle(void) {
-	unsigned int spins = 1000000;
-
-	while(spins-- && (SPI0->SR & SPI_SR_BSY));
-	while(SPI0->SR & SPI_SR_RNE)
-		(void)SPI0->DR;
+		mp_gpio_unset(pin);
 }
 
 #ifdef SUPPORT_COMMON_DMA
@@ -231,7 +165,7 @@ static int _st7789_dma_send(int count) {
 	if(mp_dma_start(&_st7789_dma_rx) == FALSE || mp_dma_start(&_st7789_dma_tx) == FALSE) {
 		mp_dma_stop(&_st7789_dma_rx);
 		mp_dma_stop(&_st7789_dma_tx);
-		_st7789_spi_idle();
+		mp_spi_flush(_st7789_dma_bus);
 		_st7789_dma_drop();
 		mp_printk("ST7789: DMA did not start");
 		return(0);
@@ -241,19 +175,13 @@ static int _st7789_dma_send(int count) {
 		if((unsigned long)(mp_clock_us() - start) > 20000UL) {
 			mp_dma_stop(&_st7789_dma_rx);
 			mp_dma_stop(&_st7789_dma_tx);
-			_st7789_spi_idle();
+			mp_spi_flush(_st7789_dma_bus);
 			_st7789_dma_drop();
 			mp_printk("ST7789: DMA stalled");
 			return(1);
 		}
-		/* the flag is set in the interrupt. Masking closes the window
-		 * where it lands between the test and the wait. */
-		__asm volatile("cpsid i" ::: "memory");
-		if(_st7789_dma_flag == 0)
-			__asm volatile("wfi");
-		__asm volatile("cpsie i" ::: "memory");
 	}
-	_st7789_spi_idle();
+	mp_spi_flush(_st7789_dma_bus);
 	if(_st7789_dma_kernel)
 		mp_power_release(_st7789_dma_kernel, &_st7789_dma_hold);
 	if(_st7789_dma_flag != 1) {
@@ -265,40 +193,8 @@ static int _st7789_dma_send(int count) {
 }
 #endif
 
-static void _st7789_byte_pins(int sck, int mosi, unsigned char byte) {
-	int bit;
-
-	for(bit = 7; bit >= 0; bit--) {
-		_st7789_level(mosi, (byte >> bit) & 1);
-		_st7789_level(sck, 1);
-		_st7789_level(sck, 0);
-	}
-}
-
 static void _st7789_tx(mp_drv_st7789_t *lcd, const unsigned char *data, int count) {
-	int sent = 0;
-	int got = 0;
-	unsigned int spins = 1000000;
-
-	if(_st7789_hw) {
-		while(got < count && spins) {
-			/* at most 8 bytes in flight: the RX FIFO holds 8, an overrun
-			 * drops a byte and this loop waits out its spins */
-			if(sent < count && sent - got < 8 && (SPI0->SR & SPI_SR_TNF))
-				SPI0->DR = data[sent++];
-			if(SPI0->SR & SPI_SR_RNE) {
-				(void)SPI0->DR;
-				got++;
-				spins = 1000000;
-			}
-			else
-				spins--;
-		}
-		_st7789_spi_idle();
-		return;
-	}
-	for(sent = 0; sent < count; sent++)
-		_st7789_byte_pins(lcd->n_sck, lcd->n_mosi, data[sent]);
+	(void)mp_spi_tx(&lcd->bus, data, count);
 }
 
 static void _st7789_byte(mp_drv_st7789_t *lcd, unsigned char byte) {
@@ -306,11 +202,11 @@ static void _st7789_byte(mp_drv_st7789_t *lcd, unsigned char byte) {
 }
 
 static void _st7789_cs(mp_drv_st7789_t *lcd, int active) {
-	_st7789_level(lcd->n_cs, active ? 0 : 1);
+	_st7789_level(lcd->cs, active ? 0 : 1);
 }
 
 static void _st7789_dc(mp_drv_st7789_t *lcd, int data) {
-	_st7789_level(lcd->n_dc, data ? 1 : 0);
+	_st7789_level(lcd->dc, data ? 1 : 0);
 }
 
 /* One RAMWR for a full top-to-bottom pass. A fresh CASET/RASET on every
@@ -371,8 +267,17 @@ static void _st7789_face(char *orientation, int bgr, int columns, int rows, int 
 	}
 }
 
-/* 172x320 is the centered IPS glass. 240x320 fills the RAM and is BGR. */
-static int _st7789_glass(mp_drv_st7789_t *lcd, char *glass, char *orientation) {
+/* auto keeps the glass default: 172x320 is RGB, 240x320 is BGR */
+static int _st7789_bgr(char *order, int automatic) {
+	if(order && mp_options_cmp(order, "rgb") == TRUE)
+		return(0);
+	if(order && mp_options_cmp(order, "bgr") == TRUE)
+		return(1);
+	return(automatic);
+}
+
+/* 172x320 is the centered IPS glass. 240x320 fills the RAM and defaults to BGR. */
+static int _st7789_glass(mp_drv_st7789_t *lcd, char *glass, char *orientation, char *order) {
 	int columns, rows, offset, bgr;
 
 	if(!glass || !glass[0] || mp_options_cmp(glass, "172x320") == TRUE) {
@@ -396,6 +301,7 @@ static int _st7789_glass(mp_drv_st7789_t *lcd, char *glass, char *orientation) {
 		mp_printk("ST7789: glass %s is not 172x320 or 240x320", glass);
 		return(0);
 	}
+	bgr = _st7789_bgr(order, bgr);
 	_st7789_face(orientation, bgr, columns, rows, offset, &lcd->madctl, &lcd->width, &lcd->height, &lcd->xoff, &lcd->yoff);
 	return(1);
 }
@@ -515,26 +421,25 @@ static void _st7789_panel(mp_drv_st7789_t *lcd) {
 static int _st7789_setup(mp_drv_st7789_t *lcd) {
 	unsigned char colmod = lcd->colmod;
 
-	_st7789_drive(lcd->n_cs, 1);
-	_st7789_drive(lcd->n_dc, 1);
-	_st7789_drive(lcd->n_sck, 0);
-	_st7789_drive(lcd->n_mosi, 0);
-	_st7789_drive(lcd->n_rst, 1);
+	_st7789_level(lcd->cs, 1);
+	_st7789_level(lcd->dc, 1);
+	_st7789_level(lcd->reset, 1);
 	/* off until the first full frame is in GRAM, so the paint is not a sweep.
 	 * a PWM backlight is already at duty 0, and this write would take the pin back */
 #ifdef MP_TIMER_PWM
 	if(lcd->dimmable != YES)
 #endif
-	_st7789_drive(lcd->n_bl, 0);
-	_st7789_spi_up(lcd->n_sck, lcd->n_mosi);
+	_st7789_level(lcd->backlight, 0);
 #ifdef SUPPORT_COMMON_DMA
-	if(lcd->dma == YES && _st7789_hw)
+	if(mp_spi_fast(&lcd->bus) == YES && lcd->dma == YES)
 		_st7789_dma_open(lcd);
+#else
+	(void)mp_spi_fast(&lcd->bus);
 #endif
-	if(lcd->n_rst >= 0) {
-		_st7789_level(lcd->n_rst, 0);
+	if(lcd->reset) {
+		_st7789_level(lcd->reset, 0);
 		_st7789_wait(10);
-		_st7789_level(lcd->n_rst, 1);
+		_st7789_level(lcd->reset, 1);
 		_st7789_wait(120);
 	}
 
@@ -601,7 +506,7 @@ static void _st7789_percent(mp_drv_st7789_t *lcd, int percent) {
 		return;
 	}
 #endif
-	_st7789_drive(lcd->n_bl, percent > 0);
+	_st7789_level(lcd->backlight, percent > 0);
 }
 
 mp_ret_t mp_drv_st7789_power(mp_drv_st7789_t *lcd, int on) {
@@ -665,7 +570,6 @@ mp_ret_t mp_drv_st7789_init(mp_kernel_t *kernel, mp_drv_st7789_t *lcd, mp_option
 	char *dc;
 
 	memset(lcd, 0, sizeof(*lcd));
-	lcd->n_dc = lcd->n_cs = lcd->n_sck = lcd->n_mosi = lcd->n_rst = lcd->n_bl = -1;
 	lcd->kernel = kernel;
 #ifdef SUPPORT_COMMON_DMA
 	{
@@ -676,7 +580,7 @@ mp_ret_t mp_drv_st7789_init(mp_kernel_t *kernel, mp_drv_st7789_t *lcd, mp_option
 #endif
 	if(!who || !who[0])
 		who = "st7789";
-	if(!_st7789_glass(lcd, mp_options_get(options, "glass"), mp_options_get(options, "orientation"))) {
+	if(!_st7789_glass(lcd, mp_options_get(options, "glass"), mp_options_get(options, "orientation"), mp_options_get(options, "order"))) {
 		mp_drv_st7789_fini(lcd);
 		return(FALSE);
 	}
@@ -717,12 +621,6 @@ mp_ret_t mp_drv_st7789_init(mp_kernel_t *kernel, mp_drv_st7789_t *lcd, mp_option
 		if(mp_options_get(options, "backlight") && mp_options_get(options, "backlight")[0] && !lcd->backlight)
 			return(FALSE);
 	}
-	lcd->n_sck = lcd->bus.sclk ? (int)lcd->bus.sclk->pin : -1;
-	lcd->n_mosi = lcd->bus.mosi ? (int)lcd->bus.mosi->pin : -1;
-	lcd->n_dc = lcd->dc ? (int)lcd->dc->pin : -1;
-	lcd->n_cs = lcd->cs ? (int)lcd->cs->pin : -1;
-	lcd->n_rst = lcd->reset ? (int)lcd->reset->pin : -1;
-	lcd->n_bl = lcd->backlight ? (int)lcd->backlight->pin : -1;
 	if(!_st7789_setup(lcd)) {
 		mp_drv_st7789_fini(lcd);
 		return(FALSE);

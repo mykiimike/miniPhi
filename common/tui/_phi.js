@@ -13,16 +13,17 @@ export const phi = {
 	kind: "module",
 	name: "TUI",
 	label: "Things UI",
-	description: "A user interface for small screens. On start it shows miniPhi, the logo and the version together, then a home of applications declared by the firmware. Opening one shows a scrollable page and a Back button. With INPUT, every touch panel, mouse and keyboard clicks, drags, drops and scrolls them. Things are drawn in bands into any RGB565 display: no framebuffer, and several screens at once. The task only runs while something is dirty or an input arrives; a screen saver dims, then turns off a display that can when hibernate is allowed. Gauges draw a dial, a thermometer or a segmented bar from milli-units. The default font and the logo are rasterized when build/ is written.",
+	description: "A user interface for small screens. On start it shows the phi and the word miniPhi, a short rule, the version and the Swiss and European flags. The mark rides a colour wave that settles to white, then the rule, the version and the flags fade in. Then a home of applications declared by the firmware. Opening one shows a scrollable page and a Back button. With INPUT, every touch panel, mouse and keyboard clicks, drags, drops and scrolls them. Things are drawn in bands into any RGB565 display: no framebuffer, and several screens at once. The task only runs while something is dirty or an input arrives; a screen saver dims, then turns off a display that can when hibernate is allowed. Gauges draw a dial, a thermometer or a segmented bar from milli-units. The default font, the splash wordmark and the phi are rasterized when build/ is written.",
 	define: "SUPPORT_COMMON_TUI",
 	requires: ["DEVICE"],
 	sources: [
-		"tui.c", "draw.c", "font.c", "task.c", "font_default.c",
+		"tui.c", "splash.c", "draw.c", "font.c", "task.c", "font_default.c",
 		"widgets/box.c", "widgets/label.c", "widgets/bar.c", "widgets/gauge.c", "widgets/table.c",
 		"widgets/columns.c", "widgets/window.c", "widgets/button.c", "widgets/switch.c",
 		"widgets/view.c", "widgets/page.c", "widgets/named.c",
 	],
-	headers: ["tui.h", "font.h"],
+	headers: ["tui.h", "font.h", "splash.h"],
+	tests: ["test/splash.c"],
 	settings: [
 		{
 			name: "MP_TUI_FONT", label: "Default font", type: "enum", emit: "none",
@@ -52,14 +53,59 @@ function selected(ctx) {
 	return fonts.find((font) => font.name === ctx.setting("MP_TUI_FONT")) || fonts[0]
 }
 
+/* ST7789's glass string is columns x rows before orientation. ILI932x is 240x320. */
+function glassOf(ctx) {
+	for (const device of ctx.devices) {
+		const values = device.values || {}
+		if (device.driver === "ST7789") {
+			const glass = values.glass || "172x320"
+			const parts = String(glass).split("x").map(Number)
+			const columns = parts[0] || 172
+			const rows = parts[1] || 320
+			const orientation = values.orientation || "landscape"
+			if (String(orientation).startsWith("portrait"))
+				return { w: columns, h: rows }
+			return { w: rows, h: columns }
+		}
+		if (device.driver === "ILI932X") {
+			const orientation = values.orientation || "landscape"
+			if (String(orientation).startsWith("portrait"))
+				return { w: 240, h: 320 }
+			return { w: 320, h: 240 }
+		}
+	}
+	return { w: 240, h: 320 }
+}
+
+/* PUI's lockup at a 14 px em is phi 16 + gap 4 + "miniPhi" 81 = 101 px.
+ * The em is chosen so that lockup is near 62% of the glass width. */
+function splashType(w, h) {
+	const ems = 101 / 14
+	let margin = 8
+	let word
+
+	void h
+	if (margin * 2 >= w)
+		margin = w > 4 ? 2 : 0
+	word = Math.round(((w - margin * 2) * 62) / 100 / ems)
+	if (word < 14)
+		word = 14
+	if (word > 32)
+		word = 32
+	return word
+}
+
 export function prepare(ctx) {
 	const font = selected(ctx)
 	ctx.requireFile(here + font.file, "The default font file of common/tui is missing.")
-	ctx.requireFile("config/assets/logo.svg", "The TUI splash logo is missing.")
+	ctx.requireFile("data/miniphi-logo.png", "The miniPhi phi is missing.")
+	ctx.requireFile("common/pui/fonts/anybody-expanded/AnybodyExpanded-Bold.ttf", "The splash wordmark is missing.")
 }
 
 export function generate(ctx) {
 	const font = selected(ctx)
+	const glass = glassOf(ctx)
+	const wordSize = splashType(glass.w, glass.h)
 	const { c } = ctx.compileFont(here + font.file, {
 		symbol: "mp_tui_font_default",
 		label: font.label,
@@ -67,9 +113,19 @@ export function generate(ctx) {
 		bpp: Number(ctx.setting("MP_TUI_FONT_BPP")),
 		charset: ctx.setting("MP_TUI_FONT_CHARSET"),
 	})
-	const logo = ctx.compileLogo("config/assets/logo.svg", { symbol: "mp_tui_logo", size: 96 })
+	const word = ctx.compileFont("common/pui/fonts/anybody-expanded/AnybodyExpanded-Bold.ttf", {
+		symbol: "mp_tui_font_wordmark",
+		label: "Anybody Expanded Bold",
+		size: wordSize,
+		bpp: 4,
+		charset: "ascii",
+		chars: "miniPhiv.0123456789",
+	})
+	const logoH = Math.max(1, Math.floor((wordSize * 20 + 7) / 14))
+	const mark = ctx.compileMark("data/miniphi-logo.png", { symbol: "mp_tui_mark", height: logoH })
 	return {
 		"include/gen/tui_font_default.h": c,
-		"include/gen/tui_logo.h": logo.c,
+		"include/gen/tui_wordmark.h": word.c,
+		"include/gen/tui_logo.h": mark.c,
 	}
 }

@@ -22,6 +22,8 @@
 
 #ifdef SUPPORT_COMMON_TUI
 
+#include "splash.h"
+
 /**
 @defgroup mpCommonTUICore TUI tree and band renderer
 
@@ -243,101 +245,10 @@ int mp_tui_pending(mp_tui_t *ui) {
 	return(ui->splash < 3 || ui->drawing || ui->dirtyCount > 0);
 }
 
-/* how long the splash stays once it is fully on screen, in ms */
-#define _MP_TUI_SPLASH_MS 1500
-
 static unsigned long _mp_tui_ms(unsigned long ms) {
 	unsigned long hz = mp_clock_tick_hz();
 	unsigned long ticks = hz ? (ms * hz + 999) / 1000 : ms;
 	return(ticks ? ticks : 1);
-}
-
-static void _mp_tui_splash_line(mp_tui_t *ui, mp_tui_draw_t *draw, const mp_tui_font_t *font, int y, const char *text, mp_tui_color_t color) {
-	int x = (ui->display->width - mp_tui_text_width(font, text)) / 2;
-	mp_tui_draw_text(draw, font, x, y, text, color);
-}
-
-static void _mp_tui_splash_paint(mp_tui_t *ui, mp_tui_draw_t *draw) {
-	const mp_tui_font_t *font = ui->theme.font;
-	int gap = font->lineHeight / 2 + 2;
-	int logo = mp_tui_logo.w;
-	int foot = font->lineHeight;
-	int limit = ui->display->height - font->lineHeight - foot - gap * 4;
-	int block, top, y;
-
-	if(ui->display->width - 16 < limit)
-		limit = ui->display->width - 16;
-	if(limit < 8)
-		limit = 8;
-	if(logo > limit)
-		logo = limit;
-
-	block = font->lineHeight + gap + logo + gap + foot;
-	top = (ui->display->height - block) / 2;
-	if(top < 0)
-		top = 0;
-
-	mp_tui_draw_fill(draw, 0, 0, ui->display->width, ui->display->height, ui->theme.background);
-
-	_mp_tui_splash_line(ui, draw, font, top, "miniPhi", ui->theme.foreground);
-	mp_tui_draw_bitmap(draw, &mp_tui_logo, (ui->display->width - logo) / 2, top + font->lineHeight + gap, logo, logo);
-
-	y = top + font->lineHeight + gap + logo + gap;
-	_mp_tui_splash_line(ui, draw, font, y, MP_KERNEL_VERSION, ui->theme.muted);
-}
-
-/* draws one band of the splash; returns non-zero while the splash is up */
-static int _mp_tui_splash(mp_tui_t *ui) {
-	mp_tui_draw_t draw;
-	int rows;
-
-	if(ui->splashHold) {
-		unsigned long now = mp_clock_ticks();
-		if(now < ui->splashUntil) {
-			if(ui->task) {
-				ui->task->delay = ui->splashUntil - now;
-				return(1);
-			}
-			mp_clock_delay((int)(ui->splashUntil - now));
-		}
-		ui->splashHold = 0;
-		ui->splash = 3;
-		if(ui->task)
-			ui->task->delay = 1;
-		mp_tui_refresh(ui);
-		return(0);
-	}
-
-	/* back to one band per tick; the hold above is the only long wait */
-	if(ui->task)
-		ui->task->delay = 1;
-
-	rows = (int)(ui->bufferSize / (unsigned int)ui->display->width);
-	if(rows > ui->display->height - ui->splashRow)
-		rows = ui->display->height - ui->splashRow;
-
-	draw.tui = ui;
-	draw.pixels = ui->buffer;
-	draw.band.x = 0;
-	draw.band.y = ui->splashRow;
-	draw.band.w = ui->display->width;
-	draw.band.h = rows;
-	draw.clip = draw.band;
-
-	_mp_tui_splash_paint(ui, &draw);
-	ui->display->write(ui->display, 0, ui->splashRow, ui->display->width, rows, ui->buffer);
-
-	ui->splashRow += rows;
-	if(ui->splashRow >= ui->display->height) {
-		ui->splashRow = 0;
-		ui->splashHold = 1;
-		ui->splashUntil = mp_clock_ticks() + _mp_tui_ms(_MP_TUI_SPLASH_MS);
-		if(ui->task)
-			ui->task->delay = _mp_tui_ms(_MP_TUI_SPLASH_MS);
-		if(ui->display->flush)
-			ui->display->flush(ui->display);
-	}
-	return(1);
 }
 
 #define _MP_TUI_CROSS_SIZE 28
@@ -551,7 +462,7 @@ int mp_tui_step(mp_tui_t *ui) {
 	if(!ui->display)
 		return(0);
 
-	if(ui->splash < 3 && _mp_tui_splash(ui))
+	if(ui->splash < 3 && mp_tui_splash_band(ui))
 		return(1);
 
 	/* the dirty rectangles wait for the screen to wake up */

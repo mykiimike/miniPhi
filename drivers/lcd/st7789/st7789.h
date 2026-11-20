@@ -25,8 +25,9 @@
 	 * Sitronix ST7789, RGB565, on SPI. The controller RAM is 240x320.
 	 * glass names the panel in that RAM, and each device keeps its own.
 	 * 172x320, the default, is centered: the short axis starts 34 pixels
-	 * in, and that IPS glass needs color inversion. 240x320 fills the RAM,
-	 * BGR, inversion off. Landscape swaps the axes and moves the offset
+	 * in, and that IPS glass needs color inversion. 240x320 fills the RAM
+	 * and defaults to BGR, inversion off. order rgb or bgr overrides that.
+	 * Landscape swaps the axes and moves the offset
 	 * onto the rows. The driver opens a shared mp_spi_bus_t on SCK and
 	 * MOSI. The dma option, off by default, asks that bus for an engine
 	 * and shifts a full row after the CPU has swapped the bytes. The
@@ -39,7 +40,7 @@
 	 *
 	 * options: sck, mosi, dc, cs, reset, backlight, glass (172x320,
 	 * 240x320), orientation (landscape, portrait, landscape-flipped,
-	 * portrait-flipped), dma (false).
+	 * portrait-flipped), order (auto, rgb, bgr), dma (false).
 	 */
 
 	#define MP_DRV_ST7789_GRAM 240
@@ -69,8 +70,6 @@
 		/** the 172-wide IPS glass is inverted; the full 240x320 glass is not */
 		unsigned char invert;
 		unsigned char on;
-		/** GPIO numbers, driven through SIO. n_bl stays -1 when the backlight is a duty cycle */
-		int n_dc, n_cs, n_sck, n_mosi, n_rst, n_bl;
 #ifdef SUPPORT_COMMON_DMA
 		/** the dma option asked for a row engine */
 		mp_bool_t dma;
