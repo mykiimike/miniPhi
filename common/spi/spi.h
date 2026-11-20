@@ -48,6 +48,8 @@
 		mp_gpio_port_t *miso;
 		/** half-clock in microseconds; 5 gives about 100 kHz */
 		unsigned long half_us;
+		/** YES once mp_spi_fast() handed the pins to a hardware master */
+		mp_bool_t fast;
 	};
 
 	/** Claim SCLK and MOSI. half_us 0 defaults to 5. Returns 1 on success. */
@@ -69,6 +71,24 @@
 	void mp_spi_write_byte(mp_spi_bus_t *bus, unsigned char byte);
 	/** Send len bytes. Returns 1 when the buffer was clocked out. */
 	int mp_spi_tx(mp_spi_bus_t *bus, const unsigned char *data, int len);
+
+	/**
+	 * Asks the arch to shift this bus on a hardware master, as fast as the
+	 * device allows. The bus becomes write only: mp_spi_xfer returns 0.
+	 * NO leaves it on the GPIO clock. mp_spi_close gives the pins back.
+	 */
+	mp_bool_t mp_spi_fast(mp_spi_bus_t *bus);
+	/** Waits until the last byte left the wire, and drops what came back. */
+	void mp_spi_flush(mp_spi_bus_t *bus);
+
+	/**
+	 * Arch side of mp_spi_fast. The weak defaults keep every bus on GPIO.
+	 * hw_tx returns 0 when it did not send, and the bus clocks the bytes itself.
+	 */
+	mp_bool_t mp_spi_bus_hw_open(mp_spi_bus_t *bus);
+	int mp_spi_bus_hw_tx(mp_spi_bus_t *bus, const unsigned char *data, int len);
+	void mp_spi_bus_hw_flush(mp_spi_bus_t *bus);
+	void mp_spi_bus_hw_close(mp_spi_bus_t *bus);
 
 	#ifdef SUPPORT_COMMON_DMA
 		/**

@@ -110,4 +110,8 @@ mp_ret_t mp_device_phy_link(mp_device_phy_t *phy, unsigned long bps, int duplex)
 	return(phy->link(phy, bps, duplex));
 }
 
+void __attribute__((weak)) mp_arch_rf_test(mp_device_phy_t *phy) {
+	(void)phy;
+}
+
 #endif

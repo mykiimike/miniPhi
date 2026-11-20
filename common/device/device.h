@@ -893,6 +893,12 @@
 	 * @param duplex 1 for full duplex
 	 */
 	mp_ret_t mp_device_phy_link(mp_device_phy_t *phy, unsigned long bps, int duplex);
+	/**
+	 * The arch bench of the radio behind phy, run once after the console
+	 * when the board sets MP_ARCH_RF_TEST. phy may be NULL. The weak
+	 * default does nothing.
+	 */
+	void mp_arch_rf_test(mp_device_phy_t *phy);
 
 	/**
 	 * Start the device manager, then the driver registry.

@@ -101,9 +101,45 @@ mp_ret_t mp_spi_open(mp_kernel_t *kernel, mp_spi_bus_t *bus, mp_options_t *optio
 	return(TRUE);
 }
 
+mp_bool_t __attribute__((weak)) mp_spi_bus_hw_open(mp_spi_bus_t *bus) {
+	(void)bus;
+	return(NO);
+}
+
+int __attribute__((weak)) mp_spi_bus_hw_tx(mp_spi_bus_t *bus, const unsigned char *data, int len) {
+	(void)bus;
+	(void)data;
+	(void)len;
+	return(0);
+}
+
+void __attribute__((weak)) mp_spi_bus_hw_flush(mp_spi_bus_t *bus) {
+	(void)bus;
+}
+
+void __attribute__((weak)) mp_spi_bus_hw_close(mp_spi_bus_t *bus) {
+	(void)bus;
+}
+
+mp_bool_t mp_spi_fast(mp_spi_bus_t *bus) {
+	if(!bus || !bus->sclk || !bus->mosi)
+		return(NO);
+	if(bus->fast == NO && mp_spi_bus_hw_open(bus) == YES)
+		bus->fast = YES;
+	return(bus->fast);
+}
+
+void mp_spi_flush(mp_spi_bus_t *bus) {
+	if(bus && bus->fast == YES)
+		mp_spi_bus_hw_flush(bus);
+}
+
 void mp_spi_close(mp_spi_bus_t *bus) {
 	if(!bus || !bus->kernel)
 		return;
+	if(bus->fast == YES)
+		mp_spi_bus_hw_close(bus);
+	bus->fast = NO;
 	_mp_spi_release(&bus->sclk);
 	_mp_spi_release(&bus->mosi);
 	_mp_spi_release(&bus->miso);
@@ -120,6 +156,8 @@ unsigned char mp_spi_xfer(mp_spi_bus_t *bus, unsigned char byte) {
 	unsigned char in = 0;
 
 	if(!bus || !bus->sclk || !bus->mosi)
+		return(0);
+	if(bus->fast == YES && mp_spi_bus_hw_tx(bus, &byte, 1))
 		return(0);
 	for(bit = 7; bit >= 0; bit--) {
 		if((byte >> bit) & 1)
@@ -146,6 +184,8 @@ int mp_spi_tx(mp_spi_bus_t *bus, const unsigned char *data, int len) {
 
 	if(!bus || !bus->sclk || !bus->mosi || len < 0 || (len > 0 && !data))
 		return(0);
+	if(bus->fast == YES && mp_spi_bus_hw_tx(bus, data, len))
+		return(1);
 	for(index = 0; index < len; index++)
 		mp_spi_write_byte(bus, data[index]);
 	return(1);

@@ -36,7 +36,9 @@ EWMA. The frequency that share needs, so a load of MP_POWER_TARGET percent
 stays on the clock that just ran, picks the slowest level that still
 reaches it. The level moves up at once and down, straight to that target,
 only after it has stayed below the current level for MP_POWER_DOWN_DELAY
-ms. A move up clears that wait.
+ms (5000 by default). The wait clears when the target is no longer below
+the governed level. Microseconds short of a millisecond are kept, so a
+window under 1 ms still counts.
 
 A hold is a frequency floor or a veto of deep sleep. mp_power_hold() and
 mp_power_nodeep() can be called from an interrupt; the hold memory belongs
@@ -157,6 +159,7 @@ void mp_power_fix(mp_kernel_t *kernel, mp_power_level_t level) {
 	if(level != MP_POWER_AUTO)
 		power->governed = level;
 	power->calm = 0;
+	power->calmUs = 0;
 }
 
 /**
@@ -270,6 +273,23 @@ static mp_power_level_t _mp_power_fit(unsigned long long need) {
 	return(MP_POWER_HIGH);
 }
 
+static void _mp_power_calm_clear(mp_power_t *power) {
+	power->calm = 0;
+	power->calmUs = 0;
+}
+
+/* span is us. The remainder stays in calmUs so a short window still reaches the delay. */
+static void _mp_power_calm_add(mp_power_t *power, mp_power_level_t target, unsigned long span) {
+	power->calm += span / 1000UL;
+	power->calmUs += span % 1000UL;
+	power->calm += power->calmUs / 1000UL;
+	power->calmUs %= 1000UL;
+	if(power->calm >= MP_POWER_DOWN_DELAY) {
+		power->governed = target;
+		_mp_power_calm_clear(power);
+	}
+}
+
 static void _mp_power_govern(mp_power_t *power, unsigned long now) {
 	unsigned long span = now - power->windowAt;
 	unsigned long sample;
@@ -296,19 +316,12 @@ static void _mp_power_govern(mp_power_t *power, unsigned long now) {
 
 	if(power->fixed != MP_POWER_AUTO)
 		power->governed = power->fixed;
-	else if(target > power->governed) {
+	else if(target >= power->governed) {
 		power->governed = target;
-		power->calm = 0;
-	}
-	else if(target < power->governed) {
-		power->calm += span / 1000UL;
-		if(power->calm >= MP_POWER_DOWN_DELAY) {
-			power->governed = target;
-			power->calm = 0;
-		}
+		_mp_power_calm_clear(power);
 	}
 	else
-		power->calm = 0;
+		_mp_power_calm_add(power, target, span);
 
 	power->windowAt = now;
 	power->busy = 0;

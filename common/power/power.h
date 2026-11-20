@@ -35,7 +35,7 @@
 	#endif
 
 	#ifndef MP_POWER_DOWN_DELAY
-		#define MP_POWER_DOWN_DELAY 500
+		#define MP_POWER_DOWN_DELAY 5000
 	#endif
 
 	#ifndef MP_POWER_STOP_MIN
@@ -103,6 +103,9 @@
 
 		/** ms the target stayed under governed */
 		unsigned long calm;
+
+		/** us still to fold into calm; a window under 1 ms must not vanish */
+		unsigned long calmUs;
 
 		/** wake ups in the last window, per second */
 		unsigned long wakeups;
