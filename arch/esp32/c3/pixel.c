@@ -25,7 +25,8 @@
 
 @ingroup mpArchESP32
 
-The Waveshare ESP32-C3-Zero wires one WS2812 to GPIO10. RMT channel 0
+The Waveshare ESP32-C3-Zero wires one WS2812 to GPIO10 and sets
+MP_ARCH_PIXEL. Other C3 boards leave that pin alone. RMT channel 0
 shifts the frame. The wire order is green, red, blue. The line stays low
 after the last bit, which is the latch.
 
@@ -164,6 +165,10 @@ static const mp_device_driver_ops_t _ops = {
 };
 
 void mp_c3_pixel(mp_kernel_t *kernel) {
+#ifndef MP_ARCH_PIXEL
+	(void)kernel;
+	return;
+#else
 	memset(&_pixel, 0, sizeof(_pixel));
 	if(mp_device_driver_register(kernel, &_pixel.binding, &_ops, &_pixel, NULL) == FALSE)
 		return;
@@ -176,11 +181,17 @@ void mp_c3_pixel(mp_kernel_t *kernel) {
 		return;
 	}
 	_pixel.device.label = "WS2812";
+#endif
 }
 
 void mp_c3_pixel_fini(mp_kernel_t *kernel) {
+#ifndef MP_ARCH_PIXEL
+	(void)kernel;
+	return;
+#else
 	mp_device_registry_unregister(&_pixel.device);
 	mp_device_driver_unregister(kernel, &_pixel.binding);
+#endif
 }
 
 #else

@@ -28,6 +28,7 @@
 #ifdef SYSINFO_SCREEN
 
 #include <string.h>
+#include <tui/splash.h>
 
 /* RAM: static data ends at _end, then the reserved heap; the stack sits at the top */
 #if defined(__GNUC__)
@@ -321,7 +322,55 @@ static void _sysinfo_on_usb(mp_tui_button_t *button) {
 #endif
 
 static void _sysinfo_logo_draw(mp_tui_widget_t *widget, mp_tui_draw_t *draw) {
-	mp_tui_draw_bitmap(draw, &mp_tui_logo, widget->screen.x, widget->screen.y, widget->screen.w, widget->screen.h);
+	const mp_tui_font_t *word = &mp_tui_font_wordmark;
+	const mp_tui_font_t *body = widget->tui->theme.font;
+	mp_tui_color_t fg = widget->tui->theme.foreground;
+	int size = word->size > 0 ? (int)word->size : 14;
+	int wordW = mp_tui_text_width(word, "miniPhi");
+	int gap = mp_tui_splash_gap(size);
+	int hang = mp_tui_splash_hang(size);
+	int markH = mp_tui_splash_phi(size);
+	int markW;
+	int x = widget->screen.x;
+	int y = widget->screen.y;
+	int textY;
+
+	if(markH > (int)mp_tui_mark.h)
+		markH = (int)mp_tui_mark.h;
+	if(markH < 1)
+		markH = 1;
+	markW = (int)(((long)markH * mp_tui_mark.w) / (mp_tui_mark.h ? mp_tui_mark.h : 1));
+	if(markW < 1)
+		markW = 1;
+	textY = y + (markH - word->lineHeight) / 2 + hang;
+	if(markW + gap + wordW <= widget->screen.w && textY + word->lineHeight <= widget->screen.y + widget->screen.h) {
+		mp_tui_draw_bitmap(draw, &mp_tui_mark, x, y, markW, markH);
+		mp_tui_draw_text(draw, word, x + markW + gap, textY, "miniPhi", fg);
+		return;
+	}
+	if(markW > widget->screen.w && widget->screen.w > 0) {
+		markH = (int)(((long)markH * widget->screen.w) / markW);
+		markW = widget->screen.w;
+		if(markH < 1)
+			markH = 1;
+	}
+	mp_tui_draw_bitmap(draw, &mp_tui_mark, x + (widget->screen.w - markW) / 2, y, markW, markH);
+	if(wordW <= widget->screen.w) {
+		int tx = x + (widget->screen.w - wordW) / 2;
+
+		if(tx < x)
+			tx = x;
+		mp_tui_draw_text(draw, word, tx, y + markH + gap, "miniPhi", fg);
+		return;
+	}
+	if(body) {
+		int textW = mp_tui_text_width(body, "miniPhi");
+		int tx = x + (widget->screen.w - textW) / 2;
+
+		if(tx < x)
+			tx = x;
+		mp_tui_draw_text(draw, body, tx, y + markH + gap, "miniPhi", fg);
+	}
 }
 
 static const mp_tui_class_t _sysinfo_logo_class = { "logo", _sysinfo_logo_draw, NULL, NULL };
@@ -338,15 +387,38 @@ static void _sysinfo_system(mp_tui_widget_t *page, void *user) {
 	int innerW = width - 22;
 	int y = 4;
 	int inner;
-	int side;
 	char text[MP_TUI_TEXT_MAX];
 	mp_tui_widget_t *client;
 
-	side = mp_tui_logo.w;
-	if(side > width - 16)
-		side = width - 16;
-	mp_tui_widget_init(&sysinfo->screen.logo, &_sysinfo_logo_class, page, (width - side) / 2, y, side, side);
-	y += side + 4;
+	{
+		int size = mp_tui_font_wordmark.size > 0 ? (int)mp_tui_font_wordmark.size : 14;
+		int wordW = mp_tui_text_width(&mp_tui_font_wordmark, "miniPhi");
+		int line = mp_tui_font_wordmark.lineHeight;
+		int gap = mp_tui_splash_gap(size);
+		int hang = mp_tui_splash_hang(size);
+		int markH = mp_tui_splash_phi(size);
+		int markW;
+		int boxW, boxH, wordBottom;
+
+		if(markH > (int)mp_tui_mark.h)
+			markH = (int)mp_tui_mark.h;
+		if(markH < 1)
+			markH = 1;
+		markW = (int)(((long)markH * mp_tui_mark.w) / (mp_tui_mark.h ? mp_tui_mark.h : 1));
+		wordBottom = (markH - line) / 2 + hang + line;
+		if(markW + gap + wordW <= width - 16) {
+			boxW = markW + gap + wordW + 2;
+			boxH = markH > wordBottom ? markH : wordBottom;
+		}
+		else {
+			if(markW > width - 16)
+				markW = width - 16;
+			boxW = width - 16;
+			boxH = markH + gap + line;
+		}
+		mp_tui_widget_init(&sysinfo->screen.logo, &_sysinfo_logo_class, page, (width - boxW) / 2, y, boxW, boxH);
+		y += boxH + 4;
+	}
 
 	mp_tui_label(&sysinfo->screen.heading, page, 0, y, width, line, "");
 	mp_tui_label_set(&sysinfo->screen.heading, "miniPhi %s", kernel->version);

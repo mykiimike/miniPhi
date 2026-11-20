@@ -32,6 +32,7 @@ void test_printk(const char *fmt, ...);
 static inline void mp_interrupt_disable(void) { }
 static inline mp_bool_t mp_interrupt_state(void) { return(TRUE); }
 static inline void mp_interrupt_restore(mp_bool_t state) { (void)state; }
+static inline void mp_clock_delay(int delay) { (void)delay; }
 
 #ifdef MP_HOST_TASK
 /* task tests step the clock themselves; device tests keep the increment below */
@@ -88,9 +89,15 @@ struct mp_kernel_s {
 struct mp_kernel_s {
 	mp_list_t commands;
 };
+#elif defined(SUPPORT_COMMON_POWER)
+#include <power/power.h>
+struct mp_kernel_s {
+	mp_power_t power;
+};
 #else
 struct mp_kernel_s {
 	int unused;
+	char *version;
 };
 #endif
 

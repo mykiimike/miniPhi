@@ -122,6 +122,15 @@ void _sysinfo_screen_open(sysinfo_t *sysinfo) {
 		return;
 	}
 	mp_tui_hibernate(tui, sysinfo->hibernate == YES);
+	/* a touch driver registers only from open, so open it before asking the registry */
+	{
+		mp_device_t *touch;
+		int rank;
+
+		for(rank = 0; (touch = mp_device_find(MP_DEVICE_TOUCH, rank)) != NULL; rank++)
+			if(touch->opened == NO)
+				mp_device_open(kernel, touch);
+	}
 	/* a touch panel keeps the finger-sized chrome; without one the rows are one text line */
 	mp_tui_nav(tui, mp_device_registry_find(kernel, MP_DEVICE_TOUCH, 0) != NULL);
 	sysinfo->screen.display = display;

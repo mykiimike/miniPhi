@@ -1,0 +1,38 @@
+export const phi = {
+	kind: "board",
+	name: "xiao-esp32c3",
+	vendor: "Seeed Studio",
+	label: "Seeed Studio XIAO ESP32-C3",
+	tested: false,
+	description: "ESP32-C3 on the XIAO module, 4 MB flash, 40 MHz crystal. USB-C is the Serial/JTAG console. The header is D0 GPIO2, D1 GPIO3, D2 GPIO4, D3 GPIO5, D4 GPIO6, D5 GPIO7, D6 GPIO21 (UART0 TX), D7 GPIO20 (UART0 RX), D8 GPIO8, D9 GPIO9 and D10 GPIO10. D4 and D5 are the silk I2C, D8 SCK, D9 MISO and D10 MOSI. GPIO0 and GPIO1 are not bonded. GPIO2, GPIO8 and GPIO9 strap the boot mode: GPIO9 has the pull-up and the BOOT button, which pulls D9 low. There is no user LED. The charge light is the charger, not a GPIO. The U.FL antenna is not a pin. BAT+ and BAT- are the cell pads on the bottom. CHIP_RST bit 2 keeps that console open from resetting the chip. Wi-Fi and BLE are not in this port.",
+	specs: {
+		crystal: "40 MHz",
+		flash: "4 MB",
+		console: "USB Serial/JTAG",
+	},
+	arch: "esp32",
+	series: "c3",
+	mcu: "esp32c3",
+	toolchain: "imc",
+	requires: ["esp-usb-jtag"],
+	defines: [],
+	modules: ["SERIAL", "DEVICE"],
+	drivers: [],
+	settings: {
+		MP_MEM_SIZE: 12288,
+		MP_MEM_CHUNK: 64,
+		MP_TASK_MAX: 16,
+		STACK_SIZE: 8192,
+		HEAP_SIZE: 8192,
+		MP_TERM_UI_COLS: 200,
+		MP_TERM_UI_ROWS: 60,
+	},
+	reserved: [
+		{ pin: "pa0", who: "not bonded" },
+		{ pin: "pa1", who: "not bonded" },
+		{ pin: "pa9", who: "BOOT, also D9" },
+	],
+	devices: [
+		{ bus: "uart", name: "console", options: { gate: "USB", baudRate: "115200" } },
+	],
+}

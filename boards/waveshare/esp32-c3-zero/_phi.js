@@ -4,7 +4,7 @@ export const phi = {
 	vendor: "Waveshare",
 	label: "Waveshare ESP32-C3-Zero",
 	tested: true,
-	description: "ESP32-C3FH4, 4 MB flash in the package. USB-C is the Serial/JTAG console. GPIO11 feeds the flash, and GPIO12 to GPIO17 are its SPI bus, so they are not on the castellations. GPIO10 is the WS2812, published by the C3 port as one pixel, and GPIO9 is BOOT. CHIP_RST bit 2 keeps that console open from resetting the chip. Wi-Fi and BLE are not in this port.",
+	description: "ESP32-C3FH4, 4 MB flash in the package. USB-C is the Serial/JTAG console. GPIO11 feeds the flash, and GPIO12 to GPIO17 are its SPI bus, so they are not on the castellations. GPIO10 is the WS2812. MP_ARCH_PIXEL publishes it. GPIO9 is BOOT. CHIP_RST bit 2 keeps that console open from resetting the chip. Wi-Fi and BLE are not in this port.",
 	specs: {
 		crystal: "40 MHz",
 		flash: "4 MB",
@@ -15,7 +15,7 @@ export const phi = {
 	mcu: "esp32c3",
 	toolchain: "imc",
 	requires: ["esp-usb-jtag"],
-	defines: [],
+	defines: ["MP_ARCH_PIXEL"],
 	modules: [
 		"SERIAL", "DEVICE",
 	],
