@@ -648,6 +648,23 @@ export function analyze(catalog, sel, exists) {
 		probes.push({ ...strip(record), vendor: record.data.vendor || null, targets })
 	}
 
+	const picked = (name) => {
+		if (mcu[name] !== undefined && mcu[name] !== null)
+			return mcu[name]
+		if (series.data[name] !== undefined && series.data[name] !== null)
+			return series.data[name]
+		if (arch.data[name] !== undefined && arch.data[name] !== null)
+			return arch.data[name]
+		return undefined
+	}
+	const rawCpus = picked("cpus")
+	let archCpus = rawCpus === undefined ? 1 : Number(rawCpus)
+	if (!Number.isInteger(archCpus) || archCpus < 1) {
+		issue("error", "target", mcu.label + " cpus must be an integer of 1 or more.")
+		archCpus = 1
+	}
+	const archTaskShare = !!picked("taskShare")
+
 	return {
 		target: {
 			arch: { ...strip(arch), define: arch.data.define },
@@ -687,6 +704,7 @@ export function analyze(catalog, sel, exists) {
 		gates,
 		sources,
 		defines: [arch.data.define, mcu.define, ...(sel.defines || [])].filter(Boolean),
+		archCaps: { cpus: archCpus, taskShare: archTaskShare },
 		includes: ["include"],
 		headers,
 		headerDefines: [

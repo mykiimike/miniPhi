@@ -2,7 +2,7 @@ import fs from "fs"
 import path from "path"
 import { compileBitmap } from "./bitmap.js"
 import { compileFont } from "./font.js"
-import { compileLogo } from "./logo.js"
+import { compileLogo, compileMark } from "./logo.js"
 
 function which(command) {
 	if (command.includes("/"))
@@ -109,7 +109,8 @@ export async function runGenerate(root, catalog, analysis, selection) {
 			root,
 			selection: clone(selection),
 			setting: settingOf(analysis),
-			/** the board devices; device is the { struct, ops } of their driver, null when it has none */
+			/** the board devices; device is the { struct, ops } of their driver, null when it has none.
+			 * values are the options after the schema check, defaults filled in */
 			devices: analysis.devices.map((device) => {
 				const driver = device.driver ? catalog.drivers.find((item) => item.name === device.driver) : null
 				return {
@@ -118,6 +119,7 @@ export async function runGenerate(root, catalog, analysis, selection) {
 					macro: device.macro,
 					driver: device.driver,
 					device: driver && driver.data.device ? clone(driver.data.device) : null,
+					values: clone(device.values || {}),
 				}
 			}),
 			compileFont(file, options) {
@@ -125,6 +127,9 @@ export async function runGenerate(root, catalog, analysis, selection) {
 			},
 			compileLogo(file, options) {
 				return compileLogo(path.resolve(root, file), { ...options, source: file })
+			},
+			compileMark(file, options) {
+				return compileMark(path.resolve(root, file), { ...options, source: file })
 			},
 			compileBitmap(file, options) {
 				return compileBitmap(path.resolve(root, file), { ...options, source: file })

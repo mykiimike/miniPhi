@@ -1,4 +1,5 @@
 import fs from "fs"
+import { decodePng } from "./bitmap.js"
 
 const samples = 4
 
@@ -196,21 +197,91 @@ function hexPixels(pixels) {
 	return lines.join("\n")
 }
 
-/** Rasterizes an SVG into the mp_tui_bitmap_t layout. size is the width and height in pixels. */
-export function compileLogo(file, { symbol, size, source }) {
-	const image = rasterLogo(file, size)
-	const c = [
-		"/* generated from " + (source || file) + " — do not edit */",
-		"static const mp_tui_color_t _logo_pixels[] = {",
+function bitmapC(symbol, image, source) {
+	const pixels = symbol + "_pixels"
+	const alpha = symbol + "_alpha"
+	return [
+		"/* generated from " + source + " — do not edit */",
+		"static const mp_tui_color_t " + pixels + "[] = {",
 		hexPixels(image.pixels),
 		"};",
 		"",
-		"static const uint8_t _logo_alpha[] = {",
+		"static const uint8_t " + alpha + "[] = {",
 		hexBytes(image.alpha),
 		"};",
 		"",
-		"const mp_tui_bitmap_t " + symbol + " = { " + image.width + ", " + image.height + ", _logo_pixels, _logo_alpha };",
+		"const mp_tui_bitmap_t " + symbol + " = { " + image.width + ", " + image.height + ", " + pixels + ", " + alpha + " };",
 		"",
 	].join("\n")
-	return { c, width: image.width, height: image.height }
+}
+
+/** Rasterizes an SVG into the mp_tui_bitmap_t layout. size is the width and height in pixels. */
+export function compileLogo(file, { symbol, size, source }) {
+	const image = rasterLogo(file, size)
+	return { c: bitmapC(symbol, image, source || file), width: image.width, height: image.height }
+}
+
+function opaque(rgba, width, x, y) {
+	return rgba[(y * width + x) * 4 + 3] >= 128
+}
+
+/**
+ * Crops the opaque ink of a PNG and scales it to height pixels.
+ * RGB565 is white; the 4-bit alpha is the coverage, so a splash can tint it.
+ * The sample grid is what keeps a scaled edge smooth.
+ */
+export function compileMark(file, { symbol, height, source }) {
+	const image = decodePng(file)
+	const grid = 4
+	let minX = image.width
+	let minY = image.height
+	let maxX = 0
+	let maxY = 0
+
+	for (let y = 0; y < image.height; y++) {
+		for (let x = 0; x < image.width; x++) {
+			if (!opaque(image.rgba, image.width, x, y))
+				continue
+			if (x < minX) minX = x
+			if (y < minY) minY = y
+			if (x > maxX) maxX = x
+			if (y > maxY) maxY = y
+		}
+	}
+	if (minX > maxX)
+		throw new Error(file + " has no opaque pixels")
+	const spanW = maxX - minX + 1
+	const spanH = maxY - minY + 1
+	const destH = height < 1 ? 1 : height
+	const destW = Math.max(1, Math.round(spanW * destH / spanH))
+	const pixels = []
+	const alpha = []
+	let byte = 0
+
+	for (let y = 0; y < destH; y++) {
+		for (let x = 0; x < destW; x++) {
+			let covered = 0
+			for (let sy = 0; sy < grid; sy++) {
+				for (let sx = 0; sx < grid; sx++) {
+					const px = minX + ((x + (sx + 0.5) / grid) * spanW) / destW
+					const py = minY + ((y + (sy + 0.5) / grid) * spanH) / destH
+					const ix = Math.min(image.width - 1, Math.max(0, Math.floor(px)))
+					const iy = Math.min(image.height - 1, Math.max(0, Math.floor(py)))
+					if (opaque(image.rgba, image.width, ix, iy))
+						covered++
+				}
+			}
+			const level = Math.round((covered / (grid * grid)) * 15)
+			pixels.push(0xFFFF)
+			byte = (byte << 4) | level
+			if (((y * destW + x) & 1) === 1) {
+				alpha.push(byte)
+				byte = 0
+			}
+		}
+	}
+	if ((destW * destH) & 1)
+		alpha.push(byte << 4)
+	const packed = { width: destW, height: destH, pixels, alpha }
+	return { c: bitmapC(symbol, packed, source || file), width: destW, height: destH }
 }

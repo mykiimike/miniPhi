@@ -113,6 +113,15 @@ function autoconf(analysis, selection) {
 	for (const define of analysis.headerDefines)
 		lines.push("#define " + define)
 	lines.push("")
+	if (analysis.archCaps) {
+		lines.push("#ifndef MP_ARCH_CPUS")
+		lines.push("#define MP_ARCH_CPUS " + analysis.archCaps.cpus)
+		lines.push("#endif")
+		lines.push("#ifndef MP_ARCH_TASK_SHARE")
+		lines.push("#define MP_ARCH_TASK_SHARE " + (analysis.archCaps.taskShare ? 1 : 0))
+		lines.push("#endif")
+		lines.push("")
+	}
 	for (const setting of analysis.settings.filter((item) => item.emit === "header")) {
 		if (setting.type === "bool") {
 			if (setting.value)
