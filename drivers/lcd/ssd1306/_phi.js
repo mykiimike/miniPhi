@@ -15,6 +15,7 @@ export const phi = {
 	define: "SUPPORT_DRV_LCD_SSD1306",
 	sources: ["ssd1306.c"],
 	headers: ["ssd1306.h"],
+	tests: ["test/ssd1306.c"],
 	requires: ["DEVICE", "I2C"],
 	device: { struct: "mp_drv_ssd1306_t", ops: "mp_drv_ssd1306_device" },
 	options: [

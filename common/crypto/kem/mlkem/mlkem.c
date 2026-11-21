@@ -438,15 +438,7 @@ static void _decrypt(uint8_t m[32], const uint8_t *dk, const uint8_t *ct) {
 	_to_msg(m, _v);
 }
 
-/**
- * @brief Build an ML-KEM key pair
- * @param[in] seed 64 bytes, d then z
- * @param[in] seedlen Length of seed
- * @param[out] priv MP_CRYPTO_MLKEM_PRIV bytes
- * @param[out] pub MP_CRYPTO_MLKEM_PUB bytes
- * @return FALSE when the seed is shorter than 64 bytes
- */
-mp_ret_t mp_crypto_mlkem_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+static mp_ret_t _mlkem_keypair_locked(const void *seed, unsigned int seedlen, void *priv, void *pub) {
 	const uint8_t *d;
 	uint8_t gin[33], gout[64], prf[192];
 	uint8_t *ek = pub;
@@ -455,7 +447,7 @@ mp_ret_t mp_crypto_mlkem_keypair(const void *seed, unsigned int seedlen, void *p
 	unsigned off;
 	int i;
 
-	if(!seed || !priv || !pub || seedlen < MP_CRYPTO_MLKEM_SEED)
+	if(!seed || !priv || !pub || seedlen != MP_CRYPTO_MLKEM_SEED)
 		return(FALSE);
 	d = seed;
 	memcpy(gin, d, 32);
@@ -500,19 +492,29 @@ mp_ret_t mp_crypto_mlkem_keypair(const void *seed, unsigned int seedlen, void *p
 	return(TRUE);
 }
 
+
 /**
- * @brief Encapsulate under an ML-KEM public key
- * @param[in] pub MP_CRYPTO_MLKEM_PUB bytes
- * @param[in] coins The 32-byte message m
- * @param[in] coinslen Length of coins
- * @param[out] ss 32-byte shared secret
- * @param[out] ct Ciphertext
- * @return The ciphertext length, or 0
+ * @brief Build an ML-KEM key pair
+ * @param[in] seed 64 bytes, d then z
+ * @param[in] seedlen Length of seed
+ * @param[out] priv MP_CRYPTO_MLKEM_PRIV bytes
+ * @param[out] pub MP_CRYPTO_MLKEM_PUB bytes
+ * @return FALSE when the seed is shorter than 64 bytes
  */
-unsigned int mp_crypto_mlkem_encaps(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
+mp_ret_t mp_crypto_mlkem_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	mp_crypto_lock_t key;
+	mp_ret_t ret;
+
+	key = mp_crypto_lock();
+	ret = _mlkem_keypair_locked(seed, seedlen, priv, pub);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static unsigned int _mlkem_encaps_locked(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
 	uint8_t gin[64], gout[64];
 
-	if(!pub || !coins || !ss || !ct || coinslen < MP_CRYPTO_MLKEM_COINS)
+	if(!pub || !coins || !ss || !ct || coinslen != MP_CRYPTO_MLKEM_COINS)
 		return(0);
 	mp_crypto_sha3_256(pub, MP_CRYPTO_MLKEM_PUB, gin + 32);
 	memcpy(gin, coins, 32);
@@ -525,15 +527,28 @@ unsigned int mp_crypto_mlkem_encaps(const void *pub, const void *coins, unsigned
 	return(MP_CRYPTO_MLKEM_CT);
 }
 
+
+
 /**
- * @brief Decapsulate an ML-KEM ciphertext
- * @param[in] priv MP_CRYPTO_MLKEM_PRIV bytes
- * @param[in] ct Ciphertext
- * @param[in] ctlen Length of ct
+ * @brief Encapsulate under an ML-KEM public key
+ * @param[in] pub MP_CRYPTO_MLKEM_PUB bytes
+ * @param[in] coins The 32-byte message m
+ * @param[in] coinslen Length of coins
  * @param[out] ss 32-byte shared secret
- * @return YES when ctlen matches. The secret is written either way in that case.
+ * @param[out] ct Ciphertext
+ * @return The ciphertext length, or 0
  */
-mp_bool_t mp_crypto_mlkem_decaps(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
+unsigned int mp_crypto_mlkem_encaps(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _mlkem_encaps_locked(pub, coins, coinslen, ss, ct);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _mlkem_decaps_locked(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
 	const uint8_t *dk = priv;
 	const uint8_t *ek;
 	const uint8_t *h;
@@ -565,21 +580,27 @@ mp_bool_t mp_crypto_mlkem_decaps(const void *priv, const void *ct, unsigned int 
 	return(YES);
 }
 
+
+
 /**
- * @brief Decapsulate with a fuse slot
- *
- * A series that declares an ML-KEM accelerator provides mp_arch_mlkem_decaps_fuse().
- * wrapped is the blob that arch defines. This function does not burn a fuse.
- *
- * @param[in] fuse Slot of role MP_CRYPTO_FUSE_MLKEM
- * @param[in] wrapped Blob the arch defines
- * @param[in] wrappedlen Byte length of wrapped
+ * @brief Decapsulate an ML-KEM ciphertext
+ * @param[in] priv MP_CRYPTO_MLKEM_PRIV bytes
  * @param[in] ct Ciphertext
  * @param[in] ctlen Length of ct
  * @param[out] ss 32-byte shared secret
- * @return YES when the accelerator wrote ss, NO when this series has none
+ * @return YES when ctlen matches. The secret is written either way in that case.
  */
-mp_bool_t mp_crypto_mlkem_decaps_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss) {
+mp_bool_t mp_crypto_mlkem_decaps(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _mlkem_decaps_locked(priv, ct, ctlen, ss);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _mlkem_decaps_fuse_locked(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss) {
 	static mp_bool_t said;
 
 	if(!ss || (ctlen && !ct))
@@ -608,6 +629,33 @@ mp_bool_t mp_crypto_mlkem_decaps_fuse(const mp_crypto_fuse_t *fuse, const void *
 	return(NO);
 #endif
 }
+
+
+
+/**
+ * @brief Decapsulate with a fuse slot
+ *
+ * A series that declares an ML-KEM accelerator provides mp_arch_mlkem_decaps_fuse().
+ * wrapped is the blob that arch defines. This function does not burn a fuse.
+ *
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_MLKEM
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] ct Ciphertext
+ * @param[in] ctlen Length of ct
+ * @param[out] ss 32-byte shared secret
+ * @return YES when the accelerator wrote ss, NO when this series has none
+ */
+mp_bool_t mp_crypto_mlkem_decaps_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _mlkem_decaps_fuse_locked(fuse, wrapped, wrappedlen, ct, ctlen, ss);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
 
 /**@}*/
 

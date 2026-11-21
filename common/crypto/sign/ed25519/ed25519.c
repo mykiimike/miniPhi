@@ -445,6 +445,29 @@ static void _public_from(const uint8_t priv[32], uint8_t pub[32], uint8_t prefix
 	memset(s, 0, sizeof(s));
 }
 
+static void _wipe(void) {
+	memset(_t, 0, sizeof(_t));
+	memset(_u, 0, sizeof(_u));
+	memset(_powb, 0, sizeof(_powb));
+	memset(_powr, 0, sizeof(_powr));
+	memset(_powt, 0, sizeof(_powt));
+	memset(&_acc, 0, sizeof(_acc));
+	memset(&_sum, 0, sizeof(_sum));
+	memset(&_bb, 0, sizeof(_bb));
+	memset(&_A, 0, sizeof(_A));
+	memset(&_R, 0, sizeof(_R));
+	mp_crypto_bn_clean();
+}
+
+static mp_ret_t _ed25519_keypair_locked(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	if(!seed || !priv || !pub || seedlen < MP_CRYPTO_ED25519_PRIV)
+		return(FALSE);
+	memcpy(priv, seed, MP_CRYPTO_ED25519_PRIV);
+	mp_crypto_ed25519_public(priv, pub);
+	return(TRUE);
+}
+
+
 /**
  * @brief Private key and its public key
  *
@@ -455,12 +478,21 @@ static void _public_from(const uint8_t priv[32], uint8_t pub[32], uint8_t prefix
  * @return FALSE when the seed is shorter
  */
 mp_ret_t mp_crypto_ed25519_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
-	if(!seed || !priv || !pub || seedlen < MP_CRYPTO_ED25519_PRIV)
-		return(FALSE);
-	memcpy(priv, seed, MP_CRYPTO_ED25519_PRIV);
-	mp_crypto_ed25519_public(priv, pub);
-	return(TRUE);
+	mp_crypto_lock_t key;
+	mp_ret_t ret;
+
+	key = mp_crypto_lock();
+	ret = _ed25519_keypair_locked(seed, seedlen, priv, pub);
+	_wipe();
+	mp_crypto_unlock(key);
+	return(ret);
 }
+
+static void _ed25519_public_locked(const void *priv, void *pub) {
+	_public_from(priv, pub, NULL);
+}
+
+
 
 /**
  * @brief Public key of a private key
@@ -469,19 +501,15 @@ mp_ret_t mp_crypto_ed25519_keypair(const void *seed, unsigned int seedlen, void 
  * @param[out] pub 32 bytes
  */
 void mp_crypto_ed25519_public(const void *priv, void *pub) {
-	_public_from(priv, pub, NULL);
+	mp_crypto_lock_t key;
+
+	key = mp_crypto_lock();
+	_ed25519_public_locked(priv, pub);
+	_wipe();
+	mp_crypto_unlock(key);
 }
 
-/**
- * @brief Sign
- *
- * @param[in] priv 32 bytes
- * @param[in] msg The message, may be empty
- * @param[in] len Bytes of msg
- * @param[out] sig 64 bytes
- * @return 64, or 0 when priv or sig is missing
- */
-unsigned int mp_crypto_ed25519_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+static unsigned int _ed25519_sign_locked(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
 	uint8_t prefix[32], pub[32], h[64], r[32], k[32], s[32];
 	mp_crypto_sha512_t sha;
 
@@ -515,17 +543,29 @@ unsigned int mp_crypto_ed25519_sign(const void *priv, const void *msg, unsigned 
 	return(MP_CRYPTO_ED25519_SIG);
 }
 
+
+
 /**
- * @brief Check a signature
+ * @brief Sign
  *
- * @param[in] pub 32 bytes
- * @param[in] msg The message
+ * @param[in] priv 32 bytes
+ * @param[in] msg The message, may be empty
  * @param[in] len Bytes of msg
- * @param[in] sig 64 bytes
- * @param[in] siglen Must be 64
- * @return YES when it checks
+ * @param[out] sig 64 bytes
+ * @return 64, or 0 when priv or sig is missing
  */
-mp_bool_t mp_crypto_ed25519_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+unsigned int mp_crypto_ed25519_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _ed25519_sign_locked(priv, msg, len, sig);
+	_wipe();
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _ed25519_verify_locked(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
 	const uint8_t *in = sig;
 	uint8_t h[64], k[32], left[32], right[32];
 	mp_crypto_sha512_t sha;
@@ -554,21 +594,30 @@ mp_bool_t mp_crypto_ed25519_verify(const void *pub, const void *msg, unsigned in
 	return(memcmp(left, right, 32) == 0 ? YES : NO);
 }
 
+
+
 /**
- * @brief Sign with a fuse slot
+ * @brief Check a signature
  *
- * A series that declares an Ed25519 accelerator provides
- * mp_arch_ed25519_sign_fuse(). wrapped is the blob that arch defines.
- *
- * @param[in] fuse Slot of role MP_CRYPTO_FUSE_ED25519
- * @param[in] wrapped Blob the arch defines
- * @param[in] wrappedlen Byte length of wrapped
- * @param[in] msg Message
- * @param[in] len Message length
- * @param[out] sig MP_CRYPTO_ED25519_SIG bytes
- * @return The signature size, or 0 when this series has no such accelerator
+ * @param[in] pub 32 bytes
+ * @param[in] msg The message
+ * @param[in] len Bytes of msg
+ * @param[in] sig 64 bytes
+ * @param[in] siglen Must be 64
+ * @return YES when it checks
  */
-unsigned int mp_crypto_ed25519_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+mp_bool_t mp_crypto_ed25519_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _ed25519_verify_locked(pub, msg, len, sig, siglen);
+	_wipe();
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static unsigned int _ed25519_sign_fuse_locked(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
 	static mp_bool_t said;
 
 	if(!sig || (len && !msg))
@@ -597,6 +646,34 @@ unsigned int mp_crypto_ed25519_sign_fuse(const mp_crypto_fuse_t *fuse, const voi
 	return(0);
 #endif
 }
+
+
+
+/**
+ * @brief Sign with a fuse slot
+ *
+ * A series that declares an Ed25519 accelerator provides
+ * mp_arch_ed25519_sign_fuse(). wrapped is the blob that arch defines.
+ *
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_ED25519
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] msg Message
+ * @param[in] len Message length
+ * @param[out] sig MP_CRYPTO_ED25519_SIG bytes
+ * @return The signature size, or 0 when this series has no such accelerator
+ */
+unsigned int mp_crypto_ed25519_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _ed25519_sign_fuse_locked(fuse, wrapped, wrappedlen, msg, len, sig);
+	_wipe();
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
 
 /**@}*/
 

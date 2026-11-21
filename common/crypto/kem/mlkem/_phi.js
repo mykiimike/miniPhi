@@ -13,7 +13,7 @@ export const phi = {
 		failure: "reject",
 	},
 	define: "SUPPORT_COMMON_CRYPTO_KEM_MLKEM",
-	requires: ["SHAKE"],
+	requires: ["SHAKE", "LOCK"],
 	sources: ["mlkem.c"],
 	headers: ["mlkem.h"],
 	headerDir: "crypto",
@@ -37,4 +37,5 @@ export const phi = {
 			ram: true,
 		},
 	],
+	tests: ["test/l512.c", "test/l768.c", "test/l1024.c"],
 }

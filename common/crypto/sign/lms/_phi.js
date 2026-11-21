@@ -15,9 +15,10 @@ export const phi = {
 	sources: ["lms.c"],
 	headers: ["lms.h"],
 	headerDir: "crypto",
-	requires: ["SHA256"],
+	requires: ["SHA256", "LOCK"],
 	settings: [
 		/* peak RAM of a verify operation: the tree is rebuilt on the stack */
 		{ name: "MP_CRYPTO_LMS_RAM", label: "RAM", type: "number", unit: "bytes", default: 3072, min: 3072, max: 3072, ram: true },
 	],
+	tests: ["test/vec.c"],
 }

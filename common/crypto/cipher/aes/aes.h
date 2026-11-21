@@ -84,6 +84,11 @@
 	/** wipes the context; safe on a cipher already freed */
 	void mp_crypto_aes_free(mp_crypto_aes_t *ctx);
 
+	#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_AES)
+		/** software schedule for the self-test; does not call the accelerator */
+		mp_ret_t mp_crypto_aes_soft_init(mp_crypto_aes_t *ctx, const void *key, unsigned int keylen);
+	#endif
+
 	/* an arch with an AES accelerator provides these; init returns NO when
 	 * the block is busy or off, and the context then runs in software */
 	#ifdef MP_ARCH_AES

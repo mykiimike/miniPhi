@@ -2,10 +2,11 @@ export const phi = {
 	kind: "module",
 	name: "SELFTEST",
 	label: "Self-test",
-	description: "Known-answer checks of the standalone algorithms, one file under selftest/cipher, selftest/hash, selftest/mac, selftest/kdf or selftest/kem. A switch per algorithm, on unless the board turns it off. Nothing runs at boot: the app calls mp_crypto_selftest(\"AES\") when it wants to know that the implementation it will actually use, including an accelerator that accepted the operation, still matches the known answer. The directory is common/crypto/selftest, three path components, so it is not a class on the Cryptography page.",
+	description: "Known-answer checks of the standalone algorithms, one file under selftest/cipher, selftest/hash, selftest/mac, selftest/kdf or selftest/kem. A switch per algorithm, on unless the board turns it off. Nothing runs at boot: the app calls mp_crypto_selftest(\"AES\") when it wants to know that the implementation it will actually use, including an accelerator that accepted the operation, still matches the known answer. hw/diff.c compares that accelerator to the software path on the same inputs when the build has both. The directory is common/crypto/selftest, three path components, so it is not a class on the Cryptography page.",
 	define: "SUPPORT_COMMON_CRYPTO_SELFTEST",
 	sources: [
 		"index.c",
+		"hw/diff.c",
 		"cipher/aes.c",
 		"cipher/chacha20.c",
 		"cipher/xts.c",
@@ -45,4 +46,5 @@ export const phi = {
 		{ name: "MP_CRYPTO_SELFTEST_X448", label: "X448", type: "bool", default: true },
 		{ name: "MP_CRYPTO_SELFTEST_RSAKEM", label: "RSA-KEM", type: "bool", default: true },
 	],
+	tests: ["test/aes.c", "test/chacha20.c", "test/xts.c", "test/sha1.c", "test/sha256.c", "test/sha384.c", "test/sha512.c", "test/blake2s.c", "test/shake.c", "test/hmac.c", "test/hkdf.c", "test/poly1305.c", "test/mlkem512.c", "test/mlkem768.c", "test/mlkem1024.c", "test/hqc.c", "test/x25519.c", "test/x448.c", "test/rsakem.c"],
 }

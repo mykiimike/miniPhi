@@ -15,4 +15,5 @@ export const phi = {
 	sources: ["blake2s.c"],
 	headers: ["blake2s.h"],
 	headerDir: "crypto",
+	tests: ["test/vec.c"],
 }

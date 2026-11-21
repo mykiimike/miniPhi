@@ -64,7 +64,8 @@ static const uint8_t _rot[25] = {
 	18,  2, 61, 56, 14,
 };
 
-#define _ROL(x, n) (((x) << (n)) | ((x) >> (64 - (n))))
+/* n == 0 is lane (0, 0). A shift of 64 is undefined. */
+#define _ROL(x, n) ((n) ? (((x) << (n)) | ((x) >> (64 - (n)))) : (x))
 
 static void _keccak_f1600(uint64_t *a) {
 	unsigned int r, x, y;

@@ -12,7 +12,7 @@ export const phi = {
 		random: "none",
 	},
 	define: "SUPPORT_COMMON_CRYPTO_SIGN_MLDSA",
-	requires: ["SHAKE"],
+	requires: ["SHAKE", "LOCK"],
 	sources: ["mldsa.c"],
 	headers: ["mldsa.h"],
 	headerDir: "crypto",
@@ -36,4 +36,5 @@ export const phi = {
 			ram: true,
 		},
 	],
+	tests: ["test/l2.c", "test/l3.c", "test/l5.c"],
 }

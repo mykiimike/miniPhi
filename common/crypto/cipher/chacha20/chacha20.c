@@ -145,6 +145,7 @@ void mp_crypto_chacha20_set_counter(mp_crypto_chacha20_t *ctx, uint32_t counter)
 		return;
 	ctx->counter = counter;
 	ctx->ksLeft = 0;
+	ctx->stop = 0;
 }
 
 /**
@@ -154,19 +155,43 @@ void mp_crypto_chacha20_set_counter(mp_crypto_chacha20_t *ctx, uint32_t counter)
  * @param[in] in Any length
  * @param[in] inlen Bytes to take from in
  * @param[out] out At least inlen bytes
- * @return Bytes written (== inlen)
+ * @return Bytes written, or 0 when the block counter would wrap (out untouched)
  */
 unsigned int mp_crypto_chacha20_update_block(mp_crypto_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out) {
-	if(!ctx || !in || !out)
+	const uint8_t *p;
+	uint8_t *o;
+	unsigned int n;
+	unsigned int k;
+	unsigned int fresh;
+	unsigned int blocks;
+
+	if(!ctx || (!in && inlen) || (inlen && !out))
 		return(0);
-	const uint8_t *p = (const uint8_t *)in;
-	uint8_t *o = out;
-	unsigned int n = inlen;
-	unsigned int k = MP_CRYPTO_CHACHA20_BLOCK - ctx->ksLeft;
+	fresh = inlen > ctx->ksLeft ? inlen - ctx->ksLeft : 0;
+	if(fresh) {
+		/* one block per counter, including the value 2^32-1; the next is a reuse */
+		unsigned long long room;
+
+		if(ctx->stop)
+			return(0);
+		blocks = (fresh + MP_CRYPTO_CHACHA20_BLOCK - 1) / MP_CRYPTO_CHACHA20_BLOCK;
+		room = 0x100000000ull - (unsigned long long)ctx->counter;
+		if((unsigned long long)blocks > room)
+			return(0);
+	}
+	p = (const uint8_t *)in;
+	o = out;
+	n = inlen;
+	k = MP_CRYPTO_CHACHA20_BLOCK - ctx->ksLeft;
 	while(n--) {
 		if(ctx->ksLeft == 0) {
 			_chacha20_keystream(ctx, ctx->ks);
-			ctx->counter++;
+			if(ctx->counter == 0xffffffffu) {
+				ctx->stop = 1;
+				ctx->counter = 0;
+			}
+			else
+				ctx->counter++;
 			ctx->ksLeft = MP_CRYPTO_CHACHA20_BLOCK;
 			k = 0;
 		}

@@ -14,4 +14,5 @@ export const phi = {
 	sources: ["hkdf.c"],
 	headers: ["hkdf.h"],
 	headerDir: "crypto",
+	tests: ["test/vec.c"],
 }

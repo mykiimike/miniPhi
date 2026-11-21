@@ -60,6 +60,7 @@ verifies a stored signature.
 #define _DHALF  4096          /* 2^(MP_CRYPTO_MLDSA_D-1) */
 
 static uint32_t _modq(uint64_t x) { return (uint32_t)(x % _Q); }
+
 static uint32_t _mulmod(uint32_t a, uint32_t b) { return _modq((uint64_t)a * b); }
 
 /* residue of a (possibly negative) centered coefficient, in [0,q). */
@@ -349,17 +350,18 @@ static int32_t _coeff3(uint8_t b0, uint8_t b1, uint8_t b2) {
 	return (z < _Q) ? (int32_t)z : -1;
 }
 
-/* CoeffFromHalfByte for the secret-key range [-eta, eta]. Returns -1 on reject. */
+/* CoeffFromHalfByte. A result outside [-eta, eta] is the reject.
+ * -1 is a legal coefficient, so it cannot be the reject signal. */
 static int32_t _coeffhalf(uint8_t b) {
 	if(MP_CRYPTO_MLDSA_ETA == 2) {
 		if(b < 15) return 2 - (int32_t)(b % 5);
-		return -1;
+		return 100;
 	}
 	if(MP_CRYPTO_MLDSA_ETA == 4) {
 		if(b < 9) return 4 - (int32_t)b;
-		return -1;
+		return 100;
 	}
-	return -1;
+	return 100;
 }
 
 /* RejNTTPoly: uniform in [0,q) via SHAKE-128 (G). seed is 34 bytes. */
@@ -389,8 +391,8 @@ static void _rejboundedpoly(int32_t *a, const uint8_t *seed) {
 		mp_crypto_shake256_squeeze(&ctx, &b, 1);
 		int32_t z0 = _coeffhalf(b & 0x0F);
 		int32_t z1 = _coeffhalf(b >> 4);
-		if(z0 >= 0) a[i++] = z0;
-		if(z1 >= 0 && i < MP_CRYPTO_MLDSA_N) a[i++] = z1;
+		if(z0 <= (int32_t)MP_CRYPTO_MLDSA_ETA) a[i++] = z0;
+		if(z1 <= (int32_t)MP_CRYPTO_MLDSA_ETA && i < MP_CRYPTO_MLDSA_N) a[i++] = z1;
 	}
 }
 
@@ -399,9 +401,10 @@ static void _expandA(uint32_t *Ahat, const uint8_t *rho) {
 	uint8_t seed[34];
 	memcpy(seed, rho, 32);
 	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_K; i++) {
-		seed[32] = (uint8_t)i;
 		for(unsigned int j = 0; j < MP_CRYPTO_MLDSA_L; j++) {
-			seed[33] = (uint8_t)j;
+			/* rho || column || row */
+			seed[32] = (uint8_t)j;
+			seed[33] = (uint8_t)i;
 			_rejnttpoly(&Ahat[(i * MP_CRYPTO_MLDSA_L + j) * MP_CRYPTO_MLDSA_N], seed);
 		}
 	}
@@ -424,34 +427,24 @@ static void _expandS(int32_t *s1, int32_t *s2, const uint8_t *rhop) {
 	}
 }
 
-/* ExpandMask: y (l polys), coeffs in [-(gamma1-1), gamma1], from rho'' (64)
- * and counter k. seed = rho'' || u16(k) || u8(i), 67 bytes. */
+/* ExpandMask: y (l polys) in [-(gamma1-1), gamma1].
+ * seed = rho'' || uint16le(k + i). The bytes are BitPack's, gamma1 - coeff. */
 static void _expandmask(int32_t *y, const uint8_t *rhopp, unsigned int k) {
-	uint8_t seed[67];
+	uint8_t seed[66];
+	uint8_t buf[640];
+	unsigned int nbytes = 32 * _bitlen(2 * MP_CRYPTO_MLDSA_GAMMA1 - 1);
+	unsigned int i, n;
+
 	memcpy(seed, rhopp, 64);
-	seed[64] = (uint8_t)(k & 0xFF);
-	seed[65] = (uint8_t)(k >> 8);
-	uint32_t two_g1 = 2 * MP_CRYPTO_MLDSA_GAMMA1;
-	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
-		seed[66] = (uint8_t)i;
-		mp_crypto_shake256_t ctx;
-		mp_crypto_shake256_init(&ctx);
-		mp_crypto_shake256_absorb(&ctx, seed, 67);
-		mp_crypto_shake256_finalize(&ctx);
-		unsigned int n = 0;
-		while(n < MP_CRYPTO_MLDSA_N) {
-			uint8_t buf[3];
-			mp_crypto_shake256_squeeze(&ctx, buf, 3);
-			uint32_t z2 = buf[2];
-			if(z2 > 127) z2 -= 128;
-			uint32_t z = (z2 << 16) | ((uint32_t)buf[1] << 8) | buf[0];
-			if(z < two_g1) {
-				int32_t c = (int32_t)z;
-				if((uint32_t)c > MP_CRYPTO_MLDSA_GAMMA1) c -= (int32_t)two_g1;
-				y[i * MP_CRYPTO_MLDSA_N + n] = c;
-				n++;
-			}
-		}
+	for(i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+		unsigned int index = k + i;
+
+		seed[64] = (uint8_t)(index & 0xFF);
+		seed[65] = (uint8_t)(index >> 8);
+		mp_crypto_shake256(buf, nbytes, seed, 66);
+		_bitunpack(&y[i * MP_CRYPTO_MLDSA_N], buf, MP_CRYPTO_MLDSA_GAMMA1 - 1, MP_CRYPTO_MLDSA_GAMMA1);
+		for(n = 0; n < MP_CRYPTO_MLDSA_N; n++)
+			y[i * MP_CRYPTO_MLDSA_N + n] = 1 - y[i * MP_CRYPTO_MLDSA_N + n];
 	}
 }
 
@@ -549,7 +542,13 @@ static void _sigencode(uint8_t *sig, const uint8_t *chat,
 	memcpy(sig, chat, MP_CRYPTO_MLDSA_CHASH);
 	uint8_t *p = sig + MP_CRYPTO_MLDSA_CHASH;
 	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
-		_bitpack(p, &z[i * MP_CRYPTO_MLDSA_N], MP_CRYPTO_MLDSA_GAMMA1 - 1, MP_CRYPTO_MLDSA_GAMMA1);
+		int32_t tmp[MP_CRYPTO_MLDSA_N];
+		unsigned int n;
+
+		/* same gamma1 - coeff encoding as ExpandMask and the signature */
+		for(n = 0; n < MP_CRYPTO_MLDSA_N; n++)
+			tmp[n] = 1 - z[i * MP_CRYPTO_MLDSA_N + n];
+		_bitpack(p, tmp, MP_CRYPTO_MLDSA_GAMMA1 - 1, MP_CRYPTO_MLDSA_GAMMA1);
 		p += _ZBYTES;
 	}
 	_hintbitpack(p, h);
@@ -560,7 +559,11 @@ static int _sigdecode(uint8_t *chat, int32_t *z, int32_t (*h)[MP_CRYPTO_MLDSA_N]
 	memcpy(chat, sig, MP_CRYPTO_MLDSA_CHASH);
 	const uint8_t *p = sig + MP_CRYPTO_MLDSA_CHASH;
 	for(unsigned int i = 0; i < MP_CRYPTO_MLDSA_L; i++) {
+		unsigned int n;
+		/* BitPack stores gamma1 - z, not z + (gamma1 - 1). */
 		_bitunpack(&z[i * MP_CRYPTO_MLDSA_N], p, MP_CRYPTO_MLDSA_GAMMA1 - 1, MP_CRYPTO_MLDSA_GAMMA1);
+		for(n = 0; n < MP_CRYPTO_MLDSA_N; n++)
+			z[i * MP_CRYPTO_MLDSA_N + n] = 1 - z[i * MP_CRYPTO_MLDSA_N + n];
 		p += _ZBYTES;
 	}
 	return _hintbitunpack(h, p);
@@ -616,11 +619,11 @@ static void _h_rhopp(uint8_t *rhopp, const uint8_t *K, const uint8_t *mu) {
 	mp_crypto_shake256_squeeze(&ctx, rhopp, 64);
 }
 
-/* c~ = H(rho || w1Encode(w1), ceil(lambda/4)). */
-static void _h_chat(uint8_t *chat, const uint8_t *rho, const uint8_t *w1bytes, unsigned int w1len) {
+/* c~ = H(mu || w1Encode(w1), ceil(lambda/4)). FIPS 204. */
+static void _h_chat(uint8_t *chat, const uint8_t *mu, const uint8_t *w1bytes, unsigned int w1len) {
 	mp_crypto_shake256_t ctx;
 	mp_crypto_shake256_init(&ctx);
-	mp_crypto_shake256_absorb(&ctx, rho, 32);
+	mp_crypto_shake256_absorb(&ctx, mu, 64);
 	mp_crypto_shake256_absorb(&ctx, w1bytes, w1len);
 	mp_crypto_shake256_finalize(&ctx);
 	mp_crypto_shake256_squeeze(&ctx, chat, MP_CRYPTO_MLDSA_CHASH);
@@ -641,8 +644,7 @@ static void _matvec_ntt(uint32_t *out, const uint32_t *Ahat, const uint32_t *vha
 	}
 }
 
-/* ---- ML-DSA. KeyGen_internal (FIPS 204 Alg 6) ------------------------- */
-mp_ret_t mp_crypto_mldsa_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+static mp_ret_t _mldsa_keypair_locked(const void *seed, unsigned int seedlen, void *priv, void *pub) {
 	if(seedlen < 32)
 		return FALSE;
 	const uint8_t *xi = seed;
@@ -692,6 +694,19 @@ mp_ret_t mp_crypto_mldsa_keypair(const void *seed, unsigned int seedlen, void *p
 	return TRUE;
 }
 
+
+/* ---- ML-DSA. KeyGen_internal (FIPS 204 Alg 6) ------------------------- */
+mp_ret_t mp_crypto_mldsa_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	mp_crypto_lock_t key;
+	mp_ret_t ret;
+
+	key = mp_crypto_lock();
+	ret = _mldsa_keypair_locked(seed, seedlen, priv, pub);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+
 /* infinity norm of an int32 array of cnt coefficients. */
 static int32_t _infnorm(const int32_t *a, unsigned int cnt) {
 	int32_t m = 0;
@@ -703,8 +718,7 @@ static int32_t _infnorm(const int32_t *a, unsigned int cnt) {
 	return m;
 }
 
-/* ---- ML-DSA. Sign_internal (FIPS 204 Alg 7), deterministic ------------- */
-unsigned int mp_crypto_mldsa_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+static unsigned int _mldsa_sign_locked(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
 	uint8_t rho[32], K[32], tr[64];
 	static int32_t s1[MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N];
 	static int32_t s2[MP_CRYPTO_MLDSA_K * MP_CRYPTO_MLDSA_N];
@@ -763,7 +777,7 @@ unsigned int mp_crypto_mldsa_sign(const void *priv, const void *msg, unsigned in
 		}
 
 		_w1encode(w1b, (const int32_t (*)[MP_CRYPTO_MLDSA_N])w1);
-		_h_chat(chat, rho, w1b, w1bytes);
+		_h_chat(chat, mu, w1b, w1bytes);
 
 		static int32_t c[MP_CRYPTO_MLDSA_N];
 		_sampleinball(c, chat, MP_CRYPTO_MLDSA_CHASH);
@@ -828,8 +842,19 @@ unsigned int mp_crypto_mldsa_sign(const void *priv, const void *msg, unsigned in
 	}
 }
 
-/* ---- ML-DSA. Verify_internal (FIPS 204 Alg 8) ------------------------- */
-mp_bool_t mp_crypto_mldsa_verify(const void *pub, const void *msg, unsigned int len,
+
+/* ---- ML-DSA. Sign_internal (FIPS 204 Alg 7), deterministic ------------- */
+unsigned int mp_crypto_mldsa_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _mldsa_sign_locked(priv, msg, len, sig);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _mldsa_verify_locked(const void *pub, const void *msg, unsigned int len,
 		const void *sig, unsigned int siglen) {
 	if(siglen != MP_CRYPTO_MLDSA_SIG_SIZE)
 		return NO;
@@ -893,7 +918,7 @@ mp_bool_t mp_crypto_mldsa_verify(const void *pub, const void *msg, unsigned int 
 	static uint8_t w1pb[1024];
 	_w1encode(w1pb, (const int32_t (*)[MP_CRYPTO_MLDSA_N])w1p);
 	uint8_t chatp[MP_CRYPTO_MLDSA_CHASH];
-	_h_chat(chatp, rho, w1pb, w1bl);
+	_h_chat(chatp, mu, w1pb, w1bl);
 
 	if(_infnorm(z, MP_CRYPTO_MLDSA_L * MP_CRYPTO_MLDSA_N) >= (int32_t)(MP_CRYPTO_MLDSA_GAMMA1 - MP_CRYPTO_MLDSA_BETA))
 		return NO;
@@ -902,21 +927,21 @@ mp_bool_t mp_crypto_mldsa_verify(const void *pub, const void *msg, unsigned int 
 	return YES;
 }
 
-/**
- * @brief Sign with a fuse slot
- *
- * A series that declares an ML-DSA accelerator provides mp_arch_mldsa_sign_fuse().
- * wrapped is the blob that arch defines.
- *
- * @param[in] fuse Slot of role MP_CRYPTO_FUSE_MLDSA
- * @param[in] wrapped Blob the arch defines
- * @param[in] wrappedlen Byte length of wrapped
- * @param[in] msg Message
- * @param[in] len Message length
- * @param[out] sig MP_CRYPTO_MLDSA_SIG_SIZE bytes
- * @return The signature size, or 0 when this series has no such accelerator
- */
-unsigned int mp_crypto_mldsa_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+
+
+/* ---- ML-DSA. Verify_internal (FIPS 204 Alg 8) ------------------------- */
+mp_bool_t mp_crypto_mldsa_verify(const void *pub, const void *msg, unsigned int len,
+		const void *sig, unsigned int siglen) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _mldsa_verify_locked(pub, msg, len, sig, siglen);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static unsigned int _mldsa_sign_fuse_locked(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
 	static mp_bool_t said;
 
 	if(!sig || (len && !msg))
@@ -945,6 +970,33 @@ unsigned int mp_crypto_mldsa_sign_fuse(const mp_crypto_fuse_t *fuse, const void 
 	return(0);
 #endif
 }
+
+
+
+/**
+ * @brief Sign with a fuse slot
+ *
+ * A series that declares an ML-DSA accelerator provides mp_arch_mldsa_sign_fuse().
+ * wrapped is the blob that arch defines.
+ *
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_MLDSA
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] msg Message
+ * @param[in] len Message length
+ * @param[out] sig MP_CRYPTO_MLDSA_SIG_SIZE bytes
+ * @return The signature size, or 0 when this series has no such accelerator
+ */
+unsigned int mp_crypto_mldsa_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _mldsa_sign_fuse_locked(fuse, wrapped, wrappedlen, msg, len, sig);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
 
 /**@}*/
 

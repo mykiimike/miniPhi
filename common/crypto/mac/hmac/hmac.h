@@ -84,6 +84,13 @@
 	/** one shot; 0 when the build does not carry hash */
 	unsigned int mp_crypto_hmac(const char *hash, const void *key, unsigned int keylen, const void *data, unsigned int size, uint8_t *tag);
 
+	#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_HMAC)
+		/** software MAC for the self-test; the inner hash does not take a hash accelerator */
+		mp_ret_t mp_crypto_hmac_soft_init(mp_crypto_hmac_t *ctx, const char *hash, const void *key, unsigned int keylen);
+		void mp_crypto_hmac_soft_update(mp_crypto_hmac_t *ctx, const void *data, unsigned int size);
+		unsigned int mp_crypto_hmac_soft_final(mp_crypto_hmac_t *ctx, uint8_t *tag);
+	#endif
+
 	/* an arch with an HMAC accelerator provides these; init returns NO when it does not take that hash or the block is busy, and the context then runs in software */
 	#ifdef MP_ARCH_HMAC
 		mp_bool_t mp_arch_hmac_init(mp_arch_hmac_t *hw, const mp_crypto_hash_algo_t *algo, const uint8_t *key, unsigned int keylen);

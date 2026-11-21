@@ -156,6 +156,11 @@ static uint32_t _crt(uint8_t *z, const uint8_t *priv, const uint8_t *ct) {
 	return(bad);
 }
 
+static mp_ret_t _rsakem_keypair_locked(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	return(mp_crypto_rsa_keypair(seed, seedlen, priv, pub));
+}
+
+
 /**
  * @brief Build an RSA key pair
  * @param[in] seed At least 32 bytes
@@ -165,19 +170,16 @@ static uint32_t _crt(uint8_t *z, const uint8_t *priv, const uint8_t *ct) {
  * @return FALSE when the seed is short or no prime shows up
  */
 mp_ret_t mp_crypto_rsakem_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
-	return(mp_crypto_rsa_keypair(seed, seedlen, priv, pub));
+	mp_crypto_lock_t key;
+	mp_ret_t ret;
+
+	key = mp_crypto_lock();
+	ret = _rsakem_keypair_locked(seed, seedlen, priv, pub);
+	mp_crypto_unlock(key);
+	return(ret);
 }
 
-/**
- * @brief Encapsulate
- * @param[in] pub n || e
- * @param[in] coins z, one modulus of big-endian bytes, in [1, n)
- * @param[in] coinslen Length of coins
- * @param[out] ss 32-byte shared secret
- * @param[out] ct z^e mod n
- * @return The modulus length, or 0 when z is out of range
- */
-unsigned int mp_crypto_rsakem_encaps(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
+static unsigned int _rsakem_encaps_locked(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
 	const uint8_t *key = pub;
 	uint32_t e, bad;
 
@@ -201,15 +203,28 @@ unsigned int mp_crypto_rsakem_encaps(const void *pub, const void *coins, unsigne
 	return(MP_CRYPTO_RSA_MODULUS & (0u - (1u ^ bad)));
 }
 
+
+
 /**
- * @brief Decapsulate
- * @param[in] priv The RSA private layout
- * @param[in] ct One modulus
- * @param[in] ctlen Length of ct
+ * @brief Encapsulate
+ * @param[in] pub n || e
+ * @param[in] coins z, one modulus of big-endian bytes, in [1, n)
+ * @param[in] coinslen Length of coins
  * @param[out] ss 32-byte shared secret
- * @return YES when ctlen is one modulus
+ * @param[out] ct z^e mod n
+ * @return The modulus length, or 0 when z is out of range
  */
-mp_bool_t mp_crypto_rsakem_decaps(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
+unsigned int mp_crypto_rsakem_encaps(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _rsakem_encaps_locked(pub, coins, coinslen, ss, ct);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _rsakem_decaps_locked(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
 	const uint8_t *c = ct;
 	uint32_t bad;
 
@@ -231,17 +246,27 @@ mp_bool_t mp_crypto_rsakem_decaps(const void *priv, const void *ct, unsigned int
 	return(YES);
 }
 
+
+
 /**
- * @brief Decapsulate with a fuse slot
- * @param[in] fuse Slot of role MP_CRYPTO_FUSE_RSAKEM
- * @param[in] wrapped Blob the arch defines
- * @param[in] wrappedlen Byte length of wrapped
- * @param[in] ct Ciphertext
+ * @brief Decapsulate
+ * @param[in] priv The RSA private layout
+ * @param[in] ct One modulus
  * @param[in] ctlen Length of ct
  * @param[out] ss 32-byte shared secret
- * @return NO when this series has no RSA-KEM accelerator
+ * @return YES when ctlen is one modulus
  */
-mp_bool_t mp_crypto_rsakem_decaps_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss) {
+mp_bool_t mp_crypto_rsakem_decaps(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _rsakem_decaps_locked(priv, ct, ctlen, ss);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _rsakem_decaps_fuse_locked(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss) {
 	static mp_bool_t said;
 
 	if(!ss || (ctlen && !ct))
@@ -270,6 +295,29 @@ mp_bool_t mp_crypto_rsakem_decaps_fuse(const mp_crypto_fuse_t *fuse, const void 
 	return(NO);
 #endif
 }
+
+
+
+/**
+ * @brief Decapsulate with a fuse slot
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_RSAKEM
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] ct Ciphertext
+ * @param[in] ctlen Length of ct
+ * @param[out] ss 32-byte shared secret
+ * @return NO when this series has no RSA-KEM accelerator
+ */
+mp_bool_t mp_crypto_rsakem_decaps_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _rsakem_decaps_fuse_locked(fuse, wrapped, wrappedlen, ct, ctlen, ss);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
 
 /**@}*/
 

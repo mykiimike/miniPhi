@@ -13,7 +13,7 @@ export const phi = {
 		failure: "reject",
 	},
 	define: "SUPPORT_COMMON_CRYPTO_KEM_HQC",
-	requires: ["SHAKE"],
+	requires: ["SHAKE", "LOCK"],
 	sources: ["hqc.c"],
 	headers: ["hqc.h"],
 	headerDir: "crypto",
@@ -29,4 +29,5 @@ export const phi = {
 			ram: true,
 		},
 	],
+	tests: ["test/vec.c"],
 }

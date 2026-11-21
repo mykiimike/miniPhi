@@ -15,5 +15,6 @@ export const phi = {
 	sources: ["ed25519.c"],
 	headers: ["ed25519.h"],
 	headerDir: "crypto",
-	requires: ["SHA512", "BN"],
+	requires: ["SHA512", "BN", "LOCK"],
+	tests: ["test/vec.c"],
 }

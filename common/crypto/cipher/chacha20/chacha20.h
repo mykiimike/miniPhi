@@ -57,6 +57,8 @@
 		uint8_t ks[MP_CRYPTO_CHACHA20_BLOCK];
 		/** bytes left in ks */
 		unsigned int ksLeft;
+		/** 1 once the block counter has been used at 2^32-1; the next block is refused */
+		uint8_t stop;
 	};
 
 	/** FALSE when the key length is not 32 */
@@ -65,7 +67,7 @@
 	void mp_crypto_chacha20_set_nonce(mp_crypto_chacha20_t *ctx, const void *nonce, unsigned int noncelen);
 	/** set the 32-bit block counter (1 for RFC 8439 data, 0 for the AEAD key block) */
 	void mp_crypto_chacha20_set_counter(mp_crypto_chacha20_t *ctx, uint32_t counter);
-	/** bytes written, at most inlen; XORs in with the keystream (encrypt = decrypt) */
+	/** bytes written, or 0 when the 32-bit block counter would wrap; out is then untouched */
 	unsigned int mp_crypto_chacha20_update_block(mp_crypto_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out);
 	/** bytes written, at most inlen; the same as update_block (stream cipher) */
 	unsigned int mp_crypto_chacha20_update_block_inv(mp_crypto_chacha20_t *ctx, const void *in, unsigned int inlen, uint8_t *out);

@@ -207,6 +207,14 @@ void mp_crypto_sha1(const void *data, unsigned int size, uint8_t digest[MP_CRYPT
 	mp_crypto_sha1_final(&ctx, digest);
 }
 
+#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_SHA1)
+void mp_crypto_sha1_soft_init(mp_crypto_sha1_t *ctx) {
+	memset(ctx, 0, sizeof(*ctx));
+	memcpy(ctx->state, _sha1_iv, sizeof(ctx->state));
+	ctx->onHardware = NO;
+}
+#endif
+
 /**@}*/
 
 #endif

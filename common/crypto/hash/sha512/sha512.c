@@ -246,6 +246,12 @@ void mp_crypto_sha512(const void *data, unsigned int size, uint8_t digest[MP_CRY
 	mp_crypto_sha512_final(&ctx, digest);
 }
 
+#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_SHA512)
+void mp_crypto_sha512_soft_init(mp_crypto_sha512_t *ctx) {
+	mp_crypto_sha512_init_iv(ctx, _sha512_iv, MP_CRYPTO_SHA512_SIZE);
+}
+#endif
+
 /**@}*/
 
 #endif

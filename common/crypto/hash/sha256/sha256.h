@@ -61,6 +61,11 @@
 	void mp_crypto_sha256_final(mp_crypto_sha256_t *ctx, uint8_t digest[MP_CRYPTO_SHA256_SIZE]);
 	void mp_crypto_sha256(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA256_SIZE]);
 
+	#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_SHA256)
+		/** software digest for the self-test; the accelerator stays off */
+		void mp_crypto_sha256_soft_init(mp_crypto_sha256_t *ctx);
+	#endif
+
 	/* an arch with a SHA256 accelerator provides these; init returns NO when the block is busy or off, and the context then runs in software */
 	#ifdef MP_ARCH_SHA256
 		mp_bool_t mp_arch_sha256_init(mp_arch_sha256_t *hw);

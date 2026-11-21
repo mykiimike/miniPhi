@@ -152,7 +152,7 @@ static void slh_mgf1(const uint8_t *seed, unsigned seedlen, uint8_t *mask, unsig
 	}
 }
 
-/* ---- PRF_msg: R = Trunc16(HMAC-SHA-256(SK.prf, opt || M)) -------------- *
+/* ---- PRF_msg: R = Trunc16(HMAC-SHA-256(SK.prf, opt || M')) ------------- *
  * Streamed so the message may be arbitrarily large (no alloca).            */
 static void slh_prf_msg(uint8_t out[MP_CRYPTO_SLH_N], const uint8_t skprf[MP_CRYPTO_SLH_N],
 		const uint8_t opt[MP_CRYPTO_SLH_N], const uint8_t *m, unsigned mlen) {
@@ -172,6 +172,11 @@ static void slh_prf_msg(uint8_t out[MP_CRYPTO_SLH_N], const uint8_t skprf[MP_CRY
 	mp_crypto_sha256_init(&c);
 	mp_crypto_sha256_update(&c, ipad, MP_CRYPTO_SHA256_BLOCK);
 	mp_crypto_sha256_update(&c, opt, MP_CRYPTO_SLH_N);
+	/* Pure SLH-DSA: 0x00 || |ctx| || ctx || M, empty context. */
+	{
+		uint8_t pre[2] = { 0, 0 };
+		mp_crypto_sha256_update(&c, pre, 2);
+	}
 	if (mlen) mp_crypto_sha256_update(&c, m, mlen);
 	mp_crypto_sha256_final(&c, inner);
 
@@ -182,17 +187,22 @@ static void slh_prf_msg(uint8_t out[MP_CRYPTO_SLH_N], const uint8_t skprf[MP_CRY
 	memcpy(out, inner, MP_CRYPTO_SLH_N);
 }
 
-/* ---- H_msg: MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M), m) */
+/* ---- H_msg: MGF1-SHA-256(R || PK.seed || SHA-256(R || PK.seed || PK.root || M'), m) */
 static void slh_h_msg(uint8_t *digest, const uint8_t r[MP_CRYPTO_SLH_N],
 		const uint8_t pkseed[MP_CRYPTO_SLH_N], const uint8_t pkroot[MP_CRYPTO_SLH_N],
 		const uint8_t *m, unsigned mlen) {
-	/* inner = SHA-256(R || PK.seed || PK.root || M) */
+	/* inner = SHA-256(R || PK.seed || PK.root || M') */
 	mp_crypto_sha256_t c;
 	uint8_t inner[MP_CRYPTO_SHA256_SIZE];
 	mp_crypto_sha256_init(&c);
 	mp_crypto_sha256_update(&c, r, MP_CRYPTO_SLH_N);
 	mp_crypto_sha256_update(&c, pkseed, MP_CRYPTO_SLH_N);
 	mp_crypto_sha256_update(&c, pkroot, MP_CRYPTO_SLH_N);
+	/* Pure SLH-DSA: 0x00 || |ctx| || ctx || M, empty context. */
+	{
+		uint8_t pre[2] = { 0, 0 };
+		mp_crypto_sha256_update(&c, pre, 2);
+	}
 	if (mlen) mp_crypto_sha256_update(&c, m, mlen);
 	mp_crypto_sha256_final(&c, inner);
 
@@ -536,10 +546,11 @@ static void slh_split_digest(uint8_t *md, uint64_t *idx_tree, uint32_t *idx_leaf
 	const uint8_t *tl = digest + 21 + 7;
 	uint64_t tr = ((uint64_t)tt[0]<<48)|((uint64_t)tt[1]<<40)|((uint64_t)tt[2]<<32)|
 	             ((uint64_t)tt[3]<<24)|((uint64_t)tt[4]<<16)|((uint64_t)tt[5]<<8)|tt[6];
-	tr >>= 8*7 - (MP_CRYPTO_SLH_H - MP_CRYPTO_SLH_HP); /* first (h-h') bits = MSB */
+	/* FIPS 205: the integer modulo 2^(h-h'), the low bits. */
+	tr &= ((uint64_t)1 << (MP_CRYPTO_SLH_H - MP_CRYPTO_SLH_HP)) - 1;
 	*idx_tree = tr;
 	uint32_t lf = ((uint32_t)tl[0] << 8) | tl[1];
-	lf >>= 8*2 - MP_CRYPTO_SLH_HP; /* first h' bits = MSB */
+	lf &= (1u << MP_CRYPTO_SLH_HP) - 1;
 	*idx_leaf = lf;
 }
 
@@ -569,10 +580,9 @@ unsigned int mp_crypto_slh_sign(const void *privv, const void *msgv, unsigned in
 	const uint8_t *skprf = sk + MP_CRYPTO_SLH_N;
 	const uint8_t *pkseed = sk + 2*MP_CRYPTO_SLH_N;
 	const uint8_t *pkroot = sk + 3*MP_CRYPTO_SLH_N;
-	uint8_t optrand[MP_CRYPTO_SLH_N];
-	memset(optrand, 0, MP_CRYPTO_SLH_N); /* deterministic */
 	uint8_t *R = sig;
-	slh_prf_msg(R, skprf, optrand, m, mlen);
+	/* FIPS 205 deterministic signing uses PK.seed as opt_rand. */
+	slh_prf_msg(R, skprf, pkseed, m, mlen);
 	uint8_t digest[MP_CRYPTO_SLH_M];
 	slh_h_msg(digest, R, pkseed, pkroot, m, mlen);
 	uint8_t md[21];

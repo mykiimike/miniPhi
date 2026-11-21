@@ -214,7 +214,7 @@ static void _wipe(void) {
 	memset(_nxt, 0, sizeof(_nxt));
 }
 
-mp_ret_t mp_crypto_lms_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+static mp_ret_t _lms_keypair_locked(const void *seed, unsigned int seedlen, void *priv, void *pub) {
 	mp_crypto_lms_priv_t *sk = priv;
 	uint8_t *pk = pub;
 	uint8_t K[MP_CRYPTO_LMS_N];
@@ -250,7 +250,18 @@ mp_ret_t mp_crypto_lms_keypair(const void *seed, unsigned int seedlen, void *pri
 	return(TRUE);
 }
 
-unsigned int mp_crypto_lms_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+
+mp_ret_t mp_crypto_lms_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	mp_crypto_lock_t key;
+	mp_ret_t ret;
+
+	key = mp_crypto_lock();
+	ret = _lms_keypair_locked(seed, seedlen, priv, pub);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static unsigned int _lms_sign_locked(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
 	const mp_crypto_lms_priv_t *sk = priv;
 	uint8_t *s = sig;
 	uint8_t C[MP_CRYPTO_LMS_N], x[MP_CRYPTO_LMS_N], K[MP_CRYPTO_LMS_N];
@@ -301,7 +312,19 @@ unsigned int mp_crypto_lms_sign(const void *priv, const void *msg, unsigned int 
 	return(MP_CRYPTO_LMS_SIG);
 }
 
-mp_bool_t mp_crypto_lms_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+
+
+unsigned int mp_crypto_lms_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _lms_sign_locked(priv, msg, len, sig);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _lms_verify_locked(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
 	const uint8_t *pk = pub;
 	const uint8_t *s = sig;
 	uint8_t I[16], Kc[MP_CRYPTO_LMS_N], tmp[MP_CRYPTO_LMS_M], T1[MP_CRYPTO_LMS_M];
@@ -355,21 +378,19 @@ mp_bool_t mp_crypto_lms_verify(const void *pub, const void *msg, unsigned int le
 	return(ok);
 }
 
-/**
- * @brief Sign with a fuse slot
- *
- * A series that declares an LMS accelerator provides mp_arch_lms_sign_fuse().
- * wrapped is the blob that arch defines.
- *
- * @param[in] fuse Slot of role MP_CRYPTO_FUSE_LMS
- * @param[in] wrapped Blob the arch defines
- * @param[in] wrappedlen Byte length of wrapped
- * @param[in] msg Message
- * @param[in] len Message length
- * @param[out] sig MP_CRYPTO_LMS_SIG bytes
- * @return The signature size, or 0 when this series has no such accelerator
- */
-unsigned int mp_crypto_lms_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+
+
+mp_bool_t mp_crypto_lms_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _lms_verify_locked(pub, msg, len, sig, siglen);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static unsigned int _lms_sign_fuse_locked(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
 	static mp_bool_t said;
 
 	if(!sig || (len && !msg))
@@ -398,6 +419,33 @@ unsigned int mp_crypto_lms_sign_fuse(const mp_crypto_fuse_t *fuse, const void *w
 	return(0);
 #endif
 }
+
+
+
+/**
+ * @brief Sign with a fuse slot
+ *
+ * A series that declares an LMS accelerator provides mp_arch_lms_sign_fuse().
+ * wrapped is the blob that arch defines.
+ *
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_LMS
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] msg Message
+ * @param[in] len Message length
+ * @param[out] sig MP_CRYPTO_LMS_SIG bytes
+ * @return The signature size, or 0 when this series has no such accelerator
+ */
+unsigned int mp_crypto_lms_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _lms_sign_fuse_locked(fuse, wrapped, wrappedlen, msg, len, sig);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
 
 /**@}*/
 

@@ -35,4 +35,5 @@ export const phi = {
 			ram: true,
 		},
 	],
+	tests: ["test/vec.c"],
 }

@@ -14,6 +14,7 @@ export const phi = {
 	define: "SUPPORT_DRV_LCD_ST7789",
 	sources: ["st7789.c"],
 	headers: ["st7789.h"],
+	tests: ["test/st7789.c"],
 	requires: ["DEVICE", "SPI"],
 	device: { struct: "mp_drv_st7789_t", ops: "mp_drv_st7789_device" },
 	options: [

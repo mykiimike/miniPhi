@@ -17,4 +17,5 @@ export const phi = {
 	settings: [
 		{ name: "MP_CRYPTO_CBC_RAM", label: "RAM", type: "number", unit: "bytes", default: 64, min: 32, max: 512, ram: true },
 	],
+	tests: ["test/vec.c", "test/b192.c", "test/b256.c"],
 }

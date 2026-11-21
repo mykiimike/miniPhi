@@ -31,9 +31,9 @@
 
 Little-endian 32-bit words, at most MP_CRYPTO_BN_MAX of them. Multiplication is
 schoolbook, division is restoring, and the exponentiation is Montgomery
-(CIOS) so a 2048-bit power does not divide. The scratch below is the
-reason the calls are not reentrant: the signature code runs from a task,
-and the scheduler does not preempt it.
+(CIOS) so a 2048-bit power does not divide. The scratch below is shared.
+mp_crypto_lock() admits one caller at a time. An interrupt must not take
+that lock: it spins and it raises the task ceiling.
 
 @{
 */
@@ -47,6 +47,12 @@ static uint32_t _div_sub[MP_CRYPTO_BN_MAX + 2];
 /** shared by exp, inv and the prime test; they do not nest */
 static uint32_t _w[8][MP_CRYPTO_BN_MAX];
 static uint32_t _wide[MP_CRYPTO_BN_MAX * 2];
+/* nm1, d and the witness bound outlive mp_crypto_bn_modexp, which reuses _w and the div scratch */
+static uint32_t _nm1[MP_CRYPTO_BN_PRIME_MAX];
+static uint32_t _odd[MP_CRYPTO_BN_PRIME_MAX];
+static uint32_t _bound[MP_CRYPTO_BN_PRIME_MAX];
+static uint32_t _witness[MP_CRYPTO_BN_PRIME_MAX];
+static uint32_t _x[MP_CRYPTO_BN_PRIME_MAX];
 
 void mp_crypto_bn_zero(uint32_t *a, int n) {
 	memset(a, 0, (unsigned int)n * sizeof(uint32_t));
@@ -64,6 +70,11 @@ void mp_crypto_bn_clean(void) {
 	memset(_div_sub, 0, sizeof(_div_sub));
 	memset(_w, 0, sizeof(_w));
 	memset(_wide, 0, sizeof(_wide));
+	memset(_nm1, 0, sizeof(_nm1));
+	memset(_odd, 0, sizeof(_odd));
+	memset(_bound, 0, sizeof(_bound));
+	memset(_witness, 0, sizeof(_witness));
+	memset(_x, 0, sizeof(_x));
 }
 
 int mp_crypto_bn_cmp(const uint32_t *a, const uint32_t *b, int n) {
@@ -87,29 +98,48 @@ int mp_crypto_bn_is_zero(const uint32_t *a, int n) {
 	return(1);
 }
 
+/* Carry through 16-bit halves. A uint64 add is a compare on the target compiler, and that compare branches. */
+static uint32_t _bn_addw(uint32_t *r, uint32_t a, uint32_t b, uint32_t cin) {
+	uint32_t slo = (a & 0xFFFFu) + (b & 0xFFFFu) + cin;
+	uint32_t shi = (a >> 16) + (b >> 16) + (slo >> 16);
+
+	*r = (slo & 0xFFFFu) | ((shi & 0xFFFFu) << 16);
+	return(shi >> 16);
+}
+
+static uint32_t _bn_subw(uint32_t *r, uint32_t a, uint32_t b, uint32_t brin) {
+	uint32_t dlo = ((a & 0xFFFFu) | 0x10000u) - (b & 0xFFFFu) - brin;
+	uint32_t br = 1u ^ ((dlo >> 16) & 1u);
+	uint32_t dhi = ((a >> 16) | 0x10000u) - (b >> 16) - br;
+
+	*r = (dlo & 0xFFFFu) | ((dhi & 0xFFFFu) << 16);
+	return(1u ^ ((dhi >> 16) & 1u));
+}
+
+static uint32_t _bn_lt(uint32_t a, uint32_t b) {
+	uint32_t dlo = ((a & 0xFFFFu) | 0x10000u) - (b & 0xFFFFu);
+	uint32_t br = 1u ^ ((dlo >> 16) & 1u);
+	uint32_t dhi = ((a >> 16) | 0x10000u) - (b >> 16) - br;
+
+	return(1u ^ ((dhi >> 16) & 1u));
+}
+
 uint32_t mp_crypto_bn_add(uint32_t *r, const uint32_t *a, const uint32_t *b, int n) {
-	uint64_t c = 0;
+	uint32_t c = 0;
 	int i;
 
-	for(i = 0; i < n; i++) {
-		c += (uint64_t)a[i] + b[i];
-		r[i] = (uint32_t)c;
-		c >>= 32;
-	}
-	return((uint32_t)c);
+	for(i = 0; i < n; i++)
+		c = _bn_addw(&r[i], a[i], b[i], c);
+	return(c);
 }
 
 uint32_t mp_crypto_bn_sub(uint32_t *r, const uint32_t *a, const uint32_t *b, int n) {
-	uint64_t br = 0;
+	uint32_t br = 0;
 	int i;
 
-	for(i = 0; i < n; i++) {
-		uint64_t v = (uint64_t)a[i] - b[i] - br;
-
-		r[i] = (uint32_t)v;
-		br = v >> 63;
-	}
-	return((uint32_t)br);
+	for(i = 0; i < n; i++)
+		br = _bn_subw(&r[i], a[i], b[i], br);
+	return(br);
 }
 
 uint32_t mp_crypto_bn_shl1(uint32_t *r, const uint32_t *a, int n) {
@@ -192,15 +222,14 @@ void mp_crypto_bn_to_le(uint8_t *le, unsigned int len, const uint32_t *a, int n)
 	}
 }
 
-/* lo + term + *carry, without wrapping the uint64 sum. *carry comes back under 2^34 for a 32-bit product. */
+/* lo + term + *carry. *carry comes back under 2^34 for a 32-bit product. */
 static void _bn_acc(uint32_t *lo, uint64_t *carry, uint64_t term) {
-	uint64_t s = (uint64_t)(*lo) + term;
-	uint64_t ov = (s < term);
+	uint32_t sum;
+	uint32_t cy1 = _bn_addw(&sum, *lo, (uint32_t)term, 0);
+	uint32_t cy2 = _bn_addw(&sum, sum, (uint32_t)(*carry), 0);
 
-	s += *carry;
-	ov += (s < *carry);
-	*lo = (uint32_t)s;
-	*carry = (s >> 32) + (ov << 32);
+	*lo = sum;
+	*carry = (uint64_t)(uint32_t)(term >> 32) + (uint32_t)(*carry >> 32) + cy1 + cy2;
 }
 
 void mp_crypto_bn_mul(uint32_t *r, const uint32_t *a, const uint32_t *b, int n) {
@@ -213,15 +242,16 @@ void mp_crypto_bn_mul(uint32_t *r, const uint32_t *a, const uint32_t *b, int n) 
 		for(j = 0; j < n; j++)
 			_bn_acc(&r[i + j], &c, (uint64_t)a[j] * b[i]);
 		for(k = i + n; k < n * 2; k++) {
-			uint64_t s = (uint64_t)r[k] + (uint32_t)c;
+			uint32_t sum;
+			uint32_t cy = _bn_addw(&sum, r[k], (uint32_t)c, 0);
 
-			r[k] = (uint32_t)s;
-			c = (c >> 32) + (s >> 32);
+			r[k] = sum;
+			c = (c >> 32) + cy;
 		}
 	}
 }
 
-/* 1 when a >= b. A uint32 difference with its top bit set is not a borrow. */
+/* 1 when a >= b. Every word is visited; open drops further differences once one has decided. */
 static uint32_t _bn_ge(const uint32_t *a, const uint32_t *b, int n) {
 	uint32_t gt = 0;
 	uint32_t lt = 0;
@@ -230,8 +260,8 @@ static uint32_t _bn_ge(const uint32_t *a, const uint32_t *b, int n) {
 	for(i = n - 1; i >= 0; i--) {
 		uint32_t decided = gt | lt;
 		uint32_t open = 0u - (1u ^ decided);
-		uint32_t ag = (uint32_t)(((uint64_t)b[i] - a[i]) >> 63) & open;
-		uint32_t al = (uint32_t)(((uint64_t)a[i] - b[i]) >> 63) & open;
+		uint32_t ag = _bn_lt(b[i], a[i]) & open;
+		uint32_t al = _bn_lt(a[i], b[i]) & open;
 
 		gt |= ag;
 		lt |= al;
@@ -256,10 +286,7 @@ void mp_crypto_bn_mod(uint32_t *r, const uint32_t *num, int nn, const uint32_t *
 		 * fell off is 0; top stays 0 and the compare is n+1 words against den */
 		(void)top;
 		ge = _bn_ge(_div_rem, _div_den, n + 1);
-		/* constant-time conditional subtract: rem = ge ? rem - den : rem.
-		 * The branch is on ge, which the quotient bit is anyway, but the
-		 * subtract runs every iteration and the result is selected by cmov,
-		 * so the work does not depend on the secret. */
+		/* subtract every iteration; cmov keeps rem - den only when ge is 1 */
 		mp_crypto_bn_sub(_div_sub, _div_rem, _div_den, n + 1);
 		mp_crypto_bn_cmov(_div_rem, _div_sub, n + 1, ge);
 		if((i >> 5) < MP_CRYPTO_BN_MAX * 2)
@@ -277,7 +304,7 @@ void mp_crypto_bn_add_mod(uint32_t *r, const uint32_t *a, const uint32_t *b, con
 	uint32_t ge;
 
 	mp_crypto_bn_sub(_w[6], _w[7], m, n);
-	ge = (c != 0) | _bn_ge(_w[7], m, n);
+	ge = c | _bn_ge(_w[7], m, n);
 	mp_crypto_bn_cmov(_w[7], _w[6], n, ge);
 	mp_crypto_bn_copy(r, _w[7], n);
 }
@@ -290,15 +317,42 @@ void mp_crypto_bn_sub_mod(uint32_t *r, const uint32_t *a, const uint32_t *b, con
 	mp_crypto_bn_copy(r, _w[7], n);
 }
 
-uint32_t mp_crypto_bn_mod_u32(const uint32_t *a, int n, uint32_t m) {
-	uint64_t r = 0;
+/* Restoring division by one word, n*32 steps. rem stays below m, so the extra bit of
+ * the shift is a carry and the subtract is a mask. */
+static uint32_t _bn_div_u32(uint32_t *q, const uint32_t *a, int n, uint32_t m) {
+	uint32_t rem = 0;
+	int bits;
 	int i;
 
-	if(!m)
+	if(n <= 0 || n > MP_CRYPTO_BN_MAX * 2 || !m) {
+		if(q && n > 0 && n <= MP_CRYPTO_BN_MAX * 2)
+			mp_crypto_bn_zero(q, n);
 		return(0);
-	for(i = n - 1; i >= 0; i--)
-		r = ((r << 32) | a[i]) % m;
-	return((uint32_t)r);
+	}
+	mp_crypto_bn_zero(_div_q, n);
+	bits = n * 32;
+	for(i = bits - 1; i >= 0; i--) {
+		uint32_t bit = (a[i >> 5] >> (i & 31)) & 1u;
+		uint32_t carry = rem >> 31;
+		uint32_t low = (rem << 1) | bit;
+		uint32_t ge = carry | (_bn_lt(low, m) ^ 1u);
+		uint32_t mask = 0u - ge;
+
+		rem = low - (m & mask);
+		_div_q[i >> 5] |= ge << (i & 31);
+	}
+	if(q)
+		mp_crypto_bn_copy(q, _div_q, n);
+	mp_crypto_bn_zero(_div_q, MP_CRYPTO_BN_MAX * 2);
+	return(rem);
+}
+
+uint32_t mp_crypto_bn_mod_u32(const uint32_t *a, int n, uint32_t m) {
+	return(_bn_div_u32(NULL, a, n, m));
+}
+
+uint32_t mp_crypto_bn_div_u32(uint32_t *q, const uint32_t *a, int n, uint32_t m) {
+	return(_bn_div_u32(q, a, n, m));
 }
 
 static uint32_t _bn_n0(uint32_t odd) {
@@ -319,22 +373,32 @@ static void _bn_mont(uint32_t *r, const uint32_t *a, const uint32_t *b, const ui
 	mp_crypto_bn_zero(t, n + 2);
 	for(i = 0; i < n; i++) {
 		uint64_t c = 0;
-		uint64_t s;
 		uint32_t mprime;
 
 		for(j = 0; j < n; j++)
 			_bn_acc(&t[j], &c, (uint64_t)a[j] * b[i]);
-		s = (uint64_t)t[n] + c;
-		t[n] = (uint32_t)s;
-		t[n + 1] = (uint32_t)(s >> 32);
+		{
+			uint32_t sum;
+			uint32_t cy = _bn_addw(&sum, t[n], (uint32_t)c, 0);
+
+			t[n] = sum;
+			t[n + 1] = (uint32_t)(c >> 32) + cy;
+		}
 
 		c = 0;
 		mprime = t[0] * n0;
 		for(j = 0; j < n; j++)
 			_bn_acc(&t[j], &c, (uint64_t)mprime * m[j]);
-		s = (uint64_t)t[n] + c;
-		t[n] = (uint32_t)s;
-		t[n + 1] += (uint32_t)(s >> 32);
+		{
+			uint32_t sum;
+			uint32_t cy = _bn_addw(&sum, t[n], (uint32_t)c, 0);
+			uint32_t hi;
+
+			t[n] = sum;
+			cy = _bn_addw(&hi, t[n + 1], (uint32_t)(c >> 32) + cy, 0);
+			t[n + 1] = hi;
+			(void)cy;
+		}
 
 		for(j = 0; j <= n; j++)
 			t[j] = t[j + 1];
@@ -351,12 +415,8 @@ static void _bn_mont(uint32_t *r, const uint32_t *a, const uint32_t *b, const ui
 			uint32_t ge;
 			int k;
 
-			for(k = 0; k < n + 1; k++) {
-				uint64_t d = (uint64_t)t[k] - _div_den[k] - br;
-
-				_div_q[k] = (uint32_t)d;
-				br = (uint32_t)(d >> 63);
-			}
+			for(k = 0; k < n + 1; k++)
+				br = _bn_subw(&_div_q[k], t[k], _div_den[k], br);
 			ge = 1u ^ br;
 			mp_crypto_bn_cmov(t, _div_q, n + 1, ge);
 		}
@@ -371,14 +431,10 @@ static void _bn_dbl_mod(uint32_t *a, const uint32_t *m, int n) {
 	uint32_t ge;
 	int i;
 
-	for(i = 0; i < n; i++) {
-		uint64_t d = (uint64_t)_w[6][i] - m[i] - br;
-
-		_w[7][i] = (uint32_t)d;
-		br = (uint32_t)(d >> 63);
-	}
+	for(i = 0; i < n; i++)
+		br = _bn_subw(&_w[7][i], _w[6][i], m[i], br);
 	/* a < m, so 2*a < 2*m and the reduced value fits in n words */
-	ge = (c != 0) || (br == 0);
+	ge = c | (br ^ 1u);
 	mp_crypto_bn_cmov(_w[6], _w[7], n, ge);
 	mp_crypto_bn_copy(a, _w[6], n);
 }
@@ -425,67 +481,6 @@ mp_ret_t mp_crypto_bn_modexp(uint32_t *r, const uint32_t *base, const uint32_t *
 	return(TRUE);
 }
 
-/**
- * Quotient in _div_q (nn words of room, the useful part is n) and remainder
- * in rem. num has nn words, den has n. Unlike mp_crypto_bn_mod this keeps the quotient.
- */
-static void _bn_div(uint32_t *rem, const uint32_t *num, int nn, const uint32_t *den, int n) {
-	int bits = nn * 32;
-	int i;
-
-	mp_crypto_bn_zero(_div_q, MP_CRYPTO_BN_MAX * 2);
-	mp_crypto_bn_zero(_div_rem, n + 1);
-	mp_crypto_bn_zero(_div_den, n + 1);
-	mp_crypto_bn_copy(_div_den, den, n);
-	mp_crypto_bn_copy(_div_num, num, nn);
-	for(i = bits - 1; i >= 0; i--) {
-		uint32_t ge;
-
-		mp_crypto_bn_shl1(_div_rem, _div_rem, n + 1);
-		_div_rem[0] |= (_div_num[i >> 5] >> (i & 31)) & 1u;
-		ge = _bn_ge(_div_rem, _div_den, n + 1);
-		mp_crypto_bn_sub(_div_sub, _div_rem, _div_den, n + 1);
-		mp_crypto_bn_cmov(_div_rem, _div_sub, n + 1, ge);
-		_div_q[i >> 5] |= (uint32_t)ge << (i & 31);
-	}
-	mp_crypto_bn_copy(rem, _div_rem, n);
-}
-
-mp_ret_t mp_crypto_bn_modinv(uint32_t *r, const uint32_t *a, const uint32_t *m, int n) {
-	/* _w: u, v, s0, s1, scratch, saved remainder. s0*a ≡ u and s1*a ≡ v, mod m. */
-	if(n <= 0 || n > MP_CRYPTO_BN_MAX || mp_crypto_bn_is_zero(m, n) || mp_crypto_bn_is_zero(a, n))
-		return(FALSE);
-	mp_crypto_bn_copy(_w[0], m, n);
-	mp_crypto_bn_mod(_w[1], a, n, m, n);
-	mp_crypto_bn_zero(_w[2], n);
-	mp_crypto_bn_zero(_w[3], n);
-	_w[3][0] = 1;
-	if(mp_crypto_bn_is_zero(_w[1], n))
-		return(FALSE);
-	while(!mp_crypto_bn_is_zero(_w[1], n)) {
-		/* rem in _w[5], q in _div_q; the product and the next mod reuse the div scratch */
-		_bn_div(_w[5], _w[0], n, _w[1], n);
-		mp_crypto_bn_mul(_wide, _div_q, _w[3], n);
-		mp_crypto_bn_mod(_w[4], _wide, n * 2, m, n);
-		mp_crypto_bn_sub_mod(_w[4], _w[2], _w[4], m, n);
-		mp_crypto_bn_copy(_w[0], _w[1], n);
-		mp_crypto_bn_copy(_w[2], _w[3], n);
-		mp_crypto_bn_copy(_w[1], _w[5], n);
-		mp_crypto_bn_copy(_w[3], _w[4], n);
-	}
-	if(_w[0][0] != 1 || (n > 1 && !mp_crypto_bn_is_zero(_w[0] + 1, n - 1)))
-		return(FALSE);
-	mp_crypto_bn_copy(r, _w[2], n);
-	return(TRUE);
-}
-
-/* nm1, d and the witness bound outlive mp_crypto_bn_modexp, which reuses _w and the div scratch */
-static uint32_t _nm1[MP_CRYPTO_BN_PRIME_MAX];
-static uint32_t _odd[MP_CRYPTO_BN_PRIME_MAX];
-static uint32_t _bound[MP_CRYPTO_BN_PRIME_MAX];
-static uint32_t _witness[MP_CRYPTO_BN_PRIME_MAX];
-static uint32_t _x[MP_CRYPTO_BN_PRIME_MAX];
-
 mp_bool_t mp_crypto_bn_prime(const uint32_t *a, int n, int rounds, mp_crypto_bn_fill_t fill, void *user) {
 	int s, round;
 	uint32_t two[1];
@@ -498,16 +493,23 @@ mp_bool_t mp_crypto_bn_prime(const uint32_t *a, int n, int rounds, mp_crypto_bn_
 	_w[7][0] = 1;
 	if(mp_crypto_bn_sub(_nm1, a, _w[7], n))
 		return(NO);
+	/* a == 1. Every word of a - 1 is 0, and the shift below would not end. */
+	if(mp_crypto_bn_is_zero(_nm1, n))
+		return(NO);
 	mp_crypto_bn_copy(_odd, _nm1, n);
 	s = 0;
 	while((_odd[0] & 1u) == 0) {
 		mp_crypto_bn_shr1(_odd, _odd, n);
 		s++;
 	}
-	/* witnesses are drawn in [2, a - 2], i.e. 2 + a number mod (a - 3) */
+	/* witnesses are drawn in [2, a - 2], i.e. 2 + a number mod (a - 3).
+	 * That interval is empty for the prime 3, at any width. */
 	_w[7][0] = 2;
-	if(mp_crypto_bn_sub(_bound, _nm1, _w[7], n))
-		return(n == 1 && a[0] == 3 ? YES : NO);
+	if(mp_crypto_bn_sub(_bound, _nm1, _w[7], n) || mp_crypto_bn_is_zero(_bound, n)) {
+		mp_crypto_bn_zero(_w[7], n);
+		_w[7][0] = 3;
+		return(mp_crypto_bn_cmp(a, _w[7], n) == 0 ? YES : NO);
+	}
 	two[0] = 2;
 	for(round = 0; round < rounds; round++) {
 		uint8_t raw[MP_CRYPTO_BN_PRIME_MAX * 4];

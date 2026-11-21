@@ -16,6 +16,7 @@ export const phi = {
 	define: "SUPPORT_DRV_INA3221",
 	sources: ["ina3221.c"],
 	headers: ["ina3221.h"],
+	tests: ["test/ina3221.c"],
 	requires: ["DEVICE", "I2C"],
 	device: { struct: "mp_drv_ina3221_t", ops: "mp_drv_ina3221_device" },
 	options: [

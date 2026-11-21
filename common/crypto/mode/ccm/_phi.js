@@ -28,4 +28,5 @@ export const phi = {
 			ram: true,
 		},
 	],
+	tests: ["test/vec.c", "test/b192.c", "test/b256.c"],
 }

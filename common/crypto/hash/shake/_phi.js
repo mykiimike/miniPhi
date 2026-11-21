@@ -14,4 +14,5 @@ export const phi = {
 	sources: ["shake.c"],
 	headers: ["shake.h"],
 	headerDir: "crypto",
+	tests: ["test/vec.c"],
 }

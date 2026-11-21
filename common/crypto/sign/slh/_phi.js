@@ -20,4 +20,5 @@ export const phi = {
 		/* peak RAM of a verify operation (FORS roots + one XMSS WOTS buffer) */
 		{ name: "MP_CRYPTO_SLH_RAM", label: "RAM", type: "number", unit: "bytes", default: 2048, min: 2048, max: 2048, ram: true },
 	],
+	tests: ["test/vec.c"],
 }

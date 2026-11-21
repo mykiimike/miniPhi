@@ -6,4 +6,5 @@ export const phi = {
 	define: "SUPPORT_COMMON_KALMAN",
 	sources: ["kalman.c"],
 	headers: ["kalman.h"],
+	tests: ["test/kalman.c"],
 }

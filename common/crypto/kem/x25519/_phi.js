@@ -17,4 +17,5 @@ export const phi = {
 	sources: ["x25519.c"],
 	headers: ["x25519.h"],
 	headerDir: "crypto",
+	tests: ["test/vec.c"],
 }

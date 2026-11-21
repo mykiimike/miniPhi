@@ -67,6 +67,11 @@
 	void mp_crypto_sha512_update(mp_crypto_sha512_t *ctx, const void *data, unsigned int size);
 	void mp_crypto_sha512_final(mp_crypto_sha512_t *ctx, uint8_t *digest);
 	void mp_crypto_sha512(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_SHA512_SIZE]);
+
+	#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_SHA512)
+		/** software digest for the self-test; the accelerator stays off */
+		void mp_crypto_sha512_soft_init(mp_crypto_sha512_t *ctx);
+	#endif
 	void mp_crypto_sha512_block(uint64_t state[8], const uint8_t block[MP_CRYPTO_SHA512_BLOCK]);
 
 	/* an arch with a SHA512 accelerator provides these; init returns NO when the block is busy or off, and the context then runs in software */

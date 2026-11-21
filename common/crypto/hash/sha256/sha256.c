@@ -208,6 +208,14 @@ void mp_crypto_sha256(const void *data, unsigned int size, uint8_t digest[MP_CRY
 	mp_crypto_sha256_final(&ctx, digest);
 }
 
+#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_SHA256)
+void mp_crypto_sha256_soft_init(mp_crypto_sha256_t *ctx) {
+	memset(ctx, 0, sizeof(*ctx));
+	memcpy(ctx->state, _sha256_iv, sizeof(ctx->state));
+	ctx->onHardware = NO;
+}
+#endif
+
 /**@}*/
 
 #endif

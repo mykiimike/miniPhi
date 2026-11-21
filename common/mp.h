@@ -227,6 +227,9 @@
 	#ifdef SUPPORT_COMMON_CRYPTO_RNG
 		#include <crypto/rng.h>
 	#endif
+	#ifdef SUPPORT_COMMON_CRYPTO_LOCK
+		#include <crypto/lock.h>
+	#endif
 	#ifdef SUPPORT_COMMON_CRYPTO_BN
 		#include <crypto/bn.h>
 	#endif

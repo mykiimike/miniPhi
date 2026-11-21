@@ -71,12 +71,34 @@ typedef unsigned char mp_task_lock_t;
 #define mp_task_lock(ceiling) ((mp_task_lock_t)0)
 #define mp_task_unlock(key)   ((void)(key))
 #define MP_TASK_CEILING_KERNEL ((unsigned char)0)
+#ifndef MP_CPUS
+#define MP_CPUS 1
+#endif
+#if MP_CPUS > 1
+typedef struct {
+	volatile int flag;
+	volatile int owner;
+	unsigned int depth;
+} mp_cpu_mutex_t;
+#define MP_CPU_MUTEX_INIT { 0, -1, 0 }
+static inline mp_task_lock_t mp_task_mutex_lock(mp_cpu_mutex_t *mutex) {
+	(void)mutex;
+	return((mp_task_lock_t)0);
+}
+static inline void mp_task_mutex_unlock(mp_cpu_mutex_t *mutex, mp_task_lock_t key) {
+	(void)mutex;
+	(void)key;
+}
+#endif
 #include <list.h>
 #endif
 
 #ifdef SUPPORT_COMMON_DEVICE
 #include <device/device.h>
 struct mp_kernel_s {
+#ifdef MP_HOST_TASK
+	mp_task_handler_t tasks;
+#endif
 	mp_list_t inputs;
 	mp_list_t drivers;
 	mp_list_t devices;
@@ -96,6 +118,9 @@ struct mp_kernel_s {
 };
 #else
 struct mp_kernel_s {
+#ifdef MP_HOST_TASK
+	mp_task_handler_t tasks;
+#endif
 	int unused;
 	char *version;
 };

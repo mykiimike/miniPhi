@@ -12,6 +12,20 @@ const include = [
 	"-I" + path.join(root, "common", "test"),
 	"-I" + path.join(root, "common"),
 ]
+/* MP_TEST_SAN=1 adds ASan and UBSan. The default command line is unchanged. */
+const san = process.env.MP_TEST_SAN === "1"
+const cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pthread", ...include]
+if (san)
+	cflags.push("-fsanitize=address,undefined", "-fno-omit-frame-pointer", "-g")
+const runEnv = { ...process.env }
+if (san) {
+	runEnv.UBSAN_OPTIONS = runEnv.UBSAN_OPTIONS
+		? runEnv.UBSAN_OPTIONS + ":halt_on_error=1"
+		: "halt_on_error=1"
+	runEnv.ASAN_OPTIONS = runEnv.ASAN_OPTIONS
+		? runEnv.ASAN_OPTIONS + ":halt_on_error=1"
+		: "halt_on_error=1"
+}
 
 const catalog = await loadCatalog(root)
 const records = [
@@ -36,8 +50,7 @@ for (const record of records) {
 			continue
 		}
 		const compile = spawnSync("gcc", [
-			"-std=c99", "-Wall", "-Wextra", "-Werror",
-			...include, src, "-o", out,
+			...cflags, src, "-o", out, "-lm",
 		], { encoding: "utf8" })
 		if (compile.status !== 0) {
 			console.error(rel)
@@ -45,7 +58,7 @@ for (const record of records) {
 			failed++
 			continue
 		}
-		const run = spawnSync(out, [], { encoding: "utf8" })
+		const run = spawnSync(out, [], { encoding: "utf8", env: runEnv })
 		fs.rmSync(out, { force: true })
 		if (run.status !== 0) {
 			console.error(rel)

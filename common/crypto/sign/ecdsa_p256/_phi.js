@@ -15,5 +15,6 @@ export const phi = {
 	sources: ["ecdsa_p256.c"],
 	headers: ["ecdsa_p256.h"],
 	headerDir: "crypto",
-	requires: ["SHA256", "HMAC", "BN"],
+	requires: ["SHA256", "HMAC", "BN", "LOCK"],
+	tests: ["test/vec.c"],
 }

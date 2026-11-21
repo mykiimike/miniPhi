@@ -113,7 +113,14 @@ mp_gpio_port_t *mp_gpio_text_handle(char *text, char *who) {
 	if(pin_n >= 16)
 		return(NULL);
 	memset(&pins[pin_n], 0, sizeof(pins[pin_n]));
-	memcpy(pin_name[pin_n], text, 15);
+	{
+		size_t n = strlen(text);
+
+		if(n > sizeof(pin_name[pin_n]) - 1)
+			n = sizeof(pin_name[pin_n]) - 1;
+		memcpy(pin_name[pin_n], text, n);
+		pin_name[pin_n][n] = 0;
+	}
 	pins[pin_n].level = strcmp(text, "cd-a") == 0 ? cd_level : 1;
 	if(strcmp(text, "cs-a") == 0)
 		pins[pin_n].card = &cards[0];

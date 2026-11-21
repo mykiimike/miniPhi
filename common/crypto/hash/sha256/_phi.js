@@ -15,4 +15,5 @@ export const phi = {
 	sources: ["sha256.c"],
 	headers: ["sha256.h"],
 	headerDir: "crypto",
+	tests: ["test/vec.c"],
 }

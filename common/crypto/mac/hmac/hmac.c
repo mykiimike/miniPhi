@@ -238,6 +238,109 @@ unsigned int mp_crypto_hmac(const char *hash, const void *key, unsigned int keyl
 	return(mp_crypto_hmac_final(&ctx, tag));
 }
 
+#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_HMAC)
+
+/* public hash_init arms a hash accelerator; the software MAC must not follow it */
+static void _hash_soft(mp_crypto_hash_t *hash, const char *name) {
+	mp_crypto_hash_init(hash, name);
+	if(!hash->algo || !hash->algo->name)
+		return;
+#if defined(SUPPORT_COMMON_CRYPTO_HASH_SHA1) && defined(MP_ARCH_SHA1)
+	if(strcmp(hash->algo->name, "SHA1") == 0)
+		hash->ctx.sha1.onHardware = NO;
+#endif
+#if defined(SUPPORT_COMMON_CRYPTO_HASH_SHA256) && defined(MP_ARCH_SHA256)
+	if(strcmp(hash->algo->name, "SHA256") == 0)
+		hash->ctx.sha256.onHardware = NO;
+#endif
+#if defined(SUPPORT_COMMON_CRYPTO_HASH_SHA384) && defined(MP_ARCH_SHA384)
+	if(strcmp(hash->algo->name, "SHA384") == 0)
+		hash->ctx.sha384.onHardware = NO;
+#endif
+#if defined(SUPPORT_COMMON_CRYPTO_HASH_SHA512) && defined(MP_ARCH_SHA512)
+	if(strcmp(hash->algo->name, "SHA512") == 0)
+		hash->ctx.sha512.onHardware = NO;
+#endif
+#if defined(SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S) && defined(MP_ARCH_BLAKE2S)
+	if(strcmp(hash->algo->name, "BLAKE2S") == 0)
+		hash->ctx.blake2s.onHardware = NO;
+#endif
+}
+
+mp_ret_t mp_crypto_hmac_soft_init(mp_crypto_hmac_t *ctx, const char *hash, const void *key, unsigned int keylen) {
+	const mp_crypto_hash_algo_t *algo = mp_crypto_hash_find(hash);
+	uint8_t pad[MP_CRYPTO_HASH_BLOCK_MAX];
+	unsigned int n;
+
+	memset(ctx, 0, sizeof(*ctx));
+	if(!algo || algo->block > MP_CRYPTO_HASH_BLOCK_MAX)
+		return(FALSE);
+	if(!key)
+		keylen = 0;
+
+	memset(pad, 0, sizeof(pad));
+	if(keylen > algo->block) {
+		_hash_soft(&ctx->inner, algo->name);
+		if(!ctx->inner.algo) {
+			memset(pad, 0, sizeof(pad));
+			mp_crypto_hmac_free(ctx);
+			return(FALSE);
+		}
+		mp_crypto_hash_update(&ctx->inner, key, keylen);
+		mp_crypto_hash_digest(&ctx->inner, pad);
+	}
+	else if(keylen > 0)
+		memcpy(pad, key, keylen);
+
+	for(n = 0; n < algo->block; n++) {
+		ctx->outer[n] = (uint8_t)(pad[n] ^ 0x5c);
+		pad[n] ^= 0x36;
+	}
+	_hash_soft(&ctx->inner, algo->name);
+	if(!ctx->inner.algo) {
+		memset(pad, 0, sizeof(pad));
+		mp_crypto_hmac_free(ctx);
+		return(FALSE);
+	}
+	mp_crypto_hash_update(&ctx->inner, pad, algo->block);
+	memset(pad, 0, sizeof(pad));
+	ctx->algo = algo;
+	ctx->onHardware = NO;
+	return(TRUE);
+}
+
+void mp_crypto_hmac_soft_update(mp_crypto_hmac_t *ctx, const void *data, unsigned int size) {
+	if(!ctx->algo)
+		return;
+	mp_crypto_hash_update(&ctx->inner, data, size);
+}
+
+unsigned int mp_crypto_hmac_soft_final(mp_crypto_hmac_t *ctx, uint8_t *tag) {
+	uint8_t inner[MP_CRYPTO_HASH_SIZE_MAX];
+	unsigned int size;
+	const char *name;
+
+	if(!ctx->algo || !tag)
+		return(0);
+	size = ctx->algo->size;
+	name = ctx->algo->name;
+	mp_crypto_hash_digest(&ctx->inner, inner);
+	_hash_soft(&ctx->inner, name);
+	if(!ctx->inner.algo) {
+		memset(inner, 0, sizeof(inner));
+		mp_crypto_hmac_free(ctx);
+		return(0);
+	}
+	mp_crypto_hash_update(&ctx->inner, ctx->outer, ctx->algo->block);
+	mp_crypto_hash_update(&ctx->inner, inner, size);
+	mp_crypto_hash_digest(&ctx->inner, tag);
+	memset(inner, 0, sizeof(inner));
+	mp_crypto_hmac_free(ctx);
+	return(size);
+}
+
+#endif
+
 /**@}*/
 
 #endif

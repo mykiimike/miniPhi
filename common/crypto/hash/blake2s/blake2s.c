@@ -240,6 +240,14 @@ void mp_crypto_blake2s(const void *data, unsigned int size, uint8_t digest[MP_CR
 	mp_crypto_blake2s_final(&ctx, digest);
 }
 
+#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_BLAKE2S)
+void mp_crypto_blake2s_soft_init(mp_crypto_blake2s_t *ctx) {
+	memset(ctx, 0, sizeof(*ctx));
+	_blake2s_soft_init(ctx, NULL, 0);
+	ctx->onHardware = NO;
+}
+#endif
+
 /**@}*/
 
 #endif

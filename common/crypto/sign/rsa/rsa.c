@@ -66,6 +66,7 @@ static const uint16_t _small[] = {
 static uint32_t _p[_WP], _q[_WP], _dp[_WP], _dq[_WP], _qinv[_WP];
 static uint32_t _m1[_WP], _m2[_WP], _h[_WP], _t[_WP];
 static uint32_t _n[_WM], _d[_WM], _wide[_WM], _acc[_WM];
+static uint32_t _ext[_WM + 1];
 static uint8_t _raw[MP_CRYPTO_RSA_MODULUS];
 
 static void _wipe(void) {
@@ -82,6 +83,7 @@ static void _wipe(void) {
 	memset(_d, 0, sizeof(_d));
 	memset(_wide, 0, sizeof(_wide));
 	memset(_acc, 0, sizeof(_acc));
+	memset(_ext, 0, sizeof(_ext));
 	memset(_raw, 0, sizeof(_raw));
 	mp_crypto_bn_clean();
 }
@@ -107,11 +109,108 @@ static int _same(const uint8_t *a, const uint8_t *b, unsigned int n) {
 	return(d == 0);
 }
 
+static int _words_eq(const uint32_t *a, const uint32_t *b, int n) {
+	uint32_t d = 0;
+	int i;
+
+	for(i = 0; i < n; i++)
+		d |= a[i] ^ b[i];
+	return(d == 0);
+}
+
+static uint32_t _word_lt(uint32_t a, uint32_t b) {
+	uint32_t dlo = ((a & 0xFFFFu) | 0x10000u) - (b & 0xFFFFu);
+	uint32_t br = 1u ^ ((dlo >> 16) & 1u);
+	uint32_t dhi = ((a >> 16) | 0x10000u) - (b >> 16) - br;
+
+	return(1u ^ ((dhi >> 16) & 1u));
+}
+
+static uint32_t _word_add(uint32_t *r, uint32_t a, uint32_t b) {
+	uint32_t slo = (a & 0xFFFFu) + (b & 0xFFFFu);
+	uint32_t shi = (a >> 16) + (b >> 16) + (slo >> 16);
+
+	*r = (slo & 0xFFFFu) | ((shi & 0xFFFFu) << 16);
+	return(shi >> 16);
+}
+
+/* 2^16 ≡ -1 (mod 65537), so a word folds to its low half minus its high half. */
+static uint32_t _mod_e(uint32_t x) {
+	uint32_t lo = x & 0xFFFFu;
+	uint32_t hi = x >> 16;
+	uint32_t r = lo + (_E - hi);
+	uint32_t ge = _word_lt(r, _E) ^ 1u;
+
+	return(r - (_E & (0u - ge)));
+}
+
+static uint32_t _mul_mod_e(uint32_t a, uint32_t b) {
+	uint64_t p = (uint64_t)a * b;
+	uint32_t r = _mod_e((uint32_t)p) + (uint32_t)(p >> 32);
+	uint32_t ge = _word_lt(r, _E) ^ 1u;
+
+	return(r - (_E & (0u - ge)));
+}
+
+/* e - 2 = 65535, every bit set, so each step is a square and a multiply */
+static uint32_t _pow_mod_e(uint32_t base) {
+	uint32_t t = 1;
+	int i;
+
+	for(i = 0; i < 16; i++) {
+		t = _mul_mod_e(t, t);
+		t = _mul_mod_e(t, base);
+	}
+	return(t);
+}
+
+/* d = (1 + k*phi) / e with k*phi ≡ -1 (mod e), so d*e ≡ 1 (mod phi) */
+static int _d_from_phi(uint32_t *d, const uint32_t *phi, int n) {
+	uint32_t r = mp_crypto_bn_mod_u32(phi, n, _E);
+	uint32_t t;
+	uint32_t k;
+	uint32_t carry;
+	int i;
+
+	if(!r)
+		return(0);
+	t = _pow_mod_e(r);
+	if(!t)
+		return(0);
+	k = _E - t;
+	carry = 0;
+	for(i = 0; i < n; i++) {
+		uint64_t p = (uint64_t)phi[i] * k;
+		uint32_t lo;
+		uint32_t cy = _word_add(&lo, (uint32_t)p, carry);
+
+		_ext[i] = lo;
+		carry = (uint32_t)(p >> 32) + cy;
+	}
+	_ext[n] = carry;
+	carry = 1;
+	for(i = 0; i <= n; i++) {
+		uint32_t lo;
+		uint32_t cy = _word_add(&lo, _ext[i], carry);
+
+		_ext[i] = lo;
+		carry = cy;
+	}
+	if(carry)
+		return(0);
+	if(mp_crypto_bn_div_u32(_ext, _ext, n + 1, _E) != 0)
+		return(0);
+	if(_ext[n] != 0)
+		return(0);
+	mp_crypto_bn_copy(d, _ext, n);
+	return(1);
+}
+
 static void _load32(uint32_t *a, const uint8_t *be) {
 	mp_crypto_bn_from_be(a, _WP, be, MP_CRYPTO_RSA_PRIME);
 }
 
-unsigned int mp_crypto_rsa_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+static unsigned int _rsa_sign_locked(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
 	const uint8_t *key = priv;
 	uint32_t carry;
 	int i;
@@ -160,7 +259,18 @@ fail:
 	return(0);
 }
 
-mp_bool_t mp_crypto_rsa_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+
+unsigned int mp_crypto_rsa_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _rsa_sign_locked(priv, msg, len, sig);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _rsa_verify_locked(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
 	const uint8_t *key = pub;
 	uint32_t e;
 	mp_bool_t ok = NO;
@@ -187,6 +297,19 @@ out:
 	_wipe();
 	return(ok);
 }
+
+
+
+mp_bool_t mp_crypto_rsa_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _rsa_verify_locked(pub, msg, len, sig, siglen);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
 
 static void _fill(void *user, uint8_t *dst, unsigned int len) {
 	if(mp_crypto_hmac_drbg_generate(user, dst, len, NULL, 0) != TRUE)
@@ -228,7 +351,7 @@ static int _prime(uint32_t *out, mp_crypto_hmac_drbg_t *drbg) {
 	return(0);
 }
 
-mp_ret_t mp_crypto_rsa_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+static mp_ret_t _rsa_keypair_locked(const void *seed, unsigned int seedlen, void *priv, void *pub) {
 	mp_crypto_hmac_drbg_t drbg;
 	uint8_t *key = priv;
 
@@ -241,20 +364,23 @@ mp_ret_t mp_crypto_rsa_keypair(const void *seed, unsigned int seedlen, void *pri
 	do {
 		if(!_prime(_q, &drbg))
 			goto fail;
-	} while(mp_crypto_bn_cmp(_p, _q, _WP) == 0);
+	} while(_words_eq(_p, _q, _WP));
 
 	mp_crypto_bn_zero(_t, _WP);
 	_t[0] = 1;
 	mp_crypto_bn_sub(_m1, _p, _t, _WP);
 	mp_crypto_bn_sub(_m2, _q, _t, _WP);
 	mp_crypto_bn_mul(_wide, _m1, _m2, _WP);
-	mp_crypto_bn_zero(_acc, _WM);
-	_acc[0] = _E;
-	if(mp_crypto_bn_modinv(_d, _acc, _wide, _WM) != TRUE)
+	if(!_d_from_phi(_d, _wide, _WM))
 		goto fail;
 	mp_crypto_bn_mod(_dp, _d, _WM, _m1, _WP);
 	mp_crypto_bn_mod(_dq, _d, _WM, _m2, _WP);
-	if(mp_crypto_bn_modinv(_qinv, _q, _p, _WP) != TRUE)
+	/* q^(p-2) ≡ q^{-1} (mod p) */
+	mp_crypto_bn_zero(_h, _WP);
+	_h[0] = 2;
+	if(mp_crypto_bn_sub(_t, _p, _h, _WP))
+		goto fail;
+	if(mp_crypto_bn_modexp(_qinv, _q, _t, _WP, _p, _WP) != TRUE)
 		goto fail;
 	mp_crypto_bn_mul(_n, _p, _q, _WP);
 
@@ -279,6 +405,56 @@ fail:
 	return(FALSE);
 }
 
+
+mp_ret_t mp_crypto_rsa_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	mp_crypto_lock_t key;
+	mp_ret_t ret;
+
+	key = mp_crypto_lock();
+	ret = _rsa_keypair_locked(seed, seedlen, priv, pub);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static unsigned int _rsa_sign_fuse_locked(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+	static mp_bool_t said;
+
+	if(!sig || (!msg && len) || !wrapped || wrappedlen != MP_CRYPTO_RSA_FUSE_WRAPPED)
+		return(0);
+	if(MP_CRYPTO_RSA_MODULUS != 384) {
+		if(said == NO) {
+			mp_printk("RSA: a fuse signature is 3072 bits");
+			said = YES;
+		}
+		return(0);
+	}
+#ifdef MP_ARCH_FUSE
+	{
+		unsigned int n;
+
+		if(mp_crypto_fuse_check(fuse, MP_CRYPTO_FUSE_DS) != YES)
+			return(0);
+		_encode(msg, len);
+		n = mp_arch_rsa_sign_fuse(fuse->slot, wrapped, _raw, sig);
+		if(!n && said == NO) {
+			mp_printk("RSA: the accelerator refused the fuse");
+			said = YES;
+		}
+		_wipe();
+		return(n);
+	}
+#else
+	(void)fuse;
+	if(said == NO) {
+		mp_printk("RSA: this build has no fuse");
+		said = YES;
+	}
+	return(0);
+#endif
+}
+
+
+
 /**
  * @brief Sign with a wrapped private key
  *
@@ -294,38 +470,15 @@ fail:
  * @return MP_CRYPTO_RSA_SIG, or 0 when the slot or the block refuses
  */
 unsigned int mp_crypto_rsa_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
-	unsigned int n = 0;
-	static mp_bool_t said;
+	mp_crypto_lock_t key;
+	unsigned int ret;
 
-	if(!sig || (!msg && len) || !wrapped || wrappedlen != MP_CRYPTO_RSA_FUSE_WRAPPED)
-		return(0);
-	if(MP_CRYPTO_RSA_MODULUS != 384) {
-		if(said == NO) {
-			mp_printk("RSA: a fuse signature is 3072 bits");
-			said = YES;
-		}
-		return(0);
-	}
-#ifdef MP_ARCH_FUSE
-	if(mp_crypto_fuse_check(fuse, MP_CRYPTO_FUSE_DS) != YES)
-		return(0);
-	_encode(msg, len);
-	n = mp_arch_rsa_sign_fuse(fuse->slot, wrapped, _raw, sig);
-	if(!n && said == NO) {
-		mp_printk("RSA: the accelerator refused the fuse");
-		said = YES;
-	}
-	_wipe();
-	return(n);
-#else
-	(void)fuse;
-	if(said == NO) {
-		mp_printk("RSA: this build has no fuse");
-		said = YES;
-	}
-	return(0);
-#endif
+	key = mp_crypto_lock();
+	ret = _rsa_sign_fuse_locked(fuse, wrapped, wrappedlen, msg, len, sig);
+	mp_crypto_unlock(key);
+	return(ret);
 }
+
 
 /**@}*/
 

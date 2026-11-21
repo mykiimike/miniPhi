@@ -656,15 +656,7 @@ static void _cmov(uint8_t *dst, const uint8_t *src, unsigned n, uint8_t bit) {
 		dst[i] ^= (uint8_t)(m & (dst[i] ^ src[i]));
 }
 
-/**
- * @brief Build an HQC-128 key pair
- * @param[in] seed 40 bytes of secret seed, 16 of sigma, 40 of public seed
- * @param[in] seedlen Length of seed
- * @param[out] priv MP_CRYPTO_HQC_PRIV bytes
- * @param[out] pub MP_CRYPTO_HQC_PUB bytes
- * @return FALSE when the seed is shorter than 96 bytes
- */
-mp_ret_t mp_crypto_hqc_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+static mp_ret_t _hqc_keypair_locked(const void *seed, unsigned int seedlen, void *priv, void *pub) {
 	const uint8_t *in = seed;
 	uint8_t *pk = pub;
 	uint8_t *sk = priv;
@@ -687,16 +679,26 @@ mp_ret_t mp_crypto_hqc_keypair(const void *seed, unsigned int seedlen, void *pri
 	return(TRUE);
 }
 
+
 /**
- * @brief Encapsulate under an HQC-128 public key
- * @param[in] pub MP_CRYPTO_HQC_PUB bytes
- * @param[in] coins 16-byte message then 16-byte salt
- * @param[in] coinslen Length of coins
- * @param[out] ss 64-byte shared secret
- * @param[out] ct Ciphertext
- * @return The ciphertext length, or 0
+ * @brief Build an HQC-128 key pair
+ * @param[in] seed 40 bytes of secret seed, 16 of sigma, 40 of public seed
+ * @param[in] seedlen Length of seed
+ * @param[out] priv MP_CRYPTO_HQC_PRIV bytes
+ * @param[out] pub MP_CRYPTO_HQC_PUB bytes
+ * @return FALSE when the seed is shorter than 96 bytes
  */
-unsigned int mp_crypto_hqc_encaps(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
+mp_ret_t mp_crypto_hqc_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	mp_crypto_lock_t key;
+	mp_ret_t ret;
+
+	key = mp_crypto_lock();
+	ret = _hqc_keypair_locked(seed, seedlen, priv, pub);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static unsigned int _hqc_encaps_locked(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
 	const uint8_t *in = coins;
 	uint8_t theta[64];
 
@@ -716,15 +718,28 @@ unsigned int mp_crypto_hqc_encaps(const void *pub, const void *coins, unsigned i
 	return(MP_CRYPTO_HQC_CT);
 }
 
+
+
 /**
- * @brief Decapsulate an HQC-128 ciphertext
- * @param[in] priv MP_CRYPTO_HQC_PRIV bytes
- * @param[in] ct Ciphertext
- * @param[in] ctlen Length of ct
+ * @brief Encapsulate under an HQC-128 public key
+ * @param[in] pub MP_CRYPTO_HQC_PUB bytes
+ * @param[in] coins 16-byte message then 16-byte salt
+ * @param[in] coinslen Length of coins
  * @param[out] ss 64-byte shared secret
- * @return YES when ctlen matches
+ * @param[out] ct Ciphertext
+ * @return The ciphertext length, or 0
  */
-mp_bool_t mp_crypto_hqc_decaps(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
+unsigned int mp_crypto_hqc_encaps(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _hqc_encaps_locked(pub, coins, coinslen, ss, ct);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _hqc_decaps_locked(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
 	const uint8_t *sk = priv;
 	const uint8_t *pk = sk + _SEED + _MSG;
 	uint8_t m[_MSG], sigma[_MSG], salt[16], theta[64];
@@ -752,17 +767,27 @@ mp_bool_t mp_crypto_hqc_decaps(const void *priv, const void *ct, unsigned int ct
 	return(YES);
 }
 
+
+
 /**
- * @brief Decapsulate with a fuse slot
- * @param[in] fuse Slot of role MP_CRYPTO_FUSE_HQC
- * @param[in] wrapped Blob the arch defines
- * @param[in] wrappedlen Byte length of wrapped
+ * @brief Decapsulate an HQC-128 ciphertext
+ * @param[in] priv MP_CRYPTO_HQC_PRIV bytes
  * @param[in] ct Ciphertext
  * @param[in] ctlen Length of ct
  * @param[out] ss 64-byte shared secret
- * @return NO when this series has no HQC accelerator
+ * @return YES when ctlen matches
  */
-mp_bool_t mp_crypto_hqc_decaps_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss) {
+mp_bool_t mp_crypto_hqc_decaps(const void *priv, const void *ct, unsigned int ctlen, uint8_t *ss) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _hqc_decaps_locked(priv, ct, ctlen, ss);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _hqc_decaps_fuse_locked(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss) {
 	static mp_bool_t said;
 
 	if(!ss || (ctlen && !ct))
@@ -791,6 +816,29 @@ mp_bool_t mp_crypto_hqc_decaps_fuse(const mp_crypto_fuse_t *fuse, const void *wr
 	return(NO);
 #endif
 }
+
+
+
+/**
+ * @brief Decapsulate with a fuse slot
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_HQC
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] ct Ciphertext
+ * @param[in] ctlen Length of ct
+ * @param[out] ss 64-byte shared secret
+ * @return NO when this series has no HQC accelerator
+ */
+mp_bool_t mp_crypto_hqc_decaps_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *ct, unsigned int ctlen, uint8_t *ss) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _hqc_decaps_fuse_locked(fuse, wrapped, wrappedlen, ct, ctlen, ss);
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
 
 /**@}*/
 

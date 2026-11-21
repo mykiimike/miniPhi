@@ -331,6 +331,21 @@ void mp_crypto_aes_free(mp_crypto_aes_t *ctx) {
 	memset(ctx, 0, sizeof(*ctx));
 }
 
+#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_AES)
+mp_ret_t mp_crypto_aes_soft_init(mp_crypto_aes_t *ctx, const void *key, unsigned int keylen) {
+	if(!ctx || !key)
+		return(FALSE);
+	if(keylen != 16 && keylen != 24 && keylen != 32)
+		return(FALSE);
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->keylen = keylen;
+	ctx->rounds = keylen / 4 + 6;
+	ctx->onHardware = NO;
+	_aes_expand(ctx, (const uint8_t *)key);
+	return(TRUE);
+}
+#endif
+
 /**@}*/
 
 #endif

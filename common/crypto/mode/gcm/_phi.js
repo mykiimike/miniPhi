@@ -17,4 +17,5 @@ export const phi = {
 	settings: [
 		{ name: "MP_CRYPTO_GCM_RAM", label: "RAM", type: "number", unit: "bytes", default: 256, min: 128, max: 2048, ram: true },
 	],
+	tests: ["test/vec.c", "test/b192.c", "test/b256.c"],
 }

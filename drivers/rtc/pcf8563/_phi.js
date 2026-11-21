@@ -14,6 +14,7 @@ export const phi = {
 	define: "SUPPORT_DRV_RTC_PCF8563",
 	sources: ["pcf8563.c"],
 	headers: ["pcf8563.h"],
+	tests: ["test/pcf8563.c"],
 	requires: ["DEVICE", "I2C"],
 	device: { struct: "mp_drv_pcf8563_t", ops: "mp_drv_pcf8563_device" },
 	options: [

@@ -217,10 +217,12 @@ static MP_TASK(_sysinfo_selftest) {
 		return;
 	}
 
-	if(sysinfo->selftestIndex == 0)
+	if(sysinfo->selftestIndex == 0) {
+		mp_crypto_selftest_hw_kernel(&sysinfo->kernel);
 		mp_printk("SELFTEST: %s %lu MHz",
 			mp_power_name(mp_power_level(&sysinfo->kernel)),
 			(mp_clock_get_speed() + 500000UL) / 1000000UL);
+	}
 
 	test = mp_crypto_selftest_at(sysinfo->selftestIndex);
 	if(test && test->run) {

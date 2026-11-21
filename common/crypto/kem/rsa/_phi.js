@@ -12,8 +12,9 @@ export const phi = {
 		random: "coins",
 	},
 	define: "SUPPORT_COMMON_CRYPTO_KEM_RSAKEM",
-	requires: ["RSA", "SHAKE"],
+	requires: ["RSA", "SHAKE", "LOCK"],
 	sources: ["rsa.c"],
 	headers: ["rsakem.h"],
 	headerDir: "crypto",
+	tests: ["test/vec.c"],
 }

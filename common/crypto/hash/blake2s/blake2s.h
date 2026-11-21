@@ -64,6 +64,11 @@
 	void mp_crypto_blake2s_final(mp_crypto_blake2s_t *ctx, uint8_t digest[MP_CRYPTO_BLAKE2S_SIZE]);
 	void mp_crypto_blake2s(const void *data, unsigned int size, uint8_t digest[MP_CRYPTO_BLAKE2S_SIZE]);
 
+	#if defined(SUPPORT_COMMON_CRYPTO_SELFTEST) && defined(MP_ARCH_BLAKE2S)
+		/** software digest for the self-test; the accelerator stays off */
+		void mp_crypto_blake2s_soft_init(mp_crypto_blake2s_t *ctx);
+	#endif
+
 	/* an arch with a BLAKE2S accelerator provides these; init returns NO when the block is busy or off, and the context then runs in software. Keyed digests do not call them */
 	#ifdef MP_ARCH_BLAKE2S
 		mp_bool_t mp_arch_blake2s_init(mp_arch_blake2s_t *hw);

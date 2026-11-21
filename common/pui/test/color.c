@@ -17,6 +17,10 @@ void mp_pui_detach(mp_pui_t *ui) {
 	(void)ui;
 }
 
+void mp_pui_page_glass_release(mp_pui_t *ui) {
+	(void)ui;
+}
+
 #include "../pui_font.c"
 #include "../pui.c"
 

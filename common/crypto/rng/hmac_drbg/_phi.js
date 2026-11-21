@@ -14,4 +14,5 @@ export const phi = {
 	headers: ["hmac_drbg.h"],
 	headerDir: "crypto",
 	requires: ["HMAC"],
+	tests: ["test/vec.c"],
 }

@@ -58,6 +58,8 @@
 	mp_bool_t mp_crypto_selftest(const char *name);
 	/** microseconds of the last check, the comparison only */
 	unsigned long mp_crypto_selftest_last_us(void);
+	/** sysinfo passes its kernel so the differential can call mp_clock_level(); NULL skips that */
+	void mp_crypto_selftest_hw_kernel(mp_kernel_t *kernel);
 
 	/** YES when the n bytes match. The expected answer is public. */
 	static inline mp_bool_t mp_crypto_selftest_equal(const void *got, const void *expect, unsigned int n) {
@@ -123,6 +125,30 @@
 	#endif
 	#if defined(MP_CRYPTO_SELFTEST_RSAKEM) && defined(SUPPORT_COMMON_CRYPTO_KEM_RSAKEM) && defined(SUPPORT_COMMON_CRYPTO_SIGN_RSA)
 		mp_bool_t mp_crypto_selftest_rsakem(void);
+	#endif
+	#if defined(MP_CRYPTO_SELFTEST_SHA1) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA1) && defined(MP_ARCH_SHA1)
+		mp_bool_t mp_crypto_selftest_hw_sha1(void);
+	#endif
+	#if defined(MP_CRYPTO_SELFTEST_SHA256) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA256) && defined(MP_ARCH_SHA256)
+		mp_bool_t mp_crypto_selftest_hw_sha256(void);
+	#endif
+	#if defined(MP_CRYPTO_SELFTEST_SHA384) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA384) && defined(MP_ARCH_SHA384)
+		mp_bool_t mp_crypto_selftest_hw_sha384(void);
+	#endif
+	#if defined(MP_CRYPTO_SELFTEST_SHA512) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA512) && defined(MP_ARCH_SHA512)
+		mp_bool_t mp_crypto_selftest_hw_sha512(void);
+	#endif
+	#if defined(MP_CRYPTO_SELFTEST_BLAKE2S) && defined(SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S) && defined(MP_ARCH_BLAKE2S)
+		mp_bool_t mp_crypto_selftest_hw_blake2s(void);
+	#endif
+	#if defined(MP_CRYPTO_SELFTEST_AES) && defined(SUPPORT_COMMON_CRYPTO_CIPHER_AES) && defined(MP_ARCH_AES)
+		mp_bool_t mp_crypto_selftest_hw_aes(void);
+	#endif
+	#if defined(MP_CRYPTO_SELFTEST_XTS) && defined(SUPPORT_COMMON_CRYPTO_CIPHER_XTS) && defined(SUPPORT_COMMON_CRYPTO_CIPHER_AES) && defined(MP_ARCH_AES)
+		mp_bool_t mp_crypto_selftest_hw_xts(void);
+	#endif
+	#if defined(MP_CRYPTO_SELFTEST_HMAC) && defined(SUPPORT_COMMON_CRYPTO_MAC_HMAC) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA256) && defined(MP_ARCH_HMAC)
+		mp_bool_t mp_crypto_selftest_hw_hmac(void);
 	#endif
 
 #endif

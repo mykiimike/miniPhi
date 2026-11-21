@@ -9,6 +9,7 @@ export const phi = {
 	define: "SUPPORT_DRV_TOUCH_XPT2046",
 	sources: ["xpt2046.c"],
 	headers: ["xpt2046.h"],
+	tests: ["test/xpt2046.c"],
 	requires: ["DEVICE", "SPI"],
 	device: { struct: "mp_drv_xpt2046_t", ops: "mp_drv_xpt2046_device" },
 	options: [

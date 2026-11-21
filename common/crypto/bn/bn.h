@@ -50,7 +50,8 @@
 	/**
 	 * Little-endian words: w[0] is the least significant.
 	 * n is the word count, at most MP_CRYPTO_BN_MAX. A result may not overlap its inputs
-	 * unless the call says so. The module keeps one scratch, so these are not reentrant.
+	 * unless the call says so. The module keeps one scratch. Every call runs under
+	 * mp_crypto_lock(); these functions do not take it. An interrupt must not enter.
 	 */
 
 	void mp_crypto_bn_zero(uint32_t *a, int n);
@@ -87,8 +88,10 @@
 	void mp_crypto_bn_add_mod(uint32_t *r, const uint32_t *a, const uint32_t *b, const uint32_t *m, int n);
 	/** a and b both reduced; r = (a - b) mod m */
 	void mp_crypto_bn_sub_mod(uint32_t *r, const uint32_t *a, const uint32_t *b, const uint32_t *m, int n);
-	/** a mod m, m fitting in 32 bits */
+	/** a mod m. m == 0 returns 0. The loop is n*32 steps and does not divide. */
 	uint32_t mp_crypto_bn_mod_u32(const uint32_t *a, int n, uint32_t m);
+	/** q = floor(a / m), n words, and may alias a; returns a mod m. Same loop, n <= MP_CRYPTO_BN_MAX * 2. */
+	uint32_t mp_crypto_bn_div_u32(uint32_t *q, const uint32_t *a, int n, uint32_t m);
 
 	/**
 	 * r = base^exp mod m, m odd, n words. exp has en words.
@@ -96,10 +99,6 @@
 	 * FALSE when m is even or a length is out of range; r is then unchanged.
 	 */
 	mp_ret_t mp_crypto_bn_modexp(uint32_t *r, const uint32_t *base, const uint32_t *exp, int en, const uint32_t *m, int n);
-	/**
-	 * r = a^{-1} mod m. FALSE when gcd(a, m) is not 1.
-	 */
-	mp_ret_t mp_crypto_bn_modinv(uint32_t *r, const uint32_t *a, const uint32_t *m, int n);
 
 	/**
 	 * Miller-Rabin. fill writes len random bytes; rounds witnesses are drawn from it.

@@ -383,15 +383,19 @@ static int load_priv(uint32_t d[W], const uint8_t priv[32]) {
 	return(1);
 }
 
-/**
- * @brief Key pair from 32 seed bytes
- *
- * The seed is the private scalar when it lies in 1..n-1. Otherwise it is
- * reduced mod n, and a seed that collapses to 0 is refused.
- *
- * @return FALSE when the seed is shorter than 32 bytes or reduces to 0
- */
-mp_ret_t mp_crypto_ecdsa_p256_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+static void _wipe(void) {
+	memset(_f, 0, sizeof(_f));
+	memset(&_R, 0, sizeof(_R));
+	memset(&_T, 0, sizeof(_T));
+	memset(&_Q, 0, sizeof(_Q));
+	memset(&_g_add, 0, sizeof(_g_add));
+	memset(&_g_dbl, 0, sizeof(_g_dbl));
+	memset(&_g_inf, 0, sizeof(_g_inf));
+	memset(&_g_q, 0, sizeof(_g_q));
+	mp_crypto_bn_clean();
+}
+
+static mp_ret_t _ecdsa_p256_keypair_locked(const void *seed, unsigned int seedlen, void *priv, void *pub) {
 	uint32_t d[W];
 
 	if(!seed || !priv || !pub || seedlen < MP_CRYPTO_ECDSA_P256_PRIV)
@@ -406,10 +410,27 @@ mp_ret_t mp_crypto_ecdsa_p256_keypair(const void *seed, unsigned int seedlen, vo
 	return(TRUE);
 }
 
+
 /**
- * @brief Public key, x then y, 32 bytes each
+ * @brief Key pair from 32 seed bytes
+ *
+ * The seed is the private scalar when it lies in 1..n-1. Otherwise it is
+ * reduced mod n, and a seed that collapses to 0 is refused.
+ *
+ * @return FALSE when the seed is shorter than 32 bytes or reduces to 0
  */
-void mp_crypto_ecdsa_p256_public(const void *priv, void *pub) {
+mp_ret_t mp_crypto_ecdsa_p256_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub) {
+	mp_crypto_lock_t key;
+	mp_ret_t ret;
+
+	key = mp_crypto_lock();
+	ret = _ecdsa_p256_keypair_locked(seed, seedlen, priv, pub);
+	_wipe();
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static void _ecdsa_p256_public_locked(const void *priv, void *pub) {
 	uint32_t d[W];
 	uint8_t k[32];
 	pt g, r;
@@ -429,12 +450,21 @@ void mp_crypto_ecdsa_p256_public(const void *priv, void *pub) {
 	memset(k, 0, sizeof(k));
 }
 
+
+
 /**
- * @brief Sign, r and s concatenated
- *
- * @return 64, or 0 when the private key is out of range
+ * @brief Public key, x then y, 32 bytes each
  */
-unsigned int mp_crypto_ecdsa_p256_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+void mp_crypto_ecdsa_p256_public(const void *priv, void *pub) {
+	mp_crypto_lock_t key;
+
+	key = mp_crypto_lock();
+	_ecdsa_p256_public_locked(priv, pub);
+	_wipe();
+	mp_crypto_unlock(key);
+}
+
+static unsigned int _ecdsa_p256_sign_locked(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
 	uint8_t digest[32], kbe[32];
 	uint32_t d[W], e[W], k[W], r[W], s[W];
 	pt g, point;
@@ -467,10 +497,25 @@ unsigned int mp_crypto_ecdsa_p256_sign(const void *priv, const void *msg, unsign
 	return(MP_CRYPTO_ECDSA_P256_SIG);
 }
 
+
+
 /**
- * @brief Check r||s against the public key x||y
+ * @brief Sign, r and s concatenated
+ *
+ * @return 64, or 0 when the private key is out of range
  */
-mp_bool_t mp_crypto_ecdsa_p256_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+unsigned int mp_crypto_ecdsa_p256_sign(const void *priv, const void *msg, unsigned int len, uint8_t *sig) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _ecdsa_p256_sign_locked(priv, msg, len, sig);
+	_wipe();
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static mp_bool_t _ecdsa_p256_verify_locked(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
 	const uint8_t *in = sig;
 	const uint8_t *pk = pub;
 	uint8_t digest[32];
@@ -517,21 +562,23 @@ mp_bool_t mp_crypto_ecdsa_p256_verify(const void *pub, const void *msg, unsigned
 	return(mp_crypto_bn_cmp(v, r, W) == 0 ? YES : NO);
 }
 
+
+
 /**
- * @brief Sign with a fuse slot
- *
- * A series that declares an ECDSA P-256 accelerator provides
- * mp_arch_ecdsa_p256_sign_fuse(). wrapped is the blob that arch defines.
- *
- * @param[in] fuse Slot of role MP_CRYPTO_FUSE_ECDSA_P256
- * @param[in] wrapped Blob the arch defines
- * @param[in] wrappedlen Byte length of wrapped
- * @param[in] msg Message
- * @param[in] len Message length
- * @param[out] sig 64 bytes
- * @return 64, or 0 when this series has no such accelerator
+ * @brief Check r||s against the public key x||y
  */
-unsigned int mp_crypto_ecdsa_p256_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+mp_bool_t mp_crypto_ecdsa_p256_verify(const void *pub, const void *msg, unsigned int len, const void *sig, unsigned int siglen) {
+	mp_crypto_lock_t key;
+	mp_bool_t ret;
+
+	key = mp_crypto_lock();
+	ret = _ecdsa_p256_verify_locked(pub, msg, len, sig, siglen);
+	_wipe();
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
+static unsigned int _ecdsa_p256_sign_fuse_locked(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
 	static mp_bool_t said;
 
 	if(!sig || (len && !msg))
@@ -560,6 +607,34 @@ unsigned int mp_crypto_ecdsa_p256_sign_fuse(const mp_crypto_fuse_t *fuse, const 
 	return(0);
 #endif
 }
+
+
+
+/**
+ * @brief Sign with a fuse slot
+ *
+ * A series that declares an ECDSA P-256 accelerator provides
+ * mp_arch_ecdsa_p256_sign_fuse(). wrapped is the blob that arch defines.
+ *
+ * @param[in] fuse Slot of role MP_CRYPTO_FUSE_ECDSA_P256
+ * @param[in] wrapped Blob the arch defines
+ * @param[in] wrappedlen Byte length of wrapped
+ * @param[in] msg Message
+ * @param[in] len Message length
+ * @param[out] sig 64 bytes
+ * @return 64, or 0 when this series has no such accelerator
+ */
+unsigned int mp_crypto_ecdsa_p256_sign_fuse(const mp_crypto_fuse_t *fuse, const void *wrapped, unsigned int wrappedlen, const void *msg, unsigned int len, uint8_t *sig) {
+	mp_crypto_lock_t key;
+	unsigned int ret;
+
+	key = mp_crypto_lock();
+	ret = _ecdsa_p256_sign_fuse_locked(fuse, wrapped, wrappedlen, msg, len, sig);
+	_wipe();
+	mp_crypto_unlock(key);
+	return(ret);
+}
+
 
 /**@}*/
 

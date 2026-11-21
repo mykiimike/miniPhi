@@ -15,7 +15,8 @@ export const phi = {
 	sources: ["rsa.c"],
 	headers: ["rsa.h"],
 	headerDir: "crypto",
-	requires: ["SHA256", "HMAC_DRBG", "BN"],
+	requires: ["SHA256", "HMAC_DRBG", "BN", "LOCK"],
+	tests: ["test/key.c", "test/sig3072.c", "test/sig4096.c"],
 	settings: [
 		{ name: "MP_CRYPTO_RSA_BITS", label: "Modulus", type: "number", unit: "bits", default: 3072, min: 3072, max: 4096 },
 	],

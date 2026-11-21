@@ -78,12 +78,12 @@
 
 	/**
 	 * FIPS 203 key pair from seed, which is 64 bytes: d then z.
-	 * FALSE when the seed is shorter.
+	 * FALSE when the seed is not 64 bytes.
 	 */
 	mp_ret_t mp_crypto_mlkem_keypair(const void *seed, unsigned int seedlen, void *priv, void *pub);
 	/**
 	 * Encapsulation. coins is the 32-byte message m.
-	 * Writes the shared secret and the ciphertext. Returns the ciphertext length, or 0.
+	 * Writes the shared secret and the ciphertext. Returns the ciphertext length, or 0 when coins is not 32 bytes.
 	 */
 	unsigned int mp_crypto_mlkem_encaps(const void *pub, const void *coins, unsigned int coinslen, uint8_t *ss, uint8_t *ct);
 	/**

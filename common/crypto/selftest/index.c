@@ -94,6 +94,30 @@ static const mp_crypto_selftest_t _table[] = {
 #if defined(MP_CRYPTO_SELFTEST_RSAKEM) && defined(SUPPORT_COMMON_CRYPTO_KEM_RSAKEM) && defined(SUPPORT_COMMON_CRYPTO_SIGN_RSA)
 	{ "RSAKEM", "RSA-KEM", "kem", mp_crypto_selftest_rsakem },
 #endif
+#if defined(MP_CRYPTO_SELFTEST_SHA1) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA1) && defined(MP_ARCH_SHA1)
+	{ "SHA1HW", "SHA-1 hw/sw", "hash", mp_crypto_selftest_hw_sha1 },
+#endif
+#if defined(MP_CRYPTO_SELFTEST_SHA256) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA256) && defined(MP_ARCH_SHA256)
+	{ "SHA256HW", "SHA-256 hw/sw", "hash", mp_crypto_selftest_hw_sha256 },
+#endif
+#if defined(MP_CRYPTO_SELFTEST_SHA384) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA384) && defined(MP_ARCH_SHA384)
+	{ "SHA384HW", "SHA-384 hw/sw", "hash", mp_crypto_selftest_hw_sha384 },
+#endif
+#if defined(MP_CRYPTO_SELFTEST_SHA512) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA512) && defined(MP_ARCH_SHA512)
+	{ "SHA512HW", "SHA-512 hw/sw", "hash", mp_crypto_selftest_hw_sha512 },
+#endif
+#if defined(MP_CRYPTO_SELFTEST_BLAKE2S) && defined(SUPPORT_COMMON_CRYPTO_HASH_BLAKE2S) && defined(MP_ARCH_BLAKE2S)
+	{ "BLAKE2SHW", "BLAKE2s hw/sw", "hash", mp_crypto_selftest_hw_blake2s },
+#endif
+#if defined(MP_CRYPTO_SELFTEST_AES) && defined(SUPPORT_COMMON_CRYPTO_CIPHER_AES) && defined(MP_ARCH_AES)
+	{ "AESHW", "AES hw/sw", "cipher", mp_crypto_selftest_hw_aes },
+#endif
+#if defined(MP_CRYPTO_SELFTEST_XTS) && defined(SUPPORT_COMMON_CRYPTO_CIPHER_XTS) && defined(SUPPORT_COMMON_CRYPTO_CIPHER_AES) && defined(MP_ARCH_AES)
+	{ "XTSHW", "XTS hw/sw", "cipher", mp_crypto_selftest_hw_xts },
+#endif
+#if defined(MP_CRYPTO_SELFTEST_HMAC) && defined(SUPPORT_COMMON_CRYPTO_MAC_HMAC) && defined(SUPPORT_COMMON_CRYPTO_HASH_SHA256) && defined(MP_ARCH_HMAC)
+	{ "HMACHW", "HMAC hw/sw", "mac", mp_crypto_selftest_hw_hmac },
+#endif
 	{ NULL, NULL, NULL, NULL },
 };
 

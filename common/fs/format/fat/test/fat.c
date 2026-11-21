@@ -386,13 +386,13 @@ int main(void) {
 
 		expect(parts == 1 && found[0].type == 0x01 && found[0].first == 64 && found[0].count == 11, "the fat12 partition");
 		expect(mp_fs_fat_mount(&mbr, &found[0].block) == TRUE, "mount the partition block");
+		expect(mbr.start == 0 && mbr.kind == 12, "the volume is the partition");
+		expect(mp_fs_fat_open(&mbr, &file, "/SUB/NOTE.TXT") == TRUE, "absolute path on the partition");
+		expect(mp_fs_fat_read(&file, buf, 4) == 4 && memcmp(buf, "note", 4) == 0, "partition contents");
+		mp_fs_fat_close(&file);
+		mp_fs_fat_unmount(&mbr);
+		expect(mp_fs_fat_open(&mbr, &file, "SUB/NOTE.TXT") == FALSE, "unmounted volume");
 	}
-	expect(mbr.start == 0 && mbr.kind == 12, "the volume is the partition");
-	expect(mp_fs_fat_open(&mbr, &file, "/SUB/NOTE.TXT") == TRUE, "absolute path on the partition");
-	expect(mp_fs_fat_read(&file, buf, 4) == 4 && memcmp(buf, "note", 4) == 0, "partition contents");
-	mp_fs_fat_close(&file);
-	mp_fs_fat_unmount(&mbr);
-	expect(mp_fs_fat_open(&mbr, &file, "SUB/NOTE.TXT") == FALSE, "unmounted volume");
 
 	if(failed) {
 		fprintf(stderr, "%d failed\n", failed);
