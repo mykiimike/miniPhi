@@ -1,0 +1,27 @@
+export const phi = {
+	kind: "driver",
+	group: ["gnss", "clock"],
+	name: "VENUS638",
+	vendor: "SkyTraq",
+	label: "Venus638FLPx",
+	tested: true,
+	description: "GPS receiver on a UART, as on the SparkFun Venus breakout. The module streams NMEA. The driver keeps GGA and RMC, and speaks the SkyTraq binary protocol for its commands. One GNSS device publishes each fix, and one clock device the UTC time of a valid RMC. The baud rate the board names is the power-up one. When nothing comes at that rate, the driver tries 4800, 9600, 38400 and 115200. A rate of 4 Hz and more moves the link to 38400, 20 Hz to 115200. Settings go to the module SRAM: a power cycle brings back its defaults. The link keeps the MCU out of deep sleep while the module is heard.",
+	specs: {
+		bus: "UART",
+		protocol: "NMEA 0183, SkyTraq binary",
+		rate: "1 to 20 Hz",
+	},
+	define: "SUPPORT_DRV_VENUS638",
+	sources: ["venus638.c"],
+	headers: ["venus638.h"],
+	requires: ["DEVICE"],
+	device: { struct: "mp_drv_venus638_t", ops: "mp_drv_venus638_device" },
+	options: [
+		{ name: "model", label: "Model", type: "text", required: true },
+		{ name: "serial", label: "Serial", type: "text", required: true },
+		{ name: "gate", label: "UART", type: "gate", gateKind: "uart", required: true },
+		{ name: "txd", label: "TXD (to RX0)", type: "pin", required: true },
+		{ name: "rxd", label: "RXD (from TX0)", type: "pin", required: true },
+		{ name: "baudRate", label: "Power-up baud rate", type: "enum", values: ["4800", "9600", "38400", "115200"], default: "9600" },
+	],
+}

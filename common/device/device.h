@@ -93,6 +93,8 @@
 		MP_DEVICE_PHY,
 		/** address stem block. Face: mp_fs_block_t, one medium of sectors */
 		MP_DEVICE_BLOCK,
+		/** address stem gnss. Instance: mp_device_gnss_t, the last fix */
+		MP_DEVICE_GNSS,
 		/** not a class: the number of classes above, and the scan that visits every driver */
 		MP_DEVICE_CLASS_COUNT,
 		MP_DEVICE_ANY = MP_DEVICE_CLASS_COUNT
@@ -829,6 +831,96 @@
 	mp_ret_t mp_device_charge_read(mp_device_charge_t *charge, mp_device_charge_state_t *state);
 	/** "charging", "done" or "waiting". "" when state is none of them. */
 	const char *mp_device_charge_text(mp_device_charge_state_t state);
+
+	/**
+	 * A satellite receiver. The driver owns an mp_device_gnss_t, registers it
+	 * as the instance, and publishes each fix into it while a subscriber holds
+	 * the driver. A reader takes a coherent copy with mp_device_gnss_read.
+	 */
+	typedef struct mp_device_gnss_s mp_device_gnss_t;
+
+	/**
+	 * Which constellation the sentence names. NMEA talker: GP, GL, GA, GB,
+	 * GQ, GI, GN. NONE when the driver has not said.
+	 */
+	typedef enum {
+		MP_DEVICE_GNSS_SYSTEM_NONE = 0,
+		MP_DEVICE_GNSS_SYSTEM_GPS,
+		MP_DEVICE_GNSS_SYSTEM_GLONASS,
+		MP_DEVICE_GNSS_SYSTEM_GALILEO,
+		MP_DEVICE_GNSS_SYSTEM_BEIDOU,
+		MP_DEVICE_GNSS_SYSTEM_QZSS,
+		MP_DEVICE_GNSS_SYSTEM_NAVIC,
+		/** talker GN: more than one constellation in the fix */
+		MP_DEVICE_GNSS_SYSTEM_MIXED,
+	} mp_device_gnss_system_t;
+
+	/** Satellites named by one sky view. GSV carries at most a dozen for one constellation. */
+	#define MP_DEVICE_GNSS_SAT_MAX 12
+
+	typedef struct {
+		/** NMEA satellite id */
+		unsigned char id;
+		/** degrees above the horizon, 0xff when the sentence left it out */
+		unsigned char elevation;
+		/** degrees from true north, 0xffff when the sentence left it out */
+		unsigned short azimuth;
+		/** dBHz, 0xff when the sentence left it out */
+		unsigned char snr;
+		/** YES when this satellite is used in the fix */
+		unsigned char used;
+	} mp_device_gnss_sat_t;
+
+	struct mp_device_gnss_s {
+		/** NMEA GGA quality: 0 no fix, 1 fix, 2 differential, 6 estimated */
+		unsigned char quality;
+		/** satellites used in the fix */
+		unsigned char satellites;
+		/** mp_device_gnss_system_t, from the NMEA talker */
+		unsigned char system;
+		/** degrees x 10^7, north and east positive */
+		long latitude, longitude;
+		/** mm above mean sea level */
+		long altitude;
+		/** mm/s over ground */
+		unsigned long speed;
+		/** 1/100 degree from true north, 0 to 35999 */
+		unsigned short heading;
+		/** UTC of the fix */
+		unsigned char hour, minute, second;
+		/** 0 until a sentence gives a date */
+		unsigned short year;
+		unsigned char month, day;
+		/** horizontal dilution x 100, 0 when unknown */
+		unsigned short hdop;
+		/** satellites in view, and how many of those belong to the fix */
+		unsigned char viewed, usedCount;
+		mp_device_gnss_sat_t sat[MP_DEVICE_GNSS_SAT_MAX];
+		/** YES when quality is not 0 */
+		mp_bool_t fixed;
+		/** YES once a fix was published */
+		mp_bool_t valid;
+		/** clock ticks of the last publication */
+		unsigned long stamp;
+		void *user;
+	};
+
+	/** Subscribe and return the receiver. NULL when the device is gone. */
+	mp_device_gnss_t *mp_device_gnss(mp_device_registry_t *device, mp_device_subscribe_t *sub);
+	/** Publish one fix; interrupt safe, NULL ignored. user is kept. */
+	void mp_device_gnss_publish(mp_device_gnss_t *gnss, const mp_device_gnss_t *fix);
+	/**
+	 * Copy the last publication.
+	 * @return FALSE when nothing was published yet
+	 */
+	mp_ret_t mp_device_gnss_read(mp_device_gnss_t *gnss, mp_device_gnss_t *out);
+	/**
+	 * Constellation named by an NMEA sentence ("GPRMC" -> GPS).
+	 * NONE when the name is shorter than two letters or the talker is unknown.
+	 */
+	unsigned char mp_device_gnss_system(const char *name);
+	/** "GPS", "GLONASS", "Galileo", "BeiDou", "QZSS", "NavIC", "GNSS". "" for NONE. */
+	const char *mp_device_gnss_system_text(unsigned char system);
 
 	/**
 	 * An MP_DEVICE_PHY. One physical medium. RADIO tunes a carrier.

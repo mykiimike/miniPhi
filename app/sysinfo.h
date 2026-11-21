@@ -175,6 +175,8 @@ struct sysinfo_s {
 		mp_device_subscribe_t clockSub;
 		/** held while the charger view is on screen; that subscription runs the read */
 		mp_device_subscribe_t chargeSub;
+		/** held while the GNSS view is on screen; that subscription runs the read */
+		mp_device_subscribe_t gnssSub;
 		/** accelerometer view: the bubble, the axes, the companion temperature, the switch */
 		int accelReady;
 		/** camera view */
@@ -316,6 +318,10 @@ struct sysinfo_s {
 				mp_tui_gauge_t measureGauge;
 				mp_tui_label_t cameraState;
 				sysinfo_camera_view_t cameraPicture;
+				/** GNSS view: the summary card, then the satellites in view */
+				mp_tui_box_t gnssCard;
+				mp_tui_table_t gnssTable;
+				mp_tui_cell_t gnssCell[MP_DEVICE_GNSS_SAT_MAX][5];
 			};
 #endif
 		};

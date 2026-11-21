@@ -36,7 +36,7 @@ static const char *_sysinfo_dev_class_name[] = {
 	"Display", "Touch", "Accelerometer", "LED", "Camera",
 	"Temperature", "Gyroscope", "Magnetometer", "Voltage", "Current",
 	"CPU", "Button", "Barometer", "Altimeter", "Power",
-	"Humidity", "Illuminance", "Orientation", "Clock", "Charger", "Pixel", "PHY", "Block"
+	"Humidity", "Illuminance", "Orientation", "Clock", "Charger", "Pixel", "PHY", "Block", "GNSS"
 };
 
 typedef char _sysinfo_dev_class_ok[(sizeof(_sysinfo_dev_class_name) / sizeof(_sysinfo_dev_class_name[0]) == MP_DEVICE_CLASS_COUNT) ? 1 : -1];
@@ -200,6 +200,8 @@ static void _sysinfo_dev_classes(mp_tui_widget_t *page, void *user) {
 	int y;
 	int class;
 
+	/* a driver may register only when scanned; GNSS does */
+	mp_device_registry_scan(&sysinfo->kernel, MP_DEVICE_ANY);
 	y = 8;
 	for(class = 0; class < MP_DEVICE_CLASS_COUNT && slot < MP_CRYPTO_MAX; class++) {
 		char label[32];
@@ -467,6 +469,8 @@ static void _sysinfo_dev_view(mp_tui_widget_t *page, void *user) {
 		_sysinfo_dev_clock_build(page, sysinfo);
 	else if(sysinfo->screen.devClass == MP_DEVICE_CHARGER)
 		_sysinfo_dev_charge_build(page, sysinfo);
+	else if(sysinfo->screen.devClass == MP_DEVICE_GNSS)
+		_sysinfo_dev_gnss_build(page, sysinfo);
 	else if(mp_device_measure_class(sysinfo->screen.devClass) == YES) {
 		_sysinfo_dev_measure_build(page, sysinfo);
 		_sysinfo_dev_measure_refresh(sysinfo);
@@ -500,6 +504,8 @@ void _sysinfo_dev_refresh(sysinfo_t *sysinfo) {
 		_sysinfo_dev_clock_release(sysinfo);
 	if(_sysinfo_dev_charge_shown(sysinfo) == NO)
 		_sysinfo_dev_charge_release(sysinfo);
+	if(_sysinfo_dev_gnss_shown(sysinfo) == NO)
+		_sysinfo_dev_gnss_release(sysinfo);
 	_sysinfo_dev_camera_settle(sysinfo);
 	if(sysinfo->screen.devView < 0 || sysinfo->screen.tui.opened != sysinfo->screen.devView)
 		return;
@@ -509,6 +515,8 @@ void _sysinfo_dev_refresh(sysinfo_t *sysinfo) {
 		_sysinfo_dev_clock_refresh(sysinfo);
 	else if(sysinfo->screen.devClass == MP_DEVICE_CHARGER)
 		_sysinfo_dev_charge_refresh(sysinfo);
+	else if(sysinfo->screen.devClass == MP_DEVICE_GNSS)
+		_sysinfo_dev_gnss_refresh(sysinfo);
 	else if(sysinfo->screen.devClass != MP_DEVICE_CAMERA && mp_device_measure_class(sysinfo->screen.devClass) == YES)
 		_sysinfo_dev_measure_refresh(sysinfo);
 }

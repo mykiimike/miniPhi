@@ -4,7 +4,7 @@ export const phi = {
 	vendor: "Olimex",
 	label: "Olimex STM32-LCD",
 	tested: true,
-	description: "STM32F103ZE board, revision A, with mini USB, microSD, UEXT and a 20-pin JTAG header. The TFT is shown by the TUI. A 4-wire touch panel, an SMB380, a FLIR Lepton and an MCP73833 sit on the board. The Lepton MOSI stays unconnected. D1 to D4 are supply diodes. Flashed with the ARM-USB-OCD-H.",
+	description: "STM32F103ZE board, revision A, with mini USB, microSD, UEXT and a 20-pin JTAG header. The TFT is shown by the TUI. A 4-wire touch panel, an SMB380, a FLIR Lepton and an MCP73833 sit on the board. The Lepton MOSI stays unconnected. D1 to D4 are supply diodes. Flashed with the ARM-USB-OCD-H. A SparkFun Venus GPS (Venus638FLPx) sits on UEXT2: USART2 TX PA2 to RX0, RX PA3 to TX0, 3.3 V and GND.",
 	specs: {
 		crystal: "8 MHz",
 		lse: "32.768 kHz",
@@ -18,14 +18,14 @@ export const phi = {
 	requires: ["arm-usb-ocd-h"],
 	defines: [],
 	modules: ["SERIAL", "DEVICE", "RESISTIVE", "TUI", "KFLASH"],
-	drivers: ["ILI932X", "SMB380", "LEPTON", "MCP73833"],
+	drivers: ["ILI932X", "SMB380", "LEPTON", "VENUS638", "MCP73833"],
 	sources: ["touch.c"],
 	settings: {
 		/* 2560: the Lepton frame and the device records sit in BSS beside this pool */
 		MP_MEM_SIZE: 2560,
 		MP_MEM_CHUNK: 64,
-		/* one slot for the MCP73833 sample task, taken while its page is open */
-		MP_TASK_MAX: 13,
+		/* MCP73833 while its page is open, Venus638 for the UART receiver */
+		MP_TASK_MAX: 14,
 		MP_TUI_TEXT_MAX: 96,
 		/* USART1 shell. 100x40 and a 128-line log do not fit beside the TFT band and the Lepton frame in 64 KB. */
 		MP_TERM_UI_COLS: 80,
@@ -75,6 +75,11 @@ export const phi = {
 				i2cGate: "I2C1", sda: "pb7", scl: "pb6",
 				model: "lepton",
 			},
+		},
+		{
+			driver: "VENUS638",
+			name: "gnss",
+			options: { gate: "USART2", txd: "pa2", rxd: "pa3", baudRate: "9600", model: "venus638", serial: "uext2" },
 		},
 		{
 			driver: "MCP73833",

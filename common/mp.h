@@ -377,6 +377,9 @@
 	#ifdef SUPPORT_DRV_MCP73833
 		#include <mcp73833/mcp73833.h>
 	#endif
+	#ifdef SUPPORT_DRV_VENUS638
+		#include <venus638/venus638.h>
+	#endif
 	#ifdef SUPPORT_DRV_TOUCH_XPT2046
 		#include <xpt2046/xpt2046.h>
 	#endif
