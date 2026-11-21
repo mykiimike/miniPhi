@@ -28,6 +28,13 @@ if (san) {
 }
 
 const catalog = await loadCatalog(root)
+const broken = (catalog.problems || []).filter((problem) => problem.level === "error")
+if (broken.length) {
+	for (const problem of broken)
+		console.error(problem.text)
+	console.error(broken.length + " catalog error" + (broken.length === 1 ? "" : "s"))
+	process.exit(1)
+}
 const records = [
 	catalog.kernel,
 	...catalog.modules,
