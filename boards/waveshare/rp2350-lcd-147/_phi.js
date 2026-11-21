@@ -3,7 +3,7 @@ export const phi = {
 	name: "rp2350-lcd-147",
 	vendor: "Waveshare",
 	label: "Waveshare RP2350-LCD-1.47",
-	tested: false,
+	tested: true,
 	description: "RP2350-LCD-1.47-A. Cortex-M33 at 150 MHz, 16 MB W25Q128, USB Type-C. The console is the USB CDC on the USB-C connector. The 1.47 inch glass is an ST7789V3, 172x320, on GPIO16-21: DC, CS, SCK, MOSI, reset, backlight. GPIO22 is the WS2812, driven by PIO0 and registered as the pixel device. BOOT is the QSPI chip-select strap and RST is the RUN pin.",
 	specs: {
 		crystal: "12 MHz",

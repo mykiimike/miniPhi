@@ -4,7 +4,7 @@ export const phi = {
 	name: "XPT2046",
 	vendor: "XPTEK",
 	label: "XPT2046 touch",
-	tested: false,
+	tested: true,
 	description: "ADS7846-compatible 12-bit controller on a resistive sheet. The four plate wires stop at the chip and never reach the MCU. The driver opens its own SPI bus on SCK, MOSI and MISO and does not share the LCD bus. Chip select is active low, idle high, and owned by the driver. PENIRQ is active low and valid only while chip select is high; without that pin a press is decided from Z1. Conversions are differential, 12-bit, and the chip powers down between them so the pen interrupt can work. columns and rows are the panel axes before orientation. The raw window is a starting range, not a calibration of one glass. A minimum above its maximum mirrors that panel axis.",
 	define: "SUPPORT_DRV_TOUCH_XPT2046",
 	sources: ["xpt2046.c"],

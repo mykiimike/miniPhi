@@ -34,6 +34,7 @@ export const phi = {
 	name: "f4",
 	vendor: "STMicroelectronics",
 	label: "STM32F4",
+	tested: true,
 	description: "GPIO, EXTI, USART, SPI, I2C, the basic timers, ADC and the PLL clock. One pin set per gate, the reset alternate. Tasks are preemptive on one stack: PendSV sits under SysTick.",
 	schedulers: ["0", "1", "2"],
 	scheduler: "2",

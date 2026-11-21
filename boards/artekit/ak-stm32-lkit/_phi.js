@@ -3,6 +3,7 @@ export const phi = {
 	name: "ak-stm32-lkit",
 	vendor: "Artekit",
 	label: "Artekit AK-STM32-LKIT",
+	tested: true,
 	description: "STM32F103T8U6 in a 36-pin package, with no 32 kHz crystal. The console goes through the ST3232. The USB B connector is fitted and the port is not driven. D1 and D2 are the red LEDs and sink. The reset key is NRST. Flashed with the AK-LINK.",
 	specs: {
 		crystal: "8 MHz",

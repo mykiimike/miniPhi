@@ -4,7 +4,7 @@ export const phi = {
 	name: "ST7789",
 	vendor: "Sitronix",
 	label: "ST7789 TFT",
-	tested: false,
+	tested: true,
 	description: "ST7789 panel on SPI, 16-bit RGB565. The controller RAM is 240x320. glass names which panel sits in it, and two devices can name different ones. 172x320, the default, is centered with a 34 pixel offset on the short axis and needs color inversion. 240x320 fills the RAM, BGR unless order says rgb, inversion off. order auto keeps that glass default. The driver opens a shared mp_spi_bus_t on SCK and MOSI. DC, reset and chip select are GPIO. Chip select is active low. The backlight pin is a duty cycle when the arch can pulse that pin, and a GPIO otherwise. Active high. dma asks the bus for an engine and shifts a full row with it; it stays off unless the option is true. Opening the device clears the glass. The panel has no serial, so the serial is the MCU id.",
 	specs: {
 		bus: "SPI",

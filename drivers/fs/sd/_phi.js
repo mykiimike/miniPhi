@@ -3,7 +3,7 @@ export const phi = {
 	group: ["fs"],
 	name: "SD",
 	label: "SD card",
-	tested: false,
+	tested: true,
 	description: "SD card in SPI mode as block devices. The whole card is one MP_DEVICE_BLOCK, and each primary MBR partition is another. A protective MBR is left as the whole card. The socket is probed from open, from face, and from set when the value is not zero. Losing the card unregisters those blocks; the next successful probe registers them again. Pins are sck, mosi, miso and cs. cd is an optional active-low card detect with no pin on the ZLX TF slot.",
 	define: "SUPPORT_DRV_FS_SD",
 	sources: ["sd.c"],

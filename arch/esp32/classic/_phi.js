@@ -28,7 +28,7 @@ export const phi = {
 	name: "classic",
 	vendor: "Espressif",
 	label: "ESP32",
-	tested: false,
+	tested: true,
 	description: "Original ESP32, Xtensa LX6, two cores. HIGH runs the CPUs at 240 MHz from the 480 MHz PLL with APB at 80 MHz; the other levels run on the 40 MHz crystal with APB at 40 MHz. The PLL stays up once started. UARTs up to 250 kbaud are clocked from the 1 MHz REF_TICK, so the level can change under them; a faster UART stays on APB and pins the level. There is no SYSTIMER: TIMG0 timer 0 runs at 1 MHz and alarms at 1 kHz on a level-2 line of the PRO CPU, which keeps the tick count. Tasks are preemptive on one stack: FROM_CPU_0 uses the other level-2 line, so it cuts a background task and the tick runs when that handler returns. The scheduler releases the APP CPU onto its own stack. TIMG1 wakes it every tick and FROM_CPU_1 is its scheduler line. Wi-Fi and BLE are not in this port. I2C has no direct IO_MUX function; the gate pins are the conventional matrix pins.",
 	cpus: 2,
 	schedulers: ["0", "1", "2"],

@@ -4,7 +4,7 @@ export const phi = {
 	name: "rp2350",
 	vendor: "Raspberry Pi",
 	label: "RP2350",
-	tested: false,
+	tested: true,
 	description: "Cortex-M33 only, at 150 MHz from the 12 MHz crystal through PLL_SYS. PLL_USB supplies the 48 MHz USB clock, and the USB gate is a CDC console on the device controller. This is the RP2350A (QFN-60, GPIO0-29). QSPI flash is a dedicated boot pin group, not GPIO0-5. GPIO0-29 are pa0-pa29. Boot is the QSPI chip-select strap, not a GPIO, and reset is the RUN pin.",
 	schedulers: ["0", "1", "2"],
 	scheduler: "2",

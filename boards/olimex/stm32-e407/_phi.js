@@ -3,6 +3,7 @@ export const phi = {
 	name: "stm32-e407",
 	vendor: "Olimex",
 	label: "Olimex STM32-E407",
+	tested: true,
 	description: "STM32F407ZGT6 board with two USB OTG mini connectors, microSD, UEXT, Arduino headers and a 20-pin JTAG header. The green user LED is active low. The WKUP button is active high. UEXT I2C and SPI stay free. Flashed with the ARM-USB-OCD-H.",
 	specs: {
 		crystal: "12 MHz",

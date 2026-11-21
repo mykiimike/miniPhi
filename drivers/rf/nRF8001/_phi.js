@@ -4,6 +4,7 @@ export const phi = {
 	name: "NRF8001",
 	vendor: "Nordic Semiconductor",
 	label: "nRF8001",
+	tested: true,
 	description: "Bluetooth Low Energy controller.",
 	specs: {
 		bus: "SPI",

@@ -3,7 +3,7 @@ export const phi = {
 	name: "esp32-1",
 	vendor: "ZLX",
 	label: "ZLX-ESP32-1",
-	tested: false,
+	tested: true,
 	description: "ESP32-2432S0248R-PLUS, ESP32-D0WD-V3, 4 MB flash, 40 MHz crystal. USB-C is a CH340 on UART0, TX GPIO1 and RX GPIO3, not the USB Serial/JTAG console. The 2.8 inch glass is an ST7789, 240x320, RGB, inversion off, landscape. DC is GPIO2, CS GPIO15, SCK GPIO14, MOSI GPIO13, backlight GPIO21 active high. Reset is EN, not a GPIO. SCK and MOSI are SPI2. The XPT2046 is a second SPI bus: SCK GPIO25, MOSI GPIO32, MISO GPIO39, CS GPIO33, IRQ GPIO36. RGB is GPIO22, GPIO17 and GPIO16, on when low. GPIO6 to GPIO11 are the module flash. GPIO12 is the panel MISO and a flash-voltage strap. GPIO0 is BOOT, active low. GPIO34 is the battery divider, GPIO4 enables the amplifier high, GPIO26 is the audio PWM, and the TF card is SPI on GPIO18, GPIO19, GPIO23 and GPIO5.",
 	specs: {
 		crystal: "40 MHz",
